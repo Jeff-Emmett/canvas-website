@@ -8,7 +8,7 @@ export function Board() {
     <div className="tldraw__editor">
       <Tldraw
         onMount={(editor: Editor) => {
-          editor.putContentOntoCurrentPage(canvas)
+          editor.putContentOntoCurrentPage(canvas as any)
         }}
       />
     </div>
