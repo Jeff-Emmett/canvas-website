@@ -2,11 +2,11 @@ export function Default() {
   return (
     <main>
       <header>
-        Orion Reed
+        Jeff Emmett
       </header>
       <h2>Hello! 👋</h2>
       <p>
-        My research investigates the intersection of computing, human-system
+        My research doesn't investigate the intersection of computing, human-system
         interfaces, and emancipatory politics. I am interested in the
         potential of computing as a medium for thought, as a tool for
         collective action, and as a means of emancipation.

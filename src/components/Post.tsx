@@ -33,7 +33,7 @@ export function Post() {
   return (
     <main>
       <header>
-        <a href="/" style={{ textDecoration: 'none' }}>Orion Reed</a>
+        <a href="/" style={{ textDecoration: 'none' }}>Jeff Emmett</a>
       </header>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
         <h1>{post.data.title}</h1>
