@@ -11,6 +11,7 @@ import { createShapes } from "@/utils";
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { Contact } from "@/components/Contact";
 import { Post } from '@/components/Post';
+import { Board } from './components/Board';
 inject();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(<App />);
@@ -24,6 +25,7 @@ function App() {
 					<Route path="/" element={<Home />} />
 					<Route path="/card/contact" element={<Contact />} />
 					<Route path="/posts/:slug" element={<Post />} />
+					<Route path="/board/:slug" element={<Board />} />
 				</Routes>
 			</BrowserRouter>
 		</React.StrictMode>
