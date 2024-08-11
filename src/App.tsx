@@ -12,6 +12,8 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { Contact } from "@/components/Contact";
 import { Post } from '@/components/Post';
 import { Board } from './components/Board';
+import { Inbox } from './components/Inbox';
+import { Books } from './components/Books';
 inject();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(<App />);
@@ -19,16 +21,18 @@ ReactDOM.createRoot(document.getElementById("root")!).render(<App />);
 function App() {
 
 	return (
-		<React.StrictMode>
+		// <React.StrictMode>
 			<BrowserRouter>
 				<Routes>
 					<Route path="/" element={<Home />} />
 					<Route path="/card/contact" element={<Contact />} />
 					<Route path="/posts/:slug" element={<Post />} />
 					<Route path="/board/:slug" element={<Board />} />
+					<Route path="/inbox" element={<Inbox />} />
+					<Route path="/books" element={<Books />} />
 				</Routes>
 			</BrowserRouter>
-		</React.StrictMode>
+		// </React.StrictMode>
 	);
 };
 

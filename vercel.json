@@ -10,6 +10,14 @@
     {
       "source": "/board/(.*)",
       "destination": "/"
+    },
+    {
+      "source": "/inbox",
+      "destination": "/"
+    },
+    {
+      "source": "/books",
+      "destination": "/"
     }
   ]
 }
