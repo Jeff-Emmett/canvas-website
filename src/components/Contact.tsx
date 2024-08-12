@@ -13,6 +13,5 @@ export function Contact() {
       <p>Email: <a href="mailto:jeffemmett@gmail.com">jeffemmett@gmail.com</a></p>
       <p>GitHub: <a href="https://github.com/Jeff-Emmett">Jeff-Emmett</a></p>
     </main>
-
   );
 }
