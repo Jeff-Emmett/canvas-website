@@ -34,7 +34,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "1.4.1",
-		"@cloudflare/types": "^6.29.0",
+		"@cloudflare/types": "^6.29.1",
 		"@cloudflare/workers-types": "^4.20240821.1",
 		"@types/lodash.throttle": "^4",
 		"@types/react": "^18.2.15",
