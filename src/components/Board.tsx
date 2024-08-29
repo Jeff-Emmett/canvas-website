@@ -82,7 +82,7 @@ async function unfurlBookmarkUrl({ url }: { url: string }): Promise<TLBookmarkAs
 
 	try {
 		const response = await fetch(`${WORKER_URL}/unfurl?url=${encodeURIComponent(url)}`)
-		const data = await response.json()
+		const data = await response.json() as { description: string, image: string, favicon: string, title: string }
 
 		asset.props.description = data?.description ?? ''
 		asset.props.image = data?.image ?? ''
