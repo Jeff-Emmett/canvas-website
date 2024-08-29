@@ -1,4 +1,4 @@
-import { Geometry2d, Vec, VecLike } from "@tldraw/tldraw";
+import { Geometry2d, Vec, VecLike } from "tldraw";
 
 type ShapeTransform = {
 	x: number;

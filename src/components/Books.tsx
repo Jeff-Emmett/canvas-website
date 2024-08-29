@@ -1,5 +1,5 @@
 
-import { Editor, Tldraw } from "@tldraw/tldraw";
+import { Editor, Tldraw } from "tldraw";
 import { canvas } from "@/canvas01";
 
 export function Books() {

@@ -1,6 +1,6 @@
 import RAPIER from "@dimforge/rapier2d";
 import { CHARACTER, GRAVITY, MATERIAL, getFrictionFromColor, getGravityFromColor, getRestitutionFromColor, isRigidbody } from "./config";
-import { Editor, Geometry2d, TLDrawShape, TLGeoShape, TLGroupShape, TLShape, TLShapeId, VecLike } from "@tldraw/tldraw";
+import { Editor, Geometry2d, TLDrawShape, TLGeoShape, TLGroupShape, TLShape, TLShapeId, VecLike } from "tldraw";
 import { useEffect, useRef } from "react";
 import { centerToCorner, convertVerticesToFloat32Array, cornerToCenter, getDisplacement } from "./math";
 

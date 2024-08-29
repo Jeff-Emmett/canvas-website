@@ -1,4 +1,4 @@
-import { Editor, Tldraw, TLShape, TLUiComponents } from "@tldraw/tldraw";
+import { Editor, Tldraw, TLShape, TLUiComponents } from "tldraw";
 import { SimController } from "@/physics/PhysicsControls";
 import { HTMLShapeUtil } from "@/shapes/HTMLShapeUtil";
 

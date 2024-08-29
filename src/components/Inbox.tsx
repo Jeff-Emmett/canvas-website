@@ -1,4 +1,4 @@
-import { createShapeId, Editor, Tldraw, TLGeoShape, TLShapePartial } from "@tldraw/tldraw";
+import { createShapeId, Editor, Tldraw, TLGeoShape, TLShapePartial } from "tldraw";
 import { useEffect, useRef } from "react";
 
 export function Inbox() {
