@@ -1,19 +1,22 @@
 {
-	"name": "orionreed",
+	"name": "jeffemmett",
 	"version": "1.0.0",
-	"description": "Orion Reed's personal website",
+	"description": "Jeff Emmett's personal website",
 	"type": "module",
 	"scripts": {
-		"dev": "vite --host",
+		"dev": "concurrently --kill-others --names client,worker --prefix-colors blue,red yarn:dev:client yarn:dev:worker",
+		"dev:client": "vite",
+		"dev:worker": "wrangler dev",
 		"build": "tsc && vite build",
-		"preview": "tsc && vite build && vite preview"
+		"lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+		"preview": "vite preview"
 	},
 	"keywords": [],
 	"author": "Orion Reed",
 	"license": "ISC",
 	"dependencies": {
 		"@dimforge/rapier2d": "^0.11.2",
-		"@tldraw/tldraw": "2.0.2",
+		"@tldraw/sync": "^2.4.6",
 		"@types/markdown-it": "^14.1.1",
 		"@vercel/analytics": "^1.2.2",
 		"gray-matter": "^4.0.3",
@@ -21,7 +24,14 @@
 		"markdown-it-latex2img": "^0.0.6",
 		"react": "^18.2.0",
 		"react-dom": "^18.2.0",
-		"react-router-dom": "^6.22.3"
+		"react-router-dom": "^6.22.3",
+		"tldraw": "^2.4.6",
+		"@cloudflare/types": "^6.29.0",
+		"@tldraw/sync-core": "latest",
+		"@tldraw/tlschema": "latest",
+		"cloudflare-workers-unfurl": "^0.0.7",
+		"itty-router": "^5.0.17",
+		"lodash.throttle": "^4.1.1"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "1.4.1",
@@ -32,6 +42,15 @@
 		"vite": "^5.3.3",
 		"vite-plugin-static-copy": "^1.0.6",
 		"vite-plugin-top-level-await": "^1.3.1",
-		"vite-plugin-wasm": "^3.2.2"
+		"vite-plugin-wasm": "^3.2.2",
+		"wrangler": "^3.72.3",
+		"@types/lodash.throttle": "^4",
+		"@typescript-eslint/eslint-plugin": "^5.59.0",
+		"@typescript-eslint/parser": "^5.59.0",
+		"@vitejs/plugin-react-swc": "^3.6.0",
+		"concurrently": "^8.2.2",
+		"eslint": "^8.38.0",
+		"eslint-plugin-react-hooks": "^4.6.0",
+		"eslint-plugin-react-refresh": "^0.3.4"
 	}
 }

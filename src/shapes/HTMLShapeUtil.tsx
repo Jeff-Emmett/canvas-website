@@ -1,4 +1,4 @@
-import { Rectangle2d, resizeBox, TLBaseShape, TLOnBeforeUpdateHandler, TLOnResizeHandler } from '@tldraw/tldraw';
+import { Rectangle2d, resizeBox, TLBaseShape, TLOnBeforeUpdateHandler, TLOnResizeHandler } from 'tldraw';
 import { ShapeUtil } from 'tldraw'
 
 export type HTMLShape = TLBaseShape<'html', { w: number; h: number, html: string }>

@@ -1,5 +1,5 @@
 import { inject } from '@vercel/analytics';
-import "@tldraw/tldraw/tldraw.css";
+import "tldraw/tldraw.css";
 import "@/css/style.css"
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
@@ -27,7 +27,7 @@ function App() {
 					<Route path="/" element={<Home />} />
 					<Route path="/card/contact" element={<Contact />} />
 					<Route path="/posts/:slug" element={<Post />} />
-					<Route path="/board/:slug" element={<Board />} />
+					<Route path="/board" element={<Board />} />
 					<Route path="/inbox" element={<Inbox />} />
 					<Route path="/books" element={<Books />} />
 				</Routes>

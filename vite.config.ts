@@ -7,6 +7,10 @@ import { viteStaticCopy } from 'vite-plugin-static-copy';
 
 
 export default defineConfig({
+  define: {
+    'process.env.TLDRAW_WORKER_URL':
+      process.env.TLDRAW_WORKER_URL ?? '`http://${location.hostname}:5172`',
+  },
   plugins: [
     react(),
     wasm(),

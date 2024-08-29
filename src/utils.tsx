@@ -1,4 +1,4 @@
-import { createShapeId } from "@tldraw/tldraw";
+import { createShapeId } from "tldraw";
 
 export function createShapes(elementsInfo: any) {
   const shapes = elementsInfo.map((element: any) => ({

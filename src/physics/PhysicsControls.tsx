@@ -1,4 +1,4 @@
-import { Editor, TLUnknownShape, createShapeId, useEditor } from "@tldraw/tldraw";
+import { Editor, TLUnknownShape, createShapeId, useEditor } from "tldraw";
 import { useEffect, useState } from "react";
 import { usePhysicsSimulation } from "./simulation";
 
