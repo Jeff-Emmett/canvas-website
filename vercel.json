@@ -1,5 +1,5 @@
 {
-  "buildCommand": "yarn build --legacy-peer-deps",
+  "buildCommand": "yarn build",
   "framework": "vite",
   "outputDirectory": "dist",
   "rewrites": [
