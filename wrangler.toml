@@ -2,6 +2,9 @@ main = "worker/worker.ts"
 compatibility_date = "2024-07-01"
 name = "jeffemmett-canvas"
 
+[vars]
+TLDRAW_WORKER_URL = "https://jeffemmett-canvas.jeffemmett.workers.dev"
+
 [dev]
 port = 5172
 ip = "0.0.0.0"
