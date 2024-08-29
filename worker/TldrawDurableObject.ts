@@ -1,3 +1,5 @@
+/// <reference types="@cloudflare/workers-types" />
+
 import { RoomSnapshot, TLSocketRoom } from '@tldraw/sync-core'
 import {
 	TLRecord,
@@ -69,6 +71,7 @@ export class TldrawDurableObject {
 
 		// Create the websocket pair for the client
 		const { 0: clientWebSocket, 1: serverWebSocket } = new WebSocketPair()
+		// @ts-ignore
 		serverWebSocket.accept()
 
 		// load the room, or retrieve it if it's already loaded

@@ -2,15 +2,16 @@
 	"compilerOptions": {
 		"composite": true,
 		"skipLibCheck": true,
-		"lib": ["ES2020"],
-		"module": "ESNext",
+		"lib": ["ES2022"],
+		"module": "ES2022",
 		"moduleResolution": "bundler",
 		"allowSyntheticDefaultImports": true,
 		"types": ["@cloudflare/workers-types"],
 		"strict": true,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
-		"noFallthroughCasesInSwitch": true
+		"noFallthroughCasesInSwitch": true,
+		"target": "ES2022"
 	},
-	"include": ["worker"]
+	"include": ["worker/*.ts"]
 }

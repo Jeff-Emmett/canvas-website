@@ -9,7 +9,7 @@ export function Inbox() {
       const response = await fetch('https://jeffemmett-canvas.web.val.run', {
         method: 'GET',
       });
-      const messages = await response.json();
+      const messages = await response.json() as { id: string, from: string, subject: string, text: string }[];
 
       for (let i = 0; i < messages.length; i++) { 
         const message = messages[i];
