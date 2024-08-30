@@ -7,16 +7,20 @@ import {
 	Tldraw,
 	uniqueId,
 } from 'tldraw'
+import { useParams } from 'react-router-dom' // Add this import
 
 const WORKER_URL = `https://jeffemmett-canvas.jeffemmett.workers.dev`
 
-// In this example, the room ID is hard-coded. You can set this however you like though.
-const roomId = 'test-room'
-
 export function Board() {
+	// Extract the slug from the URL
+	const { slug } = useParams<{ slug: string }>()
+	
+	// Use the slug as the roomId, or fallback to 'default-room' if not provided
+	const roomId = slug || 'default-room'
+
 	// Create a store connected to multiplayer.
 	const store = useSync({
-		// We need to know the websocket's URI...
+		// Use the dynamic roomId in the URI
 		uri: `${WORKER_URL}/connect/${roomId}`,
 		// ...and how to handle static assets like images & videos
 		assets: multiplayerAssets,
