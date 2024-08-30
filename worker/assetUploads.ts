@@ -10,22 +10,27 @@ function getAssetObjectName(uploadId: string) {
 
 // when a user uploads an asset, we store it in the bucket. we only allow image and video assets.
 export async function handleAssetUpload(request: IRequest, env: Environment) {
-	const objectName = getAssetObjectName(request.params.uploadId)
+	try {
+		const objectName = getAssetObjectName(request.params.uploadId)
 
-	const contentType = request.headers.get('content-type') ?? ''
-	if (!contentType.startsWith('image/') && !contentType.startsWith('video/')) {
-		return error(400, 'Invalid content type')
+		const contentType = request.headers.get('content-type') ?? ''
+		if (!contentType.startsWith('image/') && !contentType.startsWith('video/')) {
+			return error(400, 'Invalid content type')
+		}
+
+		if (await env.TLDRAW_BUCKET.head(objectName)) {
+			return error(409, 'Upload already exists')
+		}
+
+		await env.TLDRAW_BUCKET.put(objectName, request.body, {
+			httpMetadata: request.headers,
+		})
+
+		return { ok: true }
+	} catch (error) {
+		console.error('Asset upload failed:', error);
+		return new Response(`Upload failed: ${(error as Error).message}`, { status: 500 });
 	}
-
-	if (await env.TLDRAW_BUCKET.head(objectName)) {
-		return error(409, 'Upload already exists')
-	}
-
-	await env.TLDRAW_BUCKET.put(objectName, request.body, {
-		httpMetadata: request.headers,
-	})
-
-	return { ok: true }
 }
 
 // when a user downloads an asset, we retrieve it from the bucket. we also cache the response for performance.
