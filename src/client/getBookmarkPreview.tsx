@@ -22,7 +22,7 @@ export async function getBookmarkPreview({ url }: { url: string }): Promise<TLAs
 		const response = await fetch(
 			`${process.env.TLDRAW_WORKER_URL}/unfurl?url=${encodeURIComponent(url)}`
 		)
-		const data = await response.json()
+		const data = await response.json() as {description: string, image: string, favicon: string, title: string}
 
 		// fill in our asset with whatever info we found
 		asset.props.description = data?.description ?? ''

@@ -10,10 +10,11 @@ import {
 import { AutoRouter, IRequest, error } from 'itty-router'
 import throttle from 'lodash.throttle'
 import { Environment } from './types'
+import { ChatBoxShape } from '@/shapes/ChatBoxShape'
 
 // add custom shapes and bindings here if needed:
-const schema = createTLSchema({
-	shapes: { ...defaultShapeSchemas },
+export const customSchema = createTLSchema({
+	shapes: { ...defaultShapeSchemas, chatBox: ChatBoxShape },
 	// bindings: { ...defaultBindingSchemas },
 })
 
@@ -101,7 +102,7 @@ export class TldrawDurableObject {
 				// create a new TLSocketRoom. This handles all the sync protocol & websocket connections.
 				// it's up to us to persist the room state to R2 when needed though.
 				return new TLSocketRoom<TLRecord, void>({
-					schema,
+					schema: customSchema,
 					initialSnapshot,
 					onDataChange: () => {
 						// and persist whenever the data in the room changes
