@@ -8,8 +8,15 @@ import {
 	uniqueId,
 } from 'tldraw'
 import { useParams } from 'react-router-dom' // Add this import
+import { ChatBoxTool } from '@/tools/ChatBoxTool'
+import { IChatBoxShape, ChatBoxShape } from '@/shapes/ChatBoxShape'
+import { multiplayerAssetStore } from '@/client/multiplayerAssetStore'
+import { customSchema } from '../../worker/TldrawDurableObject'
 
 const WORKER_URL = `https://jeffemmett-canvas.jeffemmett.workers.dev`
+
+const shapeUtils = [ChatBoxShape]
+const tools = [ChatBoxTool]
 
 export function Board() {
 	// Extract the slug from the URL
@@ -23,7 +30,9 @@ export function Board() {
 		// Use the dynamic roomId in the URI
 		uri: `${WORKER_URL}/connect/${roomId}`,
 		// ...and how to handle static assets like images & videos
-		assets: multiplayerAssets,
+		assets: multiplayerAssetStore,
+    shapeUtils: shapeUtils,
+    schema: customSchema
 	})
 
 	return (
@@ -31,41 +40,26 @@ export function Board() {
 			<Tldraw
 				// we can pass the connected store into the Tldraw component which will handle
 				// loading states & enable multiplayer UX like cursors & a presence menu
-				store={store}
+				store={store} 
+				shapeUtils={shapeUtils}
+				tools={tools}
 				onMount={(editor) => {
 					// when the editor is ready, we need to register out bookmark unfurling service
 					editor.registerExternalAssetHandler('url', unfurlBookmarkUrl)
+          editor.createShape<IChatBoxShape>({
+            type: 'chatBox',
+            x: 0,
+            y: 0,
+            props: {
+            w: 200,
+            h: 200,
+            roomId: roomId,
+          },
+          })
 				}}
 			/>
 		</div>
 	)
-}
-
-// How does our server handle assets like images and videos?
-const multiplayerAssets: TLAssetStore = {
-	// to upload an asset, we prefix it with a unique id, POST it to our worker, and return the URL
-	async upload(_asset, file) {
-		const id = uniqueId()
-
-		const objectName = `${id}-${file.name}`
-		const url = `${WORKER_URL}/uploads/${encodeURIComponent(objectName)}`
-
-		const response = await fetch(url, {
-			method: 'PUT',
-			body: file,
-		})
-
-		if (!response.ok) {
-			throw new Error(`Failed to upload asset: ${response.statusText}`)
-		}
-
-		return url
-	},
-	// to retrieve an asset, we can just use the same URL. you could customize this to add extra
-	// auth, or to serve optimized versions / sizes of the asset.
-	resolve(asset) {
-		return asset.props.src
-	},
 }
 
 // How does our server handle bookmark unfurling?
