@@ -10,7 +10,7 @@ import {
 import { useParams } from 'react-router-dom' // Add this import
 import { ChatBoxTool } from '@/tools/ChatBoxTool'
 import { IChatBoxShape, ChatBoxShape } from '@/shapes/ChatBoxShape'
-import { multiplayerAssetStore } from '@/client/multiplayerAssetStore'
+import { multiplayerAssetStore } from '../client/multiplayerAssetStore' // Adjusted path if necessary
 import { customSchema } from '../../worker/TldrawDurableObject'
 
 const WORKER_URL = `https://jeffemmett-canvas.jeffemmett.workers.dev`

@@ -40,7 +40,7 @@ interface Message {
 }
 
 // Add this new component after the ChatBoxShape class
-function ChatBox({ width, height }: { roomId: string, width: number, height: number }) {
+function ChatBox({ roomId, width, height }: { roomId: string, width: number, height: number }) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputMessage, setInputMessage] = useState("");
     const [username, setUsername] = useState("jeff");
@@ -55,12 +55,11 @@ function ChatBox({ width, height }: { roomId: string, width: number, height: num
             setUsername(newUsername);
             localStorage.setItem("chatUsername", newUsername);
         }
-        
-        fetchMessages();
-        const interval = setInterval(fetchMessages, 2000);
+        fetchMessages(roomId);
+        const interval = setInterval(() => fetchMessages(roomId), 2000);
 
         return () => clearInterval(interval);
-    }, []);
+    }, [roomId]);
 
     useEffect(() => {
         if (messagesEndRef.current) {
@@ -68,9 +67,9 @@ function ChatBox({ width, height }: { roomId: string, width: number, height: num
         }
     }, [messages]);
 
-    const fetchMessages = async () => {
+    const fetchMessages = async (roomId: string) => {
         try {
-            const response = await fetch("https://jeffemmett-realtimechatappwithpolling.web.val.run?action=getMessages");
+            const response = await fetch(`https://jeffemmett-realtimechatappwithpolling.web.val.run?action=getMessages&roomId=${roomId}`);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
@@ -81,12 +80,12 @@ function ChatBox({ width, height }: { roomId: string, width: number, height: num
         }
     };
 
-    const sendMessage = async (e: any) => {
+    const sendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!inputMessage.trim()) return;
-        await sendMessageToChat(username, inputMessage);
+        await sendMessageToChat(roomId, username, inputMessage);
         setInputMessage("");
-        fetchMessages();
+        fetchMessages(roomId);
     };
 
     return (
@@ -117,7 +116,7 @@ function ChatBox({ width, height }: { roomId: string, width: number, height: num
     );
 }
 
-async function sendMessageToChat(username: string, content: string): Promise<void> {
+async function sendMessageToChat(roomId: string, username: string, content: string): Promise<void> {
     const apiUrl = 'https://jeffemmett-realtimechatappwithpolling.web.val.run'; // Replace with your actual Val Town URL
   
     try {
@@ -128,6 +127,7 @@ async function sendMessageToChat(username: string, content: string): Promise<voi
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          roomId,
           username,
           content,
         }),
