@@ -12,6 +12,7 @@ import { ChatBoxTool } from '@/tools/ChatBoxTool'
 import { IChatBoxShape, ChatBoxShape } from '@/shapes/ChatBoxShape'
 import { multiplayerAssetStore } from '../client/multiplayerAssetStore' // Adjusted path if necessary
 import { customSchema } from '../../worker/TldrawDurableObject'
+import './ChatBoxStyles.css' // Add a CSS file for styles
 
 const WORKER_URL = `https://jeffemmett-canvas.jeffemmett.workers.dev`
 
@@ -60,6 +61,22 @@ export function Board() {
 			/>
 		</div>
 	)
+}
+
+// Assuming you have a message structure like this
+interface ChatMessage {
+    id: string;
+    text: string;
+    isUser: boolean; // New property to identify the sender
+}
+
+// Example rendering function for messages
+function renderMessage(message: ChatMessage) {
+    return (
+        <div className={message.isUser ? 'user-message' : 'other-message'}>
+            {message.text}
+        </div>
+    )
 }
 
 // How does our server handle bookmark unfurling?

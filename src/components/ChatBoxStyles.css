@@ -1,0 +1,59 @@
+/* General chatbox styles */
+.chatbox {
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    max-width: 400px; /* Adjust as needed */
+    margin: auto; /* Center on the page */
+}
+
+/* Message styles */
+.message {
+    padding: 8px;
+    margin: 5px 0;
+    border-radius: 5px;
+    word-wrap: break-word; /* Ensure long words break */
+}
+
+/* User message styles */
+.user-message {
+    background-color: #d1e7dd; /* Light green */
+    color: #0c5460; /* Darker text color for contrast */
+    align-self: flex-end; /* Align to the right */
+}
+
+/* Other message styles */
+.other-message {
+    background-color: #f8d7da; /* Light red */
+    color: #721c24; /* Darker text color for contrast */
+    align-self: flex-start; /* Align to the left */
+}
+
+/* Input area styles */
+.input-area {
+    display: flex;
+    margin-top: 10px;
+}
+
+.input-area input {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+.input-area button {
+    padding: 10px;
+    margin-left: 5px;
+    border: none;
+    background-color: #007bff; /* Bootstrap primary color */
+    color: white;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.input-area button:hover {
+    background-color: #0056b3; /* Darker shade on hover */
+}
