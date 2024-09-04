@@ -66,6 +66,9 @@ export class PhysicsWorld {
           this.createGroup(shape as TLGroupShape);
           break;
         // Add cases for any new shape types here
+        case "videoChat":
+          this.createShape (shape as TLGeoShape);
+          break;
       }
     }
   }

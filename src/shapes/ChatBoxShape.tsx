@@ -7,6 +7,7 @@ export type IChatBoxShape = TLBaseShape<
 		w: number
 		h: number
         roomId: string
+        userName: string
 	}
 >
 
@@ -18,6 +19,7 @@ export class ChatBoxShape extends BaseBoxShapeUtil<IChatBoxShape> {
             roomId: 'default-room',
             w: 100,
             h: 100,
+            userName: '',
         }
     }
 
@@ -27,7 +29,7 @@ export class ChatBoxShape extends BaseBoxShapeUtil<IChatBoxShape> {
 
     component(shape: IChatBoxShape) {
         return (
-            <ChatBox roomId={shape.props.roomId} width={shape.props.w} height={shape.props.h} />
+            <ChatBox roomId={shape.props.roomId} width={shape.props.w} height={shape.props.h} userName="" />
         )
     }
 }
@@ -39,11 +41,18 @@ interface Message {
     timestamp: Date;
 }
 
-// Add this new component after the ChatBoxShape class
-function ChatBox({ roomId, width, height }: { roomId: string, width: number, height: number }) {
+interface ChatBoxProps {
+    roomId: string;
+    width: number;
+    height: number;
+    userName: string; // Add this line
+}
+
+// Update the ChatBox component to accept userName
+export const ChatBox: React.FC<ChatBoxProps> = ({ roomId, width, height, userName }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputMessage, setInputMessage] = useState("");
-    const [username, setUsername] = useState("jeff");
+    const [username, setUsername] = useState(userName);
     const messagesEndRef = useRef(null);
 
     useEffect(() => {
