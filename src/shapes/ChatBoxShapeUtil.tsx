@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { BaseBoxShapeUtil, TLBaseBoxShape, TLBaseShape, TldrawBaseProps } from "tldraw";
+import { BaseBoxShapeUtil, TLBaseShape } from "tldraw";
 
 export type IChatBoxShape = TLBaseShape<
-	'chatBox',
+	'ChatBox',
 	{
 		w: number
 		h: number
@@ -12,7 +12,7 @@ export type IChatBoxShape = TLBaseShape<
 >
 
 export class ChatBoxShape extends BaseBoxShapeUtil<IChatBoxShape> {
-    static override type = 'chatBox'
+    static override type = 'ChatBox'
 
     getDefaultProps(): IChatBoxShape['props'] {
         return {
@@ -29,7 +29,7 @@ export class ChatBoxShape extends BaseBoxShapeUtil<IChatBoxShape> {
 
     component(shape: IChatBoxShape) {
         return (
-            <ChatBox roomId={shape.props.roomId} width={shape.props.w} height={shape.props.h} userName="" />
+            <ChatBox roomId={shape.props.roomId} w={shape.props.w} h={shape.props.h} userName="" />
         )
     }
 }
@@ -41,15 +41,11 @@ interface Message {
     timestamp: Date;
 }
 
-interface ChatBoxProps {
-    roomId: string;
-    width: number;
-    height: number;
-    userName: string; // Add this line
-}
+
+
 
 // Update the ChatBox component to accept userName
-export const ChatBox: React.FC<ChatBoxProps> = ({ roomId, width, height, userName }) => {
+export const ChatBox: React.FC<IChatBoxShape['props']> = ({ roomId, w, h, userName }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputMessage, setInputMessage] = useState("");
     const [username, setUsername] = useState(userName);
@@ -98,7 +94,7 @@ export const ChatBox: React.FC<ChatBoxProps> = ({ roomId, width, height, userNam
     };
 
     return (
-        <div className="chat-container" style={{ pointerEvents: 'all', width: `${width}px`, height: `${height}px`, overflow: 'auto' }}>
+        <div className="chat-container" style={{ pointerEvents: 'all', width: `${w}px`, height: `${h}px`, overflow: 'auto' }}>
             <div className="messages-container">
                 {messages.map((msg) => (
                     <div key={msg.id} className={`message ${msg.username === username ? 'own-message' : ''}`}>

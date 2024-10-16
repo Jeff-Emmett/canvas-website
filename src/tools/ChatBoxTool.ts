@@ -1,6 +1,7 @@
 import { BaseBoxShapeTool } from "tldraw";
 
 export class ChatBoxTool extends BaseBoxShapeTool {
-	shapeType = 'chatBox';
+    static override id = 'ChatBox'
+    shapeType = 'ChatBox';
     override initial = 'idle';
 }
