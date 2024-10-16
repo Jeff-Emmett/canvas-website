@@ -1,6 +1,6 @@
 import { Editor, Tldraw, TLShape, TLUiComponents } from "tldraw";
 import { SimController } from "@/physics/PhysicsControls";
-import { HTMLShapeUtil } from "@/shapes/HTMLShapeUtil";
+import { HTMLShapeUtil } from "@/utils/HTMLShapeUtil";
 
 const components: TLUiComponents = {
   HelpMenu: null,
