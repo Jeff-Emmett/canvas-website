@@ -58,6 +58,7 @@ export default function InteractiveShapeExample() {
 	return (
 		<div className="tldraw__editor">
 			<Tldraw
+
 				shapeUtils={customShapeUtils} // Use custom shape utils
 				tools={customTools} // Pass in the array of custom tool classes
 				overrides={uiOverrides}

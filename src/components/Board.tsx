@@ -23,7 +23,6 @@ const shapeUtils = [ChatBoxShape, VideoChatShape]
 const tools = [ChatBoxTool, VideoChatTool]; // Array of tools
 
 export function Board() {
-	console.warn("HELLO FROM BOARD")
 	const { slug } = useParams<{ slug: string }>(); // Ensure this is inside the Board component
 	const roomId = slug || 'default-room'; // Declare roomId here
 
