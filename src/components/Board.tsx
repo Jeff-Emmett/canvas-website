@@ -49,9 +49,9 @@ export function Board() {
 				overrides={uiOverrides}
 				components={components}
 				tools={tools}
-				onMount={(editor) => {
-					editor.registerExternalAssetHandler('url', unfurlBookmarkUrl)
-				}}
+			// onMount={(editor) => {
+			// editor.registerExternalAssetHandler('url', unfurlBookmarkUrl)
+			// }}
 			/>
 			{isChatBoxVisible && (
 				<div>
