@@ -12,7 +12,7 @@
 		"preview": "vite preview"
 	},
 	"keywords": [],
-	"author": "Orion Reed",
+	"author": "Jeff Emmett",
 	"license": "ISC",
 	"dependencies": {
 		"@dimforge/rapier2d": "^0.11.2",
