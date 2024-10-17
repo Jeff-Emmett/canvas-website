@@ -28,9 +28,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 	}
 
 	component(shape: IVideoChatShape) {
-		// Remove unused destructured props
-		// const [roomUrl, setRoomUrl] = useState(initialRoomUrl); // Use initialRoomUrl to avoid duplicate identifier
-		// const [roomUrl, setRoomUrl] = useState(roomId); // Use roomId instead
+		const [roomUrl, setRoomUrl] = useState(""); // Added roomUrl state
 		const [isInRoom, setIsInRoom] = useState(false);
 		const [error, setError] = useState("");
 		const [isLoading, setIsLoading] = useState(false);
@@ -41,13 +39,14 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 		}, []);
 
 		const joinRoom = async () => {
+			console.log("HI IM A CONSOLE TEST")
 			setError("");
 			setIsLoading(true);
 			try {
 				const response = await fetch('/api/get-or-create-room', { method: 'GET' });
 				const data: { roomUrl?: string; error?: string } = await response.json(); // Explicitly type 'data'
 				if (data.roomUrl) {
-					// setRoomUrl(data.roomUrl); // Remove this line
+					setRoomUrl(data.roomUrl); // Set the room URL
 					setIsInRoom(true);
 				} else {
 					setError(data.error || "Failed to join room. Please try again.");
@@ -61,18 +60,38 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 
 		const leaveRoom = () => {
 			setIsInRoom(false);
-			// setRoomUrl(""); // Remove this line
+			setRoomUrl(""); // Clear the room URL
 		};
 
 		return (
-			<div style={{ border: '5px solid red' }}>
-				{!isInRoom && ( // Show button if not in room
-					<button onClick={() => setIsInRoom(true)} className="bg-green-500 text-white px-4 py-2 rounded">
-						Join Video Chat
-					</button>
+			<div className="p-4" style={{ pointerEvents: 'all' }}>
+				<h1 className="text-2xl font-bold mb-4">Whereby Video Chat Room</h1>
+				{isLoading ? (
+					<p>Joining room...</p>
+				) : isInRoom ? (
+					<div className="mb-4">
+						<button onClick={leaveRoom} className="bg-red-500 text-white px-4 py-2 rounded mb-4">
+							Leave Room
+						</button>
+						<div className="aspect-w-16 aspect-h-9">
+							<iframe
+								src={`${roomUrl}?embed&iframeSource=val.town&background=off&logo=off&chat=off&screenshare=on&people=on`}
+								allow="camera; microphone; fullscreen; speaker; display-capture"
+								className="w-full h-full"
+							></iframe>
+						</div>
+					</div>
+				) : (
+					<div>
+						<button onClick={joinRoom} className="bg-blue-500 text-white px-4 py-2 rounded">
+							Join Room
+						</button>
+						{error && <p className="text-red-500 mt-2">{error}</p>}
+					</div>
 				)}
-				{/* Render Video Chat UI here when isInRoom is true */}
-				{isInRoom && <div>Video Chat UI goes here</div>}
+				<p className="mt-4 text-sm text-gray-600">
+					View source: <a href={import.meta.url.replace("esm.town", "val.town")} className="text-blue-500 hover:underline">Val Town</a>
+				</p>
 			</div>
 		);
 	}
