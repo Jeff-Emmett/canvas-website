@@ -2,81 +2,80 @@ import { useSync } from '@tldraw/sync'
 import {
 	AssetRecordType,
 	getHashForString,
-	TLAssetStore,
 	TLBookmarkAsset,
 	Tldraw,
-	uniqueId,
 } from 'tldraw'
-import { useParams } from 'react-router-dom' // Add this import
+import { useParams } from 'react-router-dom'
 import { ChatBoxTool } from '@/tools/ChatBoxTool'
-import { IChatBoxShape, ChatBoxShape } from '@/shapes/ChatBoxShape'
-import { multiplayerAssetStore } from '../client/multiplayerAssetStore' // Adjusted path if necessary
+import { ChatBoxShape } from '@/shapes/ChatBoxShapeUtil'
+import { VideoChatTool } from '@/tools/VideoChatTool'
+import { VideoChatShape } from '@/shapes/VideoChatShapeUtil'
+import { multiplayerAssetStore } from '../client/multiplayerAssetStore'
 import { customSchema } from '../../worker/TldrawDurableObject'
-import './ChatBoxStyles.css' // Add a CSS file for styles
+
+import React, { useState } from 'react';
+import { chatBox } from '@/shapes/ChatBoxShapeUtil';
+import { components, uiOverrides } from '@/ui-overrides'
 
 const WORKER_URL = `https://jeffemmett-canvas.jeffemmett.workers.dev`
 
-const shapeUtils = [ChatBoxShape]
-const tools = [ChatBoxTool]
+const shapeUtils = [ChatBoxShape, VideoChatShape]
+const tools = [ChatBoxTool, VideoChatTool]; // Array of tools
 
 export function Board() {
-	// Extract the slug from the URL
-	const { slug } = useParams<{ slug: string }>()
-	
-	// Use the slug as the roomId, or fallback to 'default-room' if not provided
-	const roomId = slug || 'default-room'
+	const { slug } = useParams<{ slug: string }>(); // Ensure this is inside the Board component
+	const roomId = slug || 'default-room'; // Declare roomId here
 
-	// Create a store connected to multiplayer.
 	const store = useSync({
-		// Use the dynamic roomId in the URI
 		uri: `${WORKER_URL}/connect/${roomId}`,
-		// ...and how to handle static assets like images & videos
 		assets: multiplayerAssetStore,
-    shapeUtils: shapeUtils,
-    schema: customSchema
-	})
+		shapeUtils: shapeUtils,
+		schema: customSchema,
+	});
+
+	const [isChatBoxVisible, setChatBoxVisible] = useState(false);
+	const [userName, setUserName] = useState('');
+	const [isVideoChatVisible, setVideoChatVisible] = useState(false); // Added state for video chat visibility
+
+	const handleNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+		setUserName(event.target.value);
+	};
 
 	return (
 		<div style={{ position: 'fixed', inset: 0 }}>
 			<Tldraw
-				// we can pass the connected store into the Tldraw component which will handle
-				// loading states & enable multiplayer UX like cursors & a presence menu
-				store={store} 
+				store={store}
 				shapeUtils={shapeUtils}
+				overrides={uiOverrides}
+				components={components}
 				tools={tools}
 				onMount={(editor) => {
-					// when the editor is ready, we need to register out bookmark unfurling service
 					editor.registerExternalAssetHandler('url', unfurlBookmarkUrl)
-          editor.createShape<IChatBoxShape>({
-            type: 'chatBox',
-            x: 0,
-            y: 0,
-            props: {
-            w: 200,
-            h: 200,
-            roomId: roomId,
-          },
-          })
 				}}
 			/>
+			{isChatBoxVisible && (
+				<div>
+					<input
+						type="text"
+						value={userName}
+						onChange={handleNameChange}
+						placeholder="Enter your name"
+					/>
+					<chatBox
+						userName={userName}
+						roomId={roomId} // Added roomId
+						w={200} // Set appropriate width
+						h={200} // Set appropriate height
+					/>
+				</div>
+			)}
+			{isVideoChatVisible && ( // Render the button to join video chat
+				<button onClick={() => setVideoChatVisible(false)} className="bg-green-500 text-white px-4 py-2 rounded">
+					Join Video Call
+				</button>
+			)}
 		</div>
 	)
-}
-
-// Assuming you have a message structure like this
-interface ChatMessage {
-    id: string;
-    text: string;
-    isUser: boolean; // New property to identify the sender
-}
-
-// Example rendering function for messages
-function renderMessage(message: ChatMessage) {
-    return (
-        <div className={message.isUser ? 'user-message' : 'other-message'}>
-            {message.text}
-        </div>
-    )
 }
 
 // How does our server handle bookmark unfurling?
