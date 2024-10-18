@@ -1,6 +1,8 @@
 import { BaseBoxShapeUtil, TLBaseShape } from "tldraw";
 import { useEffect, useState } from "react";
 
+const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/';
+
 export type IVideoChatShape = TLBaseShape<
 	'VideoChat',
 	{
@@ -35,18 +37,18 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 		console.log('This is your roomUrl 1:', shape.props.roomUrl);
 
 		if (shape.props.roomUrl !== null) {
-			return
+			return;
 		}
 
+		const expiryDate = new Date(Date.now() + 1000 * 24 * 60 * 60 * 1000);
 
-		const expiryDate = new Date(Date.now() + 1000 * 24 * 60 * 60 * 1000)
-
-		const response = await fetch('https://api.whereby.dev/v1/meetings', {
+		const response = await fetch(`${CORS_PROXY}https://api.whereby.dev/v1/meetings`, {
 			method: 'POST',
 			headers: {
-				// 'Access-Control-Allow-Origin': 'http://localhost:5173/',
+				// 'Access-Control-Allow-Origin': 'https://jeffemmett.com/',
 				'Authorization': `Bearer ${WHEREBY_API_KEY}`,
 				'Content-Type': 'application/json',
+				'X-Requested-With': 'XMLHttpRequest', // Required by some CORS proxies
 			},
 			body: JSON.stringify({
 				isLocked: false,
@@ -99,20 +101,16 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 		}, []);
 
 		const joinRoom = async () => {
-			//console.log("HI IM A CONSOLE TEST")
 			this.ensureRoomExists(shape);
 			setError("");
 			setIsLoading(true);
 			try {
-				// Generate a room name based on a default slug or any logic you prefer
-				// const roomNamePrefix = 'default-room'; // You can modify this logic as needed
-
-				// const response = await fetch('https://cors-anywhere.herokuapp.com/https://api.whereby.dev/v1/meetings', {
-				const response = await fetch('https://api.whereby.dev/v1/meetings', {
+				const response = await fetch(`${CORS_PROXY}https://api.whereby.dev/v1/meetings`, {
 					method: 'POST',
 					headers: {
 						'Authorization': `Bearer ${WHEREBY_API_KEY}`,
 						'Content-Type': 'application/json',
+						'X-Requested-With': 'XMLHttpRequest', // Required by some CORS proxies
 					},
 					body: JSON.stringify({
 						isLocked: false,
