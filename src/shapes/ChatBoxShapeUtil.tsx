@@ -2,17 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { BaseBoxShapeUtil, TLBaseShape } from "tldraw";
 
 export type IChatBoxShape = TLBaseShape<
-	'ChatBox',
-	{
-		w: number
-		h: number
+    'chatBox',
+    {
+        w: number
+        h: number
         roomId: string
         userName: string
-	}
+    }
 >
 
 export class ChatBoxShape extends BaseBoxShapeUtil<IChatBoxShape> {
-    static override type = 'ChatBox'
+    static override type = 'chatBox'
 
     getDefaultProps(): IChatBoxShape['props'] {
         return {
@@ -29,7 +29,7 @@ export class ChatBoxShape extends BaseBoxShapeUtil<IChatBoxShape> {
 
     component(shape: IChatBoxShape) {
         return (
-            <ChatBox roomId={shape.props.roomId} w={shape.props.w} h={shape.props.h} userName="" />
+            <chatBox roomId={shape.props.roomId} w={shape.props.w} h={shape.props.h} userName="" />
         )
     }
 }
@@ -44,8 +44,8 @@ interface Message {
 
 
 
-// Update the ChatBox component to accept userName
-export const ChatBox: React.FC<IChatBoxShape['props']> = ({ roomId, w, h, userName }) => {
+// Update the chatBox component to accept userName
+export const chatBox: React.FC<IChatBoxShape['props']> = ({ roomId, w, h, userName }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputMessage, setInputMessage] = useState("");
     const [username, setUsername] = useState(userName);
@@ -99,7 +99,7 @@ export const ChatBox: React.FC<IChatBoxShape['props']> = ({ roomId, w, h, userNa
                 {messages.map((msg) => (
                     <div key={msg.id} className={`message ${msg.username === username ? 'own-message' : ''}`}>
                         <div className="message-header">
-                            <strong>{msg.username}</strong> 
+                            <strong>{msg.username}</strong>
                             <span className="timestamp">{new Date(msg.timestamp).toLocaleTimeString()}</span>
                         </div>
                         <div className="message-content">{msg.content}</div>
@@ -115,7 +115,7 @@ export const ChatBox: React.FC<IChatBoxShape['props']> = ({ roomId, w, h, userNa
                     placeholder="Type a message..."
                     className="message-input"
                 />
-                <button type="submit" style={{ pointerEvents: 'all',}} onPointerDown={(e)=>e.stopPropagation()} className="send-button">Send</button>
+                <button type="submit" style={{ pointerEvents: 'all', }} onPointerDown={(e) => e.stopPropagation()} className="send-button">Send</button>
             </form>
         </div>
     );
@@ -123,24 +123,24 @@ export const ChatBox: React.FC<IChatBoxShape['props']> = ({ roomId, w, h, userNa
 
 async function sendMessageToChat(roomId: string, username: string, content: string): Promise<void> {
     const apiUrl = 'https://jeffemmett-realtimechatappwithpolling.web.val.run'; // Replace with your actual Val Town URL
-  
+
     try {
-      const response = await fetch(`${apiUrl}?action=sendMessage`, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          roomId,
-          username,
-          content,
-        }),
-      });
-  
-      const result = await response.text();
-      console.log('Message sent successfully:', result);
+        const response = await fetch(`${apiUrl}?action=sendMessage`, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                roomId,
+                username,
+                content,
+            }),
+        });
+
+        const result = await response.text();
+        console.log('Message sent successfully:', result);
     } catch (error) {
-      console.error('Error sending message:', error);
+        console.error('Error sending message:', error);
     }
-  }
+}

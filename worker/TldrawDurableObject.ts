@@ -15,7 +15,7 @@ import { VideoChatShape } from '@/shapes/VideoChatShapeUtil'
 
 // add custom shapes and bindings here if needed:
 export const customSchema = createTLSchema({
-	shapes: { ...defaultShapeSchemas, ChatBox: ChatBoxShape, VideoChat: VideoChatShape },
+	shapes: { ...defaultShapeSchemas, chatBox: ChatBoxShape, VideoChat: VideoChatShape },
 	// bindings: { ...defaultBindingSchemas },
 })
 
