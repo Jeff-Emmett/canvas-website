@@ -7,13 +7,13 @@ import {
 } from 'tldraw'
 import { useParams } from 'react-router-dom'
 import { ChatBoxTool } from '@/tools/ChatBoxTool'
-import { IChatBoxShape, ChatBoxShape } from '@/shapes/ChatBoxShapeUtil'
+import { ChatBoxShape } from '@/shapes/ChatBoxShapeUtil'
 import { VideoChatTool } from '@/tools/VideoChatTool'
-import { IVideoChatShape, VideoChatShape } from '@/shapes/VideoChatShapeUtil'
+import { VideoChatShape } from '@/shapes/VideoChatShapeUtil'
 import { multiplayerAssetStore } from '../client/multiplayerAssetStore'
 import { customSchema } from '../../worker/TldrawDurableObject'
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { ChatBox } from '@/shapes/ChatBoxShapeUtil';
 import { components, uiOverrides } from '@/ui-overrides'
 
