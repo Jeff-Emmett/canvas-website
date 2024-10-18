@@ -22,8 +22,8 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 	getDefaultProps(): IVideoChatShape['props'] {
 		return {
 			roomUrl: null,
-			w: 640,
-			h: 480,
+			w: 6400,
+			h: 4800,
 			userName: ''
 		};
 	}
