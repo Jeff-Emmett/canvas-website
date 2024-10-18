@@ -14,7 +14,7 @@ import { multiplayerAssetStore } from '../client/multiplayerAssetStore'
 import { customSchema } from '../../worker/TldrawDurableObject'
 
 import React, { useState } from 'react';
-import { chatBox } from '@/shapes/ChatBoxShapeUtil';
+import { ChatBox } from '@/shapes/ChatBoxShapeUtil';
 import { components, uiOverrides } from '@/ui-overrides'
 
 const WORKER_URL = `https://jeffemmett-canvas.jeffemmett.workers.dev`
@@ -61,7 +61,7 @@ export function Board() {
 						onChange={handleNameChange}
 						placeholder="Enter your name"
 					/>
-					<chatBox
+					<ChatBox
 						userName={userName}
 						roomId={roomId} // Added roomId
 						w={200} // Set appropriate width
