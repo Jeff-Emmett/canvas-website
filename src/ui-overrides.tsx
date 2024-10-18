@@ -19,13 +19,13 @@ export const uiOverrides: TLUiOverrides = {
 				editor.setCurrentTool('VideoChat')
 			},
 		}
-		tools.ChatBox = {
-			id: 'ChatBox',
+		tools.chatBox = {
+			id: 'chatBox',
 			icon: 'color',
 			label: 'Chat',
 			kbd: 'x',
 			onSelect: () => {
-				editor.setCurrentTool('ChatBox')
+				editor.setCurrentTool('chatBox')
 			},
 		}
 		return tools
@@ -35,12 +35,12 @@ export const uiOverrides: TLUiOverrides = {
 export const components: TLComponents = {
 	Toolbar: (props) => {
 		const tools = useTools()
-		const isChatBoxSelected = useIsToolSelected(tools['ChatBox'])
+		const isChatBoxSelected = useIsToolSelected(tools['chatBox'])
 		const isVideoSelected = useIsToolSelected(tools['VideoChat'])
 		return (
 			<DefaultToolbar {...props}>
 				<TldrawUiMenuItem {...tools['VideoChat']} isSelected={isVideoSelected} />
-				<TldrawUiMenuItem {...tools['ChatBox']} isSelected={isChatBoxSelected} />
+				<TldrawUiMenuItem {...tools['chatBox']} isSelected={isChatBoxSelected} />
 				<DefaultToolbarContent />
 			</DefaultToolbar>
 		)
