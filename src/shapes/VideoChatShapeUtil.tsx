@@ -6,17 +6,20 @@ export type IVideoChatShape = TLBaseShape<
 	{
 		w: number;
 		h: number;
-		roomUrl: string; // Changed from roomId to roomUrl for Whereby
+		roomUrl: string | null;
 		userName: string;
 	}
 >;
+
+const WHEREBY_API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmFwcGVhci5pbiIsImF1ZCI6Imh0dHBzOi8vYXBpLmFwcGVhci5pbi92MSIsImV4cCI6OTAwNzE5OTI1NDc0MDk5MSwiaWF0IjoxNzI5MTkzOTE3LCJvcmdhbml6YXRpb25JZCI6MjY2MDk5LCJqdGkiOiI0MzI0MmUxMC1kZmRjLTRhYmEtYjlhOS01ZjcwNTFlMTYwZjAifQ.RaxXpZKYl_dOWyoATQZrzyMR2XRh3fHf02mALQiuTTs'; // Replace with your actual API key
+const ROOM_PREFIX = 'test'
 
 export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 	static override type = 'VideoChat';
 
 	getDefaultProps(): IVideoChatShape['props'] {
 		return {
-			roomUrl: 'https://whereby.com/default-room', // Default Whereby room URL
+			roomUrl: null,
 			w: 640,
 			h: 480,
 			userName: ''
@@ -27,7 +30,64 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 		return <rect x={0} y={0} width={shape.props.w} height={shape.props.h} />;
 	}
 
-	component() {
+	async ensureRoomExists(shape: IVideoChatShape) {
+
+		console.log('This is your roomUrl 1:', shape.props.roomUrl);
+
+		if (shape.props.roomUrl !== null) {
+			return
+		}
+
+
+		const expiryDate = new Date(Date.now() + 1000 * 24 * 60 * 60 * 1000)
+
+		const response = await fetch('https://api.whereby.dev/v1/meetings', {
+			method: 'POST',
+			headers: {
+				// 'Access-Control-Allow-Origin': 'http://localhost:5173/',
+				'Authorization': `Bearer ${WHEREBY_API_KEY}`,
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({
+				isLocked: false,
+				roomNamePrefix: ROOM_PREFIX,
+				roomMode: 'normal',
+				endDate: expiryDate.toISOString(),
+				fields: ['hostRoomUrl'],
+			}),
+		}).catch((error) => {
+			console.error('Failed to create meeting:', error);
+			throw error;
+		});
+
+		console.log('This is your response:', response);
+
+		console.log('This is your roomUrl 2:', shape.props.roomUrl);
+
+		if (!response.ok) {
+			const errorData = await response.json();
+			console.error('Whereby API error:', errorData);
+			throw new Error(`Whereby API error: ${(errorData as any).message || 'Unknown error'}`);
+		}
+
+		const data = await response.json();
+		const roomUrl = (data as any).roomUrl;
+
+		console.log('This is your roomUrl 3:', roomUrl);
+
+		this.editor.updateShape<IVideoChatShape>({
+			id: shape.id,
+			type: 'VideoChat',
+			props: {
+				...shape.props,
+				roomUrl
+			}
+		})
+
+
+	}
+
+	component(shape: IVideoChatShape) {
 		const [roomUrl, setRoomUrl] = useState(""); // Added roomUrl state
 		const [isInRoom, setIsInRoom] = useState(false);
 		const [error, setError] = useState("");
@@ -39,26 +99,26 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 		}, []);
 
 		const joinRoom = async () => {
-			console.log("HI IM A CONSOLE TEST")
+			//console.log("HI IM A CONSOLE TEST")
+			this.ensureRoomExists(shape);
 			setError("");
 			setIsLoading(true);
 			try {
-				const apiKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmFwcGVhci5pbiIsImF1ZCI6Imh0dHBzOi8vYXBpLmFwcGVhci5pbi92MSIsImV4cCI6OTAwNzE5OTI1NDc0MDk5MSwiaWF0IjoxNzI5MTkzOTE3LCJvcmdhbml6YXRpb25JZCI6MjY2MDk5LCJqdGkiOiI0MzI0MmUxMC1kZmRjLTRhYmEtYjlhOS01ZjcwNTFlMTYwZjAifQ.RaxXpZKYl_dOWyoATQZrzyMR2XRh3fHf02mALQiuTTs'; // Replace with your actual API key
-				console.log(apiKey)
 				// Generate a room name based on a default slug or any logic you prefer
-				const roomNamePrefix = 'default-room'; // You can modify this logic as needed
+				// const roomNamePrefix = 'default-room'; // You can modify this logic as needed
 
-				const response = await fetch('https://cors-anywhere.herokuapp.com/https://api.whereby.dev/v1/meetings', {
+				// const response = await fetch('https://cors-anywhere.herokuapp.com/https://api.whereby.dev/v1/meetings', {
+				const response = await fetch('https://api.whereby.dev/v1/meetings', {
 					method: 'POST',
 					headers: {
-						'Authorization': `Bearer ${apiKey}`,
+						'Authorization': `Bearer ${WHEREBY_API_KEY}`,
 						'Content-Type': 'application/json',
 					},
 					body: JSON.stringify({
 						isLocked: false,
-						roomNamePrefix: roomNamePrefix,
+						roomNamePrefix: ROOM_PREFIX,
 						roomMode: 'normal',
-						endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
+						endDate: new Date(Date.now() + 1000 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
 						fields: ['hostRoomUrl'],
 					}),
 				});
@@ -83,6 +143,8 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 			setIsInRoom(false);
 			setRoomUrl(""); // Clear the room URL
 		};
+
+
 
 		return (
 			<div className="p-4" style={{ pointerEvents: 'all' }}>
