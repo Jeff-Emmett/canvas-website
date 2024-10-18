@@ -10,11 +10,12 @@ import {
 import { AutoRouter, IRequest, error } from 'itty-router'
 import throttle from 'lodash.throttle'
 import { Environment } from './types'
-import { ChatBoxShape } from '@/shapes/ChatBoxShape'
+import { ChatBoxShape } from '@/shapes/ChatBoxShapeUtil'
+import { VideoChatShape } from '@/shapes/VideoChatShapeUtil'
 
 // add custom shapes and bindings here if needed:
 export const customSchema = createTLSchema({
-	shapes: { ...defaultShapeSchemas, chatBox: ChatBoxShape },
+	shapes: { ...defaultShapeSchemas, chatBox: ChatBoxShape, VideoChat: VideoChatShape },
 	// bindings: { ...defaultBindingSchemas },
 })
 
