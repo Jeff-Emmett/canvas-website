@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { BaseBoxShapeUtil, TLBaseShape } from "tldraw";
 
 export type IChatBoxShape = TLBaseShape<
-    'chatBox',
+    'ChatBox',
     {
         w: number
         h: number
@@ -12,7 +12,7 @@ export type IChatBoxShape = TLBaseShape<
 >
 
 export class ChatBoxShape extends BaseBoxShapeUtil<IChatBoxShape> {
-    static override type = 'chatBox'
+    static override type = 'ChatBox'
 
     getDefaultProps(): IChatBoxShape['props'] {
         return {
@@ -29,7 +29,7 @@ export class ChatBoxShape extends BaseBoxShapeUtil<IChatBoxShape> {
 
     component(shape: IChatBoxShape) {
         return (
-            <chatBox roomId={shape.props.roomId} w={shape.props.w} h={shape.props.h} userName="" />
+            <ChatBox roomId={shape.props.roomId} w={shape.props.w} h={shape.props.h} userName="" />
         )
     }
 }
@@ -44,8 +44,8 @@ interface Message {
 
 
 
-// Update the chatBox component to accept userName
-export const chatBox: React.FC<IChatBoxShape['props']> = ({ roomId, w, h, userName }) => {
+// Update the ChatBox component to accept userName
+export const ChatBox: React.FC<IChatBoxShape['props']> = ({ roomId, w, h, userName }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputMessage, setInputMessage] = useState("");
     const [username, setUsername] = useState(userName);
