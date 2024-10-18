@@ -14,7 +14,7 @@ export type IVideoChatShape = TLBaseShape<
 >;
 
 const WHEREBY_API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmFwcGVhci5pbiIsImF1ZCI6Imh0dHBzOi8vYXBpLmFwcGVhci5pbi92MSIsImV4cCI6OTAwNzE5OTI1NDc0MDk5MSwiaWF0IjoxNzI5MTkzOTE3LCJvcmdhbml6YXRpb25JZCI6MjY2MDk5LCJqdGkiOiI0MzI0MmUxMC1kZmRjLTRhYmEtYjlhOS01ZjcwNTFlMTYwZjAifQ.RaxXpZKYl_dOWyoATQZrzyMR2XRh3fHf02mALQiuTTs'; // Replace with your actual API key
-const ROOM_PREFIX = 'test'
+// const ROOM_PREFIX = 'test'
 
 export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 	static override type = 'VideoChat';
@@ -52,7 +52,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 			},
 			body: JSON.stringify({
 				isLocked: false,
-				roomNamePrefix: ROOM_PREFIX,
+				// roomNamePrefix: ROOM_PREFIX,
 				roomMode: 'normal',
 				endDate: expiryDate.toISOString(),
 				fields: ['hostRoomUrl'],
@@ -114,7 +114,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 					},
 					body: JSON.stringify({
 						isLocked: false,
-						roomNamePrefix: ROOM_PREFIX,
+						// roomNamePrefix: ROOM_PREFIX,
 						roomMode: 'normal',
 						endDate: new Date(Date.now() + 1000 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
 						fields: ['hostRoomUrl'],
