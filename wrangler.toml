@@ -27,3 +27,6 @@ bucket_name = 'jeffemmett-canvas'
 preview_bucket_name = 'jeffemmett-canvas-preview'
 workers_dev = true
 logpush = true
+[observability]
+enabled = true
+head_sampling_rate = 1
