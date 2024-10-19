@@ -8,6 +8,7 @@ import {
 	useTools,
 } from 'tldraw'
 import { CustomMainMenu } from './components/CustomMainMenu'
+import { EmbedShape } from './shapes/EmbedShapeUtil'
 
 export const uiOverrides: TLUiOverrides = {
 	tools(editor, tools) {
@@ -29,6 +30,15 @@ export const uiOverrides: TLUiOverrides = {
 				editor.setCurrentTool('ChatBox')
 			},
 		}
+		tools.Embed = {
+			id: 'Embed',
+			icon: 'embed',
+			label: 'Embed',
+			kbd: 'e',
+			onSelect: () => {
+				editor.setCurrentTool('Embed')
+			},
+		}
 		return tools
 	},
 }
@@ -38,10 +48,12 @@ export const components: TLComponents = {
 		const tools = useTools()
 		const isChatBoxSelected = useIsToolSelected(tools['ChatBox'])
 		const isVideoSelected = useIsToolSelected(tools['VideoChat'])
+		const isEmbedSelected = useIsToolSelected(tools['Embed'])
 		return (
 			<DefaultToolbar {...props}>
 				<TldrawUiMenuItem {...tools['VideoChat']} isSelected={isVideoSelected} />
 				<TldrawUiMenuItem {...tools['ChatBox']} isSelected={isChatBoxSelected} />
+				<TldrawUiMenuItem {...tools['Embed']} isSelected={isEmbedSelected} />
 				<DefaultToolbarContent />
 			</DefaultToolbar>
 		)

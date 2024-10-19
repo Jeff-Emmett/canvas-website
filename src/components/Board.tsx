@@ -12,6 +12,8 @@ import { VideoChatTool } from '@/tools/VideoChatTool'
 import { VideoChatShape } from '@/shapes/VideoChatShapeUtil'
 import { multiplayerAssetStore } from '../client/multiplayerAssetStore'
 import { customSchema } from '../../worker/TldrawDurableObject'
+import { EmbedShape } from '@/shapes/EmbedShapeUtil'
+import { EmbedTool } from '@/tools/EmbedTool'
 
 import React, { useState } from 'react';
 import { ChatBox } from '@/shapes/ChatBoxShapeUtil';
@@ -19,8 +21,8 @@ import { components, uiOverrides } from '@/ui-overrides'
 
 const WORKER_URL = `https://jeffemmett-canvas.jeffemmett.workers.dev`
 
-const shapeUtils = [ChatBoxShape, VideoChatShape]
-const tools = [ChatBoxTool, VideoChatTool]; // Array of tools
+const shapeUtils = [ChatBoxShape, VideoChatShape, EmbedShape]
+const tools = [ChatBoxTool, VideoChatTool, EmbedTool]; // Array of tools
 
 export function Board() {
 	const { slug } = useParams<{ slug: string }>(); // Ensure this is inside the Board component

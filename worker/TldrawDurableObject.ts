@@ -13,10 +13,16 @@ import throttle from 'lodash.throttle'
 import { Environment } from './types'
 import { ChatBoxShape } from '@/shapes/ChatBoxShapeUtil'
 import { VideoChatShape } from '@/shapes/VideoChatShapeUtil'
+import { EmbedShape } from '@/shapes/EmbedShapeUtil'
 
 // add custom shapes and bindings here if needed:
 export const customSchema = createTLSchema({
-	shapes: { ...defaultShapeSchemas, ChatBox: ChatBoxShape, VideoChat: VideoChatShape },
+	shapes: {
+		...defaultShapeSchemas,
+		ChatBox: ChatBoxShape,
+		VideoChat: VideoChatShape,
+		Embed: EmbedShape
+	},
 	// bindings: { ...defaultBindingSchemas },
 })
 
