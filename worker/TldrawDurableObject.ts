@@ -101,6 +101,8 @@ export class TldrawDurableObject {
 					? ((await roomFromBucket.json()) as RoomSnapshot)
 					: undefined
 				console.log("room data", roomFromBucket)
+				const serializedRoom = JSON.stringify(initialSnapshot, null, 2)
+				console.log("serialized room", serializedRoom)
 				// create a new TLSocketRoom. This handles all the sync protocol & websocket connections.
 				// it's up to us to persist the room state to R2 when needed though.
 				return new TLSocketRoom<TLRecord, void>({
