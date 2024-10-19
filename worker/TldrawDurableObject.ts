@@ -95,17 +95,15 @@ export class TldrawDurableObject {
 			this.roomPromise = (async () => {
 				// fetch the room from R2
 				const roomFromBucket = await this.r2.get(`rooms/${roomId}`)
-
+				console.log("we are in a room")
 				// if it doesn't exist, we'll just create a new empty room
 				const initialSnapshot = roomFromBucket
 					? ((await roomFromBucket.json()) as RoomSnapshot)
 					: undefined
 				if (initialSnapshot) {
-					for (const record of initialSnapshot?.documents) {
-						if (record.state.typeName === "chatBox") {
-							console.log("chatbox", record)
-						}
-					}
+					initialSnapshot?.documents.slice(0, 10).forEach(record => {
+						console.log("record", record)
+					})
 				}
 				// create a new TLSocketRoom. This handles all the sync protocol & websocket connections.
 				// it's up to us to persist the room state to R2 when needed though.
