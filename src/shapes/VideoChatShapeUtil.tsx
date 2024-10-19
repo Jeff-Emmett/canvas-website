@@ -131,10 +131,6 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 					<p>Joining room...</p>
 				) : isInRoom && shape.props.roomUrl && typeof window !== 'undefined' ? (
 					<div className="mb-4" style={{ width: '100%', height: '100%' }}>
-						{/* <button onClick={leaveRoom} className="bg-red-500 text-white px-4 py-2 rounded mb-4">
-							Leave Room
-						</button>
-						<div className="aspect-w-16 aspect-h-9"> */}
 						<whereby-embed
 							room={shape.props.roomUrl}
 							background="off"
@@ -144,7 +140,6 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 							people="on"
 							style={{ width: '100%', height: '100%', objectFit: 'cover' }}
 						></whereby-embed>
-						{/* </div> */}
 					</div>
 				) : (
 					<div>
