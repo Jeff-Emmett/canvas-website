@@ -142,7 +142,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 								chat="off"
 								screenshare="on"
 								people="on"
-								style={{ width: '100%', height: '100%' }}
+								style={{ width: '100%', height: '100%', objectFit: 'cover' }}
 							></whereby-embed>
 						</div>
 					</div>
