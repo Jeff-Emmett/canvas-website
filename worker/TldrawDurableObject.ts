@@ -36,6 +36,7 @@ export class TldrawDurableObject {
 		private readonly ctx: DurableObjectState,
 		env: Environment
 	) {
+		console.log("hello from durable object")
 		this.r2 = env.TLDRAW_BUCKET
 
 		ctx.blockConcurrencyWhile(async () => {
@@ -99,7 +100,7 @@ export class TldrawDurableObject {
 				const initialSnapshot = roomFromBucket
 					? ((await roomFromBucket.json()) as RoomSnapshot)
 					: undefined
-
+				console.log("room data", roomFromBucket)
 				// create a new TLSocketRoom. This handles all the sync protocol & websocket connections.
 				// it's up to us to persist the room state to R2 when needed though.
 				return new TLSocketRoom<TLRecord, void>({
