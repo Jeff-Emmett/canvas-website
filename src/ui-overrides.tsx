@@ -7,6 +7,7 @@ import {
 	useIsToolSelected,
 	useTools,
 } from 'tldraw'
+import { CustomMainMenu } from './components/CustomMainMenu'
 
 export const uiOverrides: TLUiOverrides = {
 	tools(editor, tools) {
@@ -45,4 +46,5 @@ export const components: TLComponents = {
 			</DefaultToolbar>
 		)
 	},
+	MainMenu: CustomMainMenu,
 }
