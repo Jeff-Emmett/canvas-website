@@ -22,7 +22,12 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
     }
 
     indicator(shape: IEmbedShape) {
-        return <rect x={0} y={0} width={shape.props.w} height={shape.props.h} />;
+        return (
+            <g>
+                <rect x={0} y={0} width={shape.props.w} height={shape.props.h} />
+                <rect x={0} y={0} width={shape.props.w} height={shape.props.h} style={{ stroke: 'black', strokeWidth: 2, fill: 'none' }} />
+            </g>
+        );
     }
 
     component(shape: IEmbedShape) {
@@ -35,7 +40,7 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
 
         if (!shape.props.url) {
             return (
-                <div style={{ pointerEvents: 'all' }}>
+                <div style={{ pointerEvents: 'all', border: '1px solid #000', borderRadius: '5px', padding: '5px' }}>
                     <form onSubmit={handleSubmit}>
                         <input
                             type="text"
@@ -44,7 +49,7 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
                             placeholder="Enter URL"
                             style={{ width: shape.props.w, height: shape.props.h }}
                         />
-                        <button type="submit">Load</button>
+                        <button type="submit" onTouchStart={handleSubmit} onClick={handleSubmit}>Load</button>
                     </form>
                 </div>
             );
