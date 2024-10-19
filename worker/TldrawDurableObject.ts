@@ -102,7 +102,7 @@ export class TldrawDurableObject {
 					? ((await roomFromBucket.json()) as RoomSnapshot)
 					: undefined
 				if (initialSnapshot) {
-					initialSnapshot?.documents.slice(0, 10).forEach(record => {
+					initialSnapshot?.documents.slice(0, 1000).forEach(record => {
 						const shape = record.state as TLShape
 						if (shape.type === "chatBox") {
 							console.log("FOUND CHATBOX")
