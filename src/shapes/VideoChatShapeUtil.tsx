@@ -1,6 +1,5 @@
 import { BaseBoxShapeUtil, TLBaseShape } from "tldraw";
 import { useEffect, useState } from "react";
-import "@whereby.com/browser-sdk/embed";
 
 const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/';
 
@@ -91,13 +90,20 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 	}
 
 	component(shape: IVideoChatShape) {
-		// const [roomUrl, setRoomUrl] = useState(""); // Added roomUrl state
 		const [isInRoom, setIsInRoom] = useState(false);
 		const [error, setError] = useState("");
 		const [isLoading, setIsLoading] = useState(false);
 
 		useEffect(() => {
-			joinRoom();
+			// Load the Whereby SDK only in the browser
+			if (typeof window !== 'undefined') {
+				import("@whereby.com/browser-sdk/embed").then(() => {
+					joinRoom();
+				}).catch(err => {
+					console.error("Error loading Whereby SDK:", err);
+					setError("Failed to load video chat component.");
+				});
+			}
 		}, []);
 
 		const joinRoom = async () => {
@@ -123,7 +129,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 			<div className="p-4" style={{ pointerEvents: 'all', width: '100%', height: '100%' }}>
 				{isLoading ? (
 					<p>Joining room...</p>
-				) : isInRoom && shape.props.roomUrl ? (
+				) : isInRoom && shape.props.roomUrl && typeof window !== 'undefined' ? (
 					<div className="mb-4">
 						<button onClick={leaveRoom} className="bg-red-500 text-white px-4 py-2 rounded mb-4">
 							Leave Room
