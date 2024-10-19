@@ -3,6 +3,7 @@
 import { RoomSnapshot, TLSocketRoom } from '@tldraw/sync-core'
 import {
 	TLRecord,
+	TLShape,
 	createTLSchema,
 	// defaultBindingSchemas,
 	defaultShapeSchemas,
@@ -102,7 +103,11 @@ export class TldrawDurableObject {
 					: undefined
 				if (initialSnapshot) {
 					initialSnapshot?.documents.slice(0, 10).forEach(record => {
-						console.log("record", record)
+						const shape = record.state as TLShape
+						if (shape.type === "chatBox") {
+							console.log("FOUND CHATBOX")
+							console.log("record", record)
+						}
 					})
 				}
 				// create a new TLSocketRoom. This handles all the sync protocol & websocket connections.
