@@ -21,6 +21,7 @@
 		"@tldraw/tlschema": "^2.4.6",
 		"@types/markdown-it": "^14.1.1",
 		"@vercel/analytics": "^1.2.2",
+		"@whereby.com/browser-sdk": "^3.9.2",
 		"cloudflare-workers-unfurl": "^0.0.7",
 		"gray-matter": "^4.0.3",
 		"itty-router": "^5.0.17",
