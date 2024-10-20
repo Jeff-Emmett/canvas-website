@@ -29,7 +29,7 @@ export function Default() {
 
       <h2>Get in touch</h2>
       <p>
-        I am on Twitter <a href="https://twitter.com/OrionReedOne">@OrionReedOne</a>,
+        I am on Twitter <a href="https://twitter.com/jeffemmett">@jeffemmett</a>,
         Mastodon <a href="https://hci.social/@orion">@orion@hci.social</a> and GitHub <a href="https://github.com/orionreed">@orionreed</a>. You can also shoot me an email <a href="mailto:me@orionreed.com">me@orionreed.com</a>
       </p>
 

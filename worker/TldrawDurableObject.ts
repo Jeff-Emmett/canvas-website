@@ -43,7 +43,6 @@ export class TldrawDurableObject {
 		private readonly ctx: DurableObjectState,
 		env: Environment
 	) {
-		console.log("hello from durable object")
 		this.r2 = env.TLDRAW_BUCKET
 
 		ctx.blockConcurrencyWhile(async () => {

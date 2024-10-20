@@ -14,7 +14,6 @@ export type IVideoChatShape = TLBaseShape<
 >;
 
 const WHEREBY_API_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmFwcGVhci5pbiIsImF1ZCI6Imh0dHBzOi8vYXBpLmFwcGVhci5pbi92MSIsImV4cCI6OTAwNzE5OTI1NDc0MDk5MSwiaWF0IjoxNzI5MTkzOTE3LCJvcmdhbml6YXRpb25JZCI6MjY2MDk5LCJqdGkiOiI0MzI0MmUxMC1kZmRjLTRhYmEtYjlhOS01ZjcwNTFlMTYwZjAifQ.RaxXpZKYl_dOWyoATQZrzyMR2XRh3fHf02mALQiuTTs'; // Replace with your actual API key
-// const ROOM_PREFIX = 'test'
 
 export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 	static override type = 'VideoChat';
@@ -34,8 +33,6 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 
 	async ensureRoomExists(shape: IVideoChatShape) {
 
-		console.log('This is your roomUrl 1:', shape.props.roomUrl);
-
 		if (shape.props.roomUrl !== null) {
 			return;
 		}
@@ -45,14 +42,12 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 		const response = await fetch(`${CORS_PROXY}https://api.whereby.dev/v1/meetings`, {
 			method: 'POST',
 			headers: {
-				// 'Access-Control-Allow-Origin': 'https://jeffemmett.com/',
 				'Authorization': `Bearer ${WHEREBY_API_KEY}`,
 				'Content-Type': 'application/json',
 				'X-Requested-With': 'XMLHttpRequest', // Required by some CORS proxies
 			},
 			body: JSON.stringify({
 				isLocked: false,
-				// roomNamePrefix: ROOM_PREFIX,
 				roomMode: 'normal',
 				endDate: expiryDate.toISOString(),
 				fields: ['hostRoomUrl'],
@@ -61,10 +56,6 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 			console.error('Failed to create meeting:', error);
 			throw error;
 		});
-
-		console.log('This is your response:', response);
-
-		console.log('This is your roomUrl 2:', shape.props.roomUrl);
 
 		if (!response.ok) {
 			const errorData = await response.json();
@@ -85,8 +76,6 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 				roomUrl
 			}
 		})
-
-
 	}
 
 	component(shape: IVideoChatShape) {
@@ -107,7 +96,6 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 		}, []);
 
 		const joinRoom = async () => {
-			// this.ensureRoomExists(shape);
 			setError("");
 			setIsLoading(true);
 			try {
@@ -126,29 +114,53 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 		};
 
 		return (
-			<div className="p-4" style={{ pointerEvents: 'all', width: '100%', height: '100%' }}>
-				{isLoading ? (
-					<p>Joining room...</p>
-				) : isInRoom && shape.props.roomUrl && typeof window !== 'undefined' ? (
-					<div className="mb-4" style={{ width: '100%', height: '100%' }}>
-						<whereby-embed
-							room={shape.props.roomUrl}
-							background="off"
-							logo="off"
-							chat="off"
-							screenshare="on"
-							people="on"
-							style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-						></whereby-embed>
-					</div>
-				) : (
-					<div>
-						<button onClick={joinRoom} className="bg-blue-500 text-white px-4 py-2 rounded">
-							Join Room
-						</button>
-						{error && <p className="text-red-500 mt-2">{error}</p>}
-					</div>
-				)}
+			<div style={{
+				pointerEvents: 'all',
+				width: `${shape.props.w}px`,
+				height: `${shape.props.h}px`,
+				position: 'absolute',
+				top: '10px',
+				left: '10px',
+				zIndex: 9999,
+				padding: '15px', // Increased padding by 5px
+				margin: 0,
+				backgroundColor: '#F0F0F0', // Light gray background
+				boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)', // Added drop shadow
+				borderRadius: '4px', // Slight border radius for softer look
+			}}>
+				<div style={{
+					width: '100%',
+					height: '100%',
+					border: '1px solid #D3D3D3',
+					backgroundColor: '#FFFFFF',
+					display: 'flex',
+					justifyContent: 'center',
+					alignItems: 'center',
+					overflow: 'hidden',
+				}}>
+					{isLoading ? (
+						<p>Joining room...</p>
+					) : isInRoom && shape.props.roomUrl && typeof window !== 'undefined' ? (
+						<div className="mb-4" style={{ width: '100%', height: '100%', objectFit: 'contain' }}>
+							<whereby-embed
+								room={shape.props.roomUrl}
+								background="off"
+								logo="off"
+								chat="off"
+								screenshare="on"
+								people="on"
+								style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+							></whereby-embed>
+						</div>
+					) : (
+						<div>
+							<button onClick={joinRoom} className="bg-blue-500 text-white px-4 py-2 rounded">
+								Join Room
+							</button>
+							{error && <p className="text-red-500 mt-2">{error}</p>}
+						</div>
+					)}
+				</div>
 			</div>
 		);
 	}
