@@ -4,6 +4,8 @@ import {
 	getHashForString,
 	TLBookmarkAsset,
 	Tldraw,
+	TLUiMenuGroup,
+	TLUiOverrides,
 } from 'tldraw'
 import { useParams } from 'react-router-dom'
 import { ChatBoxTool } from '@/tools/ChatBoxTool'
@@ -43,16 +45,59 @@ export function Board() {
 		setUserName(event.target.value);
 	};
 
+	const customUiOverrides: TLUiOverrides = {
+		...uiOverrides,
+		contextMenu: (editor, contextMenuSchema, helpers) => {
+			const defaultContextMenu = uiOverrides.contextMenu ? uiOverrides.contextMenu(editor, contextMenuSchema, helpers) : contextMenuSchema
+
+			const newContextMenu: TLUiMenuGroup[] = [
+				...defaultContextMenu,
+				{
+					id: 'external-link',
+					type: 'group',
+					checkbox: false,
+					disabled: false,
+					readonlyOk: true,
+					children: [
+						{
+							id: 'add-external-link',
+							type: 'item',
+							readonlyOk: true,
+							label: 'Add External Link',
+							icon: 'link',
+							onSelect: () => {
+								const selectedShapes = editor.getSelectedShapes()
+								if (selectedShapes.length === 1) {
+									const shape = selectedShapes[0]
+									const externalUrl = `${window.location.origin}/board/${roomId}?shapeId=${shape.id}`
+									// Here you can implement the logic to copy the link to clipboard or show it to the user
+									console.log('External link:', externalUrl)
+									// For example, to copy to clipboard:
+									navigator.clipboard.writeText(externalUrl).then(() => {
+										editor.setToast({ id: 'external-link-copied', title: 'External link copied to clipboard' })
+									})
+								}
+							},
+						},
+					],
+				},
+			]
+
+			return newContextMenu
+		},
+	}
+
 	return (
 		<div style={{ position: 'fixed', inset: 0 }}>
 			<Tldraw
 				store={store}
 				shapeUtils={shapeUtils}
-				overrides={uiOverrides}
+				overrides={customUiOverrides}
 				components={components}
 				tools={tools}
 				onMount={(editor) => {
 					editor.registerExternalAssetHandler('url', unfurlBookmarkUrl)
+					editor.setCurrentTool('hand')
 				}}
 			/>
 			{isChatBoxVisible && (

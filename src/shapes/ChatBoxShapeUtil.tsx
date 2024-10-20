@@ -94,7 +94,7 @@ export const ChatBox: React.FC<IChatBoxShape['props']> = ({ roomId, w, h, userNa
     };
 
     return (
-        <div className="chat-container" style={{ pointerEvents: 'all', width: `${w}px`, height: `${h}px`, overflow: 'auto' }}>
+        <div className="chat-container" style={{ pointerEvents: 'all', width: `${w}px`, height: `${h}px`, overflow: 'auto', touchAction: 'auto' }}>
             <div className="messages-container">
                 {messages.map((msg) => (
                     <div key={msg.id} className={`message ${msg.username === username ? 'own-message' : ''}`}>
@@ -114,8 +114,17 @@ export const ChatBox: React.FC<IChatBoxShape['props']> = ({ roomId, w, h, userNa
                     onChange={(e) => setInputMessage(e.target.value)}
                     placeholder="Type a message..."
                     className="message-input"
+                    style={{ touchAction: 'manipulation' }}
                 />
-                <button type="submit" style={{ pointerEvents: 'all', }} onPointerDown={(e) => e.stopPropagation()} className="send-button">Send</button>
+                <button
+                    type="submit"
+                    style={{ pointerEvents: 'all', touchAction: 'manipulation' }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                    className="send-button"
+                >
+                    Send
+                </button>
             </form>
         </div>
     );
