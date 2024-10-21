@@ -4,33 +4,32 @@ export function Default() {
       <header>
         Jeff Emmett
       </header>
-      <h2>Hello! 👋</h2>
+      <h2>Hello! 👋🍄</h2>
       <p>
-        My research doesn't investigate the intersection of computing, human-system
-        interfaces, and emancipatory politics. I am interested in the
-        potential of computing as a medium for thought, as a tool for
-        collective action, and as a means of emancipation.
+        My research investigates the intersection of mycelium and emancipatory technologies.
+        I am interested in the potential of new convivial tooling as a medium for group
+        consensus building and collective action, in order to empower communities to address their own challenges.
       </p>
 
       <p>
         My current focus is basic research into the nature of digital
-        organisation, developing theoretical toolkits to improve shared
+        organisation, developing prototype toolkits to improve shared
         infrastructure, and applying this research to the design of new
         systems and protocols which support the self-organisation of knowledge
-        and computational artifacts.
+        and emergent response to local needs.
       </p>
 
       <h2>My work</h2>
       <p>
         Alongside my independent work I am a researcher at <a href="https://block.science/">Block Science</a> building{' '}
-        <i>knowledge organisation infrastructure</i> and an engineer-in-residence at <a href="https://tldraw.com">tldraw</a>. I am also part of the nascent <a href="https://libcomp.org/">Liberatory Computing</a>{' '}
+        <i>knowledge organisation infrastructure</i>. I am also part of the nascent <a href="https://libcomp.org/">Liberatory Computing</a>{' '}
         collective, occasional collaborator with <a href="https://economicspace.agency/">ECSA</a> and a co-organiser of the <a href="https://canvasprotocol.org/">OCWG</a>.
       </p>
 
       <h2>Get in touch</h2>
       <p>
         I am on Twitter <a href="https://twitter.com/jeffemmett">@jeffemmett</a>,
-        Mastodon <a href="https://hci.social/@orion">@orion@hci.social</a> and GitHub <a href="https://github.com/orionreed">@orionreed</a>. You can also shoot me an email <a href="mailto:me@orionreed.com">me@orionreed.com</a>
+        Mastodon <a href="https://social.coop/@jeffemmett">@jeffemmett@social.coop</a> and GitHub <a href="https://github.com/Jeff-Emmett">@Jeff-Emmett</a>.
       </p>
 
       <span className="dinkus">***</span>
@@ -48,25 +47,13 @@ export function Default() {
       <h2>Writing</h2>
       <ol reversed>
         <li><a
-          href="/posts/scoped-propagators">Scoped Propagators: A programming model for spatial canvases</a></li>
+          href="https://www.mycofi.art">Exploring MycoFi: Mycelial Design Patterns for Web3 & Beyond</a></li>
         <li><a
-          href="https://blog.block.science/objects-as-reference-toward-robust-first-principles-of-digital-organization/">Objects
-          as Reference: Toward Robust First Principles of Digital Organization</a></li>
-      </ol>
-      <h2>Things I made recently</h2>
-      <ol reversed>
+          href="https://www.frontiersin.org/journals/blockchain/articles/10.3389/fbloc.2021.578721/full">Challenges & Approaches to Scaling the Global Commons</a></li>
         <li><a
-          href="https://twitter.com/OrionReedOne/status/1772934478421188620">Tiny 3D HTML/DOM viewer (you can paste it into your console)</a>
-        </li>
+          href="https://allthingsdecent.substack.com/p/mycoeconomics-and-permaculture-currencies">From Monoculture to Permaculture Currencies: A Glimpse of the Myco-Economic Future</a></li>
         <li><a
-          href="https://twitter.com/OrionReedOne/status/1772271156373905465">DOM to canvas translation (it's that button in the top right of this page)</a>
-        </li>
-        <li><a
-          href="https://github.com/OrionReed/tldraw-graph-layout">Constraint-based graph layout in tldraw</a>
-        </li>
-        <li><a
-          href="https://github.com/OrionReed/tldraw-physics">Physics in tldraw</a>
-        </li>
+          href="https://medium.com/good-audience/rewriting-the-story-of-human-collaboration-c33a8a4cd5b8">Rewriting the Story of Human Collaboration</a></li>
       </ol>
     </main>
   );
