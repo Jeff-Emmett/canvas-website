@@ -37,12 +37,22 @@ export function Default() {
       <h2>Talks</h2>
       <ol reversed>
         <li><a
-          href="https://www.youtube.com/watch?v=csGNVaB83Rk">Spatial
-          Canvases: Towards an Integration Domain for HCI @ TfT Rocks 2024</a> (<a href="artifact/tft-rocks-integration-domain.pdf">slides</a>)
+          href="https://www.teamhuman.fm/episodes/238-jeff-emmett">MycoPunk Futures on Team Human with Douglas Rushkoff</a> (<a href="artifact/tft-rocks-integration-domain.pdf">slides</a>)
         </li>
         <li><a
-          href="https://www.youtube.com/watch?v=-q-kk-NMFbA">Knowledge Organisation Infrastructure Demo @ NPC
-          Denver</a></li>
+          href="https://www.youtube.com/watch?v=AFJFDajuCSg">Exploring MycoFi on the Greenpill Network with Kevin Owocki</a> (<a href="artifact/tft-rocks-integration-domain.pdf">slides</a>)
+        </li>
+        <li><a
+          href="https://youtu.be/9ad2EJhMbZ8">Re-imagining Human Value on the Telos Podcast with Rieki & Brandonfrom SEEDS</a> (<a href="artifact/tft-rocks-integration-domain.pdf">slides</a>)
+        </li>
+        <li><a
+          href="https://www.youtube.com/watch?v=i8qcg7FfpLM&t=1348s">Move Slow & Fix Things: Design Patterns from Nature</a> (<a href="artifact/tft-rocks-integration-domain.pdf">slides</a>)
+        </li>
+        <li><a
+          href="https://podcasters.spotify.com/pod/show/theownershipeconomy/episodes/Episode-009---Localized-Democracy-and-Public-Goods-with-Token-Engineering--with-Jeff-Emmett-of-The-Commons-Stack--BlockScience-Labs-e1ggkqo">Localized Democracy and Public Goods with Token Engineering on the Ownership Economy</a> (<a href="artifact/tft-rocks-integration-domain.pdf">slides</a>)
+        </li>
+        <li><a
+          href="https://youtu.be/kxcat-XBWas">A Discussion on Warm Data with Nora Bateson on Systems Innovation</a></li>
       </ol>
       <h2>Writing</h2>
       <ol reversed>
