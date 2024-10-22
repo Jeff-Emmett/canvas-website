@@ -8,7 +8,7 @@ export function Default() {
       <p>
         My research investigates the intersection of mycelium and emancipatory technologies.
         I am interested in the potential of new convivial tooling as a medium for group
-        consensus building and collective action, in order to empower communities to address their own challenges.
+        consensus building and collective action, in order to empower communities of practice to address their own challenges.
       </p>
 
       <p>
@@ -21,9 +21,7 @@ export function Default() {
 
       <h2>My work</h2>
       <p>
-        Alongside my independent work I am a researcher at <a href="https://block.science/">Block Science</a> building{' '}
-        <i>knowledge organisation infrastructure</i>. I am also part of the nascent <a href="https://libcomp.org/">Liberatory Computing</a>{' '}
-        collective, occasional collaborator with <a href="https://economicspace.agency/">ECSA</a> and a co-organiser of the <a href="https://canvasprotocol.org/">OCWG</a>.
+        Alongside my independent work, I am a researcher and engineering communicator at <a href="https://block.science/">Block Science</a>, an advisor to the Active Inference Lab, Commons Stack, and the Trusted Seed. I am also an occasional collaborator with <a href="https://economicspace.agency/">ECSA</a>.
       </p>
 
       <h2>Get in touch</h2>
