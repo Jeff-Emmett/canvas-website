@@ -98,6 +98,8 @@ function Home() {
 	const shapes = createShapes(elementsInfo)
 	const [isEditorMounted, setIsEditorMounted] = useState(false);
 
+	//console.log("THIS WORKS SO FAR")
+
 	useEffect(() => {
 		const handleEditorDidMount = () => {
 			setIsEditorMounted(true);
