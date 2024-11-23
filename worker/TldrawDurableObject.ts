@@ -11,9 +11,9 @@ import {
 import { AutoRouter, IRequest, error } from 'itty-router'
 import throttle from 'lodash.throttle'
 import { Environment } from './types'
-import { ChatBoxShape } from '@/shapes/ChatBoxShapeUtil'
-import { VideoChatShape } from '@/shapes/VideoChatShapeUtil'
-import { EmbedShape } from '@/shapes/EmbedShapeUtil'
+import { ChatBoxShape } from '../src/shapes/ChatBoxShapeUtil'
+import { VideoChatShape } from '../src/shapes/VideoChatShapeUtil'
+import { EmbedShape } from '../src/shapes/EmbedShapeUtil'
 
 // add custom shapes and bindings here if needed:
 export const customSchema = createTLSchema({
@@ -74,23 +74,25 @@ export class TldrawDurableObject {
 
 	// what happens when someone tries to connect to this room?
 	async handleConnect(request: IRequest): Promise<Response> {
-		// extract query params from request
 		const sessionId = request.query.sessionId as string
 		if (!sessionId) return error(400, 'Missing sessionId')
 
-		// Create the websocket pair for the client
-		const { 0: clientWebSocket, 1: serverWebSocket } = new WebSocketPair()
-		// @ts-ignore
-		serverWebSocket.accept()
+		const webSocketPair = new WebSocketPair()
+		const [client, server] = Object.values(webSocketPair)
 
-		// load the room, or retrieve it if it's already loaded
+		server.accept()
+
 		const room = await this.getRoom()
+		room.handleSocketConnect({ sessionId, socket: server })
 
-		// connect the client to the room
-		room.handleSocketConnect({ sessionId, socket: serverWebSocket })
-
-		// return the websocket connection to the client
-		return new Response(null, { status: 101, webSocket: clientWebSocket })
+		return new Response(null, {
+			status: 101,
+			webSocket: client,
+			headers: {
+				'Upgrade': 'websocket',
+				'Connection': 'Upgrade'
+			}
+		})
 	}
 
 	getRoom() {

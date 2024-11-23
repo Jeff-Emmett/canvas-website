@@ -1,42 +1,58 @@
 <!DOCTYPE html>
-<html>
-	<head>
-		<title>Jeff Emmett</title>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<link rel="icon" type="image/x-icon" href="/favicon.ico?v=4" />
-		<link rel="shortcut icon" type="image/x-icon" href="/favicon.ico?v=4" />
-		<link rel="preconnect" href="https://fonts.googleapis.com" />
-		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-		<link
-			href="https://fonts.googleapis.com/css2?family=Recursive:slnt,wght,CASL,CRSV,MONO@-15..0,300..1000,0..1,0..1,0..1&display=swap"
-			rel="stylesheet">
+<html lang="en">
 
-		<!-- Social Meta Tags -->
-		<meta name="description"
-			content="My research investigates the intersection of computing, human-system interfaces, and emancipatory politics. I am interested in the potential of computing as a medium for thought, as a tool for collective action, and as a means of emancipation.">
+<head>
+	<title>Jeff Emmett</title>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<link rel="icon" type="image/x-icon" href="/favicon.ico?v=4" />
+	<link rel="shortcut icon" type="image/x-icon" href="/favicon.ico?v=4" />
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+	<link
+		href="https://fonts.googleapis.com/css2?family=Recursive:slnt,wght,CASL,CRSV,MONO@-15..0,300..1000,0..1,0..1,0..1&display=swap"
+		rel="stylesheet">
 
-		<meta property="og:url" content="https://jeffemmett.com">
-		<meta property="og:type" content="website">
-		<meta property="og:title" content="Jeff Emmett">
-		<meta property="og:description"
-			content="My research doesn't investigate the intersection of computing, human-system interfaces, and emancipatory politics. I am interested in the potential of computing as a medium for thought, as a tool for collective action, and as a means of emancipation.">
-		<meta property="og:image" content="/website-embed.png">
+	<!-- Social Meta Tags -->
+	<meta name="description"
+		content="My research investigates the intersection of computing, human-system interfaces, and emancipatory politics. I am interested in the potential of computing as a medium for thought, as a tool for collective action, and as a means of emancipation.">
 
-		<meta name="twitter:card" content="summary_large_image">
-		<meta property="twitter:domain" content="jeffemmett.com">
-		<meta property="twitter:url" content="https://jeffemmett.com">
-		<meta name="twitter:title" content="Jeff Emmett">
-		<meta name="twitter:description"
-			content="My research doesn't investigate the intersection of computing, human-system interfaces, and emancipatory politics. I am interested in the potential of computing as a medium for thought, as a tool for collective action, and as a means of emancipation.">
-		<meta name="twitter:image" content="/website-embed.png">
+	<meta property="og:url" content="https://jeffemmett.com">
+	<meta property="og:type" content="website">
+	<meta property="og:title" content="Jeff Emmett">
+	<meta property="og:description"
+		content="My research doesn't investigate the intersection of computing, human-system interfaces, and emancipatory politics. I am interested in the potential of computing as a medium for thought, as a tool for collective action, and as a means of emancipation.">
+	<meta property="og:image" content="/website-embed.png">
 
-		<!-- Analytics -->
-		<script data-goatcounter="https://jeff.goatcounter.com/count"
-        async src="//gc.zgo.at/count.js"></script>
-	</head>
-	<body>
-		<div id="root"></div>
-		<script type="module" src="/src/App.tsx"></script>
-	</body>
+	<meta name="twitter:card" content="summary_large_image">
+	<meta property="twitter:domain" content="jeffemmett.com">
+	<meta property="twitter:url" content="https://jeffemmett.com">
+	<meta name="twitter:title" content="Jeff Emmett">
+	<meta name="twitter:description"
+		content="My research doesn't investigate the intersection of computing, human-system interfaces, and emancipatory politics. I am interested in the potential of computing as a medium for thought, as a tool for collective action, and as a means of emancipation.">
+	<meta name="twitter:image" content="/website-embed.png">
+
+	<!-- Analytics -->
+	<script data-goatcounter="https://jeff.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
+
+	<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+	<!-- Add CSP meta tag here, after other meta tags -->
+	<meta http-equiv="Content-Security-Policy" content="
+		default-src 'self';
+		script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://gc.zgo.at https://va.vercel-scripts.com https://apis.google.com https://www.google.com;
+		style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://accounts.google.com https://www.google.com;
+		frame-src 'self' https://docs.google.com https://accounts.google.com https://*.google.com https://drive.google.com;
+		connect-src 'self' http://localhost:5172 ws://localhost:5172 wss://localhost:5172 https://www.googleapis.com https://*.vercel-scripts.com wss://jeffemmett-canvas.jeffemmett.workers.dev https://jeffemmett-canvas.jeffemmett.workers.dev https://cdn.tldraw.com https://oauth2.googleapis.com https://www.google.com;
+		font-src 'self' data: https://fonts.gstatic.com https://cdn.tldraw.com;
+		img-src 'self' data: https: blob:;
+		worker-src 'self' blob:;
+	">
+</head>
+
+<body>
+	<div id="root"></div>
+	<script type="module" src="/src/App.tsx"></script>
+</body>
+
 </html>

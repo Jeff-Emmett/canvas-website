@@ -1,16 +1,16 @@
 import { inject } from '@vercel/analytics';
 import "tldraw/tldraw.css";
-import "@/css/style.css"
+import "./css/style.css"
 import { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
-import { Default } from "@/components/Default";
-import { Canvas } from "@/components/Canvas";
-import { Toggle } from "@/components/Toggle";
-import { useCanvas } from "@/hooks/useCanvas"
-import { createShapes } from "@/utils/utils";
+import { Default } from "./components/Default";
+import { Canvas } from "./components/Canvas";
+import { Toggle } from "./components/Toggle";
+import { useCanvas } from "./hooks/useCanvas"
+import { createShapes } from "./utils/utils";
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import { Contact } from "@/components/Contact";
-import { Post } from '@/components/Post';
+import { Contact } from "./components/Contact";
+import { Post } from "./components/Post";
 import { Board } from './components/Board';
 import { Inbox } from './components/Inbox';
 import { Books } from './components/Books';
@@ -26,6 +26,11 @@ import { ChatBoxShape } from './shapes/ChatBoxShapeUtil';
 import { VideoChatShape } from './shapes/VideoChatShapeUtil';
 import { ChatBoxTool } from './tools/ChatBoxTool';
 import { VideoChatTool } from './tools/VideoChatTool';
+import { GoogleAuthProvider } from './context/GoogleAuthContext';
+import EnvCheck from './test/EnvCheck';
+import { EmbedTest } from './test/EmbedTest';
+//import { Callback } from './components/callback';
+import AuthCallback from './pages/auth/callback';
 
 inject();
 
@@ -76,22 +81,24 @@ export default function InteractiveShapeExample() {
 ReactDOM.createRoot(document.getElementById("root")!).render(<App />);
 
 function App() {
-
 	return (
-		// <React.StrictMode>
-		<BrowserRouter>
-			<Routes>
-				<Route path="/" element={<Home />} />
-				<Route path="/card/contact" element={<Contact />} />
-				<Route path="/posts/:slug" element={<Post />} />
-				<Route path="/board/:slug" element={<Board />} />
-				<Route path="/inbox" element={<Inbox />} />
-				<Route path="/books" element={<Books />} />
-			</Routes>
-		</BrowserRouter>
-		// </React.StrictMode>
+		<GoogleAuthProvider>
+			<BrowserRouter>
+				<Routes>
+					<Route path="/" element={<Home />} />
+					<Route path="/card/contact" element={<Contact />} />
+					<Route path="/posts/:slug" element={<Post />} />
+					<Route path="/board/:slug" element={<Board />} />
+					<Route path="/inbox" element={<Inbox />} />
+					<Route path="/books" element={<Books />} />
+					<Route path="/test" element={<EnvCheck />} />
+					<Route path="/embed-test" element={<EmbedTest />} />
+					<Route path="/auth/callback" element={<AuthCallback />} />
+				</Routes>
+			</BrowserRouter>
+		</GoogleAuthProvider>
 	);
-};
+}
 
 function Home() {
 	const { isCanvasEnabled, elementsInfo } = useCanvas();

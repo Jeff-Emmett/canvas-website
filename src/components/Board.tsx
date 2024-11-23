@@ -14,12 +14,15 @@ import { multiplayerAssetStore } from '../client/multiplayerAssetStore'
 import { customSchema } from '../../worker/TldrawDurableObject'
 import { EmbedShape } from '@/shapes/EmbedShapeUtil'
 import { EmbedTool } from '@/tools/EmbedTool'
+import { useGoogleAuth } from '@/context/GoogleAuthContext';
 
 import React, { useState } from 'react';
 import { ChatBox } from '@/shapes/ChatBoxShapeUtil';
 import { components, uiOverrides } from '@/ui-overrides'
 
-const WORKER_URL = `https://jeffemmett-canvas.jeffemmett.workers.dev`
+const WORKER_URL = process.env.NODE_ENV === 'development'
+	? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.hostname}:5172`
+	: 'wss://jeffemmett-canvas.jeffemmett.workers.dev'
 
 const shapeUtils = [ChatBoxShape, VideoChatShape, EmbedShape]
 const tools = [ChatBoxTool, VideoChatTool, EmbedTool]; // Array of tools
@@ -38,6 +41,7 @@ export function Board() {
 	const [isChatBoxVisible, setChatBoxVisible] = useState(false);
 	const [userName, setUserName] = useState('');
 	const [isVideoChatVisible, setVideoChatVisible] = useState(false); // Added state for video chat visibility
+	const { isAuthenticated, user } = useGoogleAuth();
 
 	const handleNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
 		setUserName(event.target.value);
@@ -45,6 +49,29 @@ export function Board() {
 
 	return (
 		<div style={{ position: 'fixed', inset: 0 }}>
+			{isAuthenticated && user?.picture && (
+				<div style={{
+					position: 'fixed',
+					top: '10px',
+					right: '10px',
+					zIndex: 10000,
+					borderRadius: '50%',
+					overflow: 'hidden',
+					width: '32px',
+					height: '32px',
+					boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+				}}>
+					<img
+						src={user.picture}
+						alt="User Profile"
+						style={{
+							width: '100%',
+							height: '100%',
+							objectFit: 'cover'
+						}}
+					/>
+				</div>
+			)}
 			<Tldraw
 				store={store}
 				shapeUtils={shapeUtils}
