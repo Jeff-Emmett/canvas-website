@@ -1,6 +1,8 @@
 main = "worker/worker.ts"
 compatibility_date = "2024-07-01"
 name = "jeffemmett-canvas"
+account_id = "0e7b3338d5278ed1b148e6456b940913"
+zone_id = "45c200f8dc2a01852e41b9bb09eb7359"
 
 [vars]
 TLDRAW_WORKER_URL = "https://jeffemmett-canvas.jeffemmett.workers.dev"
@@ -8,6 +10,8 @@ TLDRAW_WORKER_URL = "https://jeffemmett-canvas.jeffemmett.workers.dev"
 [dev]
 port = 5172
 ip = "0.0.0.0"
+local_protocol = "http"
+upstream_protocol = "https"
 
 # Set up the durable object used for each tldraw room
 [durable_objects]
@@ -25,8 +29,6 @@ new_classes = ["TldrawDurableObject"]
 binding = 'TLDRAW_BUCKET'
 bucket_name = 'jeffemmett-canvas'
 preview_bucket_name = 'jeffemmett-canvas-preview'
-workers_dev = true
-logpush = true
 
 # wrangler.toml (wrangler v3.79.0^)
 [observability]
