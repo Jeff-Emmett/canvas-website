@@ -21,12 +21,31 @@ const securityHeaders = {
 // we're hosting the worker separately to the client. you should restrict this to your own domain.
 const { preflight, corsify } = cors({
 	origin: (origin) => {
-		const allowedOrigins = [
-			'http://localhost:5172',
-			'http://192.168.1.7:5172',
-			'https://jeffemmett.com'
+		if (!origin) return undefined
+
+		const allowedPatterns = [
+			// Localhost with any port
+			/^http:\/\/localhost:\d+$/,
+			// 127.0.0.1 with any port
+			/^http:\/\/127\.0\.0\.1:\d+$/,
+			// 192.168.*.* with any port
+			/^http:\/\/192\.168\.\d+\.\d+:\d+$/,
+			// 169.254.*.* with any port
+			/^http:\/\/169\.254\.\d+\.\d+:\d+$/,
+			// 10.*.*.* with any port
+			/^http:\/\/10\.\d+\.\d+\.\d+:\d+$/,
+			// Production domain
+			/^https:\/\/jeffemmett\.com$/
 		]
-		return allowedOrigins.includes(origin) ? origin : undefined
+
+		// Check if origin matches any of our patterns
+		const isAllowed = allowedPatterns.some(pattern =>
+			pattern instanceof RegExp
+				? pattern.test(origin)
+				: pattern === origin
+		)
+
+		return isAllowed ? origin : undefined
 	},
 	allowMethods: ['GET', 'POST', 'OPTIONS', 'UPGRADE'],
 	allowHeaders: [
