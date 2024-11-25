@@ -1,32 +1,38 @@
 import useLocalStorageState from 'use-local-storage-state';
 import GSet from 'crdts/src/G-Set';
 import { TLRecord } from 'tldraw';
+import { useRef, useCallback } from 'react';
 
 export function useGSetState(roomId: string) {
     const [localSet, setLocalSet] = useLocalStorageState<TLRecord[]>(`gset-${roomId}`, {
         defaultValue: []
     });
 
-    const gset = new GSet<TLRecord>();
-
-    // Initialize G-Set with local data
-    if (localSet && Array.isArray(localSet)) {
-        localSet.forEach(record => gset.add(record));
+    // Keep GSet instance in a ref to persist between renders
+    const gsetRef = useRef<GSet<TLRecord>>();
+    if (!gsetRef.current) {
+        gsetRef.current = new GSet<TLRecord>();
+        // Initialize G-Set with local data
+        if (localSet && Array.isArray(localSet)) {
+            localSet.forEach(record => gsetRef.current?.add(record));
+        }
     }
 
-    const addRecord = (record: TLRecord) => {
-        gset.add(record);
-        setLocalSet(Array.from(gset.values()));
-    };
+    const addRecord = useCallback((record: TLRecord) => {
+        if (!gsetRef.current) return;
+        gsetRef.current.add(record);
+        setLocalSet(Array.from(gsetRef.current.values()));
+    }, [setLocalSet]);
 
-    const merge = (remoteSet: Set<TLRecord>) => {
-        remoteSet.forEach(record => gset.add(record));
-        setLocalSet(Array.from(gset.values()));
-        return gset.values();
-    };
+    const merge = useCallback((remoteSet: Set<TLRecord>) => {
+        if (!gsetRef.current) return new Set<TLRecord>();
+        remoteSet.forEach(record => gsetRef.current?.add(record));
+        setLocalSet(Array.from(gsetRef.current.values()));
+        return gsetRef.current.values();
+    }, [setLocalSet]);
 
     return {
-        values: gset.values(),
+        values: gsetRef.current.values(),
         add: addRecord,
         merge,
         localSet

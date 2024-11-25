@@ -1,39 +1,25 @@
 import { useSync } from '@tldraw/sync'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { customSchema } from '../../worker/TldrawDurableObject'
 import { multiplayerAssetStore } from '../client/multiplayerAssetStore'
 import { useGSetState } from './useGSetState'
 import { useLocalStorageRoom } from './useLocalStorageRoom'
-import { RecordType, BaseRecord } from '@tldraw/store'
 import { TLRecord } from 'tldraw'
+import { WORKER_URL } from '../components/Board'
 
 export function usePersistentBoard(roomId: string) {
     const [isOnline, setIsOnline] = useState(navigator.onLine)
     const { store: localStore, records, setRecords } = useLocalStorageRoom(roomId)
     const { values, add, merge } = useGSetState(roomId)
-
-    const getWebSocketUrl = (baseUrl: string) => {
-        // Remove any trailing slashes
-        baseUrl = baseUrl.replace(/\/$/, '')
-
-        // Handle different protocols
-        if (baseUrl.startsWith('https://')) {
-            return baseUrl.replace('https://', 'wss://')
-        } else if (baseUrl.startsWith('http://')) {
-            return baseUrl.replace('http://', 'ws://')
-        }
-        return baseUrl
-    }
+    const initialSyncRef = useRef(false)
+    const mergeInProgressRef = useRef(false)
 
     const syncedStore = useSync({
-        uri: import.meta.env.TLDRAW_WORKER_URL
-            ? `${getWebSocketUrl(import.meta.env.TLDRAW_WORKER_URL)}/connect/${roomId}`
-            : `wss://jeffemmett-canvas.jeffemmett.workers.dev/connect/${roomId}`,
+        uri: `${WORKER_URL.replace('https://', 'wss://')}/connect/${roomId}`,
         schema: customSchema,
         assets: multiplayerAssetStore,
     })
 
-    // Handle online/offline status
     useEffect(() => {
         const handleOnline = () => setIsOnline(true)
         const handleOffline = () => setIsOnline(false)
@@ -47,40 +33,60 @@ export function usePersistentBoard(roomId: string) {
         }
     }, [])
 
-    // Handle online/offline synchronization
-    useEffect(() => {
-        if (isOnline && syncedStore?.store) {
-            // Sync server records to local
-            const serverRecords = Object.values(syncedStore.store.allRecords())
-            merge(new Set(serverRecords))
+    const mergeRecords = useCallback((records: Set<TLRecord>) => {
+        if (mergeInProgressRef.current || records.size === 0) return
 
-            // Set up store change listener
+        try {
+            mergeInProgressRef.current = true
+            merge(records)
+            if (!isOnline && localStore) {
+                setRecords(localStore.serialize())
+            }
+        } finally {
+            mergeInProgressRef.current = false
+        }
+    }, [isOnline, localStore, merge, setRecords])
+
+    useEffect(() => {
+        if (!syncedStore?.store || !localStore) return
+
+        if (isOnline && !initialSyncRef.current) {
+            initialSyncRef.current = true
+            const serverRecords = Object.values(syncedStore.store.allRecords())
+            if (serverRecords.length > 0) {
+                mergeRecords(new Set(serverRecords))
+            }
+
             const unsubscribe = syncedStore.store.listen((event) => {
                 if ('changes' in event) {
                     const changedRecords = Object.values(event.changes)
-                    merge(new Set(changedRecords))
-                    // Also update local storage
-                    setRecords(syncedStore.store.serialize())
+                    if (changedRecords.length > 0) {
+                        mergeRecords(new Set(changedRecords))
+                    }
                 }
             })
 
             return () => unsubscribe()
-        } else if (!isOnline && localStore) {
-            // When going offline, ensure we have the latest state in local storage
+        } else if (!isOnline) {
             const currentRecords = Object.values(localStore.allRecords())
-            merge(new Set(currentRecords))
+            if (currentRecords.length > 0) {
+                mergeRecords(new Set(currentRecords))
+            }
         }
-    }, [isOnline, syncedStore?.store, localStore])
+    }, [isOnline, syncedStore?.store, localStore, mergeRecords])
+
+    const addRecord = useCallback((record: TLRecord) => {
+        if (!record) return
+        add(record)
+        if (!isOnline && localStore) {
+            setRecords(localStore.serialize())
+        }
+    }, [add, isOnline, localStore, setRecords])
 
     return {
         store: isOnline ? syncedStore?.store : localStore,
         isOnline,
-        addRecord: (record: TLRecord) => {
-            add(record)
-            if (!isOnline) {
-                setRecords(localStore.serialize())
-            }
-        },
-        mergeRecords: merge
+        addRecord,
+        mergeRecords
     }
 } 
