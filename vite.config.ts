@@ -5,10 +5,9 @@ import wasm from "vite-plugin-wasm";
 import topLevelAwait from "vite-plugin-top-level-await";
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 
-
 export default defineConfig({
   define: {
-    'process.env.TLDRAW_WORKER_URL': JSON.stringify('https://jeffemmett-canvas.jeffemmett.workers.dev')
+    'process.env.TLDRAW_WORKER_URL': JSON.stringify(process.env.TLDRAW_WORKER_URL || 'https://jeffemmett-canvas.jeffemmett.workers.dev')
   },
   plugins: [
     react(),
@@ -24,6 +23,10 @@ export default defineConfig({
       ]
     })
   ],
+  server: {
+    host: '0.0.0.0',
+    port: 5173,
+  },
   build: {
     sourcemap: true,
   },

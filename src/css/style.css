@@ -30,9 +30,11 @@ main {
 h1 {
   font-size: 2rem;
 }
+
 h2 {
   font-size: 1.5rem;
 }
+
 h1,
 h2,
 h3,
@@ -54,7 +56,7 @@ i {
   font-variation-settings: "slnt" -15;
 }
 
-pre > code {
+pre>code {
   width: 100%;
   padding: 1em;
   display: block;
@@ -82,6 +84,7 @@ blockquote {
   margin-top: 1em;
   margin-bottom: 1em;
   border-radius: 4px;
+
   & p {
     font-variation-settings: "CASL" 1;
     margin: 0;
@@ -103,6 +106,7 @@ table {
   margin-bottom: 1em;
   font-variation-settings: "mono" 1;
   font-variation-settings: "casl" 0;
+
   th,
   td {
     padding: 0.5em;
@@ -121,9 +125,11 @@ table {
 
 a {
   font-variation-settings: "CASL" 0;
+
   &:hover {
     animation: casl-forward 0.2s ease forwards;
   }
+
   &:not(:hover) {
     /* text-decoration: none; */
     animation: casl-reverse 0.2s ease backwards;
@@ -136,18 +142,21 @@ a {
       "CASL" 0,
       "wght" 400;
   }
+
   to {
     font-variation-settings:
       "CASL" 1,
       "wght" 600;
   }
 }
+
 @keyframes casl-reverse {
   from {
     font-variation-settings:
       "CASL" 1,
       "wght" 600;
   }
+
   to {
     font-variation-settings:
       "CASL" 0,
@@ -172,6 +181,7 @@ ul {
   padding-left: 0;
   margin-top: 0;
   font-size: 1rem;
+
   & li::marker {
     color: rgba(0, 0, 0, 0.322);
   }
@@ -186,9 +196,11 @@ img {
   main {
     padding: 2em;
   }
+
   header {
     margin-bottom: 1em;
   }
+
   ol {
     list-style-position: inside;
   }
@@ -202,6 +214,7 @@ table:not(:has(+ p)) {
 p:has(+ ul) {
   margin-bottom: 0.5em;
 }
+
 p:has(+ ol) {
   margin-bottom: 0.5em;
 }
@@ -233,17 +246,21 @@ p:has(+ ol) {
   border: none;
   cursor: pointer;
   opacity: 0.25;
+
   &:hover {
     opacity: 1;
   }
+
   & img {
     width: 100%;
     height: 100%;
   }
 }
+
 #toggle-canvas {
   top: 10px;
 }
+
 #toggle-physics {
   top: 60px;
   display: none;
@@ -253,6 +270,7 @@ p:has(+ ol) {
   font-family: "Recursive";
   font-variation-settings: "MONO" 1;
   font-variation-settings: "CASL" 1;
+
   & h1,
   p,
   span,
@@ -265,6 +283,7 @@ p:has(+ ol) {
   & header {
     font-size: 1.5rem;
   }
+
   & p {
     font-size: 1.1rem;
   }
@@ -277,6 +296,7 @@ p:has(+ ol) {
 
 .canvas-mode {
   overflow: hidden;
+
   & #toggle-physics {
     display: block;
   }
@@ -287,6 +307,9 @@ p:has(+ ol) {
   position: fixed;
   inset: 0px;
   overflow: hidden;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .tl-background {
