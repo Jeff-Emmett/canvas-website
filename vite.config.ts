@@ -7,8 +7,7 @@ import { viteStaticCopy } from 'vite-plugin-static-copy';
 
 export default defineConfig({
   define: {
-    // Remove this since we're using VITE_ prefix
-    // 'process.env.TLDRAW_WORKER_URL': JSON.stringify(process.env.TLDRAW_WORKER_URL)
+    'import.meta.env.VITE_TLDRAW_WORKER_URL': JSON.stringify(process.env.VITE_TLDRAW_WORKER_URL || 'https://jeffemmett-canvas.jeffemmett.workers.dev')
   },
   envPrefix: ['VITE_'],
   plugins: [
