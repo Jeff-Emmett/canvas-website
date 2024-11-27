@@ -173,3 +173,11 @@ dist
 
 .wrangler/
 .*.md
+
+# Vercel
+.vercel/
+.dev.vars
+
+# Environment variables
+.env*
+!.env.example
