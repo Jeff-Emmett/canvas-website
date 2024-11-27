@@ -95,6 +95,7 @@ export function Board() {
 							onSelect: () => {
 								if (editor.getSelectedShapeIds().length > 0) {
 									zoomToSelection(editor);
+									editor.setCurrentTool('hand');
 								}
 							},
 							readonlyOk: true,
@@ -110,6 +111,7 @@ export function Board() {
 								url.searchParams.set('y', camera.y.toString());
 								url.searchParams.set('zoom', camera.z.toString());
 								navigator.clipboard.writeText(url.toString());
+								editor.setCurrentTool('hand');
 							},
 							readonlyOk: true,
 						},
@@ -119,6 +121,7 @@ export function Board() {
 							kbd: 'b',
 							onSelect: () => {
 								revertCamera();
+								editor.setCurrentTool('hand');
 							},
 							readonlyOk: true,
 						},

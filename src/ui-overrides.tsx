@@ -310,8 +310,9 @@ export const uiOverrides: TLUiOverrides = {
 			label: 'Revert Camera',
 			kbd: 'b',
 			onSelect: () => {
-				console.log('Reverting camera position');
-				revertCamera(editor);
+				if (cameraHistory.length > 0) {
+					revertCamera(editor);
+				}
 			},
 			readonlyOk: true,
 		}
@@ -387,8 +388,11 @@ export const components: TLComponents = {
 					label="Revert Camera"
 					icon="undo"
 					kbd="b"
-					disabled={!hasCameraHistory}
-					onSelect={() => revertCamera(editor)}
+					onSelect={() => {
+						if (hasCameraHistory) {
+							revertCamera(editor);
+						}
+					}}
 				/>
 
 				{/* Shape Creation Tools */}
@@ -419,25 +423,6 @@ export const components: TLComponents = {
 						editor.setCurrentTool('Embed');
 					}}
 				/>
-
-				Frame-specific actions
-				{isFrame && (
-					<>
-						<TldrawUiMenuItem
-							id="copy-frame-link"
-							label="Copy Frame Link"
-							icon="link"
-							onSelect={() => copyFrameLink(editor, selectedShape.id)}
-						/>
-						<TldrawUiMenuItem
-							id="zoom-to-frame"
-							label="Zoom to Frame"
-							icon="zoom-in"
-							onSelect={() => zoomToSelection(editor)}
-						/>
-					</>
-				)}
-
 			</DefaultContextMenu>
 		)
 	},
