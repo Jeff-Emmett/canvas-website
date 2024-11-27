@@ -109,5 +109,24 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
 		})
 	})
 
+	.post('/daily/rooms', async (request, env) => {
+		const response = await fetch('https://api.daily.co/v1/rooms', {
+			method: 'POST',
+			headers: {
+				'Authorization': `Bearer ${env.DAILY_API_KEY}`,
+				'Content-Type': 'application/json'
+			},
+			body: await request.text()
+		});
+
+		const data = await response.json() as Record<string, unknown>;
+		return new Response(JSON.stringify({
+			...data,
+			url: `https://${env.DAILY_DOMAIN}/${data.name}`
+		}), {
+			headers: { 'Content-Type': 'application/json' }
+		});
+	})
+
 // export our router for cloudflare
 export default router

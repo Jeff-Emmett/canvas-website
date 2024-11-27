@@ -174,3 +174,12 @@ dist
 .wrangler/
 .*.md
 .vercel
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.dev.vars
+
+# Keep example file
+!.env.example

@@ -1,11 +1,13 @@
 main = "worker/worker.ts"
 compatibility_date = "2024-07-01"
 name = "jeffemmett-canvas"
-account_id = "0e7b3338d5278ed1b148e6456b940913"
-zone_id = "45c200f8dc2a01852e41b9bb09eb7359"
+account_id = "${CLOUDFLARE_ACCOUNT_ID}"
+zone_id = "${CLOUDFLARE_ZONE_ID}"
 
 [vars]
-TLDRAW_WORKER_URL = "https://jeffemmett-canvas.jeffemmett.workers.dev"
+DAILY_API_KEY = "${DAILY_API_KEY}"
+DAILY_DOMAIN = "${DAILY_DOMAIN}"
+TLDRAW_WORKER_URL = "${TLDRAW_WORKER_URL}"
 
 [dev]
 port = 5172
@@ -13,24 +15,20 @@ ip = "0.0.0.0"
 local_protocol = "http"
 upstream_protocol = "https"
 
-# Set up the durable object used for each tldraw room
 [durable_objects]
 bindings = [
     { name = "TLDRAW_DURABLE_OBJECT", class_name = "TldrawDurableObject" },
 ]
 
-# Durable objects require migrations to create/modify/delete them
 [[migrations]]
 tag = "v1"
 new_classes = ["TldrawDurableObject"]
 
-# We store rooms and asset uploads in an R2 bucket
 [[r2_buckets]]
 binding = 'TLDRAW_BUCKET'
-bucket_name = 'jeffemmett-canvas'
-preview_bucket_name = 'jeffemmett-canvas-preview'
+bucket_name = '${R2_BUCKET_NAME}'
+preview_bucket_name = '${R2_PREVIEW_BUCKET_NAME}'
 
-# wrangler.toml (wrangler v3.79.0^)
 [observability]
 enabled = true
-head_sampling_rate = 1
+head_sampling_rate = 1  
