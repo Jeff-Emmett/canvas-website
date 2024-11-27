@@ -16,12 +16,12 @@ upstream_protocol = "https"
 
 [durable_objects]
 bindings = [
-    { name = "TLDRAW_DURABLE_OBJECT", class_name = "TldrawDurableObject" },
+    { name = "TLDRAW_DURABLE_OBJECT", class_name = "jeffemmett-canvas_TldrawDurableObject" },
 ]
 
 [[migrations]]
 tag = "v1"
-new_classes = ["TldrawDurableObject"]
+new_classes = ["jeffemmett-canvas_TldrawDurableObject"]
 
 [[r2_buckets]]
 binding = 'TLDRAW_BUCKET'
