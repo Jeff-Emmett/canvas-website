@@ -3,9 +3,14 @@ import {
 	AssetRecordType,
 	getHashForString,
 	TLBookmarkAsset,
+	TLRecord,
 	Tldraw,
+	Editor,
+	TLFrameShape,
+	TLUiEventSource,
 } from 'tldraw'
 import { useParams } from 'react-router-dom'
+import useLocalStorageState from 'use-local-storage-state'
 import { ChatBoxTool } from '@/tools/ChatBoxTool'
 import { ChatBoxShape } from '@/shapes/ChatBoxShapeUtil'
 import { VideoChatTool } from '@/tools/VideoChatTool'
@@ -15,68 +20,69 @@ import { customSchema } from '../../worker/TldrawDurableObject'
 import { EmbedShape } from '@/shapes/EmbedShapeUtil'
 import { EmbedTool } from '@/tools/EmbedTool'
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ChatBox } from '@/shapes/ChatBoxShapeUtil';
 import { components, uiOverrides } from '@/ui-overrides'
+import { useCameraControls } from '@/hooks/useCameraControls'
 
-const WORKER_URL = `https://jeffemmett-canvas.jeffemmett.workers.dev`
+//const WORKER_URL = `https://jeffemmett-canvas.jeffemmett.workers.dev`
+export const WORKER_URL = 'https://jeffemmett-canvas.jeffemmett.workers.dev';
 
 const shapeUtils = [ChatBoxShape, VideoChatShape, EmbedShape]
 const tools = [ChatBoxTool, VideoChatTool, EmbedTool]; // Array of tools
 
+// Add these imports
+import { useGSetState } from '@/hooks/useGSetState';
+import { useLocalStorageRoom } from '@/hooks/useLocalStorageRoom';
+import { usePersistentBoard } from '@/hooks/usePersistentBoard';
+
+
 export function Board() {
-	const { slug } = useParams<{ slug: string }>(); // Ensure this is inside the Board component
-	const roomId = slug || 'default-room'; // Declare roomId here
-
-	const store = useSync({
-		uri: `${WORKER_URL}/connect/${roomId}`,
-		assets: multiplayerAssetStore,
-		shapeUtils: shapeUtils,
-		schema: customSchema,
-	});
-
-	const [isChatBoxVisible, setChatBoxVisible] = useState(false);
-	const [userName, setUserName] = useState('');
-	const [isVideoChatVisible, setVideoChatVisible] = useState(false); // Added state for video chat visibility
-
-	const handleNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-		setUserName(event.target.value);
-	};
+	const { slug } = useParams<{ slug: string }>();
+	const roomId = slug || 'default-room';
+	const { store } = usePersistentBoard(roomId);
+	const [editor, setEditor] = useState<Editor | null>(null)
+	const { zoomToFrame, copyFrameLink, copyLocationLink } = useCameraControls(editor)
 
 	return (
 		<div style={{ position: 'fixed', inset: 0 }}>
 			<Tldraw
 				store={store}
 				shapeUtils={shapeUtils}
-				overrides={uiOverrides}
+				overrides={{
+					...uiOverrides,
+					tools: (_editor, baseTools) => ({
+						...baseTools,
+						frame: {
+							...baseTools.frame,
+							contextMenu: (shape: TLFrameShape) => [
+								{
+									id: 'copy-frame-link',
+									label: 'Copy Frame Link',
+									onSelect: () => copyFrameLink(shape.id),
+								},
+								{
+									id: 'zoom-to-frame',
+									label: 'Zoom to Frame',
+									onSelect: () => zoomToFrame(shape.id),
+								},
+								{
+									id: 'copy-location-link',
+									label: 'Copy Location Link',
+									onSelect: () => copyLocationLink(),
+								}
+							]
+						},
+					})
+				}}
 				components={components}
 				tools={tools}
 				onMount={(editor) => {
+					setEditor(editor)
 					editor.registerExternalAssetHandler('url', unfurlBookmarkUrl)
 					editor.setCurrentTool('hand')
 				}}
 			/>
-			{isChatBoxVisible && (
-				<div>
-					<input
-						type="text"
-						value={userName}
-						onChange={handleNameChange}
-						placeholder="Enter your name"
-					/>
-					<ChatBox
-						userName={userName}
-						roomId={roomId} // Added roomId
-						w={200} // Set appropriate width
-						h={200} // Set appropriate height
-					/>
-				</div>
-			)}
-			{isVideoChatVisible && ( // Render the button to join video chat
-				<button onClick={() => setVideoChatVisible(false)} className="bg-green-500 text-white px-4 py-2 rounded">
-					Join Video Call
-				</button>
-			)}
 		</div>
 	)
 }

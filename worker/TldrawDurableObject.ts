@@ -14,6 +14,7 @@ import { Environment } from './types'
 import { ChatBoxShape } from '@/shapes/ChatBoxShapeUtil'
 import { VideoChatShape } from '@/shapes/VideoChatShapeUtil'
 import { EmbedShape } from '@/shapes/EmbedShapeUtil'
+import GSet from 'crdts/src/G-Set'
 
 // add custom shapes and bindings here if needed:
 export const customSchema = createTLSchema({
@@ -65,6 +66,16 @@ export class TldrawDurableObject {
 				})
 			}
 			return this.handleConnect(request)
+		})
+		.get('/room/:roomId', async () => {
+			const room = await this.getRoom()
+			const snapshot = room.getCurrentSnapshot()
+			return new Response(JSON.stringify(snapshot.documents))
+		})
+		.post('/room/:roomId', async (request) => {
+			const records = await request.json() as TLRecord[]
+			const mergedRecords = await this.mergeCrdtState(records)
+			return new Response(JSON.stringify(Array.from(mergedRecords)))
 		})
 
 	// `fetch` is the entry point for all requests to the Durable Object
@@ -136,4 +147,48 @@ export class TldrawDurableObject {
 		const snapshot = JSON.stringify(room.getCurrentSnapshot())
 		await this.r2.put(`rooms/${this.roomId}`, snapshot)
 	}, 10_000)
+
+	async mergeCrdtState(records: TLRecord[]) {
+		const room = await this.getRoom();
+		const gset = new GSet<TLRecord>();
+
+		const store = room.getCurrentSnapshot();
+		if (!store) {
+			throw new Error('Room store not initialized');
+		}
+
+		// First cast to unknown, then to TLRecord
+		store.documents.forEach((record) => gset.add(record as unknown as TLRecord));
+
+		// Merge new records 
+		records.forEach((record: TLRecord) => gset.add(record));
+		return gset.values();
+	}
+
+	// Add CORS headers for WebSocket upgrade
+	handleWebSocket(request: Request) {
+		const upgradeHeader = request.headers.get('Upgrade')
+		if (!upgradeHeader || upgradeHeader !== 'websocket') {
+			return new Response('Expected Upgrade: websocket', { status: 426 })
+		}
+
+		const webSocketPair = new WebSocketPair()
+		const [client, server] = Object.values(webSocketPair)
+
+		server.accept()
+
+		// Add error handling
+		server.addEventListener('error', (err) => {
+			console.error('WebSocket error:', err)
+		})
+
+		return new Response(null, {
+			status: 101,
+			webSocket: client,
+			headers: {
+				'Access-Control-Allow-Origin': '*',
+				'Access-Control-Allow-Headers': '*',
+			},
+		})
+	}
 }

@@ -16,10 +16,12 @@ import { Inbox } from './components/Inbox';
 import { Books } from './components/Books';
 import {
 	BindingUtil,
+	Editor,
 	IndexKey,
 	TLBaseBinding,
 	TLBaseShape,
 	Tldraw,
+	TLShapeId,
 } from 'tldraw';
 import { components, uiOverrides } from './ui-overrides';
 import { ChatBoxShape } from './shapes/ChatBoxShapeUtil';
@@ -58,12 +60,12 @@ export default function InteractiveShapeExample() {
 	return (
 		<div className="tldraw__editor">
 			<Tldraw
-
-				shapeUtils={customShapeUtils} // Use custom shape utils
-				tools={customTools} // Pass in the array of custom tool classes
+				shapeUtils={customShapeUtils}
+				tools={customTools}
 				overrides={uiOverrides}
 				components={components}
 				onMount={(editor) => {
+					handleInitialShapeLoad(editor);
 					editor.createShape({ type: 'my-interactive-shape', x: 100, y: 100 });
 				}}
 			/>
@@ -71,7 +73,41 @@ export default function InteractiveShapeExample() {
 	);
 }
 
-// ... existing code ...
+// Add this function before or after InteractiveShapeExample
+const handleInitialShapeLoad = (editor: Editor) => {
+	const url = new URL(window.location.href);
+	const shapeId = url.searchParams.get('shapeId') || url.searchParams.get('frameId');
+	const x = url.searchParams.get('x');
+	const y = url.searchParams.get('y');
+	const zoom = url.searchParams.get('zoom');
+
+	if (shapeId) {
+		console.log('Found shapeId in URL:', shapeId);
+		const shape = editor.getShape(shapeId as TLShapeId);
+
+		if (shape) {
+			console.log('Found shape:', shape);
+			if (x && y && zoom) {
+				console.log('Setting camera to:', { x, y, zoom });
+				editor.setCamera({
+					x: parseFloat(x),
+					y: parseFloat(y),
+					z: parseFloat(zoom)
+				});
+			} else {
+				console.log('Zooming to shape bounds');
+				editor.zoomToBounds(editor.getShapeGeometry(shape).bounds, {
+					targetZoom: 1,
+					//padding: 32
+				});
+			}
+		} else {
+			console.warn('Shape not found in the editor');
+		}
+	} else {
+		console.warn('No shapeId found in the URL');
+	}
+}
 
 ReactDOM.createRoot(document.getElementById("root")!).render(<App />);
 
