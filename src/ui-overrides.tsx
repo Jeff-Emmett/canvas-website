@@ -226,56 +226,6 @@ const revertCamera = (editor: Editor) => {
 	}
 };
 
-function CustomContextMenu(props: TLUiContextMenuProps) {
-	const editor = useEditor()
-	const hasSelection = editor.getSelectedShapeIds().length > 0
-	const selectedShape = editor.getSelectedShapes()[0]
-	const hasCameraHistory = cameraHistory.length > 0
-
-	return (
-		<DefaultContextMenu {...props}>
-			<TldrawUiMenuGroup id="camera-actions">
-				<TldrawUiMenuItem
-					id="revert-camera"
-					label="Revert Camera"
-					icon="undo"
-					kbd="b"
-					readonlyOk
-					disabled={!hasCameraHistory}
-					onSelect={() => {
-						console.log('Reverting camera');
-						revertCamera(editor);
-					}}
-				/>
-				<TldrawUiMenuItem
-					id="zoom-to-selection"
-					label="Zoom to Selection"
-					icon="zoom-in"
-					kbd="z"
-					readonlyOk
-					disabled={!hasSelection}
-					onSelect={() => {
-						console.log('Zoom to Selection clicked');
-						zoomToSelection(editor);
-					}}
-				/>
-				<TldrawUiMenuItem
-					id="copy-link-to-current-view"
-					label="Copy Link to Current View"
-					icon="link"
-					kbd="s"
-					readonlyOk
-					onSelect={() => {
-						console.log('Copy Link to Current View clicked');
-						copyLinkToCurrentView(editor);
-					}}
-				/>
-			</TldrawUiMenuGroup>
-			<DefaultContextMenuContent />
-		</DefaultContextMenu>
-	)
-}
-
 export const uiOverrides: TLUiOverrides = {
 	tools(editor, tools) {
 		return {
@@ -409,6 +359,8 @@ export const components: TLComponents = {
 		const editor = useEditor()
 		const hasSelection = editor.getSelectedShapeIds().length > 0
 		const hasCameraHistory = cameraHistory.length > 0
+		const selectedShape = editor.getSelectedShapes()[0]
+		const isFrame = selectedShape?.type === 'frame'
 
 		return (
 			<DefaultContextMenu {...rest}>
@@ -426,7 +378,7 @@ export const components: TLComponents = {
 						id="copy-link-to-current-view"
 						label="Copy Link to Current View"
 						icon="link"
-						kbd="c"
+						kbd="s"
 						onSelect={() => copyLinkToCurrentView(editor)}
 					/>
 					<TldrawUiMenuItem
@@ -437,6 +389,22 @@ export const components: TLComponents = {
 						disabled={!hasCameraHistory}
 						onSelect={() => revertCamera(editor)}
 					/>
+					{isFrame && (
+						<>
+							<TldrawUiMenuItem
+								id="copy-frame-link"
+								label="Copy Frame Link"
+								icon="link"
+								onSelect={() => copyFrameLink(editor, selectedShape.id)}
+							/>
+							<TldrawUiMenuItem
+								id="zoom-to-frame"
+								label="Zoom to Frame"
+								icon="zoom-in"
+								onSelect={() => zoomToSelection(editor)}
+							/>
+						</>
+					)}
 				</TldrawUiMenuGroup>
 			</DefaultContextMenu>
 		)
