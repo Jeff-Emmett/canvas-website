@@ -84,14 +84,8 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 		const [isLoading, setIsLoading] = useState(false);
 
 		useEffect(() => {
-			// Load the Whereby SDK only in the browser
-			if (typeof window !== 'undefined') {
-				import("@whereby.com/browser-sdk/embed").then(() => {
-					joinRoom();
-				}).catch(err => {
-					console.error("Error loading Whereby SDK:", err);
-					setError("Failed to load video chat component.");
-				});
+			if (typeof window !== "undefined") {
+				console.log('Video chat functionality temporarily disabled');
 			}
 		}, []);
 
@@ -142,15 +136,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 						<p>Joining room...</p>
 					) : isInRoom && shape.props.roomUrl && typeof window !== 'undefined' ? (
 						<div className="mb-4" style={{ width: '100%', height: '100%', objectFit: 'contain' }}>
-							<whereby-embed
-								room={shape.props.roomUrl}
-								background="off"
-								logo="off"
-								chat="off"
-								screenshare="on"
-								people="on"
-								style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-							></whereby-embed>
+							<p>Video chat functionality temporarily disabled</p>
 						</div>
 					) : (
 						<div>

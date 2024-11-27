@@ -22,21 +22,38 @@ import { ChatBox } from '@/shapes/ChatBoxShapeUtil';
 import { components, uiOverrides } from '@/ui-overrides'
 
 //const WORKER_URL = `https://jeffemmett-canvas.jeffemmett.workers.dev`
-export const WORKER_URL = 'https://jeffemmett-canvas.jeffemmett.workers.dev';
+export const WORKER_URL = process.env.VITE_TLDRAW_WORKER_URL || 'https://jeffemmett-canvas.jeffemmett.workers.dev';
 
 const shapeUtils = [ChatBoxShape, VideoChatShape, EmbedShape]
 const tools = [ChatBoxTool, VideoChatTool, EmbedTool]; // Array of tools
 
 // Add these imports
-import { useGSetState } from '@/hooks/useGSetState';
 import { useLocalStorageRoom } from '@/hooks/useLocalStorageRoom';
-import { usePersistentBoard } from '@/hooks/usePersistentBoard';
 
 
 export function Board() {
 	const { slug } = useParams<{ slug: string }>();
 	const roomId = slug || 'default-room';
-	const { store } = usePersistentBoard(roomId);
+	const { store, isOnline } = useLocalStorageRoom(roomId);
+
+	useEffect(() => {
+		if (!store) return;
+
+		const unsubscribe = store.listen((update) => {
+			if (update.source === 'remote') {
+				store.mergeRemoteChanges(() => {
+					const records = store.allRecords();
+					if (records.length > 0) {
+						store.put(records);
+					}
+				});
+			}
+		});
+
+		return () => {
+			unsubscribe();
+		};
+	}, [store]);
 
 	return (
 		<div style={{ position: 'fixed', inset: 0 }}>
@@ -46,11 +63,17 @@ export function Board() {
 				overrides={uiOverrides}
 				components={components}
 				tools={tools}
+				autoFocus
 				onMount={(editor) => {
 					editor.registerExternalAssetHandler('url', unfurlBookmarkUrl)
 					editor.setCurrentTool('hand')
 				}}
 			/>
+			{!isOnline && (
+				<div style={{ position: 'absolute', top: 0, right: 0, padding: '8px', background: '#ffeb3b' }}>
+					Offline Mode
+				</div>
+			)}
 		</div>
 	)
 }

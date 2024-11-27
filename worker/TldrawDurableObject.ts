@@ -85,23 +85,98 @@ export class TldrawDurableObject {
 
 	// what happens when someone tries to connect to this room?
 	async handleConnect(request: IRequest): Promise<Response> {
-		// extract query params from request
-		const sessionId = request.query.sessionId as string
-		if (!sessionId) return error(400, 'Missing sessionId')
+		const upgradeHeader = request.headers.get('Upgrade')
+		if (!upgradeHeader || upgradeHeader !== 'websocket') {
+			return new Response('Expected Upgrade: websocket', { status: 426 })
+		}
 
-		// Create the websocket pair for the client
-		const { 0: clientWebSocket, 1: serverWebSocket } = new WebSocketPair()
-		// @ts-ignore
-		serverWebSocket.accept()
+		const webSocketPair = new WebSocketPair()
+		const [client, server] = Object.values(webSocketPair)
 
-		// load the room, or retrieve it if it's already loaded
+		server.accept()
+
+		// Add error handling
+		server.addEventListener('error', (err) => {
+			console.error('WebSocket error:', err)
+		})
+
+		server.addEventListener('close', () => {
+			console.log('WebSocket closed')
+		})
+
+		// More robust heartbeat with ping/pong
+		let pingInterval: any;
+		let pongTimeout: any;
+
+		const startHeartbeat = () => {
+			pingInterval = setInterval(() => {
+				if (server.readyState === 1) {
+					server.send(JSON.stringify({ type: 'ping' }));
+					clearTimeout(pongTimeout);  // Clear previous timeout
+					pongTimeout = setTimeout(() => {
+						if (server.readyState === 1) {
+							console.log('No pong received, closing connection');
+							server.close(1000, 'Ping timeout');
+						}
+					}, 15000); // 15s timeout
+				}
+			}, 10000); // 10s interval
+		};
+
+		server.addEventListener('message', (msg) => {
+			try {
+				const data = JSON.parse(msg.data)
+				if (data.type === 'pong') {
+					clearTimeout(pongTimeout)
+				}
+			} catch (e) {
+				// Ignore parse errors
+			}
+		})
+
+		startHeartbeat()
+
+		// Clean up on close
+		server.addEventListener('close', () => {
+			clearInterval(pingInterval)
+			clearTimeout(pongTimeout)
+		})
+
 		const room = await this.getRoom()
+		const snapshot = room.getCurrentSnapshot()
+		const documents = snapshot.documents?.map(doc => {
+			if (doc.state) {
+				// Type assertion to allow access to potential 'type' property
+				const state = doc.state as { type?: string; typeName?: string };
+				return {
+					...doc.state,
+					typeName: state.type ? 'shape' : state.typeName
+				} as TLRecord;
+			}
+			return doc as unknown as TLRecord;
+		}) || [];
 
-		// connect the client to the room
-		room.handleSocketConnect({ sessionId, socket: serverWebSocket })
+		server.send(JSON.stringify({
+			type: 'initial-state',
+			data: {
+				documents: documents
+			}
+		}))
 
-		// return the websocket connection to the client
-		return new Response(null, { status: 101, webSocket: clientWebSocket })
+		const sessionId = crypto.randomUUID()
+		room.handleSocketConnect({
+			sessionId,
+			socket: server
+		})
+
+		return new Response(null, {
+			status: 101,
+			webSocket: client,
+			headers: {
+				'Access-Control-Allow-Origin': '*',
+				'Access-Control-Allow-Headers': '*',
+			},
+		})
 	}
 
 	getRoom() {
@@ -163,32 +238,5 @@ export class TldrawDurableObject {
 		// Merge new records 
 		records.forEach((record: TLRecord) => gset.add(record));
 		return gset.values();
-	}
-
-	// Add CORS headers for WebSocket upgrade
-	handleWebSocket(request: Request) {
-		const upgradeHeader = request.headers.get('Upgrade')
-		if (!upgradeHeader || upgradeHeader !== 'websocket') {
-			return new Response('Expected Upgrade: websocket', { status: 426 })
-		}
-
-		const webSocketPair = new WebSocketPair()
-		const [client, server] = Object.values(webSocketPair)
-
-		server.accept()
-
-		// Add error handling
-		server.addEventListener('error', (err) => {
-			console.error('WebSocket error:', err)
-		})
-
-		return new Response(null, {
-			status: 101,
-			webSocket: client,
-			headers: {
-				'Access-Control-Allow-Origin': '*',
-				'Access-Control-Allow-Headers': '*',
-			},
-		})
 	}
 }

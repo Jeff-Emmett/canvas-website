@@ -21,7 +21,11 @@ const securityHeaders = {
 // we're hosting the worker separately to the client. you should restrict this to your own domain.
 const { preflight, corsify } = cors({
 	origin: (origin) => {
-		if (!origin) return undefined
+		if (!origin ||
+			origin.startsWith('http://localhost') ||
+			origin.startsWith('ws://localhost')) {
+			return '*';
+		}
 
 		const allowedPatterns = [
 			// Localhost with any port
@@ -35,7 +39,11 @@ const { preflight, corsify } = cors({
 			// 10.*.*.* with any port
 			/^http:\/\/10\.\d+\.\d+\.\d+:\d+$/,
 			// Production domain
-			/^https:\/\/jeffemmett\.com$/
+			/^https:\/\/jeffemmett\.com$/,
+			// Allow ws:// in development
+			/^ws:\/\/localhost:\d+$/,
+			// Allow wss:// in development
+			/^wss:\/\/localhost:\d+$/
 		]
 
 		// Check if origin matches any of our patterns
@@ -47,7 +55,7 @@ const { preflight, corsify } = cors({
 
 		return isAllowed ? origin : undefined
 	},
-	allowMethods: ['GET', 'POST', 'OPTIONS', 'UPGRADE'],
+	allowMethods: ['GET', 'POST', 'OPTIONS', 'UPGRADE', 'CONNECT'],
 	allowHeaders: [
 		'Content-Type',
 		'Authorization',
@@ -57,20 +65,27 @@ const { preflight, corsify } = cors({
 		'Sec-WebSocket-Version',
 		'Sec-WebSocket-Extensions',
 		'Sec-WebSocket-Protocol',
-		...Object.keys(securityHeaders)
+		...Object.keys(securityHeaders),
+		'Upgrade-Insecure-Requests'
 	],
 	maxAge: 86400,
 })
 const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
 	before: [preflight],
 	finally: [(response) => {
-		// Add security headers to all responses except WebSocket upgrades
+		// Only add security headers to non-WebSocket responses
 		if (response.status !== 101) {
+			const newHeaders = new Headers(response.headers);
 			Object.entries(securityHeaders).forEach(([key, value]) => {
-				response.headers.set(key, value)
-			})
+				newHeaders.set(key, value);
+			});
+			return new Response(response.body, {
+				status: response.status,
+				statusText: response.statusText,
+				headers: newHeaders
+			});
 		}
-		return corsify(response)
+		return corsify(response);
 	}],
 	catch: (e) => {
 		console.error(e)
@@ -81,7 +96,11 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
 	.get('/connect/:roomId', (request, env) => {
 		const id = env.TLDRAW_DURABLE_OBJECT.idFromName(request.params.roomId)
 		const room = env.TLDRAW_DURABLE_OBJECT.get(id)
-		return room.fetch(request.url, { headers: request.headers, body: request.body })
+		return room.fetch(request.url, {
+			headers: request.headers,
+			method: request.method,
+			body: request.body
+		})
 	})
 
 	// assets can be uploaded to the bucket under /uploads:

@@ -174,3 +174,4 @@ dist
 .wrangler/
 .*.md
 .vercel
+.dev.vars
