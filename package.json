@@ -17,6 +17,7 @@
 	"license": "ISC",
 	"dependencies": {
 		"@dimforge/rapier2d": "^0.11.2",
+		"@tldraw/assets": "^3.5.0",
 		"@tldraw/sync": "^3.4.1",
 		"@tldraw/sync-core": "^3.4.1",
 		"@tldraw/tldraw": "^3.4.1",
