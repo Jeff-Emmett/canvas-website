@@ -365,47 +365,79 @@ export const components: TLComponents = {
 		return (
 			<DefaultContextMenu {...rest}>
 				<DefaultContextMenuContent />
-				<TldrawUiMenuGroup id="custom-actions">
-					<TldrawUiMenuItem
-						id="zoom-to-selection"
-						label="Zoom to Selection"
-						icon="zoom-in"
-						kbd="z"
-						disabled={!hasSelection}
-						onSelect={() => zoomToSelection(editor)}
-					/>
-					<TldrawUiMenuItem
-						id="copy-link-to-current-view"
-						label="Copy Link to Current View"
-						icon="link"
-						kbd="s"
-						onSelect={() => copyLinkToCurrentView(editor)}
-					/>
-					<TldrawUiMenuItem
-						id="revert-camera"
-						label="Revert Camera"
-						icon="undo"
-						kbd="b"
-						disabled={!hasCameraHistory}
-						onSelect={() => revertCamera(editor)}
-					/>
-					{isFrame && (
-						<>
-							<TldrawUiMenuItem
-								id="copy-frame-link"
-								label="Copy Frame Link"
-								icon="link"
-								onSelect={() => copyFrameLink(editor, selectedShape.id)}
-							/>
-							<TldrawUiMenuItem
-								id="zoom-to-frame"
-								label="Zoom to Frame"
-								icon="zoom-in"
-								onSelect={() => zoomToSelection(editor)}
-							/>
-						</>
-					)}
-				</TldrawUiMenuGroup>
+
+				{/* Camera Controls */}
+				<TldrawUiMenuItem
+					id="zoom-to-selection"
+					label="Zoom to Selection"
+					icon="zoom-in"
+					kbd="z"
+					disabled={!hasSelection}
+					onSelect={() => zoomToSelection(editor)}
+				/>
+				<TldrawUiMenuItem
+					id="copy-link-to-current-view"
+					label="Copy Link to Current View"
+					icon="link"
+					kbd="s"
+					onSelect={() => copyLinkToCurrentView(editor)}
+				/>
+				<TldrawUiMenuItem
+					id="revert-camera"
+					label="Revert Camera"
+					icon="undo"
+					kbd="b"
+					disabled={!hasCameraHistory}
+					onSelect={() => revertCamera(editor)}
+				/>
+
+				{/* Shape Creation Tools */}
+				<TldrawUiMenuItem
+					id="video-chat"
+					label="Create Video Chat"
+					icon="video"
+					kbd="v"
+					onSelect={() => {
+						editor.setCurrentTool('VideoChat');
+					}}
+				/>
+				<TldrawUiMenuItem
+					id="chat-box"
+					label="Create Chat Box"
+					icon="chat"
+					kbd="c"
+					onSelect={() => {
+						editor.setCurrentTool('ChatBox');
+					}}
+				/>
+				<TldrawUiMenuItem
+					id="embed"
+					label="Create Embed"
+					icon="embed"
+					kbd="e"
+					onSelect={() => {
+						editor.setCurrentTool('Embed');
+					}}
+				/>
+
+				Frame-specific actions
+				{isFrame && (
+					<>
+						<TldrawUiMenuItem
+							id="copy-frame-link"
+							label="Copy Frame Link"
+							icon="link"
+							onSelect={() => copyFrameLink(editor, selectedShape.id)}
+						/>
+						<TldrawUiMenuItem
+							id="zoom-to-frame"
+							label="Zoom to Frame"
+							icon="zoom-in"
+							onSelect={() => zoomToSelection(editor)}
+						/>
+					</>
+				)}
+
 			</DefaultContextMenu>
 		)
 	},
