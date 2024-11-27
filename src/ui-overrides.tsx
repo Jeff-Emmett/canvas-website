@@ -87,7 +87,7 @@ const copyFrameLink = async (editor: Editor, frameId: string) => {
 	}
 };
 
-const zoomToSelection = (editor: Editor) => {
+export const zoomToSelection = (editor: Editor) => {
 	// Store camera position before zooming
 	storeCameraPosition(editor);
 
