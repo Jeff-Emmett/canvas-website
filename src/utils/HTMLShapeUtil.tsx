@@ -1,9 +1,24 @@
-import { Rectangle2d, resizeBox, TLBaseShape, TLOnBeforeUpdateHandler, TLOnResizeHandler } from 'tldraw';
-import { ShapeUtil } from 'tldraw'
+import {
+  TLBaseShape,
+  TLResizeHandle,
+  BaseBoxShapeUtil,
+  //TLShapeUtilFlag,
+  resizeBox,
+  VecModel,
+  Box,
+  TLResizeMode,
+  Rectangle2d,
+} from 'tldraw'
 
-export type HTMLShape = TLBaseShape<'html', { w: number; h: number, html: string }>
+export interface HTMLShape extends TLBaseShape<'html', { w: number; h: number, html: string }> {
+  props: {
+    w: number
+    h: number
+    html: string
+  }
+}
 
-export class HTMLShapeUtil extends ShapeUtil<HTMLShape> {
+export class HTMLShapeUtil extends BaseBoxShapeUtil<HTMLShape> {
   static override type = 'html' as const
   override canBind = () => true
   override canEdit = () => false
@@ -18,13 +33,24 @@ export class HTMLShapeUtil extends ShapeUtil<HTMLShape> {
     }
   }
 
-  override onTranslate: TLOnBeforeUpdateHandler<HTMLShape> = (prev, next) => {
+  override onBeforeUpdate = (prev: HTMLShape, next: HTMLShape): void => {
     if (prev.x !== next.x || prev.y !== next.y) {
       this.editor.bringToFront([next.id]);
     }
   }
 
-  override onResize: TLOnResizeHandler<HTMLShape> = (shape: HTMLShape, info) => {
+  override onResize = (
+    shape: HTMLShape,
+    info: {
+      handle: TLResizeHandle;
+      mode: TLResizeMode;
+      initialBounds: Box;
+      initialShape: HTMLShape;
+      newPoint: VecModel;
+      scaleX: number;
+      scaleY: number;
+    }
+  ) => {
     const element = document.getElementById(shape.id);
     if (!element || !element.parentElement) return resizeBox(shape, info);
     const { width, height } = element.parentElement.getBoundingClientRect();
@@ -47,12 +73,11 @@ export class HTMLShapeUtil extends ShapeUtil<HTMLShape> {
     })
   }
 
-  component(shape: HTMLShape) {
+  override component(shape: HTMLShape): JSX.Element {
     return <div id={shape.id} dangerouslySetInnerHTML={{ __html: shape.props.html }} />
-
   }
 
-  indicator(shape: HTMLShape) {
+  override indicator(shape: HTMLShape): JSX.Element {
     return <rect width={shape.props.w} height={shape.props.h} />
   }
 }
