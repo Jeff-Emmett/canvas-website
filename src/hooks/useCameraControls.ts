@@ -14,18 +14,14 @@ let cameraHistory: CameraState[] = [];
 
 // Improved camera change tracking with debouncing
 const trackCameraChange = (editor: Editor) => {
-    // Only track if not in animation
-    if (editor.getCameraState() === 'moving') return;
-
     const currentCamera = editor.getCamera();
     const lastPosition = cameraHistory[cameraHistory.length - 1];
 
-    // Enhanced threshold check for meaningful changes
+    // Store any viewport change that's not from a revert operation
     if (!lastPosition ||
-        (Math.abs(lastPosition.x - currentCamera.x) > 1 ||
-            Math.abs(lastPosition.y - currentCamera.y) > 1 ||
-            Math.abs(lastPosition.z - currentCamera.z) > 0.1)) {
-
+        currentCamera.x !== lastPosition.x ||
+        currentCamera.y !== lastPosition.y ||
+        currentCamera.z !== lastPosition.z) {
         cameraHistory.push({ ...currentCamera });
         if (cameraHistory.length > MAX_HISTORY) {
             cameraHistory.shift();
@@ -77,15 +73,16 @@ export function useCameraControls(editor: Editor | null) {
         if (!editor) return;
 
         const handler = () => {
-            if (editor.getCameraState() !== 'moving') {
-                trackCameraChange(editor);
-            }
+            trackCameraChange(editor);
         };
 
+        // Track both viewport changes and user interaction end
         editor.on('viewportChange' as keyof TLEventMap, handler);
+        editor.on('userChangeEnd' as keyof TLEventMap, handler);
 
         return () => {
             editor.off('viewportChange' as keyof TLEventMap, handler);
+            editor.off('userChangeEnd' as keyof TLEventMap, handler);
         };
     }, [editor]);
 
