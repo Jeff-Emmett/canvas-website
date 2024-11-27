@@ -1,13 +1,12 @@
 main = "worker/worker.ts"
 compatibility_date = "2024-07-01"
 name = "jeffemmett-canvas"
-account_id = "${CLOUDFLARE_ACCOUNT_ID}"
-zone_id = "${CLOUDFLARE_ZONE_ID}"
+account_id = "0e7b3338d5278ed1b148e6456b940913"
+zone_id = "45c200f8dc2a01852e41b9bb09eb7359"
 
 [vars]
-DAILY_API_KEY = "${DAILY_API_KEY}"
-DAILY_DOMAIN = "${DAILY_DOMAIN}"
-TLDRAW_WORKER_URL = "${TLDRAW_WORKER_URL}"
+# Environment variables are managed in Cloudflare Dashboard
+# Workers & Pages → jeffemmett-canvas → Settings → Variables
 
 [dev]
 port = 5172
@@ -26,8 +25,8 @@ new_classes = ["TldrawDurableObject"]
 
 [[r2_buckets]]
 binding = 'TLDRAW_BUCKET'
-bucket_name = '${R2_BUCKET_NAME}'
-preview_bucket_name = '${R2_PREVIEW_BUCKET_NAME}'
+bucket_name = 'jeffemmett-canvas'
+preview_bucket_name = 'jeffemmett-canvas-preview'
 
 [observability]
 enabled = true
