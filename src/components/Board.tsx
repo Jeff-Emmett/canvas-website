@@ -26,7 +26,7 @@ import { components, uiOverrides } from '@/ui-overrides'
 import { useCameraControls } from '@/hooks/useCameraControls'
 
 //const WORKER_URL = `https://jeffemmett-canvas.jeffemmett.workers.dev`
-export const WORKER_URL = 'https://jeffemmett-canvas.jeffemmett.workers.dev';
+export const WORKER_URL = import.meta.env.VITE_TLDRAW_WORKER_URL || 'https://jeffemmett-canvas.jeffemmett.workers.dev';
 
 const shapeUtils = [ChatBoxShape, VideoChatShape, EmbedShape]
 const tools = [ChatBoxTool, VideoChatTool, EmbedTool]; // Array of tools
