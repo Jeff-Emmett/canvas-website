@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { Editor, TLFrameShape, TLParentId } from 'tldraw';
 import { useSearchParams } from 'react-router-dom';
 
+const initialCamera = { x: 0, y: 0, z: 1 };
+
 export function useCameraControls(editor: Editor | null) {
     const [searchParams] = useSearchParams();
 
@@ -85,6 +87,10 @@ export function useCameraControls(editor: Editor | null) {
     return {
         zoomToFrame,
         copyFrameLink,
-        copyLocationLink
+        copyLocationLink,
+        revertCamera: () => {
+            if (!editor) return
+            editor.setCamera(initialCamera)
+        }
     };
 } 
