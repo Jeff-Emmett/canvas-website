@@ -4,7 +4,7 @@ import { handleAssetDownload, handleAssetUpload } from './assetUploads'
 import { Environment } from './types'
 
 // make sure our sync durable object is made available to cloudflare
-export { TldrawDurableObject as jeffemmett_canvas_TldrawDurableObject } from './TldrawDurableObject'
+export { TldrawDurableObject } from './TldrawDurableObject'
 
 // Define security headers
 const securityHeaders = {
