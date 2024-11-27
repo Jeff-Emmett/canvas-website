@@ -8,7 +8,7 @@ const components: TLUiComponents = {
   PageMenu: null,
   NavigationPanel: null,
   DebugMenu: null,
-  ContextMenu: null,
+  //ContextMenu: null,
   ActionsMenu: null,
   QuickActions: null,
   MainMenu: null,
