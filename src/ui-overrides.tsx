@@ -87,7 +87,7 @@ const copyFrameLink = async (editor: Editor, frameId: string) => {
 	}
 };
 
-const zoomToShape = (editor: Editor) => {
+const zoomToSelection = (editor: Editor) => {
 	// Store camera position before zooming
 	storeCameraPosition(editor);
 
@@ -248,7 +248,7 @@ function CustomContextMenu(props: TLUiContextMenuProps) {
 					}}
 				/>
 				<TldrawUiMenuItem
-					id="zoom-to-shape"
+					id="zoom-to-selection"
 					label="Zoom to Selection"
 					icon="zoom-in"
 					kbd="z"
@@ -256,14 +256,14 @@ function CustomContextMenu(props: TLUiContextMenuProps) {
 					disabled={!hasSelection}
 					onSelect={() => {
 						console.log('Zoom to Selection clicked');
-						zoomToShape(editor);
+						zoomToSelection(editor);
 					}}
 				/>
 				<TldrawUiMenuItem
 					id="copy-link-to-current-view"
 					label="Copy Link to Current View"
 					icon="link"
-					kbd="c"
+					kbd="s"
 					readonlyOk
 					onSelect={() => {
 						console.log('Copy Link to Current View clicked');
@@ -278,37 +278,33 @@ function CustomContextMenu(props: TLUiContextMenuProps) {
 
 export const uiOverrides: TLUiOverrides = {
 	tools(editor, tools) {
-		tools.VideoChat = {
-			id: 'VideoChat',
-			icon: 'color',
-			label: 'Video',
-			kbd: 'x',
-			meta: {},
-			onSelect: () => {
-				editor.setCurrentTool('VideoChat')
+		return {
+			...tools,
+			VideoChat: {
+				id: 'VideoChat',
+				icon: 'video',
+				label: 'Video Chat',
+				kbd: 'v',
+				readonlyOk: true,
+				onSelect: () => editor.setCurrentTool('VideoChat'),
+			},
+			ChatBox: {
+				id: 'ChatBox',
+				icon: 'chat',
+				label: 'Chat',
+				kbd: 'c',
+				readonlyOk: true,
+				onSelect: () => editor.setCurrentTool('ChatBox'),
+			},
+			Embed: {
+				id: 'Embed',
+				icon: 'embed',
+				label: 'Embed',
+				kbd: 'e',
+				readonlyOk: true,
+				onSelect: () => editor.setCurrentTool('Embed'),
 			},
 		}
-		tools.ChatBox = {
-			id: 'ChatBox',
-			icon: 'color',
-			label: 'Chat',
-			kbd: 'x',
-			meta: {},
-			onSelect: () => {
-				editor.setCurrentTool('ChatBox')
-			},
-		}
-		tools.Embed = {
-			id: 'Embed',
-			icon: 'embed',
-			label: 'Embed',
-			kbd: 'e',
-			meta: {},
-			onSelect: () => {
-				editor.setCurrentTool('Embed')
-			},
-		}
-		return tools
 	},
 	actions(editor, actions) {
 		actions['copyFrameLink'] = {
@@ -329,7 +325,7 @@ export const uiOverrides: TLUiOverrides = {
 			onSelect: () => {
 				const shape = editor.getSelectedShapes()[0]
 				if (shape && shape.type === 'frame') {
-					zoomToShape(editor)
+					zoomToSelection(editor)
 				}
 			},
 			readonlyOk: true,
@@ -353,7 +349,7 @@ export const uiOverrides: TLUiOverrides = {
 			onSelect: () => {
 				if (editor.getSelectedShapeIds().length > 0) {
 					console.log('Zooming to selection');
-					zoomToShape(editor);
+					zoomToSelection(editor);
 				}
 			},
 			readonlyOk: true,
@@ -380,30 +376,71 @@ export const components: TLComponents = {
 		const tools = useTools()
 		return (
 			<DefaultToolbar>
+				<DefaultToolbarContent />
 				{tools['VideoChat'] && (
 					<TldrawUiMenuItem
 						{...tools['VideoChat']}
+						icon="video"
+						label="Video Chat"
 						isSelected={tools['VideoChat'].id === editor.getCurrentToolId()}
 					/>
 				)}
 				{tools['ChatBox'] && (
 					<TldrawUiMenuItem
 						{...tools['ChatBox']}
+						icon="chat"
+						label="Chat"
 						isSelected={tools['ChatBox'].id === editor.getCurrentToolId()}
 					/>
 				)}
 				{tools['Embed'] && (
 					<TldrawUiMenuItem
 						{...tools['Embed']}
+						icon="embed"
+						label="Embed"
 						isSelected={tools['Embed'].id === editor.getCurrentToolId()}
 					/>
 				)}
-				<DefaultToolbarContent />
 			</DefaultToolbar>
 		)
 	},
 	MainMenu: CustomMainMenu,
-	ContextMenu: CustomContextMenu,
+	ContextMenu: function CustomContextMenu({ ...rest }) {
+		const editor = useEditor()
+		const hasSelection = editor.getSelectedShapeIds().length > 0
+		const hasCameraHistory = cameraHistory.length > 0
+
+		return (
+			<DefaultContextMenu {...rest}>
+				<DefaultContextMenuContent />
+				<TldrawUiMenuGroup id="custom-actions">
+					<TldrawUiMenuItem
+						id="zoom-to-selection"
+						label="Zoom to Selection"
+						icon="zoom-in"
+						kbd="z"
+						disabled={!hasSelection}
+						onSelect={() => zoomToSelection(editor)}
+					/>
+					<TldrawUiMenuItem
+						id="copy-link-to-current-view"
+						label="Copy Link to Current View"
+						icon="link"
+						kbd="c"
+						onSelect={() => copyLinkToCurrentView(editor)}
+					/>
+					<TldrawUiMenuItem
+						id="revert-camera"
+						label="Revert Camera"
+						icon="undo"
+						kbd="b"
+						disabled={!hasCameraHistory}
+						onSelect={() => revertCamera(editor)}
+					/>
+				</TldrawUiMenuGroup>
+			</DefaultContextMenu>
+		)
+	},
 }
 
 const handleInitialShapeLoad = (editor: Editor) => {

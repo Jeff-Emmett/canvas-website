@@ -40,43 +40,84 @@ import { usePersistentBoard } from '@/hooks/usePersistentBoard';
 export function Board() {
 	const { slug } = useParams<{ slug: string }>();
 	const roomId = slug || 'default-room';
-	const { store } = usePersistentBoard(roomId);
+	const store = usePersistentBoard(roomId);
 	const [editor, setEditor] = useState<Editor | null>(null)
-	const { zoomToFrame, copyFrameLink, copyLocationLink } = useCameraControls(editor)
+	const { zoomToFrame, copyFrameLink, copyLocationLink, revertCamera } = useCameraControls(editor)
 
 	return (
 		<div style={{ position: 'fixed', inset: 0 }}>
 			<Tldraw
-				store={store}
+				store={store.store}
 				shapeUtils={shapeUtils}
-				overrides={{
-					...uiOverrides,
-					tools: (_editor, baseTools) => ({
-						...baseTools,
-						frame: {
-							...baseTools.frame,
-							contextMenu: (shape: TLFrameShape) => [
-								{
-									id: 'copy-frame-link',
-									label: 'Copy Frame Link',
-									onSelect: () => copyFrameLink(shape.id),
-								},
-								{
-									id: 'zoom-to-frame',
-									label: 'Zoom to Frame',
-									onSelect: () => zoomToFrame(shape.id),
-								},
-								{
-									id: 'copy-location-link',
-									label: 'Copy Location Link',
-									onSelect: () => copyLocationLink(),
-								}
-							]
-						},
-					})
-				}}
-				components={components}
 				tools={tools}
+				components={components}
+				overrides={{
+					tools: (editor, baseTools) => ({
+						...baseTools,
+						ChatBox: {
+							id: 'ChatBox',
+							icon: 'chat',
+							label: 'Chat',
+							kbd: 'c',
+							readonlyOk: true,
+							onSelect: () => {
+								editor.setCurrentTool('ChatBox')
+							},
+						},
+						VideoChat: {
+							id: 'VideoChat',
+							icon: 'video',
+							label: 'Video Chat',
+							kbd: 'v',
+							readonlyOk: true,
+							onSelect: () => {
+								editor.setCurrentTool('VideoChat')
+							},
+						},
+						Embed: {
+							id: 'Embed',
+							icon: 'embed',
+							label: 'Embed',
+							kbd: 'e',
+							readonlyOk: true,
+							onSelect: () => {
+								editor.setCurrentTool('Embed')
+							},
+						},
+					}),
+					actions: (editor, actions) => ({
+						...actions,
+						'zoomToShape': {
+							id: 'zoom-to-shape',
+							label: 'Zoom to Selection',
+							kbd: 'z',
+							onSelect: () => {
+								if (editor.getSelectedShapeIds().length > 0) {
+									zoomToFrame(editor.getSelectedShapeIds()[0]);
+								}
+							},
+							readonlyOk: true,
+						},
+						'copyLinkToCurrentView': {
+							id: 'copy-link-to-current-view',
+							label: 'Copy Link to Current View',
+							kbd: 'c',
+							onSelect: () => {
+								copyLocationLink();
+							},
+							readonlyOk: true,
+						},
+						'revertCamera': {
+							id: 'revert-camera',
+							label: 'Revert Camera',
+							kbd: 'b',
+							onSelect: () => {
+								revertCamera();
+							},
+							readonlyOk: true,
+						},
+					}),
+				}}
 				onMount={(editor) => {
 					setEditor(editor)
 					editor.registerExternalAssetHandler('url', unfurlBookmarkUrl)
