@@ -7,7 +7,9 @@ import { viteStaticCopy } from 'vite-plugin-static-copy';
 
 export default defineConfig({
   define: {
-    'process.env.TLDRAW_WORKER_URL': JSON.stringify(process.env.TLDRAW_WORKER_URL || 'https://jeffemmett-canvas.jeffemmett.workers.dev')
+    'process.env.TLDRAW_WORKER_URL': JSON.stringify(
+      process.env.VITE_TLDRAW_WORKER_URL || 'https://jeffemmett-canvas.jeffemmett.workers.dev'
+    )
   },
   plugins: [
     react(),
