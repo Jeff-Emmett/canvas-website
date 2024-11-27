@@ -24,6 +24,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ChatBox } from '@/shapes/ChatBoxShapeUtil';
 import { components, uiOverrides } from '@/ui-overrides'
 import { useCameraControls } from '@/hooks/useCameraControls'
+import { zoomToSelection } from '../ui-overrides'
 
 //const WORKER_URL = `https://jeffemmett-canvas.jeffemmett.workers.dev`
 export const WORKER_URL = 'https://jeffemmett-canvas.jeffemmett.workers.dev';
@@ -93,7 +94,7 @@ export function Board() {
 							kbd: 'z',
 							onSelect: () => {
 								if (editor.getSelectedShapeIds().length > 0) {
-									zoomToFrame(editor.getSelectedShapeIds()[0]);
+									zoomToSelection(editor);
 								}
 							},
 							readonlyOk: true,
@@ -103,7 +104,12 @@ export function Board() {
 							label: 'Copy Link to Current View',
 							kbd: 'c',
 							onSelect: () => {
-								copyLocationLink();
+								const camera = editor.getCamera();
+								const url = new URL(window.location.href);
+								url.searchParams.set('x', camera.x.toString());
+								url.searchParams.set('y', camera.y.toString());
+								url.searchParams.set('zoom', camera.z.toString());
+								navigator.clipboard.writeText(url.toString());
 							},
 							readonlyOk: true,
 						},
