@@ -95,7 +95,70 @@ export class TldrawDurableObject {
 
 		server.accept()
 
-		// Add error handling
+		// Get room and initial state immediately
+		const room = await this.getRoom()
+		const snapshot = room.getCurrentSnapshot()
+
+		// Add connection to TLSocketRoom first
+		const sessionId = crypto.randomUUID()
+		room.handleSocketConnect({
+			sessionId,
+			socket: server
+		});
+
+		// Send initial state right after connection
+		if (snapshot && snapshot.documents) {
+			const normalizedDocuments = snapshot.documents.map(doc => {
+				const state = doc.state;
+
+				// Handle documents
+				if (state.id.startsWith('document:')) {
+					return {
+						...state,
+						typeName: 'document'
+					} as TLRecord;
+				}
+
+				// Handle pages
+				if (state.id.startsWith('page:')) {
+					return {
+						...state,
+						typeName: 'page'
+					} as TLRecord;
+				}
+
+				// Handle actual shapes
+				return {
+					...state,
+					id: state.id.startsWith('shape:') ? state.id : `shape:${state.id}`,
+					type: (state as { type?: string }).type || 'draw',
+					typeName: 'shape',
+					x: (state as any).x || 0,
+					y: (state as any).y || 0,
+					rotation: (state as any).rotation || 0,
+					isLocked: (state as any).isLocked || false,
+					opacity: (state as any).opacity || 1,
+					props: (state as any).props || {}
+				} as TLRecord;
+			});
+
+			console.log('Room snapshot:', {
+				hasDocuments: !!snapshot?.documents,
+				documentCount: snapshot?.documents?.length,
+				documents: snapshot?.documents
+			});
+
+			console.log('Normalized documents:', normalizedDocuments);
+
+			server.send(JSON.stringify({
+				type: 'initial-state',
+				data: {
+					documents: normalizedDocuments
+				}
+			}));
+		}
+
+		// Set up error handling and heartbeat after state is sent
 		server.addEventListener('error', (err) => {
 			console.error('WebSocket error:', err)
 		})
@@ -104,70 +167,20 @@ export class TldrawDurableObject {
 			console.log('WebSocket closed')
 		})
 
-		// More robust heartbeat with ping/pong
-		let pingInterval: any;
-		let pongTimeout: any;
-
+		// Heartbeat setup
 		const startHeartbeat = () => {
-			pingInterval = setInterval(() => {
+			const pingInterval = setInterval(() => {
 				if (server.readyState === 1) {
 					server.send(JSON.stringify({ type: 'ping' }));
-					clearTimeout(pongTimeout);  // Clear previous timeout
-					pongTimeout = setTimeout(() => {
-						if (server.readyState === 1) {
-							console.log('No pong received, closing connection');
-							server.close(1000, 'Ping timeout');
-						}
-					}, 15000); // 15s timeout
 				}
-			}, 10000); // 10s interval
+			}, 10000);
+
+			server.addEventListener('close', () => {
+				clearInterval(pingInterval);
+			});
 		};
 
-		server.addEventListener('message', (msg) => {
-			try {
-				const data = JSON.parse(msg.data)
-				if (data.type === 'pong') {
-					clearTimeout(pongTimeout)
-				}
-			} catch (e) {
-				// Ignore parse errors
-			}
-		})
-
-		startHeartbeat()
-
-		// Clean up on close
-		server.addEventListener('close', () => {
-			clearInterval(pingInterval)
-			clearTimeout(pongTimeout)
-		})
-
-		const room = await this.getRoom()
-		const snapshot = room.getCurrentSnapshot()
-		const documents = snapshot.documents?.map(doc => {
-			if (doc.state) {
-				// Type assertion to allow access to potential 'type' property
-				const state = doc.state as { type?: string; typeName?: string };
-				return {
-					...doc.state,
-					typeName: state.type ? 'shape' : state.typeName
-				} as TLRecord;
-			}
-			return doc as unknown as TLRecord;
-		}) || [];
-
-		server.send(JSON.stringify({
-			type: 'initial-state',
-			data: {
-				documents: documents
-			}
-		}))
-
-		const sessionId = crypto.randomUUID()
-		room.handleSocketConnect({
-			sessionId,
-			socket: server
-		})
+		startHeartbeat();
 
 		return new Response(null, {
 			status: 101,
@@ -175,6 +188,7 @@ export class TldrawDurableObject {
 			headers: {
 				'Access-Control-Allow-Origin': '*',
 				'Access-Control-Allow-Headers': '*',
+				'Sec-WebSocket-Protocol': request.headers.get('Sec-WebSocket-Protocol') || '',
 			},
 		})
 	}
@@ -186,7 +200,13 @@ export class TldrawDurableObject {
 		if (!this.roomPromise) {
 			this.roomPromise = (async () => {
 				// fetch the room from R2
+				console.log('Fetching room from R2:', roomId);
 				const roomFromBucket = await this.r2.get(`rooms/${roomId}`)
+				console.log('Room from bucket exists:', !!roomFromBucket);
+				if (roomFromBucket) {
+					const data = await roomFromBucket.json();
+					console.log('Room data:', data);
+				}
 				// if it doesn't exist, we'll just create a new empty room
 				const initialSnapshot = roomFromBucket
 					? ((await roomFromBucket.json()) as RoomSnapshot)

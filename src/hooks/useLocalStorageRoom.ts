@@ -42,27 +42,44 @@ export function useLocalStorageRoom(roomId: string) {
             };
 
             ws.onmessage = (message) => {
+                console.log('WebSocket message received:', message.data);
                 try {
                     const data = JSON.parse(message.data);
+                    console.log('Parsed WebSocket data:', data);
                     if (data.type === 'initial-state') {
+                        console.log('Initial state documents:', data.data.documents);
                         const documents = Array.isArray(data.data.documents)
                             ? data.data.documents
                             : Object.values(data.data.documents);
 
                         store.mergeRemoteChanges(() => {
                             documents.forEach((record: any) => {
-                                // Handle both direct records and state-wrapped records
                                 const actualRecord = record.state ? record.state : record;
 
-                                if (actualRecord && (actualRecord.typeName || actualRecord.type)) {
+                                if (actualRecord.typeName === 'document') {
+                                    store.put([{
+                                        ...actualRecord,
+                                        typeName: 'document'
+                                    } as TLRecord]);
+                                } else if (actualRecord.typeName === 'page') {
+                                    store.put([{
+                                        ...actualRecord,
+                                        typeName: 'page'
+                                    } as TLRecord]);
+                                } else {
                                     const normalizedRecord = {
                                         ...actualRecord,
-                                        typeName: actualRecord.typeName || actualRecord.type
+                                        id: actualRecord.id.startsWith('shape:') ? actualRecord.id : `shape:${actualRecord.id}`,
+                                        type: actualRecord.type || 'draw',
+                                        typeName: 'shape',
+                                        x: actualRecord.x || 0,
+                                        y: actualRecord.y || 0,
+                                        rotation: actualRecord.rotation || 0,
+                                        isLocked: actualRecord.isLocked || false,
+                                        opacity: actualRecord.opacity || 1,
+                                        props: actualRecord.props || {}
                                     } as TLRecord;
-
                                     store.put([normalizedRecord]);
-                                } else {
-                                    console.warn('Invalid record structure:', record);
                                 }
                             });
                         });

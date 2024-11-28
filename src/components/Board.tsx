@@ -55,6 +55,14 @@ export function Board() {
 		};
 	}, [store]);
 
+	useEffect(() => {
+		console.log('Store updated:', {
+			hasStore: !!store,
+			recordCount: store?.allRecords().length,
+			records: store?.allRecords()
+		});
+	}, [store]);
+
 	return (
 		<div style={{ position: 'fixed', inset: 0 }}>
 			<Tldraw

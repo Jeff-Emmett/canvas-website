@@ -1,6 +1,5 @@
 import { TLAssetStore, uniqueId } from 'tldraw'
-
-const WORKER_URL = process.env.TLDRAW_WORKER_URL
+import { WORKER_URL } from '../components/Board'
 
 // How does our server handle assets like images and videos?
 export const multiplayerAssetStore: TLAssetStore = {

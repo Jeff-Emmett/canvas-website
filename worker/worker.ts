@@ -43,7 +43,9 @@ const { preflight, corsify } = cors({
 			// Allow ws:// in development
 			/^ws:\/\/localhost:\d+$/,
 			// Allow wss:// in development
-			/^wss:\/\/localhost:\d+$/
+			/^wss:\/\/localhost:\d+$/,
+			/^https:\/\/jeffemmett-canvas\.jeffemmett\.workers\.dev$/,
+			/^wss:\/\/jeffemmett-canvas\.jeffemmett\.workers\.dev$/
 		]
 
 		// Check if origin matches any of our patterns
