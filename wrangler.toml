@@ -1,6 +1,6 @@
 main = "worker/worker.ts"
 compatibility_date = "2024-07-01"
-name = "jeffemmett_canvas"
+name = "jeffemmett-canvas"
 account_id = "0e7b3338d5278ed1b148e6456b940913"
 zone_id = "45c200f8dc2a01852e41b9bb09eb7359"
 
