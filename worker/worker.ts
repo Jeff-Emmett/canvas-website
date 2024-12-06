@@ -17,6 +17,13 @@ const securityHeaders = {
 	'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
 }
 
+const corsHeaders = {
+	'Access-Control-Allow-Origin': '*',
+	'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+	'Access-Control-Allow-Headers': 'Content-Type, Authorization, Upgrade, Connection, Sec-WebSocket-Key, Sec-WebSocket-Version, Sec-WebSocket-Protocol',
+	'Access-Control-Allow-Credentials': 'true',
+};
+
 // we use itty-router (https://itty.dev/) to handle routing. in this example we turn on CORS because
 // we're hosting the worker separately to the client. you should restrict this to your own domain.
 const { preflight, corsify } = cors({
@@ -73,21 +80,33 @@ const { preflight, corsify } = cors({
 	maxAge: 86400,
 })
 const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
-	before: [preflight],
-	finally: [(response) => {
-		// Only add security headers to non-WebSocket responses
-		if (response.status !== 101) {
-			const newHeaders = new Headers(response.headers);
-			Object.entries(securityHeaders).forEach(([key, value]) => {
-				newHeaders.set(key, value);
-			});
-			return new Response(response.body, {
-				status: response.status,
-				statusText: response.statusText,
-				headers: newHeaders
+	before: [(request) => {
+		// Handle CORS preflight
+		if (request.method === 'OPTIONS') {
+			return new Response(null, {
+				headers: {
+					...corsHeaders,
+					'Access-Control-Max-Age': '86400',
+				}
 			});
 		}
-		return corsify(response);
+	}],
+	finally: [(response) => {
+		// Don't modify WebSocket upgrade responses
+		if (response.status === 101) {
+			return response;
+		}
+
+		// Add CORS headers to regular responses
+		const headers = new Headers(response.headers);
+		Object.entries(corsHeaders).forEach(([key, value]) => {
+			headers.set(key, value);
+		});
+
+		return new Response(response.body, {
+			status: response.status,
+			headers
+		});
 	}],
 	catch: (e) => {
 		console.error(e)

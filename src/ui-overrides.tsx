@@ -8,7 +8,9 @@ import {
 	useTools,
 } from 'tldraw'
 import { CustomMainMenu } from './components/CustomMainMenu'
-import { EmbedShape } from './shapes/EmbedShapeUtil'
+//import { IEmbedShape } from '@shapes/EmbedShapeUtil'
+//import { VideoChatShape } from '@shapes/VideoChatShapeUtil'
+
 
 export const uiOverrides: TLUiOverrides = {
 	tools(editor, tools) {

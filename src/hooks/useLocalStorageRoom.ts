@@ -3,7 +3,7 @@ import { createTLStore, TLAsset, TLAssetStore } from 'tldraw';
 import { useSync } from '@tldraw/sync';
 import { customSchema } from '../../worker/TldrawDurableObject';
 import { WORKER_URL } from '../components/Board';
-import { SerializedStore } from '@tldraw/store';
+import { SerializedStore, StoreSchema } from '@tldraw/store';
 import { TLRecord } from '@tldraw/tlschema';
 import { TLStoreSchemaOptions } from '@tldraw/editor';
 import { Store } from '@tldraw/store'
@@ -13,194 +13,175 @@ const STORAGE_CLEANUP_THRESHOLD = 0.9; // 90% of quota
 
 export function useLocalStorageRoom(roomId: string) {
     const [isOnline, setIsOnline] = useState(navigator.onLine);
+    const [ws, setWs] = useState<WebSocket | null>(null);
 
     const store = useMemo(() => {
-        const newStore = createTLStore({
+        const savedData = localStorage.getItem(`tldraw-store-${roomId}`);
+        let initialData;
+
+        if (savedData) {
+            try {
+                initialData = JSON.parse(savedData);
+            } catch (e) {
+                console.error('Error parsing stored data:', e);
+            }
+        }
+
+        return createTLStore({
             schema: customSchema,
-            initialData: localStorage.getItem(`tldraw-store-${roomId}`) as unknown as SerializedStore<TLRecord> | undefined,
+            initialData: initialData as SerializedStore<TLRecord> | undefined,
         });
+    }, [roomId]);
 
-        // Set up WebSocket connection with retry logic
+    // Setup WebSocket in a separate useEffect
+    useEffect(() => {
         const setupWebSocket = () => {
-            const wsUrl = process.env.NODE_ENV === 'development'
+            const isLocalhost = window.location.hostname === 'localhost' ||
+                window.location.hostname === '127.0.0.1';
+
+            const baseUrl = isLocalhost
                 ? `ws://${window.location.hostname}:5172`
-                : WORKER_URL.replace(/^https?/, 'wss');
+                : WORKER_URL.replace('https://', 'wss://');
 
-            console.log('Attempting WebSocket connection to:', wsUrl);
-            const ws = new WebSocket(`${wsUrl}/connect/${roomId}`);
-
-            let pingInterval: any;
+            const ws = new WebSocket(`${baseUrl}/connect/${roomId}`);
+            setWs(ws);  // Store WebSocket instance
 
             ws.onopen = () => {
-                console.log('WebSocket connected');
-                ws.send(JSON.stringify({ type: 'pong' }));
-                pingInterval = setInterval(() => {
-                    if (ws.readyState === WebSocket.OPEN) {
-                        ws.send(JSON.stringify({ type: 'pong' }));
-                    }
-                }, 5000);
+                console.log('WebSocket connected successfully');
+                setIsOnline(true);
             };
 
-            ws.onmessage = (message) => {
-                console.log('WebSocket message received:', message.data);
-                try {
-                    const data = JSON.parse(message.data);
-                    console.log('Parsed WebSocket data:', data);
-                    if (data.type === 'initial-state') {
-                        console.log('Initial state documents:', data.data.documents);
-                        const documents = Array.isArray(data.data.documents)
-                            ? data.data.documents
-                            : Object.values(data.data.documents);
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                console.log('WebSocket message received:', message);
 
+                if (message.type === 'initial-state') {
+                    const { records } = message.data;
+                    if (records && Array.isArray(records) && records.length > 0) {
+                        console.log('Server records:', records);
                         store.mergeRemoteChanges(() => {
-                            documents.forEach((record: any) => {
-                                const actualRecord = record.state ? record.state : record;
-
-                                if (actualRecord.typeName === 'document') {
-                                    store.put([{
-                                        ...actualRecord,
-                                        typeName: 'document'
-                                    } as TLRecord]);
-                                } else if (actualRecord.typeName === 'page') {
-                                    store.put([{
-                                        ...actualRecord,
-                                        typeName: 'page'
-                                    } as TLRecord]);
-                                } else {
-                                    const normalizedRecord = {
-                                        ...actualRecord,
-                                        id: actualRecord.id.startsWith('shape:') ? actualRecord.id : `shape:${actualRecord.id}`,
-                                        type: actualRecord.type || 'draw',
-                                        typeName: 'shape',
-                                        x: actualRecord.x || 0,
-                                        y: actualRecord.y || 0,
-                                        rotation: actualRecord.rotation || 0,
-                                        isLocked: actualRecord.isLocked || false,
-                                        opacity: actualRecord.opacity || 1,
-                                        props: actualRecord.props || {}
-                                    } as TLRecord;
-                                    store.put([normalizedRecord]);
-                                }
-                            });
+                            const validRecords = records.filter(
+                                (record: TLRecord) => record && record.typeName && customSchema.types[record.typeName]
+                            );
+                            if (validRecords.length > 0) {
+                                store.put(validRecords);
+                            }
                         });
                     }
-                } catch (e) {
-                    console.error('Error processing WebSocket message:', e);
+                } else if (message.type === 'update') {
+                    store.mergeRemoteChanges(() => {
+                        if (message.data?.length > 0) {
+                            const validRecords = message.data.filter(
+                                (record: TLRecord) => record && record.typeName && customSchema.types[record.typeName]
+                            );
+                            if (validRecords.length > 0) {
+                                store.put(validRecords);
+                            }
+                        }
+                    });
+                }
+            };
+
+            // Keep connection alive
+            const pingInterval = setInterval(() => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'ping' }));
+                }
+            }, 30000);
+
+            return {
+                close: () => {
+                    clearInterval(pingInterval);
+                    ws.close();
+                }
+            };
+        };
+
+        const { close } = setupWebSocket();
+        let heartbeatInterval: NodeJS.Timeout;
+        let reconnectTimeout: NodeJS.Timeout;
+
+        const cleanup = () => {
+            clearInterval(heartbeatInterval);
+            clearTimeout(reconnectTimeout);
+            close();
+            setWs(null);
+        };
+
+        // WebSocket event handlers
+        if (ws) {
+            ws.onopen = () => {
+                console.log('WebSocket connected successfully');
+                heartbeatInterval = setInterval(() => {
+                    if (ws?.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'ping' }));
+                    }
+                }, 30000);
+            };
+
+            ws.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                console.log('WebSocket message received:', message);
+
+                if (message.type === 'initial-state') {
+                    store.mergeRemoteChanges(() => {
+                        if (message.data.records?.length > 0) {
+                            const validRecords = message.data.records.filter((record: TLRecord) =>
+                                record && record.typeName &&
+                                (customSchema.types[record.typeName] ||
+                                    record.typeName === 'document' ||
+                                    record.typeName === 'page')
+                            );
+                            if (validRecords.length > 0) {
+                                store.put(validRecords);
+                            }
+                        }
+                    });
+                } else if (message.type === 'update') {
+                    store.mergeRemoteChanges(() => {
+                        if (Array.isArray(message.data)) {
+                            store.put(message.data);
+                        }
+                    });
                 }
             };
 
             ws.onerror = (error) => {
-                console.warn('WebSocket error:', error);
-                clearInterval(pingInterval);
-                setTimeout(setupWebSocket, 3000);
+                console.error('WebSocket error:', error);
             };
 
-            ws.onclose = () => {
-                console.warn('WebSocket closed');
-                clearInterval(pingInterval);
-                setTimeout(setupWebSocket, 3000);
-            };
+            ws.onclose = (event) => {
+                console.log(`WebSocket closed with code: ${event.code} reason: ${event.reason}`);
+                clearInterval(heartbeatInterval);
 
-            return ws;
-        };
-
-        const ws = setupWebSocket();
-
-        return newStore;
-    }, [roomId]);
-
-    useEffect(() => {
-        const handleOnline = () => setIsOnline(true);
-        const handleOffline = () => setIsOnline(false);
-
-        window.addEventListener('online', handleOnline);
-        window.addEventListener('offline', handleOffline);
-
-        return () => {
-            window.removeEventListener('online', handleOnline);
-            window.removeEventListener('offline', handleOffline);
-        };
-    }, []);
-
-    const saveToStorage = useCallback(async (data: SerializedStore<TLRecord>) => {
-        let attempts = 0;
-
-        while (attempts < MAX_STORAGE_RETRY_ATTEMPTS) {
-            try {
-                const serialized = JSON.stringify(data);
-                localStorage.setItem(`room_${roomId}`, serialized);
-                return true;
-            } catch (error: unknown) {
-                if (error instanceof Error && (error.name === 'QuotaExceededError' || error.toString().includes('quota'))) {
-
-                    attempts++;
-
-                    // Try to free up space
-                    if (attempts === 1) {
-                        await cleanupStorage();
-                        continue;
-                    }
-
-                    // If still failing, try removing older history
-                    if (attempts === 2) {
-                        const trimmedData = trimHistoryData(data);
-                        try {
-                            localStorage.setItem(`room_${roomId}`, JSON.stringify(trimmedData));
-                            return true;
-                        } catch (e) {
-                            console.warn('Still unable to save after trimming history');
-                        }
-                    }
+                // Attempt to reconnect unless explicitly closed
+                if (event.code !== 1000) {
+                    console.log('Attempting to reconnect...');
+                    reconnectTimeout = setTimeout(() => {
+                        cleanup();
+                        setupWebSocket();
+                    }, 3000);
                 }
+            };
 
-                console.error('Failed to save to localStorage:', error);
-                return false;
-            }
+            // Add store listener
+            const unsubscribe = store.listen(() => {
+                if (ws?.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'update',
+                        data: Array.from(store.allRecords())
+                    }));
+                }
+            });
+
+            return () => {
+                cleanup();
+                unsubscribe();
+            };
         }
+    }, [store, roomId]);
 
-        return false;
-    }, [roomId]);
-
-    // Helper to cleanup storage
-    const cleanupStorage = useCallback(async () => {
-        const items = { ...localStorage };
-        const totalSpace = JSON.stringify(items).length;
-        const quota = await getStorageQuota();
-
-        if (totalSpace / quota > STORAGE_CLEANUP_THRESHOLD) {
-            // Remove old rooms first
-            Object.keys(items)
-                .filter(key => key.startsWith('room_') && key !== `room_${roomId}`)
-                .sort((a, b) => {
-                    const timeA = items[a]?.lastAccessed || 0;
-                    const timeB = items[b]?.lastAccessed || 0;
-                    return timeA - timeB;
-                })
-                .forEach(key => {
-                    localStorage.removeItem(key);
-                });
-        }
-    }, [roomId]);
-
-    // Helper to trim history data
-    const trimHistoryData = useCallback((data: SerializedStore<TLRecord>) => {
-        if (!data || typeof data !== 'object') return data;
-
-        // Create a shallow copy
-        const trimmedData = { ...data } as { store?: { history?: unknown[] } };
-
-        // Handle store's history at the root level
-        if (trimmedData?.store?.history?.length) {
-            trimmedData.store.history = trimmedData.store.history.slice(-100);
-        }
-
-        return trimmedData;
-    }, []);
-
-    return {
-        store,
-        isOnline,
-    };
+    return { store, isOnline };
 }
 
 // Utility to get storage quota
@@ -210,4 +191,19 @@ async function getStorageQuota(): Promise<number> {
         return estimate.quota || 5 * 1024 * 1024; // Default 5MB
     }
     return 5 * 1024 * 1024; // Default 5MB
+}
+
+// Helper function to compare server and local data
+function shouldUpdateFromServer(
+    serverRecords: TLRecord[],
+    localRecords: TLRecord[]
+): boolean {
+    // If we have no local records, accept server records
+    if (localRecords.length === 0) return true;
+
+    // Compare the latest timestamp from each set of records
+    const serverLatest = Math.max(...serverRecords.map(r => r.meta?.updatedAt ?? 0) as number[]);
+    const localLatest = Math.max(...localRecords.map(r => r.meta?.updatedAt ?? 0) as number[]);
+
+    return serverLatest > localLatest;
 } 

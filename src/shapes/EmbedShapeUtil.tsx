@@ -1,5 +1,6 @@
-import { BaseBoxShapeUtil, TLBaseShape } from "tldraw";
+import { BaseBoxShapeUtil, TLBaseShape } from "@tldraw/editor";
 import { useCallback, useState } from "react";
+import { T } from "@tldraw/editor";
 
 export type IEmbedShape = TLBaseShape<
     'Embed',
@@ -10,8 +11,16 @@ export type IEmbedShape = TLBaseShape<
     }
 >;
 
-export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
-    static override type = 'Embed';
+export class EmbedShapeUtil extends BaseBoxShapeUtil<IEmbedShape> {
+    static type = 'Embed' as const
+    static schema = {
+        type: 'Embed' as const,
+        props: {
+            w: T.number,
+            h: T.number,
+            url: T.string.optional()
+        }
+    }
 
     getDefaultProps(): IEmbedShape['props'] {
         return {
@@ -136,3 +145,5 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
         );
     }
 }
+
+export default EmbedShapeUtil;

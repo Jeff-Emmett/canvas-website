@@ -11,20 +11,25 @@ import {
 import { AutoRouter, IRequest, error } from 'itty-router'
 import throttle from 'lodash.throttle'
 import { Environment } from './types'
-import { ChatBoxShape } from '@/shapes/ChatBoxShapeUtil'
-import { VideoChatShape } from '@/shapes/VideoChatShapeUtil'
-import { EmbedShape } from '@/shapes/EmbedShapeUtil'
-import GSet from 'crdts/src/G-Set'
+import { ChatBoxShapeUtil } from '@/shapes/ChatBoxShapeUtil'
+import { VideoChatShapeUtil } from '@/shapes/VideoChatShapeUtil'
+import { EmbedShapeUtil } from '@/shapes/EmbedShapeUtil'
+//import GSet from 'crdts/src/G-Set'
+import { Store, SerializedStore, StoreSchema } from '@tldraw/store'
+import { createTLStore } from '@tldraw/tldraw'
+import { TLStoreSchemaOptions } from '@tldraw/editor'
 
-// add custom shapes and bindings here if needed:
+
+// Create the store schema
 export const customSchema = createTLSchema({
 	shapes: {
 		...defaultShapeSchemas,
-		ChatBox: ChatBoxShape,
-		VideoChat: VideoChatShape,
-		Embed: EmbedShape
+		ChatBox: ChatBoxShapeUtil.schema,
+		VideoChat: VideoChatShapeUtil.schema,
+		Embed: EmbedShapeUtil.schema
 	},
-	// bindings: { ...defaultBindingSchemas },
+	// Optional: add bindings if needed
+	bindings: {}
 })
 
 // each whiteboard room is hosted in a DurableObject:
@@ -39,12 +44,16 @@ export class TldrawDurableObject {
 	// when we load the room from the R2 bucket, we keep it here. it's a promise so we only ever
 	// load it once.
 	private roomPromise: Promise<TLSocketRoom<TLRecord, void>> | null = null
+	private store: ReturnType<typeof createTLStore>
 
 	constructor(
 		private readonly ctx: DurableObjectState,
 		env: Environment
 	) {
 		this.r2 = env.TLDRAW_BUCKET
+		this.store = createTLStore({
+			schema: customSchema,
+		})
 
 		ctx.blockConcurrencyWhile(async () => {
 			this.roomId = ((await this.ctx.storage.get('roomId')) ?? null) as string | null
@@ -73,160 +82,170 @@ export class TldrawDurableObject {
 			return new Response(JSON.stringify(snapshot.documents))
 		})
 		.post('/room/:roomId', async (request) => {
+			// Set roomId if not already set
+			if (!this.roomId) {
+				await this.ctx.blockConcurrencyWhile(async () => {
+					await this.ctx.storage.put('roomId', request.params.roomId)
+					this.roomId = request.params.roomId
+				})
+			}
+
 			const records = await request.json() as TLRecord[]
-			const mergedRecords = await this.mergeCrdtState(records)
+			const mergedRecords = await this.mergeTLDrawState(records)
 			return new Response(JSON.stringify(Array.from(mergedRecords)))
 		})
 
 	// `fetch` is the entry point for all requests to the Durable Object
 	fetch(request: Request): Response | Promise<Response> {
-		return this.router.fetch(request)
+		// Handle WebSocket upgrade requests
+		if (request.headers.get('Upgrade') === 'websocket') {
+			return this.handleConnect(request as unknown as IRequest);
+		}
+
+		// Handle regular HTTP requests through the router
+		return this.router.fetch(request as unknown as IRequest);
 	}
 
 	// what happens when someone tries to connect to this room?
 	async handleConnect(request: IRequest): Promise<Response> {
-		const upgradeHeader = request.headers.get('Upgrade')
-		if (!upgradeHeader || upgradeHeader !== 'websocket') {
-			return new Response('Expected Upgrade: websocket', { status: 426 })
+		try {
+			const upgradeHeader = request.headers.get('Upgrade')
+			if (!upgradeHeader || upgradeHeader !== 'websocket') {
+				return new Response('Expected Upgrade: websocket', { status: 426 })
+			}
+
+			// Extract roomId from URL
+			const url = new URL(request.url)
+			const roomId = url.pathname.split('/').pop()
+
+			if (!roomId) {
+				return new Response('Missing roomId', { status: 400 })
+			}
+
+			// Set roomId if not already set
+			if (!this.roomId) {
+				await this.ctx.blockConcurrencyWhile(async () => {
+					await this.ctx.storage.put('roomId', roomId)
+					this.roomId = roomId
+				})
+			}
+
+			const webSocketPair = new WebSocketPair()
+			const [client, server] = Object.values(webSocketPair)
+
+			server.accept()
+
+			// Get room and initial state
+			const room = await this.getRoom()
+			const snapshot = room.getCurrentSnapshot()
+
+			// Add connection to TLSocketRoom first
+			const sessionId = crypto.randomUUID()
+			room.handleSocketConnect({
+				sessionId,
+				socket: server
+			});
+
+			// Send initial state with room snapshot data
+			if (snapshot?.documents) {
+				server.send(JSON.stringify({
+					type: 'initial-state',
+					data: {
+						records: snapshot.documents.map(doc => ({
+							...doc.state,
+							typeName: doc.state.typeName,
+							id: doc.state.id
+						}))
+					}
+				}));
+			}
+
+			// Handle updates from client
+			server.addEventListener('message', async (event) => {
+				try {
+					const data = JSON.parse(event.data as string);
+					if (data.type === 'ping') {
+						server.send(JSON.stringify({ type: 'pong' }));
+					} else if (data.type === 'update') {
+						const mergedRecords = await this.mergeTLDrawState(data.records);
+						room.updateStore((store) => {
+							for (const record of mergedRecords) {
+								store.put(record);
+							}
+						});
+
+						// Broadcast to all sessions
+						const sessions = room.getSessions();
+						const message = JSON.stringify({
+							type: 'update',
+							data: Array.from(mergedRecords)
+						});
+
+						sessions.forEach(session => {
+							if (session.isConnected) {
+								room.handleSocketMessage(session.sessionId, message);
+							}
+						});
+					}
+				} catch (error) {
+					console.error('Error handling message:', error);
+				}
+			});
+
+			return new Response(null, {
+				status: 101,
+				webSocket: client,
+			});
+		} catch (error) {
+			console.error('WebSocket connection error:', error);
+			return new Response('Internal Server Error', { status: 500 });
 		}
-
-		const webSocketPair = new WebSocketPair()
-		const [client, server] = Object.values(webSocketPair)
-
-		server.accept()
-
-		// Get room and initial state immediately
-		const room = await this.getRoom()
-		const snapshot = room.getCurrentSnapshot()
-
-		// Add connection to TLSocketRoom first
-		const sessionId = crypto.randomUUID()
-		room.handleSocketConnect({
-			sessionId,
-			socket: server
-		});
-
-		// Send initial state right after connection
-		if (snapshot && snapshot.documents) {
-			const normalizedDocuments = snapshot.documents.map(doc => {
-				const state = doc.state;
-
-				// Handle documents
-				if (state.id.startsWith('document:')) {
-					return {
-						...state,
-						typeName: 'document'
-					} as TLRecord;
-				}
-
-				// Handle pages
-				if (state.id.startsWith('page:')) {
-					return {
-						...state,
-						typeName: 'page'
-					} as TLRecord;
-				}
-
-				// Handle actual shapes
-				return {
-					...state,
-					id: state.id.startsWith('shape:') ? state.id : `shape:${state.id}`,
-					type: (state as { type?: string }).type || 'draw',
-					typeName: 'shape',
-					x: (state as any).x || 0,
-					y: (state as any).y || 0,
-					rotation: (state as any).rotation || 0,
-					isLocked: (state as any).isLocked || false,
-					opacity: (state as any).opacity || 1,
-					props: (state as any).props || {}
-				} as TLRecord;
-			});
-
-			console.log('Room snapshot:', {
-				hasDocuments: !!snapshot?.documents,
-				documentCount: snapshot?.documents?.length,
-				documents: snapshot?.documents
-			});
-
-			console.log('Normalized documents:', normalizedDocuments);
-
-			server.send(JSON.stringify({
-				type: 'initial-state',
-				data: {
-					documents: normalizedDocuments
-				}
-			}));
-		}
-
-		// Set up error handling and heartbeat after state is sent
-		server.addEventListener('error', (err) => {
-			console.error('WebSocket error:', err)
-		})
-
-		server.addEventListener('close', () => {
-			console.log('WebSocket closed')
-		})
-
-		// Heartbeat setup
-		const startHeartbeat = () => {
-			const pingInterval = setInterval(() => {
-				if (server.readyState === 1) {
-					server.send(JSON.stringify({ type: 'ping' }));
-				}
-			}, 10000);
-
-			server.addEventListener('close', () => {
-				clearInterval(pingInterval);
-			});
-		};
-
-		startHeartbeat();
-
-		return new Response(null, {
-			status: 101,
-			webSocket: client,
-			headers: {
-				'Access-Control-Allow-Origin': '*',
-				'Access-Control-Allow-Headers': '*',
-				'Sec-WebSocket-Protocol': request.headers.get('Sec-WebSocket-Protocol') || '',
-			},
-		})
 	}
 
-	getRoom() {
+	async getRoom() {
 		const roomId = this.roomId
 		if (!roomId) throw new Error('Missing roomId')
 
 		if (!this.roomPromise) {
 			this.roomPromise = (async () => {
-				// fetch the room from R2
+				// First check R2 for existing room
 				console.log('Fetching room from R2:', roomId);
 				const roomFromBucket = await this.r2.get(`rooms/${roomId}`)
-				console.log('Room from bucket exists:', !!roomFromBucket);
+
+				let initialSnapshot: RoomSnapshot | undefined;
+
 				if (roomFromBucket) {
-					const data = await roomFromBucket.json();
-					console.log('Room data:', data);
+					try {
+						const data = await roomFromBucket.json() as RoomSnapshot;
+						initialSnapshot = {
+							clock: data.clock,
+							schema: customSchema.serialize(),
+							documents: data.documents.map(doc => ({
+								lastChangedClock: doc.lastChangedClock,
+								state: {
+									...doc.state,
+									typeName: doc.state.typeName,
+									id: doc.state.id
+								}
+							}))
+						};
+					} catch (e) {
+						console.error('Error parsing room data:', e);
+					}
 				}
-				// if it doesn't exist, we'll just create a new empty room
-				const initialSnapshot = roomFromBucket
-					? ((await roomFromBucket.json()) as RoomSnapshot)
-					: undefined
-				if (initialSnapshot) {
-					initialSnapshot.documents = initialSnapshot.documents.filter(record => {
-						const shape = record.state as TLShape
-						return shape.type !== "chatBox"
-					})
-				}
-				// create a new TLSocketRoom. This handles all the sync protocol & websocket connections.
-				// it's up to us to persist the room state to R2 when needed though.
-				return new TLSocketRoom<TLRecord, void>({
+
+				const room = new TLSocketRoom<TLRecord, void>({
 					schema: customSchema,
 					initialSnapshot,
 					onDataChange: () => {
-						// and persist whenever the data in the room changes
-						this.schedulePersistToR2()
+						const snapshot = room.getCurrentSnapshot();
+						// Store in both DO and R2
+						this.ctx.storage.put('room', snapshot);
+						this.schedulePersistToR2();
 					},
-				})
+				});
+
+				return room;
 			})()
 		}
 
@@ -243,20 +262,60 @@ export class TldrawDurableObject {
 		await this.r2.put(`rooms/${this.roomId}`, snapshot)
 	}, 10_000)
 
-	async mergeCrdtState(records: TLRecord[]) {
+	async mergeTLDrawState(records: TLRecord[]) {
 		const room = await this.getRoom();
-		const gset = new GSet<TLRecord>();
+		const snapshot = room.getCurrentSnapshot();
 
-		const store = room.getCurrentSnapshot();
-		if (!store) {
-			throw new Error('Room store not initialized');
+		if (!snapshot) {
+			throw new Error('Room store not initialized')
 		}
 
-		// First cast to unknown, then to TLRecord
-		store.documents.forEach((record) => gset.add(record as unknown as TLRecord));
+		const store = createTLStore({
+			schema: customSchema,
+		});
 
-		// Merge new records 
-		records.forEach((record: TLRecord) => gset.add(record));
-		return gset.values();
+		store.mergeRemoteChanges(() => {
+			// Handle existing records
+			for (const record of snapshot.documents) {
+				if (record && record.state && record.state.typeName) {
+					store.put([record.state] as TLRecord[]);
+				}
+			}
+
+			// Handle new records
+			for (const record of records) {
+				if (record && record.typeName) {
+					store.put([record]);
+				}
+			}
+		});
+
+		return Array.from(store.allRecords());
 	}
+
+}
+
+// Function to merge TLDraw store states
+export function mergeTLDrawState(
+	existingRecords: TLRecord[],
+	newRecords: TLRecord[],
+): TLRecord[] {
+	const store = createTLStore({
+		schema: customSchema,
+	})
+
+	store.mergeRemoteChanges(() => {
+		const validExistingRecords = existingRecords?.filter(record => record?.typeName && record?.id) || [];
+		const validNewRecords = newRecords?.filter(record => record?.typeName && record?.id) || [];
+
+		for (const record of validExistingRecords) {
+			store.put([record]);
+		}
+
+		for (const record of validNewRecords) {
+			store.put([record]);
+		}
+	})
+
+	return Array.from(store.allRecords());
 }

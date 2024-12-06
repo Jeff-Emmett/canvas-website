@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { BaseBoxShapeUtil, TLBaseShape } from "tldraw";
+import { BaseBoxShapeUtil, T, TLBaseShape } from "@tldraw/editor";
 
 export type IChatBoxShape = TLBaseShape<
     'ChatBox',
@@ -11,8 +11,17 @@ export type IChatBoxShape = TLBaseShape<
     }
 >
 
-export class ChatBoxShape extends BaseBoxShapeUtil<IChatBoxShape> {
-    static override type = 'ChatBox'
+export class ChatBoxShapeUtil extends BaseBoxShapeUtil<IChatBoxShape> {
+    static type = 'ChatBox' as const
+    static schema = {
+        type: 'ChatBox' as const,
+        props: {
+            w: T.number,
+            h: T.number,
+            roomId: T.string,
+            userName: T.string
+        }
+    }
 
     getDefaultProps(): IChatBoxShape['props'] {
         return {

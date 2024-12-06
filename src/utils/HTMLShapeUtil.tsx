@@ -1,4 +1,4 @@
-import { Rectangle2d, resizeBox, TLBaseShape, TLOnBeforeUpdateHandler, TLOnResizeHandler } from 'tldraw';
+import { Rectangle2d, resizeBox, TLBaseShape, TLResizeHandle, TLResizeInfo, TLPointer } from 'tldraw';
 import { ShapeUtil } from 'tldraw'
 
 export type HTMLShape = TLBaseShape<'html', { w: number; h: number, html: string }>
@@ -18,13 +18,13 @@ export class HTMLShapeUtil extends ShapeUtil<HTMLShape> {
     }
   }
 
-  override onTranslate: TLOnBeforeUpdateHandler<HTMLShape> = (prev, next) => {
-    if (prev.x !== next.x || prev.y !== next.y) {
-      this.editor.bringToFront([next.id]);
+  override onTranslate = (initial: HTMLShape, current: HTMLShape) => {
+    if (initial.x !== current.x || initial.y !== current.y) {
+      this.editor.bringToFront([current.id]);
     }
   }
 
-  override onResize: TLOnResizeHandler<HTMLShape> = (shape: HTMLShape, info) => {
+  override onResize = (shape: HTMLShape, info: TLResizeInfo<HTMLShape>) => {
     const element = document.getElementById(shape.id);
     if (!element || !element.parentElement) return resizeBox(shape, info);
     const { width, height } = element.parentElement.getBoundingClientRect();

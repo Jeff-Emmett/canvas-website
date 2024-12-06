@@ -20,10 +20,10 @@ import {
 	TLBaseBinding,
 	TLBaseShape,
 	Tldraw,
-} from 'tldraw';
+} from '@tldraw/tldraw';
 import { components, uiOverrides } from './ui-overrides';
-import { ChatBoxShape } from './shapes/ChatBoxShapeUtil';
-import { VideoChatShape } from './shapes/VideoChatShapeUtil';
+import { ChatBoxShapeUtil } from './shapes/ChatBoxShapeUtil';
+import { VideoChatShapeUtil } from './shapes/VideoChatShapeUtil';
 import { ChatBoxTool } from './tools/ChatBoxTool';
 import { VideoChatTool } from './tools/VideoChatTool';
 
@@ -50,7 +50,7 @@ type LayoutBinding = TLBaseBinding<
 	}
 >;
 
-const customShapeUtils = [ChatBoxShape, VideoChatShape];
+const customShapeUtils = [ChatBoxShapeUtil, VideoChatShapeUtil];
 const customTools = [ChatBoxTool, VideoChatTool];
 
 // [2]

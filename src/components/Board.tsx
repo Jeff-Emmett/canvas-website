@@ -5,16 +5,17 @@ import {
 	TLBookmarkAsset,
 	TLRecord,
 	Tldraw,
-} from 'tldraw'
+	TLAnyShapeUtilConstructor,
+} from '@tldraw/tldraw'
 import { useParams } from 'react-router-dom'
 import useLocalStorageState from 'use-local-storage-state'
 import { ChatBoxTool } from '@/tools/ChatBoxTool'
-import { ChatBoxShape } from '@/shapes/ChatBoxShapeUtil'
+import { ChatBoxShapeUtil } from '@/shapes/ChatBoxShapeUtil'
 import { VideoChatTool } from '@/tools/VideoChatTool'
-import { VideoChatShape } from '@/shapes/VideoChatShapeUtil'
+import { VideoChatShapeUtil } from '@/shapes/VideoChatShapeUtil'
 import { multiplayerAssetStore } from '../client/multiplayerAssetStore'
 import { customSchema } from '../../worker/TldrawDurableObject'
-import { EmbedShape } from '@/shapes/EmbedShapeUtil'
+import { EmbedShapeUtil } from '@/shapes/EmbedShapeUtil'
 import { EmbedTool } from '@/tools/EmbedTool'
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -23,9 +24,6 @@ import { components, uiOverrides } from '@/ui-overrides'
 
 //const WORKER_URL = `https://jeffemmett-canvas.jeffemmett.workers.dev`
 export const WORKER_URL = process.env.VITE_TLDRAW_WORKER_URL || 'https://jeffemmett-canvas.jeffemmett.workers.dev';
-
-const shapeUtils = [ChatBoxShape, VideoChatShape, EmbedShape]
-const tools = [ChatBoxTool, VideoChatTool, EmbedTool]; // Array of tools
 
 // Add these imports
 import { useLocalStorageRoom } from '@/hooks/useLocalStorageRoom';
@@ -41,18 +39,11 @@ export function Board() {
 
 		const unsubscribe = store.listen((update) => {
 			if (update.source === 'remote') {
-				store.mergeRemoteChanges(() => {
-					const records = store.allRecords();
-					if (records.length > 0) {
-						store.put(records);
-					}
-				});
+				console.log('Received remote update:', update);
 			}
 		});
 
-		return () => {
-			unsubscribe();
-		};
+		return () => unsubscribe();
 	}, [store]);
 
 	useEffect(() => {
@@ -63,14 +54,42 @@ export function Board() {
 		});
 	}, [store]);
 
+	const getBaseUrl = () => {
+		const isLocalhost = window.location.hostname === 'localhost' ||
+			window.location.hostname === '127.0.0.1';
+
+		return isLocalhost
+			? `${window.location.protocol}//${window.location.hostname}:5172`
+			: WORKER_URL;
+	};
+
+	useEffect(() => {
+		if (!store) return;
+
+		const unsubscribe = store.listen((update) => {
+			if (update.source === 'user') {
+				fetch(`${getBaseUrl()}/room/${roomId}`, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify(store.allRecords())
+				}).catch(error => {
+					console.error('Error sending update to server:', error);
+				});
+			}
+		});
+
+		return () => unsubscribe();
+	}, [store, roomId]);
+
 	return (
 		<div style={{ position: 'fixed', inset: 0 }}>
 			<Tldraw
 				store={store}
-				shapeUtils={shapeUtils}
+				shapeUtils={[ChatBoxShapeUtil, VideoChatShapeUtil, EmbedShapeUtil]}
 				overrides={uiOverrides}
 				components={components}
-				tools={tools}
 				autoFocus
 				onMount={(editor) => {
 					editor.registerExternalAssetHandler('url', unfurlBookmarkUrl)
