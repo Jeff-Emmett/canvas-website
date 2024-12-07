@@ -76,7 +76,11 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
 	.get('/connect/:roomId', (request, env) => {
 		const id = env.TLDRAW_DURABLE_OBJECT.idFromName(request.params.roomId)
 		const room = env.TLDRAW_DURABLE_OBJECT.get(id)
-		return room.fetch(request.url, { headers: request.headers, body: request.body })
+		return room.fetch(request.url, {
+			headers: request.headers,
+			body: request.body,
+			method: request.method
+		})
 	})
 
 	// assets can be uploaded to the bucket under /uploads:
