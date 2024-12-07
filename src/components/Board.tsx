@@ -27,10 +27,7 @@ import { useCameraControls } from '@/hooks/useCameraControls'
 import { zoomToSelection } from '../ui-overrides'
 
 // Default to production URL if env var isn't available
-const DEFAULT_WORKER_URL = 'https://jeffemmett-canvas.jeffemmett.workers.dev';
-export const WORKER_URL = typeof import.meta.env.VITE_TLDRAW_WORKER_URL === 'string'
-	? import.meta.env.VITE_TLDRAW_WORKER_URL
-	: DEFAULT_WORKER_URL;
+export const WORKER_URL = 'https://jeffemmett-canvas.jeffemmett.workers.dev';
 
 const shapeUtils = [ChatBoxShape, VideoChatShape, EmbedShape]
 const tools = [ChatBoxTool, VideoChatTool, EmbedTool]; // Array of tools
