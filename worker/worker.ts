@@ -27,24 +27,14 @@ const { preflight, corsify } = cors({
 			'https://jeffemmett-canvas.jeffemmett.workers.dev'
 		];
 
-		const allowedPatterns = [
-			// Localhost with any port
+		// Development patterns
+		const devPatterns = [
 			/^http:\/\/localhost:\d+$/,
-			// 127.0.0.1 with any port
 			/^http:\/\/127\.0\.0\.1:\d+$/,
-			// 192.168.*.* with any port
 			/^http:\/\/192\.168\.\d+\.\d+:\d+$/,
-			// 169.254.*.* with any port
 			/^http:\/\/169\.254\.\d+\.\d+:\d+$/,
-			// 10.*.*.* with any port
-			/^http:\/\/10\.\d+\.\d+\.\d+:\d+$/,
-			// Production domain
-			/^https:\/\/jeffemmett\.com$/,
-			/^https:\/\/www\.jeffemmett\.com$/,
-			// Worker domain
-			/^https:\/\/jeffemmett-canvas\.jeffemmett\.workers\.dev$/
-		]
-
+			/^http:\/\/10\.\d+\.\d+\.\d+:\d+$/
+		];
 
 		if (!origin) return undefined;
 
@@ -53,8 +43,8 @@ const { preflight, corsify } = cors({
 			return origin;
 		}
 
-		// Then check patterns
-		if (allowedPatterns.some(pattern => pattern.test(origin))) {
+		// Then check development patterns
+		if (process.env.NODE_ENV === 'development' && devPatterns.some(pattern => pattern.test(origin))) {
 			return origin;
 		}
 
@@ -72,6 +62,7 @@ const { preflight, corsify } = cors({
 		'Sec-WebSocket-Protocol'
 	],
 	maxAge: 86400,
+	credentials: true
 })
 const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
 	before: [preflight],
