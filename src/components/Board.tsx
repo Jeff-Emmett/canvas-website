@@ -19,6 +19,7 @@ import { multiplayerAssetStore } from '../client/multiplayerAssetStore'
 import { customSchema } from '../../worker/TldrawDurableObject'
 import { EmbedShape } from '@/shapes/EmbedShapeUtil'
 import { EmbedTool } from '@/tools/EmbedTool'
+import { defaultShapeUtils, defaultBindingUtils } from 'tldraw'
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { ChatBox } from '@/shapes/ChatBoxShapeUtil';
@@ -32,16 +33,19 @@ export const WORKER_URL = 'https://jeffemmett-canvas.jeffemmett.workers.dev';
 const shapeUtils = [ChatBoxShape, VideoChatShape, EmbedShape]
 const tools = [ChatBoxTool, VideoChatTool, EmbedTool]; // Array of tools
 
-// Add these imports
-import { useGSetState } from '@/hooks/useGSetState';
-import { useLocalStorageRoom } from '@/hooks/useLocalStorageRoom';
-import { usePersistentBoard } from '@/hooks/usePersistentBoard';
-
 
 export function Board() {
 	const { slug } = useParams<{ slug: string }>();
 	const roomId = slug || 'default-room';
-	const store = usePersistentBoard(roomId);
+
+	const store = useSync({
+		uri: `${WORKER_URL}/connect/${roomId}`,
+		assets: multiplayerAssetStore,
+		shapeUtils: [...shapeUtils, ...defaultShapeUtils],
+		// Add default bindings if you're using them
+		bindingUtils: [...defaultBindingUtils],
+	})
+
 	const [editor, setEditor] = useState<Editor | null>(null)
 	const { zoomToFrame, copyFrameLink, copyLocationLink, revertCamera } = useCameraControls(editor)
 
