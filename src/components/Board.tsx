@@ -1,4 +1,5 @@
 import { useSync } from '@tldraw/sync'
+import { useMemo } from 'react'
 import {
 	AssetRecordType,
 	getHashForString,
@@ -10,7 +11,6 @@ import {
 	TLUiEventSource,
 } from 'tldraw'
 import { useParams } from 'react-router-dom'
-import useLocalStorageState from 'use-local-storage-state'
 import { ChatBoxTool } from '@/tools/ChatBoxTool'
 import { ChatBoxShape } from '@/shapes/ChatBoxShapeUtil'
 import { VideoChatTool } from '@/tools/VideoChatTool'
@@ -19,6 +19,7 @@ import { multiplayerAssetStore } from '../client/multiplayerAssetStore'
 import { customSchema } from '../../worker/TldrawDurableObject'
 import { EmbedShape } from '@/shapes/EmbedShapeUtil'
 import { EmbedTool } from '@/tools/EmbedTool'
+import { defaultShapeUtils, defaultBindingUtils } from 'tldraw'
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { ChatBox } from '@/shapes/ChatBoxShapeUtil';
@@ -26,22 +27,25 @@ import { components, uiOverrides } from '@/ui-overrides'
 import { useCameraControls } from '@/hooks/useCameraControls'
 import { zoomToSelection } from '../ui-overrides'
 
-//const WORKER_URL = `https://jeffemmett-canvas.jeffemmett.workers.dev`
+// Default to production URL if env var isn't available
 export const WORKER_URL = 'https://jeffemmett-canvas.jeffemmett.workers.dev';
 
 const shapeUtils = [ChatBoxShape, VideoChatShape, EmbedShape]
 const tools = [ChatBoxTool, VideoChatTool, EmbedTool]; // Array of tools
 
-// Add these imports
-import { useGSetState } from '@/hooks/useGSetState';
-import { useLocalStorageRoom } from '@/hooks/useLocalStorageRoom';
-import { usePersistentBoard } from '@/hooks/usePersistentBoard';
-
 
 export function Board() {
 	const { slug } = useParams<{ slug: string }>();
 	const roomId = slug || 'default-room';
-	const store = usePersistentBoard(roomId);
+
+	const storeConfig = useMemo(() => ({
+		uri: `${WORKER_URL}/connect/${roomId}`,
+		assets: multiplayerAssetStore,
+		shapeUtils: [...shapeUtils, ...defaultShapeUtils],
+		bindingUtils: [...defaultBindingUtils],
+	}), [roomId]);
+
+	const store = useSync(storeConfig);
 	const [editor, setEditor] = useState<Editor | null>(null)
 	const { zoomToFrame, copyFrameLink, copyLocationLink, revertCamera } = useCameraControls(editor)
 

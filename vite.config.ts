@@ -1,5 +1,5 @@
 import { markdownPlugin } from './build/markdownPlugin';
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import wasm from "vite-plugin-wasm";
 import topLevelAwait from "vite-plugin-top-level-await";
@@ -35,4 +35,7 @@ export default defineConfig({
       '@': '/src',
     },
   },
-})
+  define: {
+    'import.meta.env.VITE_WORKER_URL': JSON.stringify(process.env.VITE_WORKER_URL)
+  }
+});

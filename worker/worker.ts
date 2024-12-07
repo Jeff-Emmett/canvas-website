@@ -21,31 +21,27 @@ const securityHeaders = {
 // we're hosting the worker separately to the client. you should restrict this to your own domain.
 const { preflight, corsify } = cors({
 	origin: (origin) => {
-		if (!origin) return undefined
+		const allowedOrigins = [
+			'https://jeffemmett.com',
+			'https://www.jeffemmett.com',
+			'https://jeffemmett-canvas.jeffemmett.workers.dev',
+			'https://jeffemmett.com/board/*',
+		];
 
-		const allowedPatterns = [
-			// Localhost with any port
-			/^http:\/\/localhost:\d+$/,
-			// 127.0.0.1 with any port
-			/^http:\/\/127\.0\.0\.1:\d+$/,
-			// 192.168.*.* with any port
-			/^http:\/\/192\.168\.\d+\.\d+:\d+$/,
-			// 169.254.*.* with any port
-			/^http:\/\/169\.254\.\d+\.\d+:\d+$/,
-			// 10.*.*.* with any port
-			/^http:\/\/10\.\d+\.\d+\.\d+:\d+$/,
-			// Production domain
-			/^https:\/\/jeffemmett\.com$/
-		]
+		// Always allow if no origin (like from a local file)
+		if (!origin) return '*';
 
-		// Check if origin matches any of our patterns
-		const isAllowed = allowedPatterns.some(pattern =>
-			pattern instanceof RegExp
-				? pattern.test(origin)
-				: pattern === origin
-		)
+		// Check exact matches
+		if (allowedOrigins.includes(origin)) {
+			return origin;
+		}
 
-		return isAllowed ? origin : undefined
+		// For development - check if it's a localhost or local IP
+		if (origin.match(/^http:\/\/(localhost|127\.0\.0\.192\.168\.|169\.254\.|10\.)/)) {
+			return origin;
+		}
+
+		return undefined;
 	},
 	allowMethods: ['GET', 'POST', 'OPTIONS', 'UPGRADE'],
 	allowHeaders: [
@@ -56,10 +52,10 @@ const { preflight, corsify } = cors({
 		'Sec-WebSocket-Key',
 		'Sec-WebSocket-Version',
 		'Sec-WebSocket-Extensions',
-		'Sec-WebSocket-Protocol',
-		...Object.keys(securityHeaders)
+		'Sec-WebSocket-Protocol'
 	],
 	maxAge: 86400,
+	credentials: true
 })
 const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
 	before: [preflight],
@@ -81,7 +77,11 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
 	.get('/connect/:roomId', (request, env) => {
 		const id = env.TLDRAW_DURABLE_OBJECT.idFromName(request.params.roomId)
 		const room = env.TLDRAW_DURABLE_OBJECT.get(id)
-		return room.fetch(request.url, { headers: request.headers, body: request.body })
+		return room.fetch(request.url, {
+			headers: request.headers,
+			body: request.body,
+			method: request.method
+		})
 	})
 
 	// assets can be uploaded to the bucket under /uploads:
@@ -93,11 +93,14 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
 	// bookmarks need to extract metadata from pasted URLs:
 	.get('/unfurl', handleUnfurlRequest)
 
-	.get('/room/:roomId', async (request, env) => {
+	.get('/room/:roomId', (request, env) => {
 		const id = env.TLDRAW_DURABLE_OBJECT.idFromName(request.params.roomId)
 		const room = env.TLDRAW_DURABLE_OBJECT.get(id)
-		const response = await room.fetch(request.url)
-		return response
+		return room.fetch(request.url, {
+			headers: request.headers,
+			body: request.body,
+			method: request.method
+		})
 	})
 
 	.post('/room/:roomId', async (request, env) => {
