@@ -21,7 +21,11 @@ const securityHeaders = {
 // we're hosting the worker separately to the client. you should restrict this to your own domain.
 const { preflight, corsify } = cors({
 	origin: (origin) => {
-		if (!origin) return undefined
+		const allowedOrigins = [
+			'https://jeffemmett.com',
+			'https://www.jeffemmett.com',
+			'https://jeffemmett-canvas.jeffemmett.workers.dev'
+		];
 
 		const allowedPatterns = [
 			// Localhost with any port
@@ -41,14 +45,20 @@ const { preflight, corsify } = cors({
 			/^https:\/\/jeffemmett-canvas\.jeffemmett\.workers\.dev$/
 		]
 
-		// Check if origin matches any of our patterns
-		const isAllowed = allowedPatterns.some(pattern =>
-			pattern instanceof RegExp
-				? pattern.test(origin)
-				: pattern === origin
-		)
 
-		return isAllowed ? origin : undefined
+		if (!origin) return undefined;
+
+		// Check exact matches first
+		if (allowedOrigins.includes(origin)) {
+			return origin;
+		}
+
+		// Then check patterns
+		if (allowedPatterns.some(pattern => pattern.test(origin))) {
+			return origin;
+		}
+
+		return undefined;
 	},
 	allowMethods: ['GET', 'POST', 'OPTIONS', 'UPGRADE'],
 	allowHeaders: [
@@ -59,8 +69,7 @@ const { preflight, corsify } = cors({
 		'Sec-WebSocket-Key',
 		'Sec-WebSocket-Version',
 		'Sec-WebSocket-Extensions',
-		'Sec-WebSocket-Protocol',
-		...Object.keys(securityHeaders)
+		'Sec-WebSocket-Protocol'
 	],
 	maxAge: 86400,
 })
