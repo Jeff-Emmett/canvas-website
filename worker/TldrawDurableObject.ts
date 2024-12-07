@@ -120,32 +120,29 @@ export class TldrawDurableObject {
 
 	// what happens when someone tries to connect to this room?
 	async handleConnect(request: IRequest): Promise<Response> {
-		// extract query params from request
 		const sessionId = request.query.sessionId as string
 		if (!sessionId) return error(400, 'Missing sessionId')
 
-		// Create the websocket pair for the client
 		const { 0: clientWebSocket, 1: serverWebSocket } = new WebSocketPair()
-		// @ts-ignore
 		serverWebSocket.accept()
 
-		// load the room, or retrieve it if it's already loaded
 		const room = await this.getRoom()
-
-		// connect the client to the room
 		room.handleSocketConnect({ sessionId, socket: serverWebSocket })
 
-		// return the websocket connection to the client
+		const origin = request.headers.get('Origin') || '*'
+
 		return new Response(null, {
 			status: 101,
 			webSocket: clientWebSocket,
 			headers: {
-				'Access-Control-Allow-Origin': '*',
+				'Access-Control-Allow-Origin': origin,
 				'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, UPGRADE',
 				'Access-Control-Allow-Headers': '*',
-				'Access-Control-Allow-Credentials': 'true'
+				'Access-Control-Allow-Credentials': 'true',
+				'Upgrade': 'websocket',
+				'Connection': 'Upgrade'
 			}
-		});
+		})
 	}
 
 	getRoom() {
