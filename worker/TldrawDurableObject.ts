@@ -97,7 +97,21 @@ export class TldrawDurableObject {
 
 	// `fetch` is the entry point for all requests to the Durable Object
 	fetch(request: Request): Response | Promise<Response> {
-		return this.router.fetch(request)
+		try {
+			return this.router.fetch(request)
+		} catch (err) {
+			console.error('Error in DO fetch:', err);
+			return new Response(JSON.stringify({
+				error: 'Internal Server Error',
+				message: (err as Error).message
+			}), {
+				status: 500,
+				headers: {
+					'Content-Type': 'application/json',
+					'Access-Control-Allow-Origin': '*'
+				}
+			});
+		}
 	}
 
 	// what happens when someone tries to connect to this room?
