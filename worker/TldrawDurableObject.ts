@@ -5,7 +5,7 @@ import {
 	TLRecord,
 	TLShape,
 	createTLSchema,
-	// defaultBindingSchemas,
+	defaultBindingSchemas,
 	defaultShapeSchemas,
 } from '@tldraw/tlschema'
 import { AutoRouter, IRequest, error } from 'itty-router'
@@ -20,11 +20,20 @@ import GSet from 'crdts/src/G-Set'
 export const customSchema = createTLSchema({
 	shapes: {
 		...defaultShapeSchemas,
-		ChatBox: ChatBoxShape,
-		VideoChat: VideoChatShape,
-		Embed: EmbedShape
+		ChatBox: {
+			props: ChatBoxShape.props,
+			migrations: ChatBoxShape.migrations,
+		},
+		VideoChat: {
+			props: VideoChatShape.props,
+			migrations: VideoChatShape.migrations,
+		},
+		Embed: {
+			props: EmbedShape.props,
+			migrations: EmbedShape.migrations,
+		},
 	},
-	// bindings: { ...defaultBindingSchemas },
+	bindings: defaultBindingSchemas,
 })
 
 // each whiteboard room is hosted in a DurableObject:
@@ -67,41 +76,105 @@ export class TldrawDurableObject {
 			}
 			return this.handleConnect(request)
 		})
-		.get('/room/:roomId', async () => {
+		.get('/room/:roomId', async (request) => {
 			const room = await this.getRoom()
 			const snapshot = room.getCurrentSnapshot()
-			return new Response(JSON.stringify(snapshot.documents))
+			return new Response(JSON.stringify(snapshot.documents), {
+				headers: {
+					'Content-Type': 'application/json',
+					'Access-Control-Allow-Origin': request.headers.get('Origin') || '*',
+					'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+					'Access-Control-Allow-Headers': 'Content-Type',
+					'Access-Control-Max-Age': '86400',
+				}
+			})
 		})
 		.post('/room/:roomId', async (request) => {
 			const records = await request.json() as TLRecord[]
 			const mergedRecords = await this.mergeCrdtState(records)
-			return new Response(JSON.stringify(Array.from(mergedRecords)))
+
+			return new Response(JSON.stringify(Array.from(mergedRecords)), {
+				headers: {
+					'Content-Type': 'application/json',
+					'Access-Control-Allow-Origin': request.headers.get('Origin') || '*',
+					'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+					'Access-Control-Allow-Headers': 'Content-Type',
+					'Access-Control-Max-Age': '86400',
+				}
+			})
 		})
 
 	// `fetch` is the entry point for all requests to the Durable Object
 	fetch(request: Request): Response | Promise<Response> {
-		return this.router.fetch(request)
+		try {
+			return this.router.fetch(request)
+		} catch (err) {
+			console.error('Error in DO fetch:', err);
+			return new Response(JSON.stringify({
+				error: 'Internal Server Error',
+				message: (err as Error).message
+			}), {
+				status: 500,
+				headers: {
+					'Content-Type': 'application/json',
+					'Access-Control-Allow-Origin': '*',
+					'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, UPGRADE',
+					'Access-Control-Allow-Headers': 'Content-Type, Authorization, Upgrade, Connection',
+					'Access-Control-Max-Age': '86400',
+					'Access-Control-Allow-Credentials': 'true'
+				}
+			});
+		}
 	}
 
 	// what happens when someone tries to connect to this room?
 	async handleConnect(request: IRequest): Promise<Response> {
-		// extract query params from request
-		const sessionId = request.query.sessionId as string
-		if (!sessionId) return error(400, 'Missing sessionId')
+		if (!this.roomId) {
+			return new Response('Room not initialized', { status: 400 });
+		}
 
-		// Create the websocket pair for the client
-		const { 0: clientWebSocket, 1: serverWebSocket } = new WebSocketPair()
-		// @ts-ignore
-		serverWebSocket.accept()
+		const sessionId = request.query.sessionId as string;
+		if (!sessionId) {
+			return new Response('Missing sessionId', { status: 400 });
+		}
 
-		// load the room, or retrieve it if it's already loaded
-		const room = await this.getRoom()
+		const { 0: clientWebSocket, 1: serverWebSocket } = new WebSocketPair();
 
-		// connect the client to the room
-		room.handleSocketConnect({ sessionId, socket: serverWebSocket })
+		try {
+			serverWebSocket.accept();
+			const room = await this.getRoom();
 
-		// return the websocket connection to the client
-		return new Response(null, { status: 101, webSocket: clientWebSocket })
+			// Handle socket connection with proper error boundaries
+			room.handleSocketConnect({
+				sessionId,
+				socket: {
+					send: serverWebSocket.send.bind(serverWebSocket),
+					close: serverWebSocket.close.bind(serverWebSocket),
+					addEventListener: serverWebSocket.addEventListener.bind(serverWebSocket),
+					removeEventListener: serverWebSocket.removeEventListener.bind(serverWebSocket),
+					readyState: serverWebSocket.readyState,
+				}
+			});
+
+			return new Response(null, {
+				status: 101,
+				webSocket: clientWebSocket,
+				headers: {
+					'Access-Control-Allow-Origin': request.headers.get('Origin') || '*',
+					'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, UPGRADE',
+					'Access-Control-Allow-Headers': '*',
+					'Access-Control-Allow-Credentials': 'true',
+					'Upgrade': 'websocket',
+					'Connection': 'Upgrade'
+				}
+			});
+		} catch (error) {
+			console.error('WebSocket connection error:', error);
+			serverWebSocket.close(1011, 'Failed to initialize connection');
+			return new Response('Failed to establish WebSocket connection', {
+				status: 500
+			});
+		}
 	}
 
 	getRoom() {
