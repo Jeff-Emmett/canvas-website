@@ -108,7 +108,11 @@ export class TldrawDurableObject {
 				status: 500,
 				headers: {
 					'Content-Type': 'application/json',
-					'Access-Control-Allow-Origin': '*'
+					'Access-Control-Allow-Origin': '*',
+					'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, UPGRADE',
+					'Access-Control-Allow-Headers': 'Content-Type, Authorization, Upgrade, Connection',
+					'Access-Control-Max-Age': '86400',
+					'Access-Control-Allow-Credentials': 'true'
 				}
 			});
 		}

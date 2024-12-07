@@ -27,24 +27,16 @@ const { preflight, corsify } = cors({
 			'https://jeffemmett-canvas.jeffemmett.workers.dev'
 		];
 
-		// Development patterns
-		const devPatterns = [
-			/^http:\/\/localhost:\d+$/,
-			/^http:\/\/127\.0\.0\.1:\d+$/,
-			/^http:\/\/192\.168\.\d+\.\d+:\d+$/,
-			/^http:\/\/169\.254\.\d+\.\d+:\d+$/,
-			/^http:\/\/10\.\d+\.\d+\.\d+:\d+$/
-		];
+		// Always allow if no origin (like from a local file)
+		if (!origin) return '*';
 
-		if (!origin) return undefined;
-
-		// Check exact matches first
+		// Check exact matches
 		if (allowedOrigins.includes(origin)) {
 			return origin;
 		}
 
-		// Then check development patterns
-		if (process.env.NODE_ENV === 'development' && devPatterns.some(pattern => pattern.test(origin))) {
+		// For development - check if it's a localhost or local IP
+		if (origin.match(/^http:\/\/(localhost|127\.0\.0\.192\.168\.|169\.254\.|10\.)/)) {
 			return origin;
 		}
 
