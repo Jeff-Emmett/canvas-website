@@ -34,5 +34,8 @@ export default defineConfig({
     alias: {
       '@': '/src',
     },
+  },
+  define: {
+    'import.meta.env.VITE_WORKER_URL': JSON.stringify(process.env.VITE_WORKER_URL)
   }
 });
