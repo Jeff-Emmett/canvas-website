@@ -67,15 +67,32 @@ export class TldrawDurableObject {
 			}
 			return this.handleConnect(request)
 		})
-		.get('/room/:roomId', async () => {
+		.get('/room/:roomId', async (request) => {
 			const room = await this.getRoom()
 			const snapshot = room.getCurrentSnapshot()
-			return new Response(JSON.stringify(snapshot.documents))
+			return new Response(JSON.stringify(snapshot.documents), {
+				headers: {
+					'Content-Type': 'application/json',
+					'Access-Control-Allow-Origin': request.headers.get('Origin') || '*',
+					'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+					'Access-Control-Allow-Headers': 'Content-Type',
+					'Access-Control-Max-Age': '86400',
+				}
+			})
 		})
 		.post('/room/:roomId', async (request) => {
 			const records = await request.json() as TLRecord[]
 			const mergedRecords = await this.mergeCrdtState(records)
-			return new Response(JSON.stringify(Array.from(mergedRecords)))
+
+			return new Response(JSON.stringify(Array.from(mergedRecords)), {
+				headers: {
+					'Content-Type': 'application/json',
+					'Access-Control-Allow-Origin': request.headers.get('Origin') || '*',
+					'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+					'Access-Control-Allow-Headers': 'Content-Type',
+					'Access-Control-Max-Age': '86400',
+				}
+			})
 		})
 
 	// `fetch` is the entry point for all requests to the Durable Object
