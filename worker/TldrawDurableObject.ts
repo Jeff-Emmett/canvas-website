@@ -5,7 +5,7 @@ import {
 	TLRecord,
 	TLShape,
 	createTLSchema,
-	// defaultBindingSchemas,
+	defaultBindingSchemas,
 	defaultShapeSchemas,
 } from '@tldraw/tlschema'
 import { AutoRouter, IRequest, error } from 'itty-router'
@@ -20,11 +20,20 @@ import GSet from 'crdts/src/G-Set'
 export const customSchema = createTLSchema({
 	shapes: {
 		...defaultShapeSchemas,
-		ChatBox: ChatBoxShape,
-		VideoChat: VideoChatShape,
-		Embed: EmbedShape
+		ChatBox: {
+			props: ChatBoxShape.props,
+			migrations: ChatBoxShape.migrations,
+		},
+		VideoChat: {
+			props: VideoChatShape.props,
+			migrations: VideoChatShape.migrations,
+		},
+		Embed: {
+			props: EmbedShape.props,
+			migrations: EmbedShape.migrations,
+		},
 	},
-	// bindings: { ...defaultBindingSchemas },
+	bindings: defaultBindingSchemas,
 })
 
 // each whiteboard room is hosted in a DurableObject:
