@@ -129,29 +129,52 @@ export class TldrawDurableObject {
 
 	// what happens when someone tries to connect to this room?
 	async handleConnect(request: IRequest): Promise<Response> {
-		const sessionId = request.query.sessionId as string
-		if (!sessionId) return error(400, 'Missing sessionId')
+		if (!this.roomId) {
+			return new Response('Room not initialized', { status: 400 });
+		}
 
-		const { 0: clientWebSocket, 1: serverWebSocket } = new WebSocketPair()
-		serverWebSocket.accept()
+		const sessionId = request.query.sessionId as string;
+		if (!sessionId) {
+			return new Response('Missing sessionId', { status: 400 });
+		}
 
-		const room = await this.getRoom()
-		room.handleSocketConnect({ sessionId, socket: serverWebSocket })
+		const { 0: clientWebSocket, 1: serverWebSocket } = new WebSocketPair();
 
-		const origin = request.headers.get('Origin') || '*'
+		try {
+			serverWebSocket.accept();
+			const room = await this.getRoom();
 
-		return new Response(null, {
-			status: 101,
-			webSocket: clientWebSocket,
-			headers: {
-				'Access-Control-Allow-Origin': origin,
-				'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, UPGRADE',
-				'Access-Control-Allow-Headers': '*',
-				'Access-Control-Allow-Credentials': 'true',
-				'Upgrade': 'websocket',
-				'Connection': 'Upgrade'
-			}
-		})
+			// Handle socket connection with proper error boundaries
+			room.handleSocketConnect({
+				sessionId,
+				socket: {
+					send: serverWebSocket.send.bind(serverWebSocket),
+					close: serverWebSocket.close.bind(serverWebSocket),
+					addEventListener: serverWebSocket.addEventListener.bind(serverWebSocket),
+					removeEventListener: serverWebSocket.removeEventListener.bind(serverWebSocket),
+					readyState: serverWebSocket.readyState,
+				}
+			});
+
+			return new Response(null, {
+				status: 101,
+				webSocket: clientWebSocket,
+				headers: {
+					'Access-Control-Allow-Origin': request.headers.get('Origin') || '*',
+					'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, UPGRADE',
+					'Access-Control-Allow-Headers': '*',
+					'Access-Control-Allow-Credentials': 'true',
+					'Upgrade': 'websocket',
+					'Connection': 'Upgrade'
+				}
+			});
+		} catch (error) {
+			console.error('WebSocket connection error:', error);
+			serverWebSocket.close(1011, 'Failed to initialize connection');
+			return new Response('Failed to establish WebSocket connection', {
+				status: 500
+			});
+		}
 	}
 
 	getRoom() {
