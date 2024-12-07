@@ -1,4 +1,5 @@
 import { useSync } from '@tldraw/sync'
+import { useMemo } from 'react'
 import {
 	AssetRecordType,
 	getHashForString,
@@ -10,7 +11,6 @@ import {
 	TLUiEventSource,
 } from 'tldraw'
 import { useParams } from 'react-router-dom'
-import useLocalStorageState from 'use-local-storage-state'
 import { ChatBoxTool } from '@/tools/ChatBoxTool'
 import { ChatBoxShape } from '@/shapes/ChatBoxShapeUtil'
 import { VideoChatTool } from '@/tools/VideoChatTool'
@@ -38,14 +38,14 @@ export function Board() {
 	const { slug } = useParams<{ slug: string }>();
 	const roomId = slug || 'default-room';
 
-	const store = useSync({
+	const storeConfig = useMemo(() => ({
 		uri: `${WORKER_URL}/connect/${roomId}`,
 		assets: multiplayerAssetStore,
 		shapeUtils: [...shapeUtils, ...defaultShapeUtils],
-		// Add default bindings if you're using them
 		bindingUtils: [...defaultBindingUtils],
-	})
+	}), [roomId]);
 
+	const store = useSync(storeConfig);
 	const [editor, setEditor] = useState<Editor | null>(null)
 	const { zoomToFrame, copyFrameLink, copyLocationLink, revertCamera } = useCameraControls(editor)
 
