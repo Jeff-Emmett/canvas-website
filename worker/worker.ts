@@ -35,7 +35,10 @@ const { preflight, corsify } = cors({
 			// 10.*.*.* with any port
 			/^http:\/\/10\.\d+\.\d+\.\d+:\d+$/,
 			// Production domain
-			/^https:\/\/jeffemmett\.com$/
+			/^https:\/\/jeffemmett\.com$/,
+			/^https:\/\/www\.jeffemmett\.com$/,
+			// Worker domain
+			/^https:\/\/jeffemmett-canvas\.jeffemmett\.workers\.dev$/
 		]
 
 		// Check if origin matches any of our patterns
