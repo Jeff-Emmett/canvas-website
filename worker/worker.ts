@@ -24,7 +24,8 @@ const { preflight, corsify } = cors({
 		const allowedOrigins = [
 			'https://jeffemmett.com',
 			'https://www.jeffemmett.com',
-			'https://jeffemmett-canvas.jeffemmett.workers.dev'
+			'https://jeffemmett-canvas.jeffemmett.workers.dev',
+			'https://jeffemmett.com/board/*',
 		];
 
 		// Always allow if no origin (like from a local file)
@@ -92,11 +93,14 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
 	// bookmarks need to extract metadata from pasted URLs:
 	.get('/unfurl', handleUnfurlRequest)
 
-	.get('/room/:roomId', async (request, env) => {
+	.get('/room/:roomId', (request, env) => {
 		const id = env.TLDRAW_DURABLE_OBJECT.idFromName(request.params.roomId)
 		const room = env.TLDRAW_DURABLE_OBJECT.get(id)
-		const response = await room.fetch(request.url)
-		return response
+		return room.fetch(request.url, {
+			headers: request.headers,
+			body: request.body,
+			method: request.method
+		})
 	})
 
 	.post('/room/:roomId', async (request, env) => {
