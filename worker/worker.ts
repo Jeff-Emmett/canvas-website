@@ -125,39 +125,3 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
 
 // export our router for cloudflare
 export default router
-
-const corsHeaders = {
-	'Access-Control-Allow-Origin': '*',
-	'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-	'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-	'Access-Control-Max-Age': '86400',
-};
-
-// Add CORS headers to all responses
-function handleCors(request: Request) {
-	// Handle preflight requests
-	if (request.method === 'OPTIONS') {
-		return new Response(null, {
-			headers: corsHeaders
-		});
-	}
-
-	return null;
-}
-
-// Modify the fetch handler
-async function handleRequest(request: Request) {
-	// Handle CORS preflight
-	const corsResult = handleCors(request);
-	if (corsResult) return corsResult;
-
-	// Handle the actual request
-	const response = await router.handle(request);
-
-	// Add CORS headers to the response
-	Object.entries(corsHeaders).forEach(([key, value]) => {
-		response.headers.set(key, value);
-	});
-
-	return response;
-}

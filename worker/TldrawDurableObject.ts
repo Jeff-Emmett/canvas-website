@@ -136,7 +136,16 @@ export class TldrawDurableObject {
 		room.handleSocketConnect({ sessionId, socket: serverWebSocket })
 
 		// return the websocket connection to the client
-		return new Response(null, { status: 101, webSocket: clientWebSocket })
+		return new Response(null, {
+			status: 101,
+			webSocket: clientWebSocket,
+			headers: {
+				'Access-Control-Allow-Origin': '*',
+				'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, UPGRADE',
+				'Access-Control-Allow-Headers': '*',
+				'Access-Control-Allow-Credentials': 'true'
+			}
+		});
 	}
 
 	getRoom() {
