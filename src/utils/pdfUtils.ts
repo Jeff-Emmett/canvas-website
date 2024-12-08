@@ -15,28 +15,16 @@ export const saveToPdf = async (editor: Editor) => {
     const blob = await exportToBlob({
       editor,
       ids: selectedIds,
-      format: "svg",
+      format: "png",
       opts: {
         scale: 2,
         background: true,
         padding: 10,
-        preserveAspectRatio: "xMidYMid slice",
+        preserveAspectRatio: "true",
       },
     })
 
     if (!blob) return
-
-    // Convert blob to data URL
-    const url = URL.createObjectURL(blob)
-
-    // Create image from blob
-    const img = new Image()
-    img.src = url
-
-    await new Promise((resolve, reject) => {
-      img.onload = resolve
-      img.onerror = reject
-    })
 
     // Create PDF with proper dimensions
     const pdf = new jsPDF({
@@ -45,19 +33,25 @@ export const saveToPdf = async (editor: Editor) => {
       format: [selectionBounds.width, selectionBounds.height],
     })
 
+    // Convert blob directly to base64
+    const reader = new FileReader()
+    const imageData = await new Promise<string>((resolve, reject) => {
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = reject
+      reader.readAsDataURL(blob)
+    })
+
     // Add the image to the PDF
     pdf.addImage(
-      img,
-      "SVG",
+      imageData,
+      "PNG",
       0,
       0,
       selectionBounds.width,
       selectionBounds.height,
     )
-    pdf.save("canvas-selection.pdf")
 
-    // Cleanup
-    URL.revokeObjectURL(url)
+    pdf.save("canvas-selection.pdf")
   } catch (error) {
     console.error("Failed to generate PDF:", error)
     alert("Failed to generate PDF. Please try again.")
