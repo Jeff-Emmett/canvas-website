@@ -172,7 +172,6 @@ dist
 .pnp.\*
 
 .wrangler/
-.*.md
 
 # Vercel
 .vercel/
