@@ -1,83 +1,163 @@
-/** TODO: build this */
-
 import { BaseBoxShapeUtil, TLBaseBoxShape, TLBaseShape } from "tldraw"
-import MdEditor from "react-markdown-editor-lite"
-import MarkdownIt from "markdown-it"
-import "react-markdown-editor-lite/lib/index.css"
-
-// Initialize markdown parser
-const mdParser = new MarkdownIt()
+import ReactMarkdown from "react-markdown"
+import { useCallback, useState, useEffect } from "react"
 
 export type IMarkdownShape = TLBaseShape<
-  "MarkdownTool",
+  "markdown",
   {
     content: string
-    html: string
+    w: number
+    h: number
+    isEditing: boolean
+    fill: string
+    color: string
   }
 >
 
 export class MarkdownShape extends BaseBoxShapeUtil<
   IMarkdownShape & TLBaseBoxShape
 > {
-  static override type = "MarkdownTool"
-
-  indicator(_shape: IMarkdownShape) {
-    return null
+  static override type = "Markdown"
+  static override props = {
+    content: {
+      type: "string",
+      value: "# New Note",
+      validate: (value: unknown) => typeof value === "string",
+    },
+    w: {
+      type: "number",
+      value: 400,
+      validate: (value: unknown) => typeof value === "number",
+    },
+    h: {
+      type: "number",
+      value: 300,
+      validate: (value: unknown) => typeof value === "number",
+    },
+    isEditing: {
+      type: "boolean",
+      value: false,
+      validate: (value: unknown) => typeof value === "boolean",
+    },
+    fill: {
+      type: "string",
+      value: "white",
+      validate: (value: unknown) => typeof value === "string",
+    },
+    color: {
+      type: "string",
+      value: "black",
+      validate: (value: unknown) => typeof value === "string",
+    },
   }
 
-  getDefaultProps(): IMarkdownShape["props"] & { w: number; h: number } {
+  override getDefaultProps(): IMarkdownShape["props"] &
+    TLBaseBoxShape["props"] {
     return {
-      content: "# New Note",
-      html: "<h1>New Note</h1>",
       w: 400,
       h: 300,
+      content: "# New Note",
+      isEditing: false,
+      fill: "white",
+      color: "black",
+    }
+  }
+
+  getStyleProps(shape: IMarkdownShape) {
+    return {
+      fill: shape.props.fill,
+      color: shape.props.color,
+    }
+  }
+
+  override indicator(shape: IMarkdownShape & TLBaseBoxShape) {
+    return {
+      x: shape.x,
+      y: shape.y,
+      width: shape.props.w,
+      height: shape.props.h,
+      rotation: shape.rotation,
     }
   }
 
   component(shape: IMarkdownShape & TLBaseBoxShape) {
-    const handleEditorChange = ({
-      text,
-      html,
-    }: {
-      text: string
-      html: string
-    }) => {
-      // Update the shape's content
+    const [isEditing, setIsEditing] = useState(shape.props.isEditing)
+
+    const handleChange = useCallback(
+      (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        this.editor?.updateShape({
+          id: shape.id,
+          type: "markdown",
+          props: {
+            ...shape.props,
+            content: e.target.value,
+          },
+        })
+      },
+      [shape.id],
+    )
+
+    const toggleEdit = useCallback(() => {
+      setIsEditing(!isEditing)
       this.editor?.updateShape({
         id: shape.id,
-        type: "MarkdownTool",
+        type: "markdown",
         props: {
           ...shape.props,
-          content: text,
-          html: html,
+          isEditing: !isEditing,
         },
       })
-    }
+    }, [isEditing, shape.id, shape.props])
+
+    useEffect(() => {
+      return () => {
+        if (isEditing) {
+          this.editor?.updateShape({
+            id: shape.id,
+            type: "markdown",
+            props: {
+              ...shape.props,
+              isEditing: false,
+            },
+          })
+        }
+      }
+    }, [shape.id, isEditing])
 
     return (
       <div
         style={{
           width: "100%",
           height: "100%",
+          position: "relative",
           background: "white",
           borderRadius: "4px",
+          padding: "8px",
+          overflow: "auto",
+          cursor: "pointer",
         }}
+        onDoubleClick={toggleEdit}
       >
-        <MdEditor
-          style={{ height: "100%" }}
-          renderHTML={(text) => mdParser.render(text)}
-          value={shape.props.content}
-          onChange={handleEditorChange}
-          view={{ menu: true, md: true, html: false }}
-          canView={{
-            menu: true,
-            md: true,
-            html: false,
-            both: false,
-            fullScreen: false,
-            hideMenu: false,
-          }}
-        />
+        {isEditing ? (
+          <textarea
+            value={shape.props.content}
+            onChange={handleChange}
+            style={{
+              width: "100%",
+              height: "100%",
+              border: "none",
+              outline: "none",
+              resize: "none",
+              fontFamily: "inherit",
+              fontSize: "inherit",
+              backgroundColor: "transparent",
+            }}
+            autoFocus
+            onBlur={toggleEdit}
+          />
+        ) : (
+          <ReactMarkdown>{shape.props.content}</ReactMarkdown>
+        )}
       </div>
     )
   }

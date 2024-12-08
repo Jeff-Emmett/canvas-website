@@ -99,12 +99,12 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
         />
         <TldrawUiMenuItem
           id="markdown"
-          label="Create Markdown"
+          label="Create Markdown Box"
           icon="markdown"
           kbd="alt+m"
           disabled={hasSelection}
           onSelect={() => {
-            editor.setCurrentTool("Markdown")
+            editor.setCurrentTool("markdown")
           }}
         />
       </TldrawUiMenuGroup>
