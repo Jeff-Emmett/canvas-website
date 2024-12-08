@@ -1,41 +1,26 @@
-import { markdownPlugin } from './build/markdownPlugin';
-import { defineConfig, loadEnv } from 'vite'
-import react from '@vitejs/plugin-react'
-import wasm from "vite-plugin-wasm";
-import topLevelAwait from "vite-plugin-top-level-await";
-import { viteStaticCopy } from 'vite-plugin-static-copy';
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
 
 export default defineConfig({
-  envPrefix: ['VITE_'],
-  plugins: [
-    react(),
-    wasm(),
-    topLevelAwait(),
-    markdownPlugin,
-    viteStaticCopy({
-      targets: [
-        {
-          src: 'src/posts/',
-          dest: '.'
-        }
-      ]
-    })
-  ],
+  envPrefix: ["VITE_"],
+  plugins: [react()],
   server: {
-    host: '0.0.0.0',
+    host: "0.0.0.0",
     port: 5173,
   },
   build: {
     sourcemap: true,
   },
-  base: '/',
-  publicDir: 'src/public',
+  base: "/",
+  publicDir: "src/public",
   resolve: {
     alias: {
-      '@': '/src',
+      "@": "/src",
     },
   },
   define: {
-    'import.meta.env.VITE_WORKER_URL': JSON.stringify(process.env.VITE_WORKER_URL)
-  }
+    "import.meta.env.VITE_WORKER_URL": JSON.stringify(
+      process.env.VITE_WORKER_URL
+    ),
+  },
 });
