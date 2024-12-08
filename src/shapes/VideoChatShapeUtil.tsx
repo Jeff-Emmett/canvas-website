@@ -82,12 +82,15 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     }
 
     try {
+      // First, request a room from our worker
       const response = await fetch(`${WORKER_URL}/daily/rooms`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        // You might want to pass additional configuration if needed
         body: JSON.stringify({
+          name: `room-${shape.id}`, // Add a unique identifier
           properties: {
             enable_recording: true,
             max_participants: 8,
@@ -96,11 +99,13 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
       })
 
       if (!response.ok) {
-        throw new Error("Failed to create room")
+        const errorData = (await response.json()) as { message: string }
+        throw new Error(errorData.message || "Failed to create room")
       }
 
       const data = await response.json()
 
+      // Update the shape with the room URL from the response
       this.editor.updateShape<IVideoChatShape>({
         id: shape.id,
         type: "VideoChat",
@@ -111,6 +116,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
       })
     } catch (error) {
       console.error("Failed to create Daily room:", error)
+      throw error // Re-throw to handle in the component
     }
   }
 

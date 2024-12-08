@@ -121,55 +121,49 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
 
   .post("/daily/rooms", async (request, env) => {
     try {
-      // Log the request for debugging
-      console.log(
-        "Creating Daily room with API key:",
-        env.DAILY_API_KEY ? "present" : "missing",
-      )
+      const { name, properties } = (await request.json()) as {
+        name: string
+        properties: Record<string, unknown>
+      }
 
+      // Create a room using Daily.co API
       const response = await fetch("https://api.daily.co/v1/rooms", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${env.DAILY_API_KEY}`,
           "Content-Type": "application/json",
+          Authorization: `Bearer ${env.DAILY_API_KEY}`,
         },
-        body: await request.text(),
+        body: JSON.stringify({
+          name,
+          properties,
+        }),
       })
 
       if (!response.ok) {
-        const errorText = await response.text()
-        console.error("Daily API error:", errorText)
-        return new Response(`Daily API error: ${errorText}`, {
-          status: response.status,
+        const error = (await response.json()) as { message: string }
+        return new Response(JSON.stringify({ message: error.message }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
         })
       }
 
       const data = await response.json()
 
-      // Log successful response
-      console.log("Daily room created:", data)
-
       return new Response(
         JSON.stringify({
-          ...(data as Record<string, unknown>),
           url: `https://${env.DAILY_DOMAIN}/${
             (data as Record<string, unknown>).name
           }`,
         }),
         {
-          headers: {
-            "Content-Type": "application/json",
-            // Add CORS headers specifically for this endpoint if needed
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type",
-          },
+          headers: { "Content-Type": "application/json" },
         },
       )
     } catch (error) {
-      console.error("Error creating Daily room:", error)
       return new Response(
-        JSON.stringify({ error: "Failed to create Daily room" }),
+        JSON.stringify({
+          message: error instanceof Error ? error.message : "Unknown error",
+        }),
         {
           status: 500,
           headers: { "Content-Type": "application/json" },
