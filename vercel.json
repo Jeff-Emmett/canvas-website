@@ -5,10 +5,6 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/posts/(.*)",
-      "destination": "/"
-    },
-    {
       "source": "/board/(.*)",
       "destination": "/"
     },
@@ -18,10 +14,6 @@
     },
     {
       "source": "/inbox",
-      "destination": "/"
-    },
-    {
-      "source": "/books",
       "destination": "/"
     }
   ],
