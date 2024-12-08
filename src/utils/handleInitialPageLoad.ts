@@ -2,11 +2,15 @@ import { Editor, TLShapeId } from "tldraw"
 
 export const handleInitialPageLoad = (editor: Editor) => {
   const url = new URL(window.location.href)
-  const frameId = url.searchParams.get("frameId")
-  const shapeId = url.searchParams.get("shapeId")
+
+  // Get camera parameters first
   const x = url.searchParams.get("x")
   const y = url.searchParams.get("y")
   const zoom = url.searchParams.get("zoom")
+
+  // Get shape/frame parameters last
+  const frameId = url.searchParams.get("frameId")
+  const shapeId = url.searchParams.get("shapeId")
   const isLocked = url.searchParams.get("isLocked") === "true"
 
   // Wait for next tick to ensure editor is ready
