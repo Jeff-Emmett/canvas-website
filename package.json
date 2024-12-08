@@ -4,7 +4,7 @@
 	"description": "Jeff Emmett's personal website",
 	"type": "module",
 	"scripts": {
-		"dev": "concurrently --kill-others --names client,worker --prefix-colors blue,red \"yarn dev:client\" \"yarn dev:worker\"",
+		"dev": "concurrently --kill-others --names client,worker --prefix-colors blue,red \"bun dev:client\" \"bun dev:worker\"",
 		"dev:client": "vite --host --port 5173",
 		"dev:worker": "wrangler dev --local --port 5172 --ip 0.0.0.0",
 		"build": "tsc && vite build",
@@ -26,19 +26,18 @@
 		"gray-matter": "^4.0.3",
 		"itty-router": "^5.0.17",
 		"lodash.throttle": "^4.1.1",
-		"react-error-boundary": "^4.1.2",
+		"react": "^18.2.0",
+		"react-dom": "^18.2.0",
 		"react-router-dom": "^7.0.2",
 		"tldraw": "^3.6.0",
-		"vercel": "^39.1.1",
-		"react": "^18.2.0",
-		"react-dom": "^18.2.0"
+		"vercel": "^39.1.1"
 	},
 	"devDependencies": {
 		"@cloudflare/types": "^6.0.0",
 		"@cloudflare/workers-types": "^4.20240821.1",
 		"@types/lodash.throttle": "^4",
-		"@types/react": "^18.2.0",
-		"@types/react-dom": "^18.2.0",
+		"@types/react": "^19.0.1",
+		"@types/react-dom": "^19.0.1",
 		"@vitejs/plugin-react": "^4.0.3",
 		"@vitejs/plugin-react-swc": "^3.6.0",
 		"concurrently": "^9.1.0",

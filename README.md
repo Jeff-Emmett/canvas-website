@@ -1,3 +1,3 @@
 A website.
 
-Do `bun i` and `bun dev`
+Do `npm i` and `npm run dev`

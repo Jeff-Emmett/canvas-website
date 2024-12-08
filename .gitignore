@@ -1,15 +1,11 @@
 dist/
 .DS_Store
 bun.lockb
-yarn.lock
 
-# Logs
 
 logs
 _.log
 npm-debug.log_
-yarn-debug.log*
-yarn-error.log*
 lerna-debug.log*
 .pnpm-debug.log*
 
@@ -95,7 +91,6 @@ web_modules/
 
 # Yarn Integrity file
 
-.yarn-integrity
 
 # dotenv environment variable files
 
@@ -163,14 +158,6 @@ dist
 
 .vscode-test
 
-# yarn v2
-
-.yarn/cache
-.yarn/unplugged
-.yarn/build-state.yml
-.yarn/install-state.gz
-.pnp.\*
-
 .wrangler/
 
 # Vercel
@@ -191,3 +178,5 @@ dist
 
 # Keep example file
 !.env.example
+
+package-lock.json
