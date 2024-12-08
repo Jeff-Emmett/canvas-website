@@ -137,10 +137,16 @@ export const copyLinkToCurrentView = async (editor: Editor) => {
       zoom: camera.z,
     })
 
-    // Set camera parameters
+    // Set camera parameters first
     url.searchParams.set("x", camera.x.toString())
     url.searchParams.set("y", camera.y.toString())
     url.searchParams.set("zoom", camera.z.toString())
+
+    // Add shape ID last if needed
+    const selectedIds = editor.getSelectedShapeIds()
+    if (selectedIds.length > 0) {
+      url.searchParams.set("shapeId", selectedIds[0].toString())
+    }
 
     const finalUrl = url.toString()
     console.log("Final URL to copy:", finalUrl)
@@ -188,11 +194,14 @@ export const lockCameraToFrame = async (editor: Editor) => {
       1, // Cap at 1x zoom
     )
 
-    url.searchParams.set("frameId", selectedShape.id)
-    url.searchParams.set("isLocked", "true")
+    // Set camera parameters first
     url.searchParams.set("x", bounds.x.toString())
     url.searchParams.set("y", bounds.y.toString())
     url.searchParams.set("zoom", targetZoom.toString())
+
+    // Add frame-specific parameters last
+    url.searchParams.set("isLocked", "true")
+    url.searchParams.set("frameId", selectedShape.id)
 
     const finalUrl = url.toString()
 
