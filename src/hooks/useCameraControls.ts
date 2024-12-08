@@ -1,5 +1,5 @@
 import { useEffect } from "react"
-import { Editor, TLEventMap, TLFrameShape, TLParentId } from "tldraw"
+import { Editor, TLEventMap, TLFrameShape, TLParentId, TLShapeId } from "tldraw"
 import { useSearchParams } from "react-router-dom"
 
 // Define camera state interface
@@ -38,34 +38,59 @@ export function useCameraControls(editor: Editor | null) {
 
   // Handle URL-based camera positioning
   useEffect(() => {
-    if (!editor) return
-
-    const frameId = searchParams.get("frameId")
-    const x = searchParams.get("x")
-    const y = searchParams.get("y")
-    const zoom = searchParams.get("zoom")
-
-    if (x && y && zoom) {
-      editor.setCamera({
-        x: parseFloat(x),
-        y: parseFloat(y),
-        z: parseFloat(zoom),
+    if (!editor || !editor.store || !editor.getInstanceState().isFocused) {
+      console.log("Editor not ready:", {
+        editor: !!editor,
+        store: !!editor?.store,
+        isFocused: editor?.getInstanceState().isFocused,
       })
       return
     }
 
-    if (frameId) {
-      const frame = editor.getShape(frameId as TLParentId) as TLFrameShape
-      if (!frame) {
-        console.warn("Frame not found:", frameId)
-        return
-      }
+    const x = searchParams.get("x")
+    const y = searchParams.get("y")
+    const zoom = searchParams.get("zoom")
+    const frameId = searchParams.get("frameId")
+    const isLocked = searchParams.get("isLocked") === "true"
 
-      // Use editor's built-in zoomToBounds with animation
-      editor.zoomToBounds(editor.getShapePageBounds(frame)!, {
-        inset: 32,
-        animation: { duration: 500 },
+    console.log("Setting camera:", { x, y, zoom })
+
+    // Set camera position if coordinates exist
+    if (x && y && zoom) {
+      const position = {
+        x: parseFloat(x),
+        y: parseFloat(y),
+        z: parseFloat(zoom),
+      }
+      console.log("Camera position:", position)
+
+      requestAnimationFrame(() => {
+        editor.setCamera(position, { animation: { duration: 0 } })
+        console.log("Current camera:", editor.getCamera())
       })
+    }
+
+    // Handle frame-specific logic
+    if (frameId) {
+      const frame = editor.getShape(frameId as TLShapeId)
+      if (frame) {
+        editor.select(frameId as TLShapeId)
+
+        // If x/y/zoom are not provided in URL, zoom to frame bounds
+        if (!x || !y || !zoom) {
+          editor.zoomToBounds(editor.getShapePageBounds(frame)!, {
+            animation: { duration: 0 },
+            targetZoom: 1,
+          })
+        }
+
+        // Apply camera lock after camera is positioned
+        if (isLocked) {
+          requestAnimationFrame(() => {
+            editor.setCameraOptions({ isLocked: true })
+          })
+        }
+      }
     }
   }, [editor, searchParams])
 
@@ -100,12 +125,6 @@ export function useCameraControls(editor: Editor | null) {
       })
     },
 
-    copyFrameLink: (frameId: string) => {
-      const url = new URL(window.location.href)
-      url.searchParams.set("frameId", frameId)
-      navigator.clipboard.writeText(url.toString())
-    },
-
     copyLocationLink: () => {
       if (!editor) return
       const camera = editor.getCamera()
@@ -113,6 +132,12 @@ export function useCameraControls(editor: Editor | null) {
       url.searchParams.set("x", camera.x.toString())
       url.searchParams.set("y", camera.y.toString())
       url.searchParams.set("zoom", camera.z.toString())
+      navigator.clipboard.writeText(url.toString())
+    },
+
+    copyFrameLink: (frameId: string) => {
+      const url = new URL(window.location.href)
+      url.searchParams.set("frameId", frameId)
       navigator.clipboard.writeText(url.toString())
     },
 
