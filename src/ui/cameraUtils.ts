@@ -195,8 +195,8 @@ export const lockCameraToFrame = async (editor: Editor) => {
     )
 
     // Set camera parameters first
-    url.searchParams.set("x", bounds.x.toString())
-    url.searchParams.set("y", bounds.y.toString())
+    url.searchParams.set("x", Math.round(bounds.x).toString())
+    url.searchParams.set("y", Math.round(bounds.y).toString())
     url.searchParams.set("zoom", targetZoom.toString())
 
     // Add frame-specific parameters last
