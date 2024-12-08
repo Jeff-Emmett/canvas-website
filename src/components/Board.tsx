@@ -4,11 +4,8 @@ import {
 	AssetRecordType,
 	getHashForString,
 	TLBookmarkAsset,
-	TLRecord,
 	Tldraw,
 	Editor,
-	TLFrameShape,
-	TLUiEventSource,
 } from 'tldraw'
 import { useParams } from 'react-router-dom'
 import { ChatBoxTool } from '@/tools/ChatBoxTool'
@@ -16,16 +13,12 @@ import { ChatBoxShape } from '@/shapes/ChatBoxShapeUtil'
 import { VideoChatTool } from '@/tools/VideoChatTool'
 import { VideoChatShape } from '@/shapes/VideoChatShapeUtil'
 import { multiplayerAssetStore } from '../client/multiplayerAssetStore'
-import { customSchema } from '../../worker/TldrawDurableObject'
 import { EmbedShape } from '@/shapes/EmbedShapeUtil'
 import { EmbedTool } from '@/tools/EmbedTool'
 import { defaultShapeUtils, defaultBindingUtils } from 'tldraw'
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { ChatBox } from '@/shapes/ChatBoxShapeUtil';
-import { components, uiOverrides } from '@/ui-overrides'
-import { useCameraControls } from '@/hooks/useCameraControls'
-import { zoomToSelection } from '../ui-overrides'
+import { useState } from 'react';
+import { components, overrides } from '@/ui-overrides'
 
 // Default to production URL if env var isn't available
 export const WORKER_URL = 'https://jeffemmett-canvas.jeffemmett.workers.dev';
@@ -47,7 +40,6 @@ export function Board() {
 
 	const store = useSync(storeConfig);
 	const [editor, setEditor] = useState<Editor | null>(null)
-	const { zoomToFrame, copyFrameLink, copyLocationLink, revertCamera } = useCameraControls(editor)
 
 	return (
 		<div style={{ position: 'fixed', inset: 0 }}>
@@ -56,81 +48,7 @@ export function Board() {
 				shapeUtils={shapeUtils}
 				tools={tools}
 				components={components}
-				overrides={{
-					tools: (editor, baseTools) => ({
-						...baseTools,
-						ChatBox: {
-							id: 'ChatBox',
-							icon: 'chat',
-							label: 'Chat',
-							kbd: 'c',
-							readonlyOk: true,
-							onSelect: () => {
-								editor.setCurrentTool('ChatBox')
-							},
-						},
-						VideoChat: {
-							id: 'VideoChat',
-							icon: 'video',
-							label: 'Video Chat',
-							kbd: 'v',
-							readonlyOk: true,
-							onSelect: () => {
-								editor.setCurrentTool('VideoChat')
-							},
-						},
-						Embed: {
-							id: 'Embed',
-							icon: 'embed',
-							label: 'Embed',
-							kbd: 'e',
-							readonlyOk: true,
-							onSelect: () => {
-								editor.setCurrentTool('Embed')
-							},
-						},
-					}),
-					actions: (editor, actions) => ({
-						...actions,
-						'zoomToShape': {
-							id: 'zoom-to-shape',
-							label: 'Zoom to Selection',
-							kbd: 'z',
-							onSelect: () => {
-								if (editor.getSelectedShapeIds().length > 0) {
-									zoomToSelection(editor);
-									editor.setCurrentTool('select');
-								}
-							},
-							readonlyOk: true,
-						},
-						'copyLinkToCurrentView': {
-							id: 'copy-link-to-current-view',
-							label: 'Copy Link to Current View',
-							kbd: 'c',
-							onSelect: () => {
-								const camera = editor.getCamera();
-								const url = new URL(window.location.href);
-								url.searchParams.set('x', camera.x.toString());
-								url.searchParams.set('y', camera.y.toString());
-								url.searchParams.set('zoom', camera.z.toString());
-								navigator.clipboard.writeText(url.toString());
-								editor.setCurrentTool('select');
-							},
-							readonlyOk: true,
-						},
-						'revertCamera': {
-							id: 'revert-camera',
-							label: 'Revert Camera',
-							kbd: 'b',
-							onSelect: () => {
-								revertCamera();
-								editor.setCurrentTool('select');
-							},
-							readonlyOk: true,
-						},
-					}),
-				}}
+				overrides={overrides}
 				onMount={(editor) => {
 					setEditor(editor)
 					editor.registerExternalAssetHandler('url', unfurlBookmarkUrl)
