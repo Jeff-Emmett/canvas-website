@@ -6,6 +6,7 @@ import {
   revertCamera,
   zoomToSelection,
 } from "./cameraUtils"
+import { saveToPdf } from "../utils/pdfUtils"
 
 export const overrides: TLUiOverrides = {
   tools(editor, tools) {
@@ -84,6 +85,17 @@ export const overrides: TLUiOverrides = {
         label: "Lock to Frame",
         kbd: "shift+l",
         onSelect: () => lockCameraToFrame(editor),
+      },
+      saveToPdf: {
+        id: "save-to-pdf",
+        label: "Save Selection as PDF",
+        kbd: "alt+p",
+        onSelect: () => {
+          if (editor.getSelectedShapeIds().length > 0) {
+            saveToPdf(editor)
+          }
+        },
+        readonlyOk: true,
       },
     }
   },

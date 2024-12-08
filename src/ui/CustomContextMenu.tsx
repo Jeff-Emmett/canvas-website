@@ -11,6 +11,7 @@ import {
   zoomToSelection,
 } from "./cameraUtils"
 import { useState, useEffect } from "react"
+import { saveToPdf } from "../utils/pdfUtils"
 
 export function CustomContextMenu(props: TLUiContextMenuProps) {
   const editor = useEditor()
@@ -70,6 +71,14 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           kbd="alt+b"
           disabled={!hasCameraHistory}
           onSelect={() => revertCamera(editor)}
+        />
+        <TldrawUiMenuItem
+          id="save-to-pdf"
+          label="Save Selection as PDF"
+          icon="file"
+          kbd="alt+p"
+          disabled={!hasSelection}
+          onSelect={() => saveToPdf(editor)}
         />
       </TldrawUiMenuGroup>
 
