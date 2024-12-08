@@ -1,3 +1,3 @@
 A website.
 
-Do `yarn dev`
+Do `bun i` and `bun dev`
