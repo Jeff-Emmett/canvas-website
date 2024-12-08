@@ -2,10 +2,20 @@ import { TldrawUiMenuItem } from "tldraw"
 import { DefaultToolbar, DefaultToolbarContent } from "tldraw"
 import { useTools } from "tldraw"
 import { useEditor } from "tldraw"
+import { useState, useEffect } from "react"
 
 export function CustomToolbar() {
   const editor = useEditor()
   const tools = useTools()
+  const [isReady, setIsReady] = useState(false)
+
+  useEffect(() => {
+    if (editor && tools) {
+      setIsReady(true)
+    }
+  }, [editor, tools])
+
+  if (!isReady) return null
 
   return (
     <DefaultToolbar>

@@ -18,7 +18,7 @@ import { EmbedShape } from "./shapes/EmbedShapeUtil"
 import { MarkdownShape } from "./shapes/MarkdownShapeUtil"
 import { MarkdownTool } from "./tools/MarkdownTool"
 import { createRoot } from "react-dom/client"
-import { handleInitialPageLoad } from "@/utils/handleInitialPageLoad"
+import { handleInitialPageLoad } from "./utils/handleInitialPageLoad"
 
 inject()
 
@@ -47,11 +47,10 @@ export default function InteractiveShapeExample() {
   )
 }
 
-createRoot(document.getElementById("root")!).render(<App />)
+//createRoot(document.getElementById("root")!).render(<App />)
 
 function App() {
   return (
-    // <React.StrictMode>
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Default />} />
@@ -60,6 +59,7 @@ function App() {
         <Route path="/inbox" element={<Inbox />} />
       </Routes>
     </BrowserRouter>
-    // </React.StrictMode>
   )
 }
+
+createRoot(document.getElementById("root")!).render(<App />)
