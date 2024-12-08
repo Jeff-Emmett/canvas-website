@@ -20,7 +20,6 @@
 		"@tldraw/sync-core": "^3.6.0",
 		"@tldraw/tldraw": "^3.6.0",
 		"@tldraw/tlschema": "^3.6.0",
-		"@types/jspdf": "^2.0.0",
 		"@types/markdown-it": "^14.1.1",
 		"@vercel/analytics": "^1.2.2",
 		"cloudflare-workers-unfurl": "^0.0.7",
