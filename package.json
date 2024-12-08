@@ -4,7 +4,7 @@
 	"description": "Jeff Emmett's personal website",
 	"type": "module",
 	"scripts": {
-		"dev": "concurrently --kill-others --names client,worker --prefix-colors blue,red \"bun dev:client\" \"bun dev:worker\"",
+		"dev": "concurrently --kill-others --names client,worker --prefix-colors blue,red \"npm run dev:client\" \"npm run dev:worker\"",
 		"dev:client": "vite --host --port 5173",
 		"dev:worker": "wrangler dev --local --port 5172 --ip 0.0.0.0",
 		"build": "tsc && vite build",
