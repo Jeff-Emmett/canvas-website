@@ -186,7 +186,7 @@ export const lockCameraToFrame = async (editor: Editor) => {
     const baseUrl = `${window.location.origin}${window.location.pathname}`
     const url = new URL(baseUrl)
 
-    // Calculate zoom level to fit the frame
+    // Calculate zoom level to fit the frame (for URL only)
     const viewportPageBounds = editor.getViewportPageBounds()
     const targetZoom = Math.min(
       viewportPageBounds.width / bounds.width,
@@ -194,17 +194,19 @@ export const lockCameraToFrame = async (editor: Editor) => {
       1, // Cap at 1x zoom
     )
 
-    // Set camera parameters first
+    // Set URL parameters without affecting the current view
     url.searchParams.set("x", Math.round(bounds.x).toString())
     url.searchParams.set("y", Math.round(bounds.y).toString())
-    url.searchParams.set("zoom", targetZoom.toString())
-
-    // Add frame-specific parameters last
-    url.searchParams.set("isLocked", "true")
+    url.searchParams.set(
+      "zoom",
+      (Math.round(targetZoom * 100) / 100).toString(),
+    )
     url.searchParams.set("frameId", selectedShape.id)
+    url.searchParams.set("isLocked", "true")
 
     const finalUrl = url.toString()
 
+    // Copy URL to clipboard without modifying the current view
     if (navigator.clipboard && window.isSecureContext) {
       await navigator.clipboard.writeText(finalUrl)
     } else {

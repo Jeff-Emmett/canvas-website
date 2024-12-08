@@ -53,19 +53,25 @@ export function useCameraControls(editor: Editor | null) {
     const frameId = searchParams.get("frameId")
     const isLocked = searchParams.get("isLocked") === "true"
 
-    console.log("Setting camera:", { x, y, zoom })
+    console.log("Setting camera:", { x, y, zoom, frameId, isLocked })
 
     // Set camera position if coordinates exist
     if (x && y && zoom) {
       const position = {
-        x: parseFloat(x),
-        y: parseFloat(y),
-        z: parseFloat(zoom),
+        x: Math.round(parseFloat(x)),
+        y: Math.round(parseFloat(y)),
+        z: Math.round(parseFloat(zoom)),
       }
       console.log("Camera position:", position)
 
       requestAnimationFrame(() => {
         editor.setCamera(position, { animation: { duration: 0 } })
+
+        // Apply camera lock immediately after setting position if needed
+        if (isLocked) {
+          editor.setCameraOptions({ isLocked: true })
+        }
+
         console.log("Current camera:", editor.getCamera())
       })
     }
@@ -78,9 +84,17 @@ export function useCameraControls(editor: Editor | null) {
 
         // If x/y/zoom are not provided in URL, zoom to frame bounds
         if (!x || !y || !zoom) {
-          editor.zoomToBounds(editor.getShapePageBounds(frame)!, {
+          const bounds = editor.getShapePageBounds(frame)!
+          const viewportPageBounds = editor.getViewportPageBounds()
+          const targetZoom = Math.min(
+            viewportPageBounds.width / bounds.width,
+            viewportPageBounds.height / bounds.height,
+            1, // Cap at 1x zoom, matching lockCameraToFrame
+          )
+
+          editor.zoomToBounds(bounds, {
             animation: { duration: 0 },
-            targetZoom: 1,
+            targetZoom,
           })
         }
 
@@ -129,9 +143,9 @@ export function useCameraControls(editor: Editor | null) {
       if (!editor) return
       const camera = editor.getCamera()
       const url = new URL(window.location.href)
-      url.searchParams.set("x", camera.x.toString())
-      url.searchParams.set("y", camera.y.toString())
-      url.searchParams.set("zoom", camera.z.toString())
+      url.searchParams.set("x", Math.round(camera.x).toString())
+      url.searchParams.set("y", Math.round(camera.y).toString())
+      url.searchParams.set("zoom", Math.round(camera.z).toString())
       navigator.clipboard.writeText(url.toString())
     },
 

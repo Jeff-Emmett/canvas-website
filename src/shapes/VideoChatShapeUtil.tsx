@@ -1,6 +1,7 @@
 import { BaseBoxShapeUtil, TLBaseShape } from "tldraw"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { WORKER_URL } from "../routes/Board"
+import DailyIframe from "@daily-co/daily-js"
 
 export type IVideoChatShape = TLBaseShape<
   "VideoChat",
@@ -11,6 +12,53 @@ export type IVideoChatShape = TLBaseShape<
     userName: string
   }
 >
+
+// Simplified component using Daily Prebuilt
+const VideoChatComponent = ({ roomUrl }: { roomUrl: string }) => {
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const callFrameRef = useRef<ReturnType<
+    typeof DailyIframe.createFrame
+  > | null>(null)
+
+  useEffect(() => {
+    if (!wrapperRef.current || !roomUrl) return
+
+    // Create and configure the Daily call frame
+    callFrameRef.current = DailyIframe.createFrame(wrapperRef.current, {
+      iframeStyle: {
+        width: "100%",
+        height: "100%",
+        border: "0",
+        borderRadius: "4px",
+      },
+      showLeaveButton: true,
+      showFullscreenButton: true,
+    })
+
+    // Join the room
+    callFrameRef.current.join({ url: roomUrl })
+
+    // Cleanup
+    return () => {
+      if (callFrameRef.current) {
+        callFrameRef.current.destroy()
+      }
+    }
+  }, [roomUrl])
+
+  return (
+    <div
+      ref={wrapperRef}
+      style={{
+        width: "100%",
+        height: "100%",
+        backgroundColor: "#f0f0f0",
+        borderRadius: "4px",
+        overflow: "hidden",
+      }}
+    />
+  )
+}
 
 export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
   static override type = "VideoChat"
@@ -33,29 +81,37 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
       return
     }
 
-    const response = await fetch(`${WORKER_URL}/daily/rooms`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        properties: {
-          enable_recording: true,
-          max_participants: 8,
+    try {
+      const response = await fetch(`${WORKER_URL}/daily/rooms`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      }),
-    })
+        body: JSON.stringify({
+          properties: {
+            enable_recording: true,
+            max_participants: 8,
+          },
+        }),
+      })
 
-    const data = await response.json()
+      if (!response.ok) {
+        throw new Error("Failed to create room")
+      }
 
-    this.editor.updateShape<IVideoChatShape>({
-      id: shape.id,
-      type: "VideoChat",
-      props: {
-        ...shape.props,
-        roomUrl: (data as any).url,
-      },
-    })
+      const data = await response.json()
+
+      this.editor.updateShape<IVideoChatShape>({
+        id: shape.id,
+        type: "VideoChat",
+        props: {
+          ...shape.props,
+          roomUrl: (data as any).url,
+        },
+      })
+    } catch (error) {
+      console.error("Failed to create Daily room:", error)
+    }
   }
 
   component(shape: IVideoChatShape) {
@@ -64,60 +120,91 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     const [isLoading, setIsLoading] = useState(false)
 
     useEffect(() => {
-      if (isInRoom && shape.props.roomUrl) {
-        const script = document.createElement("script")
-        script.src = "https://www.daily.co/static/call-machine.js"
-        document.body.appendChild(script)
+      setIsLoading(true)
+      this.ensureRoomExists(shape)
+        .catch((err) => setError(err.message))
+        .finally(() => setIsLoading(false))
+    }, [])
 
-        script.onload = () => {
-          // @ts-ignore
-          window.DailyIframe.createFrame({
-            iframeStyle: {
-              width: "100%",
-              height: "100%",
-              border: "0",
-              borderRadius: "4px",
-            },
-            showLeaveButton: true,
-            showFullscreenButton: true,
-          }).join({ url: shape.props.roomUrl })
-        }
-      }
-    }, [isInRoom, shape.props.roomUrl])
+    if (isLoading) {
+      return (
+        <div
+          style={{
+            width: `${shape.props.w}px`,
+            height: `${shape.props.h}px`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "#f0f0f0",
+            borderRadius: "4px",
+          }}
+        >
+          <div>Initializing video chat...</div>
+        </div>
+      )
+    }
+
+    if (!shape.props.roomUrl) {
+      return (
+        <div
+          style={{
+            width: `${shape.props.w}px`,
+            height: `${shape.props.h}px`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: "#f0f0f0",
+            borderRadius: "4px",
+          }}
+        >
+          Creating room...
+        </div>
+      )
+    }
 
     return (
       <div
         style={{
-          pointerEvents: "all",
           width: `${shape.props.w}px`,
           height: `${shape.props.h}px`,
-          position: "absolute",
-          top: "10px",
-          left: "10px",
-          zIndex: 9999,
-          padding: "15px",
-          backgroundColor: "#F0F0F0",
-          boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
-          borderRadius: "4px",
+          position: "relative",
         }}
       >
         {!isInRoom ? (
           <button
             onClick={() => setIsInRoom(true)}
-            className="bg-blue-500 text-white px-4 py-2 rounded"
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              padding: "12px 24px",
+              backgroundColor: "#2563eb",
+              color: "white",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+            }}
           >
-            Join Room
+            Join Video Chat
           </button>
         ) : (
-          <div
-            id="daily-call-iframe-container"
-            style={{
-              width: "100%",
-              height: "100%",
-            }}
-          />
+          <VideoChatComponent roomUrl={shape.props.roomUrl} />
         )}
-        {error && <p className="text-red-500 mt-2">{error}</p>}
+        {error && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: 10,
+              left: 10,
+              right: 10,
+              color: "red",
+              textAlign: "center",
+            }}
+          >
+            {error}
+          </div>
+        )}
       </div>
     )
   }
