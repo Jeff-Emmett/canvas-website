@@ -1,12 +1,6 @@
 import { useSync } from "@tldraw/sync"
 import { useMemo } from "react"
-import {
-  AssetRecordType,
-  getHashForString,
-  TLBookmarkAsset,
-  Tldraw,
-  Editor,
-} from "tldraw"
+import { Tldraw, Editor } from "tldraw"
 import { useParams } from "react-router-dom"
 import { ChatBoxTool } from "@/tools/ChatBoxTool"
 import { ChatBoxShape } from "@/shapes/ChatBoxShapeUtil"
@@ -17,7 +11,9 @@ import { EmbedShape } from "@/shapes/EmbedShapeUtil"
 import { EmbedTool } from "@/tools/EmbedTool"
 import { defaultShapeUtils, defaultBindingUtils } from "tldraw"
 import { useState } from "react"
-import { components, overrides } from "@/ui-overrides"
+import { components } from "@/ui/components"
+import { overrides } from "@/ui/overrides"
+import { unfurlBookmarkUrl } from "../utils/unfurlBookmarkUrl"
 
 // Default to production URL if env var isn't available
 export const WORKER_URL = "https://jeffemmett-canvas.jeffemmett.workers.dev"
@@ -58,46 +54,4 @@ export function Board() {
       />
     </div>
   )
-}
-
-// How does our server handle bookmark unfurling?
-async function unfurlBookmarkUrl({
-  url,
-}: {
-  url: string
-}): Promise<TLBookmarkAsset> {
-  const asset: TLBookmarkAsset = {
-    id: AssetRecordType.createId(getHashForString(url)),
-    typeName: "asset",
-    type: "bookmark",
-    meta: {},
-    props: {
-      src: url,
-      description: "",
-      image: "",
-      favicon: "",
-      title: "",
-    },
-  }
-
-  try {
-    const response = await fetch(
-      `${WORKER_URL}/unfurl?url=${encodeURIComponent(url)}`,
-    )
-    const data = (await response.json()) as {
-      description: string
-      image: string
-      favicon: string
-      title: string
-    }
-
-    asset.props.description = data?.description ?? ""
-    asset.props.image = data?.image ?? ""
-    asset.props.favicon = data?.favicon ?? ""
-    asset.props.title = data?.title ?? ""
-  } catch (e) {
-    console.error(e)
-  }
-
-  return asset
 }
