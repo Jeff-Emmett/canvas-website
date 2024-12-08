@@ -8,9 +8,10 @@ import {
   Box,
   TLResizeMode,
   Rectangle2d,
-} from 'tldraw'
+} from "tldraw"
 
-export interface HTMLShape extends TLBaseShape<'html', { w: number; h: number, html: string }> {
+export interface HTMLShape
+  extends TLBaseShape<"html", { w: number; h: number; html: string }> {
   props: {
     w: number
     h: number
@@ -19,47 +20,48 @@ export interface HTMLShape extends TLBaseShape<'html', { w: number; h: number, h
 }
 
 export class HTMLShapeUtil extends BaseBoxShapeUtil<HTMLShape> {
-  static override type = 'html' as const
+  static override type = "html" as const
   override canBind = () => true
   override canEdit = () => false
   override canResize = () => true
   override isAspectRatioLocked = () => false
 
-  getDefaultProps(): HTMLShape['props'] {
+  getDefaultProps(): HTMLShape["props"] {
     return {
       w: 100,
       h: 100,
-      html: "<div></div>"
+      html: "<div></div>",
     }
   }
 
   override onBeforeUpdate = (prev: HTMLShape, next: HTMLShape): void => {
     if (prev.x !== next.x || prev.y !== next.y) {
-      this.editor.bringToFront([next.id]);
+      this.editor.bringToFront([next.id])
     }
   }
 
   override onResize = (
     shape: HTMLShape,
     info: {
-      handle: TLResizeHandle;
-      mode: TLResizeMode;
-      initialBounds: Box;
-      initialShape: HTMLShape;
-      newPoint: VecModel;
-      scaleX: number;
-      scaleY: number;
-    }
+      handle: TLResizeHandle
+      mode: TLResizeMode
+      initialBounds: Box
+      initialShape: HTMLShape
+      newPoint: VecModel
+      scaleX: number
+      scaleY: number
+    },
   ) => {
-    const element = document.getElementById(shape.id);
-    if (!element || !element.parentElement) return resizeBox(shape, info);
-    const { width, height } = element.parentElement.getBoundingClientRect();
+    const element = document.getElementById(shape.id)
+    if (!element || !element.parentElement) return resizeBox(shape, info)
+    const { width, height } = element.parentElement.getBoundingClientRect()
     if (element) {
-      const isOverflowing = element.scrollWidth > width || element.scrollHeight > height;
+      const isOverflowing =
+        element.scrollWidth > width || element.scrollHeight > height
       if (isOverflowing) {
-        element.parentElement?.classList.add('overflowing');
+        element.parentElement?.classList.add("overflowing")
       } else {
-        element.parentElement?.classList.remove('overflowing');
+        element.parentElement?.classList.remove("overflowing")
       }
     }
     return resizeBox(shape, info)
@@ -74,7 +76,12 @@ export class HTMLShapeUtil extends BaseBoxShapeUtil<HTMLShape> {
   }
 
   override component(shape: HTMLShape): JSX.Element {
-    return <div id={shape.id} dangerouslySetInnerHTML={{ __html: shape.props.html }} />
+    return (
+      <div
+        id={shape.id}
+        dangerouslySetInnerHTML={{ __html: shape.props.html }}
+      />
+    )
   }
 
   override indicator(shape: HTMLShape): JSX.Element {
