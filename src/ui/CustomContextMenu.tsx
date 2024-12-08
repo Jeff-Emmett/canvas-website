@@ -10,24 +10,32 @@ import {
   revertCamera,
   zoomToSelection,
 } from "./cameraUtils"
+import { useState, useEffect } from "react"
 
 export function CustomContextMenu(props: TLUiContextMenuProps) {
   const editor = useEditor()
-  const selectedShapes = editor.getSelectedShapes()
-  const selectedIds = editor.getSelectedShapeIds()
+  const [selectedShapes, setSelectedShapes] = useState<TLShape[]>([])
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
 
-  // Add debug logs
-  console.log(
-    "Selected Shapes:",
-    selectedShapes.map((shape) => ({
-      id: shape.id,
-      type: shape.type,
-    })),
-  )
-  console.log(
-    "Selected Frame:",
-    selectedShapes.length === 1 && selectedShapes[0].type === "frame",
-  )
+  // Update selection state more frequently
+  useEffect(() => {
+    const updateSelection = () => {
+      setSelectedShapes(editor.getSelectedShapes())
+      setSelectedIds(editor.getSelectedShapeIds())
+    }
+
+    // Initial update
+    updateSelection()
+
+    // Subscribe to selection changes
+    const unsubscribe = editor.addListener("change", updateSelection)
+
+    return () => {
+      if (typeof unsubscribe === "function") {
+        ;(unsubscribe as () => void)()
+      }
+    }
+  }, [editor])
 
   const hasSelection = selectedIds.length > 0
   const hasCameraHistory = cameraHistory.length > 0

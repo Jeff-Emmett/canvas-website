@@ -1,7 +1,7 @@
 import { BaseBoxShapeTool } from "tldraw"
 
 export class MarkdownTool extends BaseBoxShapeTool {
-  static override id = "MarkdownTool"
-  shapeType = "MarkdownTool"
+  static override id = "Markdown"
+  shapeType = "Markdown"
   override initial = "idle"
 }
