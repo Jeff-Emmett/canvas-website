@@ -325,3 +325,12 @@ p:has(+ ol) {
   overflow: hidden;
   background-color: white;
 }
+
+.rc-md-editor {
+  border: none !important;
+  font-family: inherit;
+}
+
+.rc-md-editor .editor-container {
+  border-radius: 4px;
+}
