@@ -15,45 +15,22 @@ import { Board } from './components/Board';
 import { Inbox } from './components/Inbox';
 import { Books } from './components/Books';
 import {
-	BindingUtil,
 	Editor,
-	IndexKey,
-	TLBaseBinding,
-	TLBaseShape,
 	Tldraw,
 	TLShapeId,
 } from 'tldraw';
-import { components, uiOverrides } from './ui-overrides';
+import { components, overrides } from './ui-overrides'
 import { ChatBoxShape } from './shapes/ChatBoxShapeUtil';
 import { VideoChatShape } from './shapes/VideoChatShapeUtil';
 import { ChatBoxTool } from './tools/ChatBoxTool';
 import { VideoChatTool } from './tools/VideoChatTool';
+import { EmbedTool } from './tools/EmbedTool';
+import { EmbedShape } from './shapes/EmbedShapeUtil';
 
 inject();
 
-// The container shapes that can contain element shapes
-const CONTAINER_PADDING = 24;
-
-type ContainerShape = TLBaseShape<'element', { height: number; width: number }>;
-
-// ... existing code for ContainerShapeUtil ...
-
-// The element shapes that can be placed inside the container shapes
-type ElementShape = TLBaseShape<'element', { color: string }>;
-
-// ... existing code for ElementShapeUtil ...
-
-// The binding between the element shapes and the container shapes
-type LayoutBinding = TLBaseBinding<
-	'layout',
-	{
-		index: IndexKey;
-		placeholder: boolean;
-	}
->;
-
-const customShapeUtils = [ChatBoxShape, VideoChatShape];
-const customTools = [ChatBoxTool, VideoChatTool];
+const customShapeUtils = [ChatBoxShape, VideoChatShape, EmbedShape];
+const customTools = [ChatBoxTool, VideoChatTool, EmbedTool];
 
 // [2]
 export default function InteractiveShapeExample() {
@@ -62,7 +39,7 @@ export default function InteractiveShapeExample() {
 			<Tldraw
 				shapeUtils={customShapeUtils}
 				tools={customTools}
-				overrides={uiOverrides}
+				overrides={overrides}
 				components={components}
 				onMount={(editor) => {
 					handleInitialShapeLoad(editor);
@@ -134,8 +111,6 @@ function Home() {
 	const shapes = createShapes(elementsInfo)
 	const [isEditorMounted, setIsEditorMounted] = useState(false);
 
-	//console.log("THIS WORKS SO FAR")
-
 	useEffect(() => {
 		const handleEditorDidMount = () => {
 			setIsEditorMounted(true);
@@ -149,10 +124,12 @@ function Home() {
 	}, []);
 
 	return (
-		<><Toggle />
+		<>
+			<Toggle />
 			<div style={{ zIndex: 999999 }} className={`${isCanvasEnabled && isEditorMounted ? 'transparent' : ''}`}>
 				{<Default />}
 			</div>
-			{isCanvasEnabled && elementsInfo.length > 0 ? <Canvas shapes={shapes} /> : null}</>
+			{isCanvasEnabled && elementsInfo.length > 0 ? <Canvas shapes={shapes} /> : null}
+		</>
 	)
 }
