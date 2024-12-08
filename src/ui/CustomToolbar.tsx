@@ -34,6 +34,14 @@ export function CustomToolbar() {
           isSelected={tools["Embed"].id === editor.getCurrentToolId()}
         />
       )}
+      {tools["Markdown"] && (
+        <TldrawUiMenuItem
+          {...tools["Markdown"]}
+          icon="markdown"
+          label="Markdown"
+          isSelected={tools["Markdown"].id === editor.getCurrentToolId()}
+        />
+      )}
     </DefaultToolbar>
   )
 }

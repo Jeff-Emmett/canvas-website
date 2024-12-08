@@ -9,17 +9,20 @@ import { VideoChatShape } from "@/shapes/VideoChatShapeUtil"
 import { multiplayerAssetStore } from "../utils/multiplayerAssetStore"
 import { EmbedShape } from "@/shapes/EmbedShapeUtil"
 import { EmbedTool } from "@/tools/EmbedTool"
+import { MarkdownShape } from "@/shapes/MarkdownShapeUtil"
+import { MarkdownTool } from "@/tools/MarkdownTool"
 import { defaultShapeUtils, defaultBindingUtils } from "tldraw"
 import { useState } from "react"
 import { components } from "@/ui/components"
 import { overrides } from "@/ui/overrides"
 import { unfurlBookmarkUrl } from "../utils/unfurlBookmarkUrl"
+import { handleInitialPageLoad } from "@/utils/handleInitialPageLoad"
 
 // Default to production URL if env var isn't available
 export const WORKER_URL = "https://jeffemmett-canvas.jeffemmett.workers.dev"
 
-const shapeUtils = [ChatBoxShape, VideoChatShape, EmbedShape]
-const tools = [ChatBoxTool, VideoChatTool, EmbedTool] // Array of tools
+const shapeUtils = [ChatBoxShape, VideoChatShape, EmbedShape, MarkdownShape]
+const tools = [ChatBoxTool, VideoChatTool, EmbedTool, MarkdownTool] // Array of tools
 
 export function Board() {
   const { slug } = useParams<{ slug: string }>()
@@ -46,10 +49,12 @@ export function Board() {
         tools={tools}
         components={components}
         overrides={overrides}
+        //maxZoom={20}
         onMount={(editor) => {
           setEditor(editor)
           editor.registerExternalAssetHandler("url", unfurlBookmarkUrl)
           editor.setCurrentTool("hand")
+          handleInitialPageLoad(editor)
         }}
       />
     </div>

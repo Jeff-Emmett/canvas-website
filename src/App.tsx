@@ -15,12 +15,20 @@ import { ChatBoxTool } from "./tools/ChatBoxTool"
 import { VideoChatTool } from "./tools/VideoChatTool"
 import { EmbedTool } from "./tools/EmbedTool"
 import { EmbedShape } from "./shapes/EmbedShapeUtil"
+import { MarkdownShape } from "./shapes/MarkdownShapeUtil"
+import { MarkdownTool } from "./tools/MarkdownTool"
 import { createRoot } from "react-dom/client"
+import { handleInitialPageLoad } from "@/utils/handleInitialPageLoad"
 
 inject()
 
-const customShapeUtils = [ChatBoxShape, VideoChatShape, EmbedShape]
-const customTools = [ChatBoxTool, VideoChatTool, EmbedTool]
+const customShapeUtils = [
+  ChatBoxShape,
+  VideoChatShape,
+  EmbedShape,
+  MarkdownShape,
+]
+const customTools = [ChatBoxTool, VideoChatTool, EmbedTool, MarkdownTool]
 
 export default function InteractiveShapeExample() {
   return (
@@ -31,47 +39,12 @@ export default function InteractiveShapeExample() {
         overrides={overrides}
         components={components}
         onMount={(editor) => {
-          handleInitialShapeLoad(editor)
+          handleInitialPageLoad(editor)
           editor.createShape({ type: "my-interactive-shape", x: 100, y: 100 })
         }}
       />
     </div>
   )
-}
-
-const handleInitialShapeLoad = (editor: Editor) => {
-  const url = new URL(window.location.href)
-  const shapeId =
-    url.searchParams.get("shapeId") || url.searchParams.get("frameId")
-  const x = url.searchParams.get("x")
-  const y = url.searchParams.get("y")
-  const zoom = url.searchParams.get("zoom")
-
-  if (shapeId) {
-    console.log("Found shapeId in URL:", shapeId)
-    const shape = editor.getShape(shapeId as TLShapeId)
-
-    if (shape) {
-      console.log("Found shape:", shape)
-      if (x && y && zoom) {
-        console.log("Setting camera to:", { x, y, zoom })
-        editor.setCamera({
-          x: parseFloat(x),
-          y: parseFloat(y),
-          z: parseFloat(zoom),
-        })
-      } else {
-        console.log("Zooming to shape bounds")
-        editor.zoomToBounds(editor.getShapeGeometry(shape).bounds, {
-          targetZoom: 1,
-        })
-      }
-    } else {
-      console.warn("Shape not found in the editor")
-    }
-  } else {
-    console.warn("No shapeId found in the URL")
-  }
 }
 
 createRoot(document.getElementById("root")!).render(<App />)

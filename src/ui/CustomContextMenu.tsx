@@ -1,37 +1,50 @@
-import { TldrawUiMenuItem } from "tldraw"
-
+import { TldrawUiMenuItem, TLShape } from "tldraw"
 import { TldrawUiMenuGroup } from "tldraw"
-
 import { DefaultContextMenuContent } from "tldraw"
-
 import { DefaultContextMenu } from "tldraw"
-
 import { TLUiContextMenuProps, useEditor } from "tldraw"
 import {
   cameraHistory,
   copyLinkToCurrentView,
+  lockCameraToFrame,
   revertCamera,
   zoomToSelection,
 } from "./cameraUtils"
 
 export function CustomContextMenu(props: TLUiContextMenuProps) {
   const editor = useEditor()
-  const hasSelection = editor.getSelectedShapeIds().length > 0
+  const selectedShapes = editor.getSelectedShapes()
+  const selectedIds = editor.getSelectedShapeIds()
+
+  // Add debug logs
+  console.log(
+    "Selected Shapes:",
+    selectedShapes.map((shape) => ({
+      id: shape.id,
+      type: shape.type,
+    })),
+  )
+  console.log(
+    "Selected Frame:",
+    selectedShapes.length === 1 && selectedShapes[0].type === "frame",
+  )
+
+  const hasSelection = selectedIds.length > 0
   const hasCameraHistory = cameraHistory.length > 0
-  const selectedShape = editor.getSelectedShapes()[0]
-  const isFrame = selectedShape?.type === "frame"
+
+  // Check if exactly one frame is selected
+  const hasFrameSelected =
+    selectedShapes.length === 1 && selectedShapes[0].type === "frame"
 
   return (
     <DefaultContextMenu {...props}>
-      <DefaultContextMenuContent />
-
       {/* Camera Controls Group */}
       <TldrawUiMenuGroup id="camera-controls">
         <TldrawUiMenuItem
           id="zoom-to-selection"
           label="Zoom to Selection"
           icon="zoom-in"
-          kbd="z"
+          kbd="alt +z"
           disabled={!hasSelection}
           onSelect={() => zoomToSelection(editor)}
         />
@@ -39,14 +52,14 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           id="copy-link-to-current-view"
           label="Copy Link to Current View"
           icon="link"
-          kbd="s"
+          kbd="alt+s"
           onSelect={() => copyLinkToCurrentView(editor)}
         />
         <TldrawUiMenuItem
           id="revert-camera"
           label="Revert Camera"
           icon="undo"
-          kbd="b"
+          kbd="alt+b"
           disabled={!hasCameraHistory}
           onSelect={() => revertCamera(editor)}
         />
@@ -58,7 +71,8 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           id="video-chat"
           label="Create Video Chat"
           icon="video"
-          kbd="v"
+          kbd="alt+v"
+          disabled={hasSelection}
           onSelect={() => {
             editor.setCurrentTool("VideoChat")
           }}
@@ -67,7 +81,8 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           id="chat-box"
           label="Create Chat Box"
           icon="chat"
-          kbd="c"
+          kbd="alt+c"
+          disabled={hasSelection}
           onSelect={() => {
             editor.setCurrentTool("ChatBox")
           }}
@@ -76,27 +91,36 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           id="embed"
           label="Create Embed"
           icon="embed"
-          kbd="e"
+          kbd="alt+e"
+          disabled={hasSelection}
           onSelect={() => {
             editor.setCurrentTool("Embed")
+          }}
+        />
+        <TldrawUiMenuItem
+          id="markdown"
+          label="Create Markdown"
+          icon="markdown"
+          kbd="alt+m"
+          disabled={hasSelection}
+          onSelect={() => {
+            editor.setCurrentTool("Markdown")
           }}
         />
       </TldrawUiMenuGroup>
 
       {/* Frame Controls */}
-      {isFrame && (
-        <TldrawUiMenuGroup id="frame-controls">
-          <TldrawUiMenuItem
-            id="lock-to-frame"
-            label="Lock to Frame"
-            icon="lock"
-            kbd="l"
-            onSelect={() => {
-              console.warn("lock to frame NOT IMPLEMENTED")
-            }}
-          />
-        </TldrawUiMenuGroup>
-      )}
+      <TldrawUiMenuGroup id="frame-controls">
+        <TldrawUiMenuItem
+          id="lock-to-frame"
+          label="Lock to Frame"
+          icon="lock"
+          kbd="shift+l"
+          disabled={!hasFrameSelected}
+          onSelect={() => lockCameraToFrame(editor)}
+        />
+      </TldrawUiMenuGroup>
+      <DefaultContextMenuContent />
     </DefaultContextMenu>
   )
 }
