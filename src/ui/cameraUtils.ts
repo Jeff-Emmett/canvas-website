@@ -44,11 +44,11 @@ export const zoomToSelection = (editor: Editor) => {
   // Calculate target zoom based on selection size
   let targetZoom
   if (widthRatio < 0.1 || heightRatio < 0.1) {
-    // For very small selections, zoom in up to 8x
+    // For very small selections, zoom in up to 20x
     targetZoom = Math.min(
       (viewportPageBounds.width * 0.8) / commonBounds.width,
       (viewportPageBounds.height * 0.8) / commonBounds.height,
-      8, // Max zoom of 8x for small selections
+      40, // Max zoom of 20x for small selections
     )
   } else if (widthRatio > 1 || heightRatio > 1) {
     // For selections larger than viewport, zoom out more
@@ -58,11 +58,11 @@ export const zoomToSelection = (editor: Editor) => {
       0.125, // Min zoom of 1/8x for large selections (reciprocal of 8)
     )
   } else {
-    // For medium-sized selections, allow up to 4x zoom
+    // For medium-sized selections, allow up to 10x zoom
     targetZoom = Math.min(
       (viewportPageBounds.width * 0.8) / commonBounds.width,
       (viewportPageBounds.height * 0.8) / commonBounds.height,
-      4, // Medium zoom level
+      20, // Medium zoom level
     )
   }
 
@@ -156,12 +156,8 @@ export const copyLinkToCurrentView = async (editor: Editor) => {
       document.body.appendChild(textArea)
       try {
         await navigator.clipboard.writeText(textArea.value)
-        console.log("URL copied successfully")
       } catch (err) {
-        // Fallback for older browsers
-        textArea.select()
-        document.execCommand("copy")
-        console.log("URL copied using fallback method")
+        console.error("Clipboard API failed:", err)
       }
       document.body.removeChild(textArea)
     }
@@ -171,8 +167,8 @@ export const copyLinkToCurrentView = async (editor: Editor) => {
   }
 }
 
-// TODO: doesnt lock permanently
-export const lockCameraToFrame = (editor: Editor) => {
+/** TODO: doesnt UNlock */
+export const lockCameraToFrame = async (editor: Editor) => {
   const selectedShapes = editor.getSelectedShapes()
   if (selectedShapes.length === 0) return
   const selectedShape = selectedShapes[0]
@@ -180,14 +176,38 @@ export const lockCameraToFrame = (editor: Editor) => {
   const bounds = editor.getShapePageBounds(selectedShape)
   if (!isFrame || !bounds) return
 
-  editor.zoomToBounds(bounds, {
-    animation: { duration: 300 },
-    targetZoom: 1,
-  })
-  editor.updateInstanceState({
-    meta: {
-      ...editor.getInstanceState().meta,
-      lockedFrameId: selectedShape.id,
-    },
-  })
+  try {
+    const baseUrl = `${window.location.origin}${window.location.pathname}`
+    const url = new URL(baseUrl)
+
+    // Calculate zoom level to fit the frame
+    const viewportPageBounds = editor.getViewportPageBounds()
+    const targetZoom = Math.min(
+      viewportPageBounds.width / bounds.width,
+      viewportPageBounds.height / bounds.height,
+      1, // Cap at 1x zoom
+    )
+
+    url.searchParams.set("frameId", selectedShape.id)
+    url.searchParams.set("isLocked", "true")
+    url.searchParams.set("x", bounds.x.toString())
+    url.searchParams.set("y", bounds.y.toString())
+    url.searchParams.set("zoom", targetZoom.toString())
+
+    const finalUrl = url.toString()
+
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(finalUrl)
+    } else {
+      const textArea = document.createElement("textarea")
+      textArea.value = finalUrl
+      document.body.appendChild(textArea)
+      textArea.select()
+      document.execCommand("copy")
+      document.body.removeChild(textArea)
+    }
+  } catch (error) {
+    console.error("Failed to copy frame link:", error)
+    alert("Failed to copy frame link. Please check clipboard permissions.")
+  }
 }

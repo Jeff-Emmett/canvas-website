@@ -15,7 +15,7 @@ export const overrides: TLUiOverrides = {
         id: "VideoChat",
         icon: "video",
         label: "Video Chat",
-        kbd: "v",
+        kbd: "alt+v",
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("VideoChat"),
       },
@@ -23,7 +23,7 @@ export const overrides: TLUiOverrides = {
         id: "ChatBox",
         icon: "chat",
         label: "Chat",
-        kbd: "c",
+        kbd: "alt+c",
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("ChatBox"),
       },
@@ -31,9 +31,17 @@ export const overrides: TLUiOverrides = {
         id: "Embed",
         icon: "embed",
         label: "Embed",
-        kbd: "e",
+        kbd: "alt+e",
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("Embed"),
+      },
+      Markdown: {
+        id: "Markdown",
+        icon: "markdown",
+        label: "Markdown",
+        kbd: "alt+m",
+        readonlyOk: true,
+        onSelect: () => editor.setCurrentTool("Markdown"),
       },
     }
   },
@@ -43,7 +51,7 @@ export const overrides: TLUiOverrides = {
       zoomToSelection: {
         id: "zoom-to-selection",
         label: "Zoom to Selection",
-        kbd: "z",
+        kbd: "alt+z",
         onSelect: () => {
           if (editor.getSelectedShapeIds().length > 0) {
             zoomToSelection(editor)
@@ -54,7 +62,7 @@ export const overrides: TLUiOverrides = {
       copyLinkToCurrentView: {
         id: "copy-link-to-current-view",
         label: "Copy Link to Current View",
-        kbd: "s",
+        kbd: "alt+s",
         onSelect: () => {
           copyLinkToCurrentView(editor)
         },
@@ -63,7 +71,7 @@ export const overrides: TLUiOverrides = {
       revertCamera: {
         id: "revert-camera",
         label: "Revert Camera",
-        kbd: "b",
+        kbd: "alt+b",
         onSelect: () => {
           if (cameraHistory.length > 0) {
             revertCamera(editor)
@@ -74,7 +82,7 @@ export const overrides: TLUiOverrides = {
       lockToFrame: {
         id: "lock-to-frame",
         label: "Lock to Frame",
-        kbd: "l",
+        kbd: "shift+l",
         onSelect: () => lockCameraToFrame(editor),
       },
     }
