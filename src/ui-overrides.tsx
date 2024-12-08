@@ -6,12 +6,10 @@ import {
 	TldrawUiMenuItem,
 	useEditor,
 	useTools,
-	TLShapeId,
 	DefaultContextMenu,
 	DefaultContextMenuContent,
 	TLUiContextMenuProps,
 	TldrawUiMenuGroup,
-	TLShape,
 } from 'tldraw'
 import { CustomMainMenu } from './components/CustomMainMenu'
 import { Editor } from 'tldraw'
@@ -37,55 +35,6 @@ const storeCameraPosition = (editor: Editor) => {
 	}
 };
 
-const copyFrameLink = async (editor: Editor, frameId: string) => {
-	console.log('Starting copyFrameLink with frameId:', frameId);
-
-	if (!editor.store.getSnapshot()) {
-		console.warn('Store not ready');
-		return;
-	}
-
-	try {
-		const baseUrl = `${window.location.origin}${window.location.pathname}`;
-		console.log('Base URL:', baseUrl);
-
-		const url = new URL(baseUrl);
-		url.searchParams.set('frameId', frameId);
-
-		const frame = editor.getShape(frameId as TLShapeId);
-		console.log('Found frame:', frame);
-
-		if (frame) {
-			const camera = editor.getCamera();
-			console.log('Camera position:', { x: camera.x, y: camera.y, zoom: camera.z });
-
-			url.searchParams.set('x', camera.x.toString());
-			url.searchParams.set('y', camera.y.toString());
-			url.searchParams.set('zoom', camera.z.toString());
-		}
-
-		const finalUrl = url.toString();
-		console.log('Final URL to copy:', finalUrl);
-
-		if (navigator.clipboard && window.isSecureContext) {
-			console.log('Using modern clipboard API...');
-			await navigator.clipboard.writeText(finalUrl);
-			console.log('URL copied successfully using clipboard API');
-		} else {
-			console.log('Falling back to legacy clipboard method...');
-			const textArea = document.createElement('textarea');
-			textArea.value = finalUrl;
-			document.body.appendChild(textArea);
-			textArea.select();
-			document.execCommand('copy');
-			document.body.removeChild(textArea);
-			console.log('URL copied successfully using fallback method');
-		}
-	} catch (error) {
-		console.error('Failed to copy to clipboard:', error);
-		alert('Failed to copy link. Please check clipboard permissions.');
-	}
-};
 
 export const zoomToSelection = (editor: Editor) => {
 	// Store camera position before zooming
@@ -154,7 +103,7 @@ export const zoomToSelection = (editor: Editor) => {
 const copyLinkToCurrentView = async (editor: Editor) => {
 	console.log('Starting copyLinkToCurrentView');
 
-	if (!editor.store.getSnapshot()) {
+	if (!editor.store.serialize()) {
 		console.warn('Store not ready');
 		return;
 	}
@@ -184,10 +133,16 @@ const copyLinkToCurrentView = async (editor: Editor) => {
 			const textArea = document.createElement('textarea');
 			textArea.value = finalUrl;
 			document.body.appendChild(textArea);
-			textArea.select();
-			document.execCommand('copy');
+			try {
+				await navigator.clipboard.writeText(textArea.value);
+				console.log('URL copied successfully');
+			} catch (err) {
+				// Fallback for older browsers
+				textArea.select();
+				document.execCommand('copy');
+				console.log('URL copied using fallback method');
+			}
 			document.body.removeChild(textArea);
-			console.log('URL copied successfully using fallback method');
 		}
 	} catch (error) {
 		console.error('Failed to copy to clipboard:', error);
@@ -226,7 +181,8 @@ const revertCamera = (editor: Editor) => {
 	}
 };
 
-export const uiOverrides: TLUiOverrides = {
+// Export a function that creates the uiOverrides
+export const overrides: TLUiOverrides = ({
 	tools(editor, tools) {
 		return {
 			...tools,
@@ -257,74 +213,69 @@ export const uiOverrides: TLUiOverrides = {
 		}
 	},
 	actions(editor, actions) {
-		actions['copyFrameLink'] = {
-			id: 'copy-frame-link',
-			label: 'Copy Frame Link',
-			onSelect: () => {
-				const shape = editor.getSelectedShapes()[0]
-				if (shape && shape.type === 'frame') {
-					copyFrameLink(editor, shape.id)
+		return {
+			...actions,
+			'zoomToSelection': {
+				id: 'zoom-to-selection',
+				label: 'Zoom to Selection',
+				kbd: 'z',
+				onSelect: () => {
+					if (editor.getSelectedShapeIds().length > 0) {
+						zoomToSelection(editor);
+					}
+				},
+				readonlyOk: true,
+			},
+			'copyLinkToCurrentView': {
+				id: 'copy-link-to-current-view',
+				label: 'Copy Link to Current View',
+				kbd: 's',
+				onSelect: () => {
+					copyLinkToCurrentView(editor);
+				},
+				readonlyOk: true,
+			},
+			'revertCamera': {
+				id: 'revert-camera',
+				label: 'Revert Camera',
+				kbd: 'b',
+				onSelect: () => {
+					if (cameraHistory.length > 0) {
+						revertCamera(editor);
+					}
+				},
+				readonlyOk: true,
+			},
+			'lockToFrame': {
+				id: 'lock-to-frame',
+				label: 'Lock to Frame',
+				kbd: 'l',
+				onSelect: () => {
+					const selectedShapes = editor.getSelectedShapes()
+					if (selectedShapes.length === 0) return
+					const selectedShape = selectedShapes[0]
+					const isFrame = selectedShape.type === 'frame'
+					const bounds = editor.getShapePageBounds(selectedShape)
+					if (!isFrame || !bounds) return
+
+					editor.zoomToBounds(bounds, {
+						animation: { duration: 300 },
+						targetZoom: 1
+					})
+					editor.updateInstanceState({
+						meta: { ...editor.getInstanceState().meta, lockedFrameId: selectedShape.id }
+					})
 				}
-			},
-			readonlyOk: true,
+			}
 		}
-
-		actions['zoomToFrame'] = {
-			id: 'zoom-to-frame',
-			label: 'Zoom to Frame',
-			onSelect: () => {
-				const shape = editor.getSelectedShapes()[0]
-				if (shape && shape.type === 'frame') {
-					zoomToSelection(editor)
-				}
-			},
-			readonlyOk: true,
-		}
-
-		actions['copyLinkToCurrentView'] = {
-			id: 'copy-link-to-current-view',
-			label: 'Copy Link to Current View',
-			kbd: 'c',
-			onSelect: () => {
-				console.log('Creating link to current view');
-				copyLinkToCurrentView(editor);
-			},
-			readonlyOk: true,
-		}
-
-		actions['zoomToShape'] = {
-			id: 'zoom-to-shape',
-			label: 'Zoom to Selection',
-			kbd: 'z',
-			onSelect: () => {
-				if (editor.getSelectedShapeIds().length > 0) {
-					console.log('Zooming to selection');
-					zoomToSelection(editor);
-				}
-			},
-			readonlyOk: true,
-		}
-
-		actions['revertCamera'] = {
-			id: 'revert-camera',
-			label: 'Revert Camera',
-			kbd: 'b',
-			onSelect: () => {
-				if (cameraHistory.length > 0) {
-					revertCamera(editor);
-				}
-			},
-			readonlyOk: true,
-		}
-
-		return actions
 	},
-}
+})
 
 export const components: TLComponents = {
 	Toolbar: function Toolbar() {
 		const editor = useEditor()
 		const tools = useTools()
+
 		return (
 			<DefaultToolbar>
 				<DefaultToolbarContent />
@@ -356,7 +307,7 @@ export const components: TLComponents = {
 		)
 	},
 	MainMenu: CustomMainMenu,
-	ContextMenu: function CustomContextMenu({ ...rest }) {
+	ContextMenu: function CustomContextMenu(props: TLUiContextMenuProps) {
 		const editor = useEditor()
 		const hasSelection = editor.getSelectedShapeIds().length > 0
 		const hasCameraHistory = cameraHistory.length > 0
@@ -364,101 +315,76 @@ export const components: TLComponents = {
 		const isFrame = selectedShape?.type === 'frame'
 
 		return (
-			<DefaultContextMenu {...rest}>
+			<DefaultContextMenu {...props}>
 				<DefaultContextMenuContent />
 
-				{/* Camera Controls */}
-				<TldrawUiMenuItem
-					id="zoom-to-selection"
-					label="Zoom to Selection"
-					icon="zoom-in"
-					kbd="z"
-					disabled={!hasSelection}
-					onSelect={() => zoomToSelection(editor)}
-				/>
-				<TldrawUiMenuItem
-					id="copy-link-to-current-view"
-					label="Copy Link to Current View"
-					icon="link"
-					kbd="s"
-					onSelect={() => copyLinkToCurrentView(editor)}
-				/>
-				<TldrawUiMenuItem
-					id="revert-camera"
-					label="Revert Camera"
-					icon="undo"
-					kbd="b"
-					onSelect={() => {
-						if (hasCameraHistory) {
-							revertCamera(editor);
-						}
-					}}
-				/>
+				{/* Camera Controls Group */}
+				<TldrawUiMenuGroup id="camera-controls">
+					<TldrawUiMenuItem
+						id="zoom-to-selection"
+						label="Zoom to Selection"
+						icon="zoom-in"
+						kbd="z"
+						disabled={!hasSelection}
+						onSelect={() => zoomToSelection(editor)}
+					/>
+					<TldrawUiMenuItem
+						id="copy-link-to-current-view"
+						label="Copy Link to Current View"
+						icon="link"
+						kbd="s"
+						onSelect={() => copyLinkToCurrentView(editor)}
+					/>
+					<TldrawUiMenuItem
+						id="revert-camera"
+						label="Revert Camera"
+						icon="undo"
+						kbd="b"
+						disabled={!hasCameraHistory}
+						onSelect={() => revertCamera(editor)}
+					/>
+				</TldrawUiMenuGroup>
 
-				{/* Shape Creation Tools */}
-				<TldrawUiMenuItem
-					id="video-chat"
-					label="Create Video Chat"
-					icon="video"
-					kbd="v"
-					onSelect={() => {
-						editor.setCurrentTool('VideoChat');
-					}}
-				/>
-				<TldrawUiMenuItem
-					id="chat-box"
-					label="Create Chat Box"
-					icon="chat"
-					kbd="c"
-					onSelect={() => {
-						editor.setCurrentTool('ChatBox');
-					}}
-				/>
-				<TldrawUiMenuItem
-					id="embed"
-					label="Create Embed"
-					icon="embed"
-					kbd="e"
-					onSelect={() => {
-						editor.setCurrentTool('Embed');
-					}}
-				/>
+				{/* Creation Tools Group */}
+				<TldrawUiMenuGroup id="creation-tools">
+					<TldrawUiMenuItem
+						id="video-chat"
+						label="Create Video Chat"
+						icon="video"
+						kbd="v"
+						onSelect={() => { editor.setCurrentTool('VideoChat'); }}
+					/>
+					<TldrawUiMenuItem
+						id="chat-box"
+						label="Create Chat Box"
+						icon="chat"
+						kbd="c"
+						onSelect={() => { editor.setCurrentTool('ChatBox'); }}
+					/>
+					<TldrawUiMenuItem
+						id="embed"
+						label="Create Embed"
+						icon="embed"
+						kbd="e"
+						onSelect={() => { editor.setCurrentTool('Embed'); }}
+					/>
+				</TldrawUiMenuGroup>
+
+				{/* Frame Controls */}
+				{isFrame && (
+					<TldrawUiMenuGroup id="frame-controls">
+						<TldrawUiMenuItem
+							id="lock-to-frame"
+							label="Lock to Frame"
+							icon="lock"
+							kbd="l"
+							onSelect={() => {
+								console.warn('lock to frame NOT IMPLEMENTED')
+							}}
+						/>
+					</TldrawUiMenuGroup>
+				)}
 			</DefaultContextMenu>
 		)
-	},
-}
-
-const handleInitialShapeLoad = (editor: Editor) => {
-	const url = new URL(window.location.href);
-
-	// Check for both shapeId and legacy frameId (for backwards compatibility)
-	const shapeId = url.searchParams.get('shapeId') || url.searchParams.get('frameId');
-	const x = url.searchParams.get('x');
-	const y = url.searchParams.get('y');
-	const zoom = url.searchParams.get('zoom');
-
-	if (shapeId) {
-		console.log('Found shapeId in URL:', shapeId);
-		const shape = editor.getShape(shapeId as TLShapeId);
-
-		if (shape) {
-			console.log('Found shape:', shape);
-			if (x && y && zoom) {
-				console.log('Setting camera to:', { x, y, zoom });
-				editor.setCamera({
-					x: parseFloat(x),
-					y: parseFloat(y),
-					z: parseFloat(zoom)
-				});
-			} else {
-				console.log('Zooming to shape bounds');
-				editor.zoomToBounds(editor.getShapeGeometry(shape).bounds, {
-					targetZoom: 1,
-					//padding: 32
-				});
-			}
-		} else {
-			console.warn('Shape not found:', shapeId);
-		}
 	}
-};
+}

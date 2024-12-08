@@ -1,158 +1,91 @@
-import { inject } from '@vercel/analytics';
-import "tldraw/tldraw.css";
+import { inject } from "@vercel/analytics"
+import "tldraw/tldraw.css"
 import "@/css/style.css"
-import { useEffect, useState } from "react";
-import ReactDOM from "react-dom/client";
-import { Default } from "@/components/Default";
-import { Canvas } from "@/components/Canvas";
-import { Toggle } from "@/components/Toggle";
-import { useCanvas } from "@/hooks/useCanvas"
-import { createShapes } from "@/utils/utils";
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import { Contact } from "@/components/Contact";
-import { Post } from '@/components/Post';
-import { Board } from './components/Board';
-import { Inbox } from './components/Inbox';
-import { Books } from './components/Books';
-import {
-	BindingUtil,
-	Editor,
-	IndexKey,
-	TLBaseBinding,
-	TLBaseShape,
-	Tldraw,
-	TLShapeId,
-} from 'tldraw';
-import { components, uiOverrides } from './ui-overrides';
-import { ChatBoxShape } from './shapes/ChatBoxShapeUtil';
-import { VideoChatShape } from './shapes/VideoChatShapeUtil';
-import { ChatBoxTool } from './tools/ChatBoxTool';
-import { VideoChatTool } from './tools/VideoChatTool';
+import { Default } from "@/routes/Default"
+import { BrowserRouter, Route, Routes } from "react-router-dom"
+import { Contact } from "@/routes/Contact"
+import { Board } from "./routes/Board"
+import { Inbox } from "./routes/Inbox"
+import { Editor, Tldraw, TLShapeId } from "tldraw"
+import { components, overrides } from "./ui-overrides"
+import { ChatBoxShape } from "./shapes/ChatBoxShapeUtil"
+import { VideoChatShape } from "./shapes/VideoChatShapeUtil"
+import { ChatBoxTool } from "./tools/ChatBoxTool"
+import { VideoChatTool } from "./tools/VideoChatTool"
+import { EmbedTool } from "./tools/EmbedTool"
+import { EmbedShape } from "./shapes/EmbedShapeUtil"
+import { createRoot } from "react-dom/client"
 
-inject();
+inject()
 
-// The container shapes that can contain element shapes
-const CONTAINER_PADDING = 24;
+const customShapeUtils = [ChatBoxShape, VideoChatShape, EmbedShape]
+const customTools = [ChatBoxTool, VideoChatTool, EmbedTool]
 
-type ContainerShape = TLBaseShape<'element', { height: number; width: number }>;
-
-// ... existing code for ContainerShapeUtil ...
-
-// The element shapes that can be placed inside the container shapes
-type ElementShape = TLBaseShape<'element', { color: string }>;
-
-// ... existing code for ElementShapeUtil ...
-
-// The binding between the element shapes and the container shapes
-type LayoutBinding = TLBaseBinding<
-	'layout',
-	{
-		index: IndexKey;
-		placeholder: boolean;
-	}
->;
-
-const customShapeUtils = [ChatBoxShape, VideoChatShape];
-const customTools = [ChatBoxTool, VideoChatTool];
-
-// [2]
 export default function InteractiveShapeExample() {
-	return (
-		<div className="tldraw__editor">
-			<Tldraw
-				shapeUtils={customShapeUtils}
-				tools={customTools}
-				overrides={uiOverrides}
-				components={components}
-				onMount={(editor) => {
-					handleInitialShapeLoad(editor);
-					editor.createShape({ type: 'my-interactive-shape', x: 100, y: 100 });
-				}}
-			/>
-		</div>
-	);
+  return (
+    <div className="tldraw__editor">
+      <Tldraw
+        shapeUtils={customShapeUtils}
+        tools={customTools}
+        overrides={overrides}
+        components={components}
+        onMount={(editor) => {
+          handleInitialShapeLoad(editor)
+          editor.createShape({ type: "my-interactive-shape", x: 100, y: 100 })
+        }}
+      />
+    </div>
+  )
 }
 
-// Add this function before or after InteractiveShapeExample
 const handleInitialShapeLoad = (editor: Editor) => {
-	const url = new URL(window.location.href);
-	const shapeId = url.searchParams.get('shapeId') || url.searchParams.get('frameId');
-	const x = url.searchParams.get('x');
-	const y = url.searchParams.get('y');
-	const zoom = url.searchParams.get('zoom');
+  const url = new URL(window.location.href)
+  const shapeId =
+    url.searchParams.get("shapeId") || url.searchParams.get("frameId")
+  const x = url.searchParams.get("x")
+  const y = url.searchParams.get("y")
+  const zoom = url.searchParams.get("zoom")
 
-	if (shapeId) {
-		console.log('Found shapeId in URL:', shapeId);
-		const shape = editor.getShape(shapeId as TLShapeId);
+  if (shapeId) {
+    console.log("Found shapeId in URL:", shapeId)
+    const shape = editor.getShape(shapeId as TLShapeId)
 
-		if (shape) {
-			console.log('Found shape:', shape);
-			if (x && y && zoom) {
-				console.log('Setting camera to:', { x, y, zoom });
-				editor.setCamera({
-					x: parseFloat(x),
-					y: parseFloat(y),
-					z: parseFloat(zoom)
-				});
-			} else {
-				console.log('Zooming to shape bounds');
-				editor.zoomToBounds(editor.getShapeGeometry(shape).bounds, {
-					targetZoom: 1,
-					//padding: 32
-				});
-			}
-		} else {
-			console.warn('Shape not found in the editor');
-		}
-	} else {
-		console.warn('No shapeId found in the URL');
-	}
+    if (shape) {
+      console.log("Found shape:", shape)
+      if (x && y && zoom) {
+        console.log("Setting camera to:", { x, y, zoom })
+        editor.setCamera({
+          x: parseFloat(x),
+          y: parseFloat(y),
+          z: parseFloat(zoom),
+        })
+      } else {
+        console.log("Zooming to shape bounds")
+        editor.zoomToBounds(editor.getShapeGeometry(shape).bounds, {
+          targetZoom: 1,
+        })
+      }
+    } else {
+      console.warn("Shape not found in the editor")
+    }
+  } else {
+    console.warn("No shapeId found in the URL")
+  }
 }
 
-ReactDOM.createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(<App />)
 
 function App() {
-
-	return (
-		// <React.StrictMode>
-		<BrowserRouter>
-			<Routes>
-				<Route path="/" element={<Home />} />
-				<Route path="/card/contact" element={<Contact />} />
-				<Route path="/posts/:slug" element={<Post />} />
-				<Route path="/board/:slug" element={<Board />} />
-				<Route path="/inbox" element={<Inbox />} />
-				<Route path="/books" element={<Books />} />
-			</Routes>
-		</BrowserRouter>
-		// </React.StrictMode>
-	);
-};
-
-function Home() {
-	const { isCanvasEnabled, elementsInfo } = useCanvas();
-	const shapes = createShapes(elementsInfo)
-	const [isEditorMounted, setIsEditorMounted] = useState(false);
-
-	//console.log("THIS WORKS SO FAR")
-
-	useEffect(() => {
-		const handleEditorDidMount = () => {
-			setIsEditorMounted(true);
-		};
-
-		window.addEventListener('editorDidMountEvent', handleEditorDidMount);
-
-		return () => {
-			window.removeEventListener('editorDidMountEvent', handleEditorDidMount);
-		};
-	}, []);
-
-	return (
-		<><Toggle />
-			<div style={{ zIndex: 999999 }} className={`${isCanvasEnabled && isEditorMounted ? 'transparent' : ''}`}>
-				{<Default />}
-			</div>
-			{isCanvasEnabled && elementsInfo.length > 0 ? <Canvas shapes={shapes} /> : null}</>
-	)
+  return (
+    // <React.StrictMode>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Default />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="/board/:slug" element={<Board />} />
+        <Route path="/inbox" element={<Inbox />} />
+      </Routes>
+    </BrowserRouter>
+    // </React.StrictMode>
+  )
 }

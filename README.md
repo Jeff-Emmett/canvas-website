@@ -1,3 +1,3 @@
 A website.
 
-Do `yarn dev`
+Do `npm i` and `npm run dev`
