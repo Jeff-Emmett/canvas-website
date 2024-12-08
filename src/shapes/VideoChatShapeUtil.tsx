@@ -3,6 +3,10 @@ import { useEffect, useState, useRef } from "react"
 import { WORKER_URL } from "../routes/Board"
 import DailyIframe from "@daily-co/daily-js"
 
+// Add these constants at the top of the file
+const DAILY_DOMAIN = import.meta.env.VITE_DAILY_DOMAIN as string
+const DAILY_API_KEY = import.meta.env.VITE_DAILY_API_KEY as string
+
 export type IVideoChatShape = TLBaseShape<
   "VideoChat",
   {
@@ -82,41 +86,45 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     }
 
     try {
-      // First, request a room from our worker
-      const response = await fetch(`${WORKER_URL}/daily/rooms`, {
+      // Create room directly with Daily.co API
+      const response = await fetch("https://api.daily.co/v1/rooms", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${DAILY_API_KEY}`,
         },
-        // You might want to pass additional configuration if needed
         body: JSON.stringify({
-          name: `room-${shape.id}`, // Add a unique identifier
+          name: `canvas-room-${shape.id}`,
+          privacy: "public",
           properties: {
             enable_recording: true,
+            start_audio_off: true,
+            start_video_off: true,
+            enable_chat: true,
             max_participants: 8,
           },
         }),
       })
 
       if (!response.ok) {
-        const errorData = (await response.json()) as { message: string }
-        throw new Error(errorData.message || "Failed to create room")
+        throw new Error(`Failed to create room: ${response.statusText}`)
       }
 
       const data = await response.json()
+      const roomUrl = `https://${DAILY_DOMAIN}/${(data as any).name}`
 
-      // Update the shape with the room URL from the response
+      // Update the shape with the room URL
       this.editor.updateShape<IVideoChatShape>({
         id: shape.id,
         type: "VideoChat",
         props: {
           ...shape.props,
-          roomUrl: (data as any).url,
+          roomUrl,
         },
       })
     } catch (error) {
       console.error("Failed to create Daily room:", error)
-      throw error // Re-throw to handle in the component
+      throw error
     }
   }
 
