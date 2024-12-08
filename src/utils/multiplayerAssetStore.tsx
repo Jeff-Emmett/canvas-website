@@ -1,5 +1,5 @@
 import { TLAssetStore, uniqueId } from 'tldraw'
-import { WORKER_URL } from '../components/Board'
+import { WORKER_URL } from '../routes/Board'
 
 export const multiplayerAssetStore: TLAssetStore = {
 	async upload(_asset, file) {
