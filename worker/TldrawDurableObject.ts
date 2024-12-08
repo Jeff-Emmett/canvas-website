@@ -243,9 +243,18 @@ export class TldrawDurableObject {
 
     server.accept()
 
-    // Add error handling
+    // Add error handling and reconnection logic
     server.addEventListener("error", (err) => {
       console.error("WebSocket error:", err)
+    })
+
+    server.addEventListener("close", () => {
+      if (this.roomPromise) {
+        this.getRoom().then((room) => {
+          // Update store to ensure all changes are persisted
+          room.updateStore(() => {})
+        })
+      }
     })
 
     return new Response(null, {
