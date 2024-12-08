@@ -2,12 +2,11 @@ import { inject } from '@vercel/analytics';
 import "tldraw/tldraw.css";
 import "@/css/style.css"
 import ReactDOM from "react-dom/client";
-import { Default } from "@/components/Default";
+import { Default } from "@/routes/Default";
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import { Contact } from "@/components/Contact";
-import { Post } from '@/components/Post';
-import { Board } from './components/Board';
-import { Inbox } from './components/Inbox';
+import { Contact } from "@/routes/Contact";
+import { Board } from './routes/Board';
+import { Inbox } from './routes/Inbox';
 import {
 	Editor,
 	Tldraw,
@@ -86,8 +85,7 @@ function App() {
 		<BrowserRouter>
 			<Routes>
 				<Route path="/" element={<Default />} />
-				<Route path="/card/contact" element={<Contact />} />
-				<Route path="/posts/:slug" element={<Post />} />
+				<Route path="/contact" element={<Contact />} />
 				<Route path="/board/:slug" element={<Board />} />
 				<Route path="/inbox" element={<Inbox />} />
 			</Routes>

@@ -1,6 +1,6 @@
 import { BaseBoxShapeUtil, TLBaseShape } from "tldraw";
 import { useEffect, useState } from "react";
-import { WORKER_URL } from '../components/Board';
+import { WORKER_URL } from '../routes/Board';
 
 export type IVideoChatShape = TLBaseShape<
 	'VideoChat',

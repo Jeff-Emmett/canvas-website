@@ -14,7 +14,6 @@ import { Environment } from './types'
 import { ChatBoxShape } from '@/shapes/ChatBoxShapeUtil'
 import { VideoChatShape } from '@/shapes/VideoChatShapeUtil'
 import { EmbedShape } from '@/shapes/EmbedShapeUtil'
-import GSet from 'crdts/src/G-Set'
 
 // add custom shapes and bindings here if needed:
 export const customSchema = createTLSchema({
@@ -91,9 +90,8 @@ export class TldrawDurableObject {
 		})
 		.post('/room/:roomId', async (request) => {
 			const records = await request.json() as TLRecord[]
-			const mergedRecords = await this.mergeCrdtState(records)
 
-			return new Response(JSON.stringify(Array.from(mergedRecords)), {
+			return new Response(JSON.stringify(Array.from(records)), {
 				headers: {
 					'Content-Type': 'application/json',
 					'Access-Control-Allow-Origin': request.headers.get('Origin') || '*',
@@ -221,22 +219,6 @@ export class TldrawDurableObject {
 		await this.r2.put(`rooms/${this.roomId}`, snapshot)
 	}, 10_000)
 
-	async mergeCrdtState(records: TLRecord[]) {
-		const room = await this.getRoom();
-		const gset = new GSet<TLRecord>();
-
-		const store = room.getCurrentSnapshot();
-		if (!store) {
-			throw new Error('Room store not initialized');
-		}
-
-		// First cast to unknown, then to TLRecord
-		store.documents.forEach((record) => gset.add(record as unknown as TLRecord));
-
-		// Merge new records 
-		records.forEach((record: TLRecord) => gset.add(record));
-		return gset.values();
-	}
 
 	// Add CORS headers for WebSocket upgrade
 	handleWebSocket(request: Request) {
