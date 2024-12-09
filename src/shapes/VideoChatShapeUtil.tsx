@@ -19,6 +19,12 @@ export type IVideoChatShape = TLBaseShape<
   }
 >
 
+interface DailyApiError {
+  error: string
+  info?: string
+  message?: string
+}
+
 // Simplified component using Daily Prebuilt
 const VideoChatComponent = ({ roomUrl }: { roomUrl: string }) => {
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -119,10 +125,10 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
       })
 
       if (!response.ok) {
-        const errorData = (await response.json()) as { message: string }
+        const errorData = (await response.json()) as DailyApiError
 
-        // If room already exists, construct the URL using the room name
-        if (errorData.message.includes("already exists")) {
+        // Handle the case where the room already exists
+        if (response.status === 409) {
           const url = `https://${import.meta.env.VITE_DAILY_DOMAIN}/${roomName}`
           this.editor.updateShape<IVideoChatShape>({
             id: shape.id,
@@ -135,7 +141,9 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
           return
         }
 
-        throw new Error(errorData.message || "Failed to create room")
+        throw new Error(
+          errorData.message || errorData.info || "Failed to create room",
+        )
       }
 
       const { url } = (await response.json()) as { url: string }
