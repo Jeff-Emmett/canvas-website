@@ -90,11 +90,12 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     try {
       const roomName = `canvas-room-${shape.id.replace(/[^A-Za-z0-9-_]/g, "-")}`
 
-      // Create room using the worker endpoint
-      const response = await fetch(`${WORKER_URL}/daily/rooms`, {
+      // Create room using Daily.co API directly
+      const response = await fetch(`https://api.daily.co/v1/rooms`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${import.meta.env.VITE_DAILY_API_KEY}`,
         },
         body: JSON.stringify({
           name: roomName,
