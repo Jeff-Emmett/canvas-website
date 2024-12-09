@@ -1,5 +1,5 @@
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite"
+import react from "@vitejs/plugin-react"
 
 export default defineConfig({
   envPrefix: ["VITE_"],
@@ -20,7 +20,13 @@ export default defineConfig({
   },
   define: {
     "import.meta.env.VITE_WORKER_URL": JSON.stringify(
-      process.env.VITE_WORKER_URL
+      process.env.VITE_WORKER_URL,
+    ),
+    "import.meta.env.VITE_DAILY_DOMAIN": JSON.stringify(
+      process.env.VITE_DAILY_DOMAIN,
+    ),
+    "import.meta.env.VITE_DAILY_API_KEY": JSON.stringify(
+      process.env.VITE_DAILY_API_KEY,
     ),
   },
-});
+})
