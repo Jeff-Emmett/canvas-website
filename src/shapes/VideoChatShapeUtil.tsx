@@ -91,7 +91,6 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${DAILY_API_KEY}`,
         },
         body: JSON.stringify({
           name: `canvas-room-${shape.id}`,
@@ -115,12 +114,11 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(`Failed to create room: ${JSON.stringify(error)}`)
+        const errorData = (await response.json()) as { message: string }
+        throw new Error(errorData.message || "Failed to create room")
       }
 
-      const data = await response.json()
-      const roomUrl = `https://${DAILY_DOMAIN}/${(data as any).name}`
+      const { url } = (await response.json()) as { url: string }
 
       // Update the shape with the room URL
       this.editor.updateShape<IVideoChatShape>({
@@ -128,7 +126,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         type: "VideoChat",
         props: {
           ...shape.props,
-          roomUrl: roomUrl,
+          roomUrl: url,
         },
       })
     } catch (error) {
