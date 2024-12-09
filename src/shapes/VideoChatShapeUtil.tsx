@@ -86,8 +86,8 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     }
 
     try {
-      // Create room directly with Daily.co API
-      const response = await fetch("https://api.daily.co/v1/rooms", {
+      // Create room using the worker endpoint
+      const response = await fetch(`${WORKER_URL}/daily/rooms`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -97,17 +97,26 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
           name: `canvas-room-${shape.id}`,
           privacy: "public",
           properties: {
-            enable_recording: true,
+            enable_chat: true,
             start_audio_off: true,
             start_video_off: true,
-            enable_chat: true,
+            enable_screenshare: true,
+            enable_recording: "cloud",
             max_participants: 8,
+            enable_network_ui: true,
+            enable_prejoin_ui: true,
+            enable_people_ui: true,
+            enable_pip_ui: true,
+            enable_emoji_reactions: true,
+            enable_hand_raising: true,
+            enable_noise_cancellation_ui: true,
           },
         }),
       })
 
       if (!response.ok) {
-        throw new Error(`Failed to create room: ${response.statusText}`)
+        const error = await response.json()
+        throw new Error(`Failed to create room: ${JSON.stringify(error)}`)
       }
 
       const data = await response.json()
@@ -119,7 +128,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         type: "VideoChat",
         props: {
           ...shape.props,
-          roomUrl,
+          roomUrl: roomUrl,
         },
       })
     } catch (error) {
