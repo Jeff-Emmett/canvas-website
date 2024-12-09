@@ -1,5 +1,6 @@
 import { BaseBoxShapeUtil, TLBaseShape } from "tldraw"
 import { useCallback, useState } from "react"
+//import Embed from "react-embed"
 
 export type IEmbedShape = TLBaseShape<
   "Embed",
@@ -9,6 +10,69 @@ export type IEmbedShape = TLBaseShape<
     url: string | null
   }
 >
+
+const transformUrl = (url: string): string => {
+  // YouTube
+  const youtubeMatch = url.match(
+    /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/,
+  )
+  if (youtubeMatch) {
+    return `https://www.youtube.com/embed/${youtubeMatch[1]}`
+  }
+
+  // Google Maps
+  if (url.includes("google.com/maps") || url.includes("goo.gl/maps")) {
+    // If it's already an embed URL, return as is
+    if (url.includes("google.com/maps/embed")) {
+      return url
+    }
+
+    // Handle directions
+    const directionsMatch = url.match(/dir\/([^\/]+)\/([^\/]+)/)
+    if (directionsMatch || url.includes("/dir/")) {
+      const origin = url.match(/origin=([^&]+)/)?.[1] || directionsMatch?.[1]
+      const destination =
+        url.match(/destination=([^&]+)/)?.[1] || directionsMatch?.[2]
+
+      if (origin && destination) {
+        return `https://www.google.com/maps/embed/v1/directions?key=${
+          import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+        }&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(
+          destination,
+        )}&mode=driving`
+      }
+    }
+
+    // Extract place ID
+    const placeMatch = url.match(/[?&]place_id=([^&]+)/)
+    if (placeMatch) {
+      return `https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2!2d0!3d0!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s${placeMatch[1]}!2s!5e0!3m2!1sen!2s!4v1`
+    }
+
+    // For all other map URLs
+    return `https://www.google.com/maps/embed/v1/place?key=${
+      import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+    }&q=${encodeURIComponent(url)}`
+  }
+
+  // Twitter/X
+  const tweetMatch = url.match(/(?:twitter\.com|x\.com)\/[^\/]+\/status\/(\d+)/)
+  if (tweetMatch) {
+    return `https://platform.x.com/embed/Tweet.html?id=${tweetMatch[1]}`
+  }
+
+  // Medium
+  if (url.includes("medium.com")) {
+    return url.replace(/\/?$/, "?format=lite")
+  }
+
+  // Gather.town
+  if (url.includes("app.gather.town")) {
+    return url.replace("app.gather.town", "gather.town/embed")
+  }
+
+  return url
+}
 
 export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
   static override type = "Embed"
@@ -41,29 +105,11 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
             ? inputUrl
             : `https://${inputUrl}`
 
-        // Handle YouTube links
-        if (
-          completedUrl.includes("youtube.com") ||
-          completedUrl.includes("youtu.be")
-        ) {
-          const videoId = extractYouTubeVideoId(completedUrl)
-          if (videoId) {
-            completedUrl = `https://www.youtube.com/embed/${videoId}`
-          } else {
-            setError("Invalid YouTube URL")
-            return
-          }
-        }
-
-        // Handle Google Docs links
-        if (completedUrl.includes("docs.google.com")) {
-          const docId = completedUrl.match(/\/d\/([a-zA-Z0-9-_]+)/)?.[1]
-          if (docId) {
-            completedUrl = `https://docs.google.com/document/d/${docId}/preview`
-          } else {
-            setError("Invalid Google Docs URL")
-            return
-          }
+        // Basic URL validation
+        const isValidUrl = completedUrl.match(/(^\w+:|^)\/\//)
+        if (!isValidUrl) {
+          setError("Invalid URL")
+          return
         }
 
         this.editor.updateShape<IEmbedShape>({
@@ -71,24 +117,10 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
           type: "Embed",
           props: { ...shape.props, url: completedUrl },
         })
-
-        // Check if the URL is valid
-        const isValidUrl = completedUrl.match(/(^\w+:|^)\/\//)
-        if (!isValidUrl) {
-          setError("Invalid website URL")
-        } else {
-          setError("")
-        }
+        setError("")
       },
       [inputUrl],
     )
-
-    const extractYouTubeVideoId = (url: string): string | null => {
-      const regExp =
-        /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/
-      const match = url.match(regExp)
-      return match && match[2].length === 11 ? match[2] : null
-    }
 
     const wrapperStyle = {
       width: `${shape.props.w}px`,
@@ -152,10 +184,11 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
       <div style={wrapperStyle}>
         <div style={contentStyle}>
           <iframe
-            src={shape.props.url}
-            width="100%"
-            height="100%"
+            src={transformUrl(shape.props.url)}
+            width={shape.props.w}
+            height={shape.props.h}
             style={{ border: "none" }}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
           />
         </div>
