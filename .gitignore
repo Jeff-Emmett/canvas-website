@@ -175,7 +175,5 @@ dist
 .env.*.local
 .dev.vars
 
-# Keep example file
-!.env.example
 
 package-lock.json

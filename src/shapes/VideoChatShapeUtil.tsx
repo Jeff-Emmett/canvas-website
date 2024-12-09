@@ -1,13 +1,5 @@
 import { BaseBoxShapeUtil, TLBaseShape } from "tldraw"
-import { useEffect, useState, useRef } from "react"
-import { WORKER_URL } from "../routes/Board"
-import DailyIframe from "@daily-co/daily-js"
-
-interface Window {
-  DailyIframe: {
-    setLogLevel(level: "error" | "warn" | "info" | "debug"): void
-  }
-}
+import { useEffect, useState } from "react"
 
 export type IVideoChatShape = TLBaseShape<
   "VideoChat",
@@ -15,62 +7,10 @@ export type IVideoChatShape = TLBaseShape<
     w: number
     h: number
     roomUrl: string | null
-    userName: string
+    allowCamera: boolean
+    allowMicrophone: boolean
   }
 >
-
-interface DailyApiError {
-  error: string
-  info?: string
-  message?: string
-}
-
-// Simplified component using Daily Prebuilt
-const VideoChatComponent = ({ roomUrl }: { roomUrl: string }) => {
-  const wrapperRef = useRef<HTMLDivElement>(null)
-  const callFrameRef = useRef<ReturnType<
-    typeof DailyIframe.createFrame
-  > | null>(null)
-
-  useEffect(() => {
-    if (!wrapperRef.current || !roomUrl) return
-
-    // Create and configure the Daily call frame
-    callFrameRef.current = DailyIframe.createFrame(wrapperRef.current, {
-      iframeStyle: {
-        width: "100%",
-        height: "100%",
-        border: "0",
-        borderRadius: "4px",
-      },
-      showLeaveButton: true,
-      showFullscreenButton: true,
-    })
-
-    // Join the room
-    callFrameRef.current.join({ url: roomUrl })
-
-    // Cleanup
-    return () => {
-      if (callFrameRef.current) {
-        callFrameRef.current.destroy()
-      }
-    }
-  }, [roomUrl])
-
-  return (
-    <div
-      ref={wrapperRef}
-      style={{
-        width: "100%",
-        height: "100%",
-        backgroundColor: "#f0f0f0",
-        borderRadius: "4px",
-        overflow: "hidden",
-      }}
-    />
-  )
-}
 
 export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
   static override type = "VideoChat"
@@ -84,86 +24,45 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
       roomUrl: null,
       w: 640,
       h: 480,
-      userName: "",
+      allowCamera: false,
+      allowMicrophone: false,
     }
   }
 
   async ensureRoomExists(shape: IVideoChatShape) {
-    console.log("Environment variables:", {
-      NODE_ENV: process.env.NODE_ENV,
-      allEnvVars: import.meta.env,
-      dailyApiKey: import.meta.env.VITE_DAILY_API_KEY,
-    })
-
-    if (shape.props.roomUrl !== null) {
-      return
-    }
+    if (shape.props.roomUrl !== null) return
 
     try {
-      // Ensure API key exists and is properly formatted
-      const apiKey = import.meta.env.VITE_DAILY_API_KEY?.trim()
-      console.log("API Key exists:", !!apiKey)
-      console.log(
-        "API Key format:",
-        apiKey?.substring(0, 4) === "key_" ? "correct" : "incorrect",
-      )
-      console.log("Available env vars:", import.meta.env)
+      const apiKey = import.meta.env["VITE_DAILY_API_KEY"]
+      if (!apiKey) throw new Error("Daily API key is missing")
 
-      if (!apiKey) {
-        throw new Error("Daily API key is missing")
-      }
-
-      // Create room using Daily.co API directly
-      const response = await fetch(`https://api.daily.co/v1/rooms`, {
+      const response = await fetch("https://api.daily.co/v1/rooms", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          // Ensure no extra spaces in the Authorization header
-          Authorization: `Bearer ${apiKey}`.trim(),
+          Authorization: `Bearer ${apiKey.trim()}`,
         },
         body: JSON.stringify({
           properties: {
             enable_chat: true,
             start_audio_off: true,
             start_video_off: true,
-            enable_screenshare: true,
-            enable_recording: true,
-            max_participants: 8,
-            enable_network_ui: true,
-            enable_prejoin_ui: true,
-            enable_people_ui: true,
-            enable_pip_ui: true,
-            enable_emoji_reactions: true,
-            enable_hand_raising: true,
-            enable_noise_cancellation_ui: true,
           },
         }),
       })
 
-      if (!response.ok) {
-        const errorData = (await response.json()) as DailyApiError
-        console.error("Daily API Error:", {
-          status: response.status,
-          statusText: response.statusText,
-          errorData,
-          authHeader: `Bearer ${apiKey.substring(0, 5)}...`, // Log first 5 chars for debugging
-        })
-        throw new Error(
-          errorData.message ||
-            errorData.info ||
-            `Failed to create room (${response.status})`,
-        )
-      }
+      if (!response.ok)
+        throw new Error(`Failed to create room (${response.status})`)
 
-      const { url } = (await response.json()) as { url: string }
+      const responseData = (await response.json()) as { url: string }
+      const url = responseData.url
+
+      if (!url) throw new Error("Room URL is missing")
 
       this.editor.updateShape<IVideoChatShape>({
         id: shape.id,
         type: "VideoChat",
-        props: {
-          ...shape.props,
-          roomUrl: url,
-        },
+        props: { ...shape.props, roomUrl: url },
       })
     } catch (error) {
       console.error("Failed to create Daily room:", error)
@@ -172,48 +71,39 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
   }
 
   component(shape: IVideoChatShape) {
-    const [isInRoom, setIsInRoom] = useState(false)
-    const [error, setError] = useState("")
-    const [isLoading, setIsLoading] = useState(false)
+    const [hasPermissions, setHasPermissions] = useState(false)
 
     useEffect(() => {
-      setIsLoading(true)
-      this.ensureRoomExists(shape)
-        .catch((err) => setError(err.message))
-        .finally(() => setIsLoading(false))
+      this.ensureRoomExists(shape).catch(console.error)
     }, [])
 
-    // useEffect(() => {
-    //   // Disable Daily.co debug logs
-    //   if (window.DailyIframe) {
-    //     window.DailyIframe.setLogLevel("error")
-    //   }
-    // }, [])
+    useEffect(() => {
+      // Request permissions when needed
+      const requestPermissions = async () => {
+        try {
+          if (shape.props.allowCamera || shape.props.allowMicrophone) {
+            const constraints = {
+              video: shape.props.allowCamera,
+              audio: shape.props.allowMicrophone,
+            }
+            await navigator.mediaDevices.getUserMedia(constraints)
+            setHasPermissions(true)
+          }
+        } catch (error) {
+          console.error("Permission request failed:", error)
+          setHasPermissions(false)
+        }
+      }
 
-    if (isLoading) {
-      return (
-        <div
-          style={{
-            width: `${shape.props.w}px`,
-            height: `${shape.props.h}px`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "#f0f0f0",
-            borderRadius: "4px",
-          }}
-        >
-          <div>Initializing video chat...</div>
-        </div>
-      )
-    }
+      requestPermissions()
+    }, [shape.props.allowCamera, shape.props.allowMicrophone])
 
     if (!shape.props.roomUrl) {
       return (
         <div
           style={{
-            width: `${shape.props.w}px`,
-            height: `${shape.props.h}px`,
+            width: shape.props.w,
+            height: shape.props.h,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -226,49 +116,54 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
       )
     }
 
+    // Construct URL with permission parameters
+    const roomUrlWithParams = new URL(shape.props.roomUrl)
+    roomUrlWithParams.searchParams.set(
+      "allow_camera",
+      String(shape.props.allowCamera),
+    )
+    roomUrlWithParams.searchParams.set(
+      "allow_mic",
+      String(shape.props.allowMicrophone),
+    )
+
+    console.log(shape.props.roomUrl)
+
     return (
       <div
         style={{
           width: `${shape.props.w}px`,
           height: `${shape.props.h}px`,
           position: "relative",
+          pointerEvents: "all",
         }}
       >
-        {!isInRoom ? (
-          <button
-            onClick={() => setIsInRoom(true)}
-            style={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              padding: "12px 24px",
-              backgroundColor: "#2563eb",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              cursor: "pointer",
-            }}
-          >
-            Join Video Chat
-          </button>
-        ) : (
-          <VideoChatComponent roomUrl={shape.props.roomUrl} />
-        )}
-        {error && (
-          <div
-            style={{
-              position: "absolute",
-              bottom: 10,
-              left: 10,
-              right: 10,
-              color: "red",
-              textAlign: "center",
-            }}
-          >
-            {error}
-          </div>
-        )}
+        <iframe
+          src={roomUrlWithParams.toString()}
+          width="100%"
+          height="100%"
+          style={{ border: "none" }}
+          allow={`camera ${shape.props.allowCamera ? "self" : ""}; microphone ${
+            shape.props.allowMicrophone ? "self" : ""
+          }`}
+        ></iframe>
+        <p
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            margin: "8px",
+            padding: "4px 8px",
+            background: "rgba(255, 255, 255, 0.9)",
+            borderRadius: "4px",
+            fontSize: "12px",
+            pointerEvents: "all",
+            cursor: "text",
+            userSelect: "text",
+          }}
+        >
+          url: {shape.props.roomUrl}
+        </p>
       </div>
     )
   }

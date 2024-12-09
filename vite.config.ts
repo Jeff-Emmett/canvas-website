@@ -22,11 +22,5 @@ export default defineConfig({
     "import.meta.env.VITE_WORKER_URL": JSON.stringify(
       process.env.VITE_WORKER_URL,
     ),
-    "import.meta.env.VITE_DAILY_DOMAIN": JSON.stringify(
-      "https://mycopunks.daily.co",
-    ),
-    "import.meta.env.VITE_DAILY_API_KEY": JSON.stringify(
-      process.env.VITE_DAILY_API_KEY,
-    ),
   },
 })
