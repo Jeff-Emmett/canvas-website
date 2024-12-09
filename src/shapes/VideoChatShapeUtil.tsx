@@ -89,7 +89,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: `canvas-room-${shape.id}`,
+          name: `canvas-room-${shape.id.replace(/[^A-Za-z0-9-_]/g, "-")}`,
           privacy: "public",
           properties: {
             enable_chat: true,
