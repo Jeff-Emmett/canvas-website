@@ -19,6 +19,8 @@ import { MarkdownShape } from "./shapes/MarkdownShapeUtil"
 import { MarkdownTool } from "./tools/MarkdownTool"
 import { createRoot } from "react-dom/client"
 import { handleInitialPageLoad } from "./utils/handleInitialPageLoad"
+import { DailyProvider } from "@daily-co/daily-react"
+import Daily from "@daily-co/daily-js"
 
 inject()
 
@@ -29,6 +31,8 @@ const customShapeUtils = [
   MarkdownShape,
 ]
 const customTools = [ChatBoxTool, VideoChatTool, EmbedTool, MarkdownTool]
+
+const callObject = Daily.createCallObject()
 
 export default function InteractiveShapeExample() {
   return (
@@ -64,14 +68,16 @@ function App() {
   console.log("App initialized, NODE_ENV:", process.env.NODE_ENV)
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Default />} />
-        <Route path="/contact" element={<Contact />} />
-        <Route path="/board/:slug" element={<Board />} />
-        <Route path="/inbox" element={<Inbox />} />
-      </Routes>
-    </BrowserRouter>
+    <DailyProvider callObject={callObject}>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Default />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/board/:slug" element={<Board />} />
+          <Route path="/inbox" element={<Inbox />} />
+        </Routes>
+      </BrowserRouter>
+    </DailyProvider>
   )
 }
 
