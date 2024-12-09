@@ -114,7 +114,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
             start_audio_off: true,
             start_video_off: true,
             enable_screenshare: true,
-            enable_recording: "cloud",
+            enable_recording: true,
             max_participants: 8,
             enable_network_ui: true,
             enable_prejoin_ui: true,
