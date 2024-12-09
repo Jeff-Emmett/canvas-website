@@ -127,7 +127,7 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
       }
 
       // Create a room using Daily.co API
-      const response = await fetch("https://api.daily.co/v1/rooms", {
+      const dailyResponse = await fetch("https://api.daily.co/v1/rooms", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -139,21 +139,24 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
         }),
       })
 
-      if (!response.ok) {
-        const error = (await response.json()) as { message: string }
-        return new Response(JSON.stringify({ message: error.message }), {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        })
-      }
+      const dailyData = await dailyResponse.json()
 
-      const data = await response.json()
+      if (!dailyResponse.ok) {
+        return new Response(
+          JSON.stringify({
+            message:
+              (dailyData as any).info || "Failed to create Daily.co room",
+          }),
+          {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          },
+        )
+      }
 
       return new Response(
         JSON.stringify({
-          url: `https://${env.DAILY_DOMAIN}/${
-            (data as Record<string, unknown>).name
-          }`,
+          url: `https://${env.DAILY_DOMAIN}/${(dailyData as any).name}`,
         }),
         {
           headers: { "Content-Type": "application/json" },
