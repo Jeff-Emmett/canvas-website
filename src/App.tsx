@@ -50,6 +50,17 @@ export default function InteractiveShapeExample() {
 //createRoot(document.getElementById("root")!).render(<App />)
 
 function App() {
+  if (process.env.NODE_ENV === "production") {
+    // Disable all console logs in production
+    console.log = () => {}
+    console.debug = () => {}
+    console.info = () => {}
+
+    // Keep error and warn for debugging
+    // console.error = () => {};
+    // console.warn = () => {};
+  }
+
   return (
     <BrowserRouter>
       <Routes>
