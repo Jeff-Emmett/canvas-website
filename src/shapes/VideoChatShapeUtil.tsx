@@ -82,6 +82,8 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     }
 
     try {
+      const roomName = `canvas-room-${shape.id.replace(/[^A-Za-z0-9-_]/g, "-")}`
+
       // Create room using the worker endpoint
       const response = await fetch(`${WORKER_URL}/daily/rooms`, {
         method: "POST",
@@ -89,7 +91,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name: `canvas-room-${shape.id.replace(/[^A-Za-z0-9-_]/g, "-")}`,
+          name: roomName,
           privacy: "public",
           properties: {
             enable_chat: true,
@@ -111,6 +113,21 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 
       if (!response.ok) {
         const errorData = (await response.json()) as { message: string }
+
+        // If room already exists, construct the URL using the room name
+        if (errorData.message.includes("already exists")) {
+          const url = `https://${import.meta.env.VITE_DAILY_DOMAIN}/${roomName}`
+          this.editor.updateShape<IVideoChatShape>({
+            id: shape.id,
+            type: "VideoChat",
+            props: {
+              ...shape.props,
+              roomUrl: url,
+            },
+          })
+          return
+        }
+
         throw new Error(errorData.message || "Failed to create room")
       }
 
