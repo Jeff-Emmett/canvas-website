@@ -75,7 +75,12 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
       return corsify(response)
     },
   ],
-  catch: (e) => {
+  catch: (e: Error) => {
+    // Silently handle WebSocket errors, but log other errors
+    if (e.message?.includes("WebSocket")) {
+      console.debug("WebSocket error:", e)
+      return new Response(null, { status: 400 })
+    }
     console.error(e)
     return error(e)
   },

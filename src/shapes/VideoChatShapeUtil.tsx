@@ -3,6 +3,12 @@ import { useEffect, useState, useRef } from "react"
 import { WORKER_URL } from "../routes/Board"
 import DailyIframe from "@daily-co/daily-js"
 
+interface Window {
+  DailyIframe: {
+    setLogLevel(level: "error" | "warn" | "info" | "debug"): void
+  }
+}
+
 export type IVideoChatShape = TLBaseShape<
   "VideoChat",
   {
@@ -159,6 +165,13 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         .catch((err) => setError(err.message))
         .finally(() => setIsLoading(false))
     }, [])
+
+    // useEffect(() => {
+    //   // Disable Daily.co debug logs
+    //   if (window.DailyIframe) {
+    //     window.DailyIframe.setLogLevel("error")
+    //   }
+    // }, [])
 
     if (isLoading) {
       return (
