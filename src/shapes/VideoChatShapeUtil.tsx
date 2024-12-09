@@ -89,6 +89,12 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
   }
 
   async ensureRoomExists(shape: IVideoChatShape) {
+    console.log("Environment variables:", {
+      NODE_ENV: process.env.NODE_ENV,
+      allEnvVars: import.meta.env,
+      dailyApiKey: import.meta.env.VITE_DAILY_API_KEY,
+    })
+
     if (shape.props.roomUrl !== null) {
       return
     }
@@ -101,6 +107,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         "API Key format:",
         apiKey?.substring(0, 4) === "key_" ? "correct" : "incorrect",
       )
+      console.log("Available env vars:", import.meta.env)
 
       if (!apiKey) {
         throw new Error("Daily API key is missing")
