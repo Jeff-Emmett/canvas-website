@@ -3,10 +3,6 @@ import { useEffect, useState, useRef } from "react"
 import { WORKER_URL } from "../routes/Board"
 import DailyIframe from "@daily-co/daily-js"
 
-// Add these constants at the top of the file
-const DAILY_DOMAIN = import.meta.env.VITE_DAILY_DOMAIN as string
-const DAILY_API_KEY = import.meta.env.VITE_DAILY_API_KEY as string
-
 export type IVideoChatShape = TLBaseShape<
   "VideoChat",
   {
