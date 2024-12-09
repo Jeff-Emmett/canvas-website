@@ -51,15 +51,17 @@ export default function InteractiveShapeExample() {
 
 function App() {
   if (process.env.NODE_ENV === "production") {
-    // Disable all console logs in production
-    console.log = () => {}
-    console.debug = () => {}
-    console.info = () => {}
-
+    // Comment out console.log override temporarily for debugging
+    // console.log = () => {}
+    // console.debug = () => {}
+    // console.info = () => {}
     // Keep error and warn for debugging
     // console.error = () => {};
     // console.warn = () => {};
   }
+
+  // Add a debug message to verify console logging is working
+  console.log("App initialized, NODE_ENV:", process.env.NODE_ENV)
 
   return (
     <BrowserRouter>
