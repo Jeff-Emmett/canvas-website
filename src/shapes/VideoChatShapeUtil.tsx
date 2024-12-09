@@ -96,6 +96,12 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     try {
       // Ensure API key exists and is properly formatted
       const apiKey = import.meta.env.VITE_DAILY_API_KEY?.trim()
+      console.log("API Key exists:", !!apiKey)
+      console.log(
+        "API Key format:",
+        apiKey?.substring(0, 4) === "key_" ? "correct" : "incorrect",
+      )
+
       if (!apiKey) {
         throw new Error("Daily API key is missing")
       }
