@@ -94,12 +94,19 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     }
 
     try {
+      // Ensure API key exists and is properly formatted
+      const apiKey = import.meta.env.VITE_DAILY_API_KEY?.trim()
+      if (!apiKey) {
+        throw new Error("Daily API key is missing")
+      }
+
       // Create room using Daily.co API directly
       const response = await fetch(`https://api.daily.co/v1/rooms`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `${import.meta.env.VITE_DAILY_API_KEY}`,
+          // Ensure no extra spaces in the Authorization header
+          Authorization: `Bearer ${apiKey}`.trim(),
         },
         body: JSON.stringify({
           properties: {
@@ -126,6 +133,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
           status: response.status,
           statusText: response.statusText,
           errorData,
+          authHeader: `Bearer ${apiKey.substring(0, 5)}...`, // Log first 5 chars for debugging
         })
         throw new Error(
           errorData.message ||
