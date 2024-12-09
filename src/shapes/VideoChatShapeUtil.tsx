@@ -99,7 +99,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_DAILY_API_KEY}`,
+          Authorization: `${import.meta.env.VITE_DAILY_API_KEY}`,
         },
         body: JSON.stringify({
           properties: {
@@ -122,8 +122,15 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 
       if (!response.ok) {
         const errorData = (await response.json()) as DailyApiError
+        console.error("Daily API Error:", {
+          status: response.status,
+          statusText: response.statusText,
+          errorData,
+        })
         throw new Error(
-          errorData.message || errorData.info || "Failed to create room",
+          errorData.message ||
+            errorData.info ||
+            `Failed to create room (${response.status})`,
         )
       }
 
