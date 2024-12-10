@@ -52,6 +52,14 @@ export function CustomToolbar() {
           isSelected={tools["Markdown"].id === editor.getCurrentToolId()}
         />
       )}
+      {tools["Slide"] && (
+        <TldrawUiMenuItem
+          {...tools["Slide"]}
+          icon="slideshow"
+          label="Slideshow"
+          isSelected={tools["Slide"].id === editor.getCurrentToolId()}
+        />
+      )}
     </DefaultToolbar>
   )
 }

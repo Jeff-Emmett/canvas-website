@@ -44,6 +44,14 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("Markdown"),
       },
+      Slide: {
+        id: "Slide",
+        icon: "slideshow",
+        label: "Slideshow",
+        kbd: "alt+s",
+        readonlyOk: true,
+        onSelect: () => editor.setCurrentTool("Slide"),
+      },
     }
   },
   actions(editor, actions) {

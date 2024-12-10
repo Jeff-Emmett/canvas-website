@@ -21,6 +21,8 @@ import { createRoot } from "react-dom/client"
 import { handleInitialPageLoad } from "./utils/handleInitialPageLoad"
 import { DailyProvider } from "@daily-co/daily-react"
 import Daily from "@daily-co/daily-js"
+import { SlideTool } from "./tools/SlideTool"
+import { SlideShape } from "./shapes/SlideShapeUtil"
 
 inject()
 
@@ -29,8 +31,15 @@ const customShapeUtils = [
   VideoChatShape,
   EmbedShape,
   MarkdownShape,
+  SlideShape,
 ]
-const customTools = [ChatBoxTool, VideoChatTool, EmbedTool, MarkdownTool]
+const customTools = [
+  ChatBoxTool,
+  VideoChatTool,
+  EmbedTool,
+  MarkdownTool,
+  SlideTool,
+]
 
 const callObject = Daily.createCallObject()
 

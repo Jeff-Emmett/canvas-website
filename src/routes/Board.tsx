@@ -17,12 +17,22 @@ import { components } from "@/ui/components"
 import { overrides } from "@/ui/overrides"
 import { unfurlBookmarkUrl } from "../utils/unfurlBookmarkUrl"
 import { handleInitialPageLoad } from "@/utils/handleInitialPageLoad"
+import { SlideControls } from "@/components/SlideControls"
+import { SlideShape } from "@/shapes/SlideShapeUtil"
+import { SlideTool } from "@/tools/SlideTool"
+import { SlidesPanel } from "@/components/SlidesPanel"
 
 // Default to production URL if env var isn't available
 export const WORKER_URL = "https://jeffemmett-canvas.jeffemmett.workers.dev"
 
-const shapeUtils = [ChatBoxShape, VideoChatShape, EmbedShape, MarkdownShape]
-const tools = [ChatBoxTool, VideoChatTool, EmbedTool, MarkdownTool] // Array of tools
+const shapeUtils = [
+  ChatBoxShape,
+  VideoChatShape,
+  EmbedShape,
+  MarkdownShape,
+  SlideShape,
+]
+const tools = [ChatBoxTool, VideoChatTool, EmbedTool, MarkdownTool, SlideTool]
 
 export function Board() {
   const { slug } = useParams<{ slug: string }>()
@@ -49,14 +59,16 @@ export function Board() {
         tools={tools}
         components={components}
         overrides={overrides}
-        //maxZoom={20}
         onMount={(editor) => {
           setEditor(editor)
           editor.registerExternalAssetHandler("url", unfurlBookmarkUrl)
           editor.setCurrentTool("hand")
           handleInitialPageLoad(editor)
         }}
-      />
+      >
+        <SlideControls />
+        {editor?.getCurrentTool().id === "Slide" && <SlidesPanel />}
+      </Tldraw>
     </div>
   )
 }
