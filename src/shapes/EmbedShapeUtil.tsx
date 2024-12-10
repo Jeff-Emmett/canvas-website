@@ -61,9 +61,9 @@ const transformUrl = (url: string): string => {
     return `https://platform.x.com/embed/Tweet.html?id=${tweetMatch[1]}`
   }
 
-  // Medium
+  // Medium - return about:blank to prevent iframe loading
   if (url.includes("medium.com")) {
-    return url.replace(/\/?$/, "?format=lite")
+    return "about:blank"
   }
 
   // Gather.town
@@ -175,6 +175,40 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
                 <div style={{ color: "red", marginTop: "10px" }}>{error}</div>
               )}
             </form>
+          </div>
+        </div>
+      )
+    }
+
+    if (shape.props.url?.includes("medium.com")) {
+      return (
+        <div style={wrapperStyle}>
+          <div
+            style={{
+              ...contentStyle,
+              flexDirection: "column",
+              gap: "12px",
+              padding: "20px",
+              textAlign: "center",
+              pointerEvents: "all",
+            }}
+          >
+            <p>
+              Medium's content policy does not allow for embedding articles in
+              iframes.
+            </p>
+            <a
+              href={shape.props.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                color: "#1976d2",
+                textDecoration: "none",
+                cursor: "pointer",
+              }}
+            >
+              Open article in new tab →
+            </a>
           </div>
         </div>
       )
