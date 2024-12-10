@@ -36,7 +36,7 @@ const transformUrl = (url: string): string => {
 
       if (origin && destination) {
         return `https://www.google.com/maps/embed/v1/directions?key=${
-          import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+          import.meta.env["VITE_GOOGLE_MAPS_API_KEY"]
         }&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(
           destination,
         )}&mode=driving`
