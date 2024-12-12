@@ -52,7 +52,7 @@ export const overrides: TLUiOverrides = {
       zoomToSelection: {
         id: "zoom-to-selection",
         label: "Zoom to Selection",
-        kbd: "alt+z",
+        kbd: "z",
         onSelect: () => {
           if (editor.getSelectedShapeIds().length > 0) {
             zoomToSelection(editor)
@@ -63,7 +63,7 @@ export const overrides: TLUiOverrides = {
       copyLinkToCurrentView: {
         id: "copy-link-to-current-view",
         label: "Copy Link to Current View",
-        kbd: "alt+s",
+        kbd: "alt+c",
         onSelect: () => {
           copyLinkToCurrentView(editor)
         },
@@ -96,6 +96,104 @@ export const overrides: TLUiOverrides = {
           }
         },
         readonlyOk: true,
+      },
+      handleSelectedShapeDrag: {
+        id: "handle-selected-shape-drag",
+        label: "Drag Selected Shape",
+        onSelect: (info: any) => {
+          const shape = editor.getShapeAtPoint(info.point)
+          if (shape && editor.getSelectedShapeIds().includes(shape.id)) {
+            if (editor.isPointInShape(shape, info.point)) {
+              editor.dispatch({
+                type: "pointer",
+                name: "pointer_down",
+                point: info.point,
+                button: info.button,
+                shiftKey: info.shiftKey,
+                altKey: info.altKey,
+                ctrlKey: info.ctrlKey,
+                metaKey: info.metaKey,
+                accelKey: info.ctrlKey || info.metaKey,
+                pointerId: info.pointerId,
+                target: "shape",
+                shape,
+                isPen: false,
+              })
+            }
+          }
+        },
+      },
+      moveSelectedLeft: {
+        id: "move-selected-left",
+        label: "Move Left",
+        kbd: "ArrowLeft",
+        onSelect: () => {
+          const selectedShapes = editor.getSelectedShapes()
+          if (selectedShapes.length > 0) {
+            selectedShapes.forEach((shape) => {
+              editor.updateShape({
+                id: shape.id,
+                type: shape.type,
+                x: shape.x - 50,
+                y: shape.y,
+              })
+            })
+          }
+        },
+      },
+      moveSelectedRight: {
+        id: "move-selected-right",
+        label: "Move Right",
+        kbd: "ArrowRight",
+        onSelect: () => {
+          const selectedShapes = editor.getSelectedShapes()
+          if (selectedShapes.length > 0) {
+            selectedShapes.forEach((shape) => {
+              editor.updateShape({
+                id: shape.id,
+                type: shape.type,
+                x: shape.x + 50,
+                y: shape.y,
+              })
+            })
+          }
+        },
+      },
+      moveSelectedUp: {
+        id: "move-selected-up",
+        label: "Move Up",
+        kbd: "ArrowUp",
+        onSelect: () => {
+          const selectedShapes = editor.getSelectedShapes()
+          if (selectedShapes.length > 0) {
+            selectedShapes.forEach((shape) => {
+              editor.updateShape({
+                id: shape.id,
+                type: shape.type,
+                x: shape.x,
+                y: shape.y - 50,
+              })
+            })
+          }
+        },
+      },
+      moveSelectedDown: {
+        id: "move-selected-down",
+        label: "Move Down",
+        kbd: "ArrowDown",
+        onSelect: () => {
+          const selectedShapes = editor.getSelectedShapes()
+          if (selectedShapes.length > 0) {
+            selectedShapes.forEach((shape) => {
+              editor.updateShape({
+                id: shape.id,
+                type: shape.type,
+                x: shape.x,
+                y: shape.y + 50,
+              })
+            })
+          }
+        },
       },
     }
   },
