@@ -220,12 +220,61 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
           <iframe
             src={transformUrl(shape.props.url)}
             width={shape.props.w}
-            height={shape.props.h}
+            height={shape.props.h - 40}
             style={{ border: "none" }}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
+            loading="lazy"
+            referrerPolicy="no-referrer"
           />
         </div>
+        <a
+          href={shape.props.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => {
+            console.log("Link clicked, URL:", shape.props.url)
+            e.preventDefault()
+            e.stopPropagation()
+            window.top?.open(
+              shape.props.url || "",
+              "_blank",
+              "noopener,noreferrer",
+            )
+          }}
+          onPointerDown={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
+          onTouchStart={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
+          style={{
+            display: "block",
+            padding: "8px",
+            textAlign: "center",
+            color: "#1976d2",
+            textDecoration: "none",
+            fontSize: "12px",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            cursor: "pointer",
+            touchAction: "manipulation",
+            WebkitTapHighlightColor: "rgba(0,0,0,0)",
+            userSelect: "none",
+            minHeight: "24px",
+            pointerEvents: "all",
+            zIndex: 999999,
+          }}
+        >
+          {shape.props.url} ↗
+        </a>
       </div>
     )
   }
