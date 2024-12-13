@@ -28,9 +28,9 @@ const customShapeUtils = [
   ChatBoxShape,
   VideoChatShape,
   EmbedShape,
-  MarkdownShape,
+  //MarkdownShape,
 ]
-const customTools = [ChatBoxTool, VideoChatTool, EmbedTool, MarkdownTool]
+const customTools = [ChatBoxTool, VideoChatTool, EmbedTool] //, MarkdownTool]
 
 const callObject = Daily.createCallObject()
 
