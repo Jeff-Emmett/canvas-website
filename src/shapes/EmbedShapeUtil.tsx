@@ -8,6 +8,11 @@ export type IEmbedShape = TLBaseShape<
     w: number
     h: number
     url: string | null
+    interactionState?: {
+      scrollPosition?: { x: number; y: number }
+      currentTime?: number // for videos
+      // other state you want to sync
+    }
   }
 >
 
@@ -159,6 +164,19 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
       [inputUrl],
     )
 
+    const handleIframeInteraction = (
+      newState: typeof shape.props.interactionState,
+    ) => {
+      this.editor.updateShape<IEmbedShape>({
+        id: shape.id,
+        type: "Embed",
+        props: {
+          ...shape.props,
+          interactionState: newState,
+        },
+      })
+    }
+
     const wrapperStyle = {
       width: `${shape.props.w}px`,
       height: `${shape.props.h}px`,
@@ -308,6 +326,15 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
             allowFullScreen
             loading="lazy"
             referrerPolicy="no-referrer"
+            onLoad={(e) => {
+              // Add message listener for iframe communication
+              window.addEventListener("message", (event) => {
+                const iframe = e.currentTarget as HTMLIFrameElement
+                if (event.source === iframe.contentWindow) {
+                  handleIframeInteraction(event.data)
+                }
+              })
+            }}
           />
         </div>
         <div
