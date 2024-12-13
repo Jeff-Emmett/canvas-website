@@ -56,9 +56,18 @@ const transformUrl = (url: string): string => {
   }
 
   // Twitter/X
-  const tweetMatch = url.match(/(?:twitter\.com|x\.com)\/[^\/]+\/status\/(\d+)/)
-  if (tweetMatch) {
-    return `https://platform.x.com/embed/Tweet.html?id=${tweetMatch[1]}`
+  const xMatch = url.match(
+    /(?:twitter\.com|x\.com)\/([^\/\s?]+)(?:\/(?:status|tweets)\/(\d+)|$)/,
+  )
+  if (xMatch) {
+    const [, username, tweetId] = xMatch
+    if (tweetId) {
+      // For tweets
+      return `https://platform.x.com/embed/Tweet.html?id=${tweetId}`
+    } else {
+      // For profiles, return about:blank and handle display separately
+      return "about:blank"
+    }
   }
 
   // Medium - return about:blank to prevent iframe loading
@@ -72,6 +81,33 @@ const transformUrl = (url: string): string => {
   }
 
   return url
+}
+
+const getDefaultDimensions = (url: string): { w: number; h: number } => {
+  // YouTube default dimensions (16:9 ratio)
+  if (url.match(/(?:youtube\.com|youtu\.be)/)) {
+    return { w: 560, h: 315 }
+  }
+
+  // Twitter/X default dimensions
+  if (url.match(/(?:twitter\.com|x\.com)/)) {
+    if (url.match(/\/status\/|\/tweets\//)) {
+      return { w: 500, h: 420 } // For individual tweets
+    }
+  }
+
+  // Google Maps default dimensions
+  if (url.includes("google.com/maps") || url.includes("goo.gl/maps")) {
+    return { w: 600, h: 450 }
+  }
+
+  // Gather.town default dimensions
+  if (url.includes("gather.town")) {
+    return { w: 800, h: 600 }
+  }
+
+  // Default dimensions for other embeds
+  return { w: 640, h: 480 }
 }
 
 export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
@@ -209,6 +245,51 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
               }}
             >
               Open article in new tab →
+            </a>
+          </div>
+        </div>
+      )
+    }
+
+    if (
+      shape.props.url &&
+      shape.props.url.match(/(?:twitter\.com|x\.com)\/[^\/]+$/)
+    ) {
+      const username = shape.props.url.split("/").pop()
+      return (
+        <div style={wrapperStyle}>
+          <div
+            style={{
+              ...contentStyle,
+              flexDirection: "column",
+              gap: "12px",
+              padding: "20px",
+              textAlign: "center",
+              pointerEvents: "all",
+            }}
+          >
+            <p>X (Twitter) does not support embedding profile timelines.</p>
+            <a
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                window.top?.open(
+                  shape.props.url || "",
+                  "_blank",
+                  "noopener,noreferrer",
+                )
+              }}
+              href={shape.props.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                color: "#1976d2",
+                textDecoration: "none",
+                cursor: "pointer",
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              View @{username}'s profile in new tab →
             </a>
           </div>
         </div>
