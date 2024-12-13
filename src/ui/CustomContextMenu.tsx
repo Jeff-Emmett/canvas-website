@@ -1,6 +1,11 @@
-import { TldrawUiMenuItem, TLShape } from "tldraw"
+import {
+  Editor,
+  TldrawUiMenuActionItem,
+  TldrawUiMenuItem,
+  TldrawUiMenuSubmenu,
+  TLShape,
+} from "tldraw"
 import { TldrawUiMenuGroup } from "tldraw"
-import { DefaultContextMenuContent } from "tldraw"
 import { DefaultContextMenu } from "tldraw"
 import { TLUiContextMenuProps, useEditor } from "tldraw"
 import {
@@ -12,6 +17,17 @@ import {
 } from "./cameraUtils"
 import { useState, useEffect } from "react"
 import { saveToPdf } from "../utils/pdfUtils"
+import { TLFrameShape } from "tldraw"
+
+const getAllFrames = (editor: Editor) => {
+  return editor
+    .getCurrentPageShapes()
+    .filter((shape): shape is TLFrameShape => shape.type === "frame")
+    .map((frame) => ({
+      id: frame.id,
+      title: frame.props.name || "Untitled Frame",
+    }))
+}
 
 export function CustomContextMenu(props: TLUiContextMenuProps) {
   const editor = useEditor()
@@ -53,7 +69,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           id="zoom-to-selection"
           label="Zoom to Selection"
           icon="zoom-in"
-          kbd="alt +z"
+          kbd="z"
           disabled={!hasSelection}
           onSelect={() => zoomToSelection(editor)}
         />
@@ -61,7 +77,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           id="copy-link-to-current-view"
           label="Copy Link to Current View"
           icon="link"
-          kbd="alt+s"
+          kbd="alt+c"
           onSelect={() => copyLinkToCurrentView(editor)}
         />
         <TldrawUiMenuItem
@@ -137,7 +153,27 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           onSelect={() => lockCameraToFrame(editor)}
         />
       </TldrawUiMenuGroup>
-      <DefaultContextMenuContent />
+
+      <TldrawUiMenuGroup id="frames-list">
+        <TldrawUiMenuSubmenu id="frames-dropdown" label="Shortcut to Frames">
+          {getAllFrames(editor).map((frame) => (
+            <TldrawUiMenuItem
+              key={frame.id}
+              id={`frame-${frame.id}`}
+              label={frame.title}
+              onSelect={() => {
+                const shape = editor.getShape(frame.id)
+                if (shape) {
+                  editor.zoomToBounds(editor.getShapePageBounds(shape)!, {
+                    animation: { duration: 400, easing: (t) => t * (2 - t) },
+                  })
+                  editor.select(frame.id)
+                }
+              }}
+            />
+          ))}
+        </TldrawUiMenuSubmenu>
+      </TldrawUiMenuGroup>
     </DefaultContextMenu>
   )
 }
