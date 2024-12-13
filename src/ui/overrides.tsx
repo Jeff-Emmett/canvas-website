@@ -196,6 +196,93 @@ export const overrides: TLUiOverrides = {
           }
         },
       },
+
+      // TODO: FIX THIS
+      resizeSelectedUp: {
+        id: "resize-selected-up",
+        label: "Resize Up",
+        kbd: "ctrl+ArrowUp",
+        onSelect: () => {
+          const selectedShapes = editor.getSelectedShapes()
+          if (selectedShapes.length > 0) {
+            selectedShapes.forEach((shape) => {
+              const bounds = editor.getShapeGeometry(shape).bounds
+              editor.updateShape({
+                id: shape.id,
+                type: shape.type,
+                //y: shape.y - 50,
+                props: {
+                  ...shape.props,
+                  h: bounds.height + 50,
+                },
+              })
+            })
+          }
+        },
+      },
+      resizeSelectedDown: {
+        id: "resize-selected-down",
+        label: "Resize Down",
+        kbd: "ctrl+ArrowDown",
+        onSelect: () => {
+          const selectedShapes = editor.getSelectedShapes()
+          if (selectedShapes.length > 0) {
+            selectedShapes.forEach((shape) => {
+              const bounds = editor.getShapeGeometry(shape).bounds
+              editor.updateShape({
+                id: shape.id,
+                type: shape.type,
+                props: {
+                  ...shape.props,
+                  h: bounds.height + 50,
+                },
+              })
+            })
+          }
+        },
+      },
+      resizeSelectedLeft: {
+        id: "resize-selected-left",
+        label: "Resize Left",
+        kbd: "ctrl+ArrowLeft",
+        onSelect: () => {
+          const selectedShapes = editor.getSelectedShapes()
+          if (selectedShapes.length > 0) {
+            selectedShapes.forEach((shape) => {
+              const bounds = editor.getShapeGeometry(shape).bounds
+              editor.updateShape({
+                id: shape.id,
+                type: shape.type,
+                props: {
+                  ...shape.props,
+                  w: bounds.width + 50,
+                },
+              })
+            })
+          }
+        },
+      },
+      resizeSelectedRight: {
+        id: "resize-selected-right",
+        label: "Resize Right",
+        kbd: "ctrl+ArrowRight",
+        onSelect: () => {
+          const selectedShapes = editor.getSelectedShapes()
+          if (selectedShapes.length > 0) {
+            selectedShapes.forEach((shape) => {
+              const bounds = editor.getShapeGeometry(shape).bounds
+              editor.updateShape({
+                id: shape.id,
+                type: shape.type,
+                props: {
+                  ...shape.props,
+                  w: bounds.width + 50,
+                },
+              })
+            })
+          }
+        },
+      },
     }
   },
 }
