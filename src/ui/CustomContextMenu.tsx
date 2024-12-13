@@ -174,6 +174,37 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           ))}
         </TldrawUiMenuSubmenu>
       </TldrawUiMenuGroup>
+
+      <TldrawUiMenuGroup id="broadcast-controls">
+        <TldrawUiMenuItem
+          id="broadcast-view"
+          label="Start Broadcasting View"
+          icon="broadcast"
+          kbd="alt+b"
+          onSelect={() => {
+            const otherUsers = Array.from(editor.store.allRecords()).filter(
+              (record) =>
+                record.typeName === "instance_presence" &&
+                record.id !== editor.user.getId(),
+            )
+            otherUsers.forEach((user) => editor.startFollowingUser(user.id))
+          }}
+        />
+        <TldrawUiMenuItem
+          id="stop-broadcast"
+          label="Stop Broadcasting View"
+          icon="broadcast-off"
+          kbd="alt+shift+b"
+          onSelect={() => {
+            const otherUsers = Array.from(editor.store.allRecords()).filter(
+              (record) =>
+                record.typeName === "instance_presence" &&
+                record.id !== editor.user.getId(),
+            )
+            otherUsers.forEach((_user) => editor.stopFollowingUser())
+          }}
+        />
+      </TldrawUiMenuGroup>
     </DefaultContextMenu>
   )
 }

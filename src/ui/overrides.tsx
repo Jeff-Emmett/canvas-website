@@ -283,6 +283,32 @@ export const overrides: TLUiOverrides = {
           }
         },
       },
+      broadcastView: {
+        id: "broadcast-view",
+        label: "Broadcast View",
+        kbd: "alt+b",
+        readonlyOk: true,
+        onSelect: () => {
+          const otherUsers = Array.from(editor.store.allRecords()).filter(
+            (record) =>
+              record.typeName === "instance_presence" &&
+              record.id !== editor.user.getId(),
+          )
+
+          otherUsers.forEach((user) => {
+            editor.startFollowingUser(user.id)
+          })
+        },
+      },
+      stopBroadcast: {
+        id: "stop-broadcast",
+        label: "Stop Broadcasting",
+        kbd: "alt+shift+b",
+        readonlyOk: true,
+        onSelect: () => {
+          editor.stopFollowingUser()
+        },
+      },
     }
   },
 }
