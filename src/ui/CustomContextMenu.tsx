@@ -130,7 +130,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
             editor.setCurrentTool("Embed")
           }}
         />
-        <TldrawUiMenuItem
+        {/* <TldrawUiMenuItem
           id="markdown"
           label="Create Markdown"
           icon="markdown"
@@ -139,7 +139,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           onSelect={() => {
             editor.setCurrentTool("Markdown")
           }}
-        />
+        /> */}
       </TldrawUiMenuGroup>
 
       {/* Frame Controls */}

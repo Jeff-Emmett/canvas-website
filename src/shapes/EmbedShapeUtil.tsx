@@ -96,6 +96,7 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
   component(shape: IEmbedShape) {
     const [inputUrl, setInputUrl] = useState(shape.props.url || "")
     const [error, setError] = useState("")
+    const [copyStatus, setCopyStatus] = useState(false)
 
     const handleSubmit = useCallback(
       (e: React.FormEvent) => {
@@ -220,7 +221,7 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
           <iframe
             src={transformUrl(shape.props.url)}
             width={shape.props.w}
-            height={shape.props.h - 40}
+            height={shape.props.h}
             style={{ border: "none" }}
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
@@ -228,53 +229,89 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
             referrerPolicy="no-referrer"
           />
         </div>
-        <a
-          href={shape.props.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => {
-            console.log("Link clicked, URL:", shape.props.url)
-            e.preventDefault()
-            e.stopPropagation()
-            window.top?.open(
-              shape.props.url || "",
-              "_blank",
-              "noopener,noreferrer",
-            )
-          }}
-          onPointerDown={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-          }}
-          onMouseDown={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-          }}
-          onTouchStart={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-          }}
+        <div
           style={{
-            display: "block",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
             padding: "8px",
-            textAlign: "center",
-            color: "#1976d2",
-            textDecoration: "none",
-            fontSize: "12px",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            cursor: "pointer",
-            touchAction: "manipulation",
-            WebkitTapHighlightColor: "rgba(0,0,0,0)",
-            userSelect: "none",
             minHeight: "24px",
-            pointerEvents: "all",
-            zIndex: 999999,
+            fontSize: "12px",
+            position: "absolute",
+            bottom: "15px",
+            left: "15px",
+            right: "15px",
+            backgroundColor: "rgba(255, 255, 255, 0.9)",
+            borderRadius: "4px",
           }}
         >
-          {shape.props.url} ↗
-        </a>
+          <span
+            style={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              flex: 1,
+              marginRight: "8px",
+              color: "#666",
+            }}
+          >
+            {shape.props.url}
+          </span>
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              pointerEvents: "all",
+            }}
+          >
+            <button
+              onClick={async (e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                try {
+                  await navigator.clipboard.writeText(shape.props.url || "")
+                  setCopyStatus(true)
+                  setTimeout(() => setCopyStatus(false), 2000)
+                } catch (err) {
+                  console.error("Failed to copy:", err)
+                }
+              }}
+              style={{
+                border: "none",
+                background: "transparent",
+                color: "#1976d2",
+                cursor: "pointer",
+                padding: "0 4px",
+                fontSize: "12px",
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              {copyStatus ? "Copied" : "Copy link"}
+            </button>
+            <button
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                window.top?.open(
+                  shape.props.url || "",
+                  "_blank",
+                  "noopener,noreferrer",
+                )
+              }}
+              style={{
+                border: "none",
+                background: "transparent",
+                color: "#1976d2",
+                cursor: "pointer",
+                padding: "0 4px",
+                fontSize: "12px",
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              Open in new tab ↗
+            </button>
+          </div>
+        </div>
       </div>
     )
   }

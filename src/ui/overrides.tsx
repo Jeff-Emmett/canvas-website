@@ -36,14 +36,14 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("Embed"),
       },
-      Markdown: {
-        id: "Markdown",
-        icon: "markdown",
-        label: "Markdown",
-        kbd: "alt+m",
-        readonlyOk: true,
-        onSelect: () => editor.setCurrentTool("Markdown"),
-      },
+      // Markdown: {
+      //   id: "Markdown",
+      //   icon: "markdown",
+      //   label: "Markdown",
+      //   kbd: "alt+m",
+      //   readonlyOk: true,
+      //   onSelect: () => editor.setCurrentTool("Markdown"),
+      // },
     }
   },
   actions(editor, actions) {

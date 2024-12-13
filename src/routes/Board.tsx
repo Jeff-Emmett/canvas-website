@@ -21,8 +21,8 @@ import { handleInitialPageLoad } from "@/utils/handleInitialPageLoad"
 // Default to production URL if env var isn't available
 export const WORKER_URL = "https://jeffemmett-canvas.jeffemmett.workers.dev"
 
-const shapeUtils = [ChatBoxShape, VideoChatShape, EmbedShape, MarkdownShape]
-const tools = [ChatBoxTool, VideoChatTool, EmbedTool, MarkdownTool] // Array of tools
+const shapeUtils = [ChatBoxShape, VideoChatShape, EmbedShape] //, MarkdownShape]
+const tools = [ChatBoxTool, VideoChatTool, EmbedTool] //, MarkdownTool]
 
 export function Board() {
   const { slug } = useParams<{ slug: string }>()
