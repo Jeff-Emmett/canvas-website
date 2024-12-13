@@ -97,6 +97,7 @@ export const overrides: TLUiOverrides = {
         },
         readonlyOk: true,
       },
+      // TODO: FIX THIS
       handleSelectedShapeDrag: {
         id: "handle-selected-shape-drag",
         label: "Drag Selected Shape",
