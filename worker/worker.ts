@@ -40,7 +40,7 @@ const { preflight, corsify } = cors({
     // For development - check if it's a localhost or local IP
     if (
       origin.match(
-        /^http:\/\/(localhost|127\.0\.0\.192\.168\.|169\.254\.|10\.)/,
+        /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.|169\.254\.|10\.)/,
       )
     ) {
       return origin
