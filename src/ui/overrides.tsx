@@ -289,15 +289,12 @@ export const overrides: TLUiOverrides = {
         kbd: "alt+b",
         readonlyOk: true,
         onSelect: () => {
-          const otherUsers = Array.from(editor.store.allRecords()).filter(
-            (record) =>
-              record.typeName === "instance_presence" &&
-              record.id !== editor.user.getId(),
-          )
-
-          otherUsers.forEach((user) => {
-            editor.startFollowingUser(user.id)
-          })
+          const collaborators = editor.getCollaborators()
+          collaborators
+            .filter((user) => user.id !== editor.user.getId())
+            .forEach((user) => {
+              editor.startFollowingUser(user.id)
+            })
         },
       },
       stopBroadcast: {
