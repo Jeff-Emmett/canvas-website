@@ -283,6 +283,7 @@ export const overrides: TLUiOverrides = {
           }
         },
       },
+      //TODO: MAKE THIS WORK, ADD USER PERMISSIONING TO JOIN BROADCAST?
       broadcastView: {
         id: "broadcast-view",
         label: "Broadcast View",
