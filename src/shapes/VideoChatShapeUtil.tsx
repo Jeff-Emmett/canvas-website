@@ -30,7 +30,10 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
   }
 
   async ensureRoomExists(shape: IVideoChatShape) {
-    if (shape.props.roomUrl !== null) return
+    if (shape.props.roomUrl !== null) {
+      console.log("Room already exists:", shape.props.roomUrl)
+      return
+    }
 
     try {
       const apiKey = import.meta.env["VITE_DAILY_API_KEY"]
@@ -51,6 +54,9 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         }),
       })
 
+      console.log("Response status:", response.status)
+      console.log("Response data:", await response.clone().json())
+
       if (!response.ok)
         throw new Error(`Failed to create room (${response.status})`)
 
@@ -59,22 +65,35 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 
       if (!url) throw new Error("Room URL is missing")
 
-      this.editor.updateShape<IVideoChatShape>({
+      console.log("Room created successfully:", url)
+      console.log("Updating shape with new URL")
+
+      await this.editor.updateShape<IVideoChatShape>({
         id: shape.id,
-        type: "VideoChat",
-        props: { ...shape.props, roomUrl: url },
+        type: shape.type,
+        props: {
+          ...shape.props,
+          roomUrl: url,
+        },
       })
+
+      console.log("Shape updated:", this.editor.getShape(shape.id))
     } catch (error) {
-      console.error("Failed to create Daily room:", error)
+      console.error("Error in ensureRoomExists:", error)
       throw error
     }
   }
 
   component(shape: IVideoChatShape) {
     const [hasPermissions, setHasPermissions] = useState(false)
+    const [error, setError] = useState<Error | null>(null)
+    const [isLoading, setIsLoading] = useState(true)
 
     useEffect(() => {
-      this.ensureRoomExists(shape).catch(console.error)
+      setIsLoading(true)
+      this.ensureRoomExists(shape)
+        .catch(console.error)
+        .finally(() => setIsLoading(false))
     }, [])
 
     useEffect(() => {
@@ -98,6 +117,10 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
       requestPermissions()
     }, [shape.props.allowCamera, shape.props.allowMicrophone])
 
+    if (error) {
+      return <div>Error creating room: {error.message}</div>
+    }
+
     if (!shape.props.roomUrl) {
       return (
         <div
@@ -111,7 +134,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
             borderRadius: "4px",
           }}
         >
-          Creating room...
+          {isLoading ? "Creating room... Please wait" : "Creating room..."}
         </div>
       )
     }
