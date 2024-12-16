@@ -55,8 +55,8 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         }),
       })
 
-      //console.log("Response status:", response.status)
-      //console.log("Response data:", await response.clone().json())
+      console.log("Response status:", response.status)
+      console.log("Response data:", await response.clone().json())
 
       if (!response.ok)
         throw new Error(`Failed to create room (${response.status})`)
@@ -66,8 +66,8 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 
       if (!url) throw new Error("Room URL is missing")
 
-      // console.log("Room created successfully:", url)
-      // console.log("Updating shape with new URL")
+      console.log("Room created successfully:", url)
+      console.log("Updating shape with new URL")
 
       await this.editor.updateShape<IVideoChatShape>({
         id: shape.id,
@@ -78,9 +78,9 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         },
       })
 
-      //console.log("Shape updated:", this.editor.getShape(shape.id))
+      console.log("Shape updated:", this.editor.getShape(shape.id))
     } catch (error) {
-      //console.error("Error in ensureRoomExists:", error)
+      console.error("Error in ensureRoomExists:", error)
       throw error
     }
   }
