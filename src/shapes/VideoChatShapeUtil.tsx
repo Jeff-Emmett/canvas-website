@@ -36,15 +36,10 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     }
 
     try {
-      const apiKey = import.meta.env["VITE_DAILY_API_KEY"]
-      console.log("API Key available:", !!apiKey)
-      if (!apiKey) throw new Error("Daily API key is missing")
-
-      const response = await fetch("https://api.daily.co/v1/rooms", {
+      const response = await fetch("/api/create-room", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey.trim()}`,
         },
         body: JSON.stringify({
           properties: {

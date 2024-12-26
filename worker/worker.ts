@@ -62,6 +62,7 @@ const { preflight, corsify } = cors({
   maxAge: 86400,
   credentials: true,
 })
+
 const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
   before: [preflight],
   finally: [
@@ -124,60 +125,42 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     })
   })
 
-  .post("/daily/rooms", async (request, env) => {
+  .post("/api/create-room", async (request) => {
     try {
-      const { name, properties } = (await request.json()) as {
-        name: string
-        properties: Record<string, unknown>
-      }
-
-      // Create a room using Daily.co API
-      const dailyResponse = await fetch("https://api.daily.co/v1/rooms", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${env.DAILY_API_KEY}`,
-        },
-        body: JSON.stringify({
-          name,
-          properties,
-        }),
-      })
-
-      const dailyData = await dailyResponse.json()
-
-      if (!dailyResponse.ok) {
-        return new Response(
-          JSON.stringify({
-            message:
-              (dailyData as any).info || "Failed to create Daily.co room",
-          }),
-          {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          },
-        )
-      }
+      // Replace with your actual video chat service API call
+      const room = await createVideoRoom()
 
       return new Response(
         JSON.stringify({
-          url: `https://${env.DAILY_DOMAIN}/${(dailyData as any).name}`,
+          url: room.url,
         }),
         {
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*", // Configure appropriately for production
+          },
         },
       )
     } catch (error) {
-      return new Response(
-        JSON.stringify({
-          message: error instanceof Error ? error.message : "Unknown error",
-        }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
+      return new Response(JSON.stringify({ error: "Failed to create room" }), {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
         },
-      )
+      })
     }
+  })
+
+  // Handle OPTIONS for CORS
+  .options("/api/create-room", () => {
+    return new Response(null, {
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST",
+        "Access-Control-Allow-Headers": "Content-Type",
+      },
+    })
   })
 
 // export our router for cloudflare

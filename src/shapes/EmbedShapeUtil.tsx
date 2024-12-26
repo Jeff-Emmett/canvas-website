@@ -1,5 +1,5 @@
 import { BaseBoxShapeUtil, TLBaseShape } from "tldraw"
-import { useCallback, useState } from "react"
+import { useCallback, useState, useEffect } from "react"
 //import Embed from "react-embed"
 
 export type IEmbedShape = TLBaseShape<
@@ -9,7 +9,7 @@ export type IEmbedShape = TLBaseShape<
     h: number
     url: string | null
     interactionState?: {
-      scrollPosition?: { x: number; y: number }
+      scrollPosition: { x: number; y: number }
       currentTime?: number // for videos
       // other state you want to sync
     }
@@ -133,11 +133,25 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
       </g>
     )
   }
-
   component(shape: IEmbedShape) {
     const [inputUrl, setInputUrl] = useState(shape.props.url || "")
     const [error, setError] = useState("")
     const [copyStatus, setCopyStatus] = useState(false)
+
+    // Add an effect to handle incoming sync updates
+    useEffect((): void => {
+      if (shape.props.interactionState?.scrollPosition) {
+        const iframe = document.querySelector("iframe")
+        if (iframe?.contentWindow) {
+          // Dispatch custom event to iframe
+          iframe.contentWindow.dispatchEvent(
+            new CustomEvent("syncScroll", {
+              detail: shape.props.interactionState.scrollPosition,
+            }),
+          )
+        }
+      }
+    }, [shape.props.interactionState?.scrollPosition])
 
     const handleSubmit = useCallback(
       (e: React.FormEvent) => {
@@ -327,11 +341,36 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
             loading="lazy"
             referrerPolicy="no-referrer"
             onLoad={(e) => {
-              // Add message listener for iframe communication
+              const iframe = e.currentTarget as HTMLIFrameElement
+
+              // Inject scroll monitoring script
+              const script = `
+                window.addEventListener('scroll', () => {
+                  window.parent.postMessage({
+                    type: 'scroll',
+                    scrollPosition: {
+                      x: window.scrollX,
+                      y: window.scrollY
+                    }
+                  }, '*');
+                });
+
+                // Listen for scroll updates from other users
+                window.addEventListener('syncScroll', (e) => {
+                  window.scrollTo(e.detail.x, e.detail.y);
+                });
+              `
+
+              // @ts-ignore
+              iframe.contentWindow?.eval(script as string)
+
+              // Listen for messages from iframe
               window.addEventListener("message", (event) => {
-                const iframe = e.currentTarget as HTMLIFrameElement
                 if (event.source === iframe.contentWindow) {
-                  handleIframeInteraction(event.data)
+                  handleIframeInteraction({
+                    ...shape.props.interactionState,
+                    scrollPosition: event.data.scrollPosition,
+                  })
                 }
               })
             }}
