@@ -12,6 +12,33 @@ export const overrides: TLUiOverrides = {
   tools(editor, tools) {
     return {
       ...tools,
+      select: {
+        ...tools.select,
+        onPointerDown: (info: any) => {
+          const shape = editor.getShapeAtPoint(info.point)
+          if (shape && editor.getSelectedShapeIds().includes(shape.id)) {
+            // If clicking on a selected shape, initiate drag behavior
+            editor.dispatch({
+              type: "pointer",
+              name: "pointer_down",
+              point: info.point,
+              button: info.button,
+              shiftKey: info.shiftKey,
+              altKey: info.altKey,
+              ctrlKey: info.ctrlKey,
+              metaKey: info.metaKey,
+              pointerId: info.pointerId,
+              target: "shape",
+              shape,
+              isPen: false,
+              accelKey: info.ctrlKey || info.metaKey,
+            })
+            return
+          }
+          // Otherwise, use default select tool behavior
+          ;(tools.select as any).onPointerDown?.(info)
+        },
+      },
       VideoChat: {
         id: "VideoChat",
         icon: "video",
