@@ -135,6 +135,8 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
   }
 
   component(shape: IEmbedShape) {
+    const isSelected = this.editor.getSelectedShapeIds().includes(shape.id)
+    
     const [inputUrl, setInputUrl] = useState(shape.props.url || "")
     const [error, setError] = useState("")
     const [copyStatus, setCopyStatus] = useState(false)
@@ -187,7 +189,7 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
     }
 
     const contentStyle = {
-      pointerEvents: "all" as const,
+      pointerEvents: isSelected ? "none" as const : "all" as const,
       width: "100%",
       height: "100%",
       border: "1px solid #D3D3D3",
@@ -327,13 +329,20 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
             loading="lazy"
             referrerPolicy="no-referrer"
             onLoad={(e) => {
-              // Add message listener for iframe communication
-              window.addEventListener("message", (event) => {
-                const iframe = e.currentTarget as HTMLIFrameElement
+              // Only add listener if we have a valid iframe
+              const iframe = e.currentTarget as HTMLIFrameElement
+              if (!iframe) return;
+
+              const messageHandler = (event: MessageEvent) => {
                 if (event.source === iframe.contentWindow) {
                   handleIframeInteraction(event.data)
                 }
-              })
+              }
+
+              window.addEventListener("message", messageHandler)
+              
+              // Clean up listener when iframe changes
+              return () => window.removeEventListener("message", messageHandler)
             }}
           />
         </div>
