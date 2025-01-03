@@ -130,7 +130,18 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
             editor.setCurrentTool("Embed")
           }}
         />
-        {/* <TldrawUiMenuItem
+        {/*
+        <TldrawUiMenuItem
+          id="mycrozine-template"
+          label="Create Mycrozine Template"
+          icon="rectangle"
+          kbd="m"
+          disabled={hasSelection}
+          onSelect={() => {
+            editor.setCurrentTool("MycrozineTemplate")
+          }}
+        />
+        <TldrawUiMenuItem
           id="markdown"
           label="Create Markdown"
           icon="markdown"
@@ -139,7 +150,8 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           onSelect={() => {
             editor.setCurrentTool("Markdown")
           }}
-        /> */}
+        /> 
+        */}
       </TldrawUiMenuGroup>
 
       {/* Frame Controls */}

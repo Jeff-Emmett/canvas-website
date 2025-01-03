@@ -15,6 +15,7 @@ import { ChatBoxShape } from "@/shapes/ChatBoxShapeUtil"
 import { VideoChatShape } from "@/shapes/VideoChatShapeUtil"
 import { EmbedShape } from "@/shapes/EmbedShapeUtil"
 import { MarkdownShape } from "@/shapes/MarkdownShapeUtil"
+import { MycrozineTemplateShape } from "@/shapes/MycrozineTemplateShapeUtil"
 
 // add custom shapes and bindings here if needed:
 export const customSchema = createTLSchema({
@@ -35,6 +36,10 @@ export const customSchema = createTLSchema({
     Markdown: {
       props: MarkdownShape.props,
       migrations: MarkdownShape.migrations,
+    },
+    MycrozineTemplate: {
+      props: MycrozineTemplateShape.props,
+      migrations: MycrozineTemplateShape.migrations,
     },
   },
   bindings: defaultBindingSchemas,
