@@ -17,12 +17,26 @@ import { components } from "@/ui/components"
 import { overrides } from "@/ui/overrides"
 import { unfurlBookmarkUrl } from "../utils/unfurlBookmarkUrl"
 import { handleInitialPageLoad } from "@/utils/handleInitialPageLoad"
+import { MycrozineTemplateTool } from "@/tools/MycrozineTemplateTool"
+import { MycrozineTemplateShape } from "@/shapes/MycrozineTemplateShapeUtil"
 
 // Default to production URL if env var isn't available
 export const WORKER_URL = "https://jeffemmett-canvas.jeffemmett.workers.dev"
 
-const shapeUtils = [ChatBoxShape, VideoChatShape, EmbedShape] //, MarkdownShape]
-const tools = [ChatBoxTool, VideoChatTool, EmbedTool] //, MarkdownTool]
+const shapeUtils = [
+  ChatBoxShape, 
+  VideoChatShape, 
+  EmbedShape, 
+  // MycrozineTemplateShape, 
+  // MarkdownShape
+]
+const tools = [
+  ChatBoxTool, 
+  VideoChatTool, 
+  EmbedTool, 
+  // MycrozineTemplateTool, 
+  // MarkdownTool
+]
 
 export function Board() {
   const { slug } = useParams<{ slug: string }>()

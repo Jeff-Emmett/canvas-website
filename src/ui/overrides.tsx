@@ -63,14 +63,24 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("Embed"),
       },
-      // Markdown: {
-      //   id: "Markdown",
-      //   icon: "markdown",
-      //   label: "Markdown",
-      //   kbd: "alt+m",
-      //   readonlyOk: true,
-      //   onSelect: () => editor.setCurrentTool("Markdown"),
-      // },
+      /*
+      Markdown: {
+        id: "Markdown",
+        icon: "markdown",
+        label: "Markdown",
+        kbd: "alt+m",
+        readonlyOk: true,
+        onSelect: () => editor.setCurrentTool("Markdown"),
+      },
+      MycrozineTemplate: {
+        id: "MycrozineTemplate",
+        icon: "rectangle",
+        label: "Mycrozine Template",
+        kbd: "m",
+        readonlyOk: true,
+        onSelect: () => editor.setCurrentTool("MycrozineTemplate"),
+      },
+      */
     }
   },
   actions(editor, actions) {
@@ -123,33 +133,6 @@ export const overrides: TLUiOverrides = {
           }
         },
         readonlyOk: true,
-      },
-      // TODO: FIX THIS
-      handleSelectedShapeDrag: {
-        id: "handle-selected-shape-drag",
-        label: "Drag Selected Shape",
-        onSelect: (info: any) => {
-          const shape = editor.getShapeAtPoint(info.point)
-          if (shape && editor.getSelectedShapeIds().includes(shape.id)) {
-            if (editor.isPointInShape(shape, info.point)) {
-              editor.dispatch({
-                type: "pointer",
-                name: "pointer_down",
-                point: info.point,
-                button: info.button,
-                shiftKey: info.shiftKey,
-                altKey: info.altKey,
-                ctrlKey: info.ctrlKey,
-                metaKey: info.metaKey,
-                accelKey: info.ctrlKey || info.metaKey,
-                pointerId: info.pointerId,
-                target: "shape",
-                shape,
-                isPen: false,
-              })
-            }
-          }
-        },
       },
       moveSelectedLeft: {
         id: "move-selected-left",
