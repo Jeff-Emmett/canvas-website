@@ -18,6 +18,7 @@ import {
 import { useState, useEffect } from "react"
 import { saveToPdf } from "../utils/pdfUtils"
 import { TLFrameShape } from "tldraw"
+import { searchText } from "../utils/searchUtils"
 
 const getAllFrames = (editor: Editor) => {
   return editor
@@ -215,6 +216,16 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
             )
             otherUsers.forEach((_user) => editor.stopFollowingUser())
           }}
+        />
+      </TldrawUiMenuGroup>
+
+      <TldrawUiMenuGroup id="search-controls">
+        <TldrawUiMenuItem
+          id="search-text"
+          label="Search Text"
+          icon="search"
+          kbd="s"
+          onSelect={() => searchText(editor)}
         />
       </TldrawUiMenuGroup>
     </DefaultContextMenu>

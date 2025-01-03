@@ -7,6 +7,7 @@ import {
   zoomToSelection,
 } from "./cameraUtils"
 import { saveToPdf } from "../utils/pdfUtils"
+import { searchText } from "../utils/searchUtils"
 
 export const overrides: TLUiOverrides = {
   tools(editor, tools) {
@@ -37,6 +38,22 @@ export const overrides: TLUiOverrides = {
           }
           // Otherwise, use default select tool behavior
           ;(tools.select as any).onPointerDown?.(info)
+        },
+
+        //TODO: Fix double click to zoom on selector tool later...
+        onDoubleClick: (info: any) => {
+          // Prevent default double-click behavior (which would start text editing)
+          info.preventDefault?.()
+          
+          // Handle all pointer types (mouse, touch, pen)
+          const point = info.point || (info.touches && info.touches[0]) || info
+          
+          // Zoom in at the clicked/touched point
+          editor.zoomIn(point, { animation: { duration: 200 } })
+          
+          // Stop event propagation and prevent default handling
+          info.stopPropagation?.()
+          return false
         },
       },
       VideoChat: {
@@ -81,6 +98,12 @@ export const overrides: TLUiOverrides = {
         onSelect: () => editor.setCurrentTool("MycrozineTemplate"),
       },
       */
+      hand: {
+        ...tools.hand,
+        onDoubleClick: (info: any) => {
+          editor.zoomIn(info.point, { animation: { duration: 200 } })
+        },
+      },
     }
   },
   actions(editor, actions) {
@@ -316,6 +339,13 @@ export const overrides: TLUiOverrides = {
         onSelect: () => {
           editor.stopFollowingUser()
         },
+      },
+      searchShapes: {
+        id: "search-shapes",
+        label: "Search Shapes",
+        kbd: "s",
+        readonlyOk: true,
+        onSelect: () => searchText(editor),
       },
     }
   },
