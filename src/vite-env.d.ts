@@ -8,7 +8,10 @@ interface ImportMetaEnv {
   readonly VITE_CLOUDFLARE_ACCOUNT_ID: string
   readonly VITE_CLOUDFLARE_ZONE_ID: string
   readonly VITE_R2_BUCKET_NAME: string
-  readonly VITE_R2_PREVIEW_BUCKET_NAME: string
+  readonly VITE_R2_BACKUP_BUCKET_NAME: string
+  readonly VITE_R2_BUCKET: R2Bucket
+  readonly VITE_R2_BACKUP_BUCKET: R2Bucket
+  
 }
 
 interface ImportMeta {

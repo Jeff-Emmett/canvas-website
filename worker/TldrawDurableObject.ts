@@ -16,6 +16,7 @@ import { VideoChatShape } from "@/shapes/VideoChatShapeUtil"
 import { EmbedShape } from "@/shapes/EmbedShapeUtil"
 import { MarkdownShape } from "@/shapes/MarkdownShapeUtil"
 import { MycrozineTemplateShape } from "@/shapes/MycrozineTemplateShapeUtil"
+import { TLContent } from '@tldraw/tldraw'
 
 // add custom shapes and bindings here if needed:
 export const customSchema = createTLSchema({
@@ -52,19 +53,20 @@ export const customSchema = createTLSchema({
 // handles websocket connections. periodically, it persists the room state to the R2 bucket.
 export class TldrawDurableObject {
   private r2: R2Bucket
-  // the room ID will be missing whilst the room is being initialized
+  private backupsR2: R2Bucket
   private roomId: string | null = null
-  // when we load the room from the R2 bucket, we keep it here. it's a promise so we only ever
-  // load it once.
   private roomPromise: Promise<TLSocketRoom<TLRecord, void>> | null = null
 
   constructor(private readonly ctx: DurableObjectState, env: Environment) {
+    console.log('[Debug] Constructor - env:', {
+      isDev: env.DEV,
+      bucketName: env.TLDRAW_BUCKET_NAME,
+    })
     this.r2 = env.TLDRAW_BUCKET
+    this.backupsR2 = env.TLDRAW_BACKUP_BUCKET
 
     ctx.blockConcurrencyWhile(async () => {
-      this.roomId = ((await this.ctx.storage.get("roomId")) ?? null) as
-        | string
-        | null
+      this.roomId = ((await this.ctx.storage.get("roomId")) ?? null) as string | null
     })
   }
 
@@ -192,34 +194,51 @@ export class TldrawDurableObject {
 
   getRoom() {
     const roomId = this.roomId
-    if (!roomId) throw new Error("Missing roomId")
+    if (!roomId) {
+      console.error('[Error] Missing roomId')
+      throw new Error("Missing roomId")
+    }
 
     if (!this.roomPromise) {
       this.roomPromise = (async () => {
-        // fetch the room from R2
-        const roomFromBucket = await this.r2.get(`rooms/${roomId}`)
-        // if it doesn't exist, we'll just create a new empty room
-        const initialSnapshot = roomFromBucket
-          ? ((await roomFromBucket.json()) as RoomSnapshot)
-          : undefined
-        if (initialSnapshot) {
-          initialSnapshot.documents = initialSnapshot.documents.filter(
-            (record) => {
-              const shape = record.state as TLShape
-              return shape.type !== "chatBox"
-            },
-          )
+        try {
+          // Add debug logging
+          console.log('[Debug] Room ID:', roomId)
+          console.log('[Debug] R2 Bucket:', this.r2)
+          
+          const path = `rooms/${roomId}`
+          console.log('[Debug] Fetching path:', path)
+          
+          if (!this.r2) {
+            throw new Error('R2 bucket not initialized')
+          }
+          
+          // fetch the room from R2
+          const roomFromBucket = await this.r2.get(path)
+          if (!roomFromBucket) {
+            console.warn(`[Warn] No data found for room: ${roomId}`)
+            return new TLSocketRoom<TLRecord, void>({
+              schema: customSchema,
+              onDataChange: () => this.schedulePersistToR2(),
+            })
+          }
+          
+          const text = await roomFromBucket.text()
+          if (!text) {
+            throw new Error('Empty room data')
+          }
+          
+          const initialSnapshot = JSON.parse(text) as RoomSnapshot
+          return new TLSocketRoom<TLRecord, void>({
+            schema: customSchema,
+            initialSnapshot,
+            onDataChange: () => this.schedulePersistToR2(),
+          })
+          
+        } catch (e) {
+          console.error('[Error] Failed to initialize room:', e)
+          throw e
         }
-        // create a new TLSocketRoom. This handles all the sync protocol & websocket connections.
-        // it's up to us to persist the room state to R2 when needed though.
-        return new TLSocketRoom<TLRecord, void>({
-          schema: customSchema,
-          initialSnapshot,
-          onDataChange: () => {
-            // and persist whenever the data in the room changes
-            this.schedulePersistToR2()
-          },
-        })
       })()
     }
 
@@ -231,9 +250,18 @@ export class TldrawDurableObject {
     if (!this.roomPromise || !this.roomId) return
     const room = await this.getRoom()
 
-    // convert the room to JSON and upload it to R2
+    // Save to main storage
     const snapshot = JSON.stringify(room.getCurrentSnapshot())
     await this.r2.put(`rooms/${this.roomId}`, snapshot)
+
+    // Check if we need to create a daily backup
+    const today = new Date().toISOString().split('T')[0]
+    const lastBackupKey = `backups/${this.roomId}/${today}`
+    
+    const existingBackup = await this.backupsR2.head(lastBackupKey)
+    if (!existingBackup) {
+      await this.createDailyBackup()
+    }
   }, 10_000)
 
   // Add CORS headers for WebSocket upgrade
@@ -270,5 +298,57 @@ export class TldrawDurableObject {
         "Access-Control-Allow-Headers": "*",
       },
     })
+  }
+
+  private async listVersions(): Promise<Array<{ timestamp: number; version: number; dateKey: string }>> {
+    const prefix = `backups/${this.roomId}/`
+    const objects = await this.backupsR2.list({ prefix })
+    
+    return objects.objects
+      .map(obj => {
+        const dateKey = obj.key.split('/').pop()!
+        return {
+          timestamp: obj.uploaded.getTime(),
+          version: 1,
+          dateKey,
+        }
+      })
+      .sort((a, b) => b.timestamp - a.timestamp)
+  }
+
+  private async restoreVersion(dateKey: string): Promise<boolean> {
+    const backupKey = `backups/${this.roomId}/${dateKey}`
+    const backup = await this.backupsR2.get(backupKey)
+    
+    if (!backup) return false
+
+    const backupData = await backup.json() as RoomSnapshot
+    
+    // Update the current room state
+    const room = await this.getRoom()
+    room.updateStore((store) => {
+      // Delete all existing records
+      store.getAll().forEach(record => store.delete(record.id))
+      // Apply the backup snapshot
+      backupData.documents.forEach(record => store.put(record as unknown as TLRecord))
+    })
+
+    // Also update the main storage
+    await this.r2.put(`rooms/${this.roomId}`, JSON.stringify(backupData))
+    
+    return true
+  }
+
+  private async createDailyBackup() {
+    if (!this.roomId) return
+
+    const room = await this.getRoom()
+    const snapshot = room.getCurrentSnapshot()
+    const dateKey = new Date().toISOString().split('T')[0]
+    
+    await this.backupsR2.put(
+      `backups/${this.roomId}/${dateKey}`,
+      JSON.stringify(snapshot)
+    )
   }
 }

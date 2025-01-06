@@ -66,13 +66,17 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
   before: [preflight],
   finally: [
     (response) => {
-      // Add security headers to all responses except WebSocket upgrades
-      if (response.status !== 101) {
-        Object.entries(securityHeaders).forEach(([key, value]) => {
-          response.headers.set(key, value)
-        })
+      // Skip header modification for responses that already have CORS headers
+      if (!response.headers.has('Access-Control-Allow-Origin')) {
+        // Add security headers to all responses except WebSocket upgrades
+        if (response.status !== 101) {
+          Object.entries(securityHeaders).forEach(([key, value]) => {
+            response.headers.set(key, value)
+          })
+        }
+        return corsify(response)
       }
-      return corsify(response)
+      return response
     },
   ],
   catch: (e: Error) => {
@@ -85,6 +89,27 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     return error(e)
   },
 })
+  // Add debug routes that forward to the Durable Object
+  .get("/debug/:command", async (request, env) => {
+    try {
+      console.log('[Debug] Handling debug command:', request.params.command)
+      const id = env.TLDRAW_DURABLE_OBJECT.idFromName('debug')
+      const room = env.TLDRAW_DURABLE_OBJECT.get(id)
+      return room.fetch(request.url)
+    } catch (error) {
+      console.error('[Debug] Error in debug endpoint:', error)
+      return new Response(JSON.stringify({
+        error: 'Internal Server Error',
+        message: (error as Error).message
+      }), {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        }
+      })
+    }
+  })
   // requests to /connect are routed to the Durable Object, and handle realtime websocket syncing
   .get("/connect/:roomId", (request, env) => {
     const id = env.TLDRAW_DURABLE_OBJECT.idFromName(request.params.roomId)
@@ -178,6 +203,27 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
         },
       )
     }
+  })
+
+  //DOES THIS NEED TO LOOK AT BOARD_BACKUPS OR JEFFEMMETT_CANVAS?
+  // Get all versions for a room
+  .get("/room/:roomId/:dateKey", async (request, env) => {
+    const id = env.TLDRAW_DURABLE_OBJECT.idFromName(request.params.roomId)
+    const room = env.TLDRAW_DURABLE_OBJECT.get(id)
+    return room.fetch(request.url, {
+      headers: request.headers,
+      method: request.method,
+    })
+  })
+
+  // Restore a specific version
+  .post("/room/:roomId/restore/:dateKey", async (request, env) => {
+    const id = env.TLDRAW_DURABLE_OBJECT.idFromName(request.params.roomId)
+    const room = env.TLDRAW_DURABLE_OBJECT.get(id)
+    return room.fetch(request.url, {
+      headers: request.headers,
+      method: request.method,
+    })
   })
 
 // export our router for cloudflare

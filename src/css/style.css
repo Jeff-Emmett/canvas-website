@@ -377,3 +377,46 @@ p:has(+ ol) {
   overflow: hidden;
   background-color: white;
 }
+
+.version-history-menu {
+  padding: 8px;
+  min-width: 300px;
+}
+
+.version-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.version-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  border-bottom: 1px solid var(--color-muted);
+}
+
+.version-date {
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.restore-button {
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.restore-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.no-versions {
+  padding: 16px;
+  text-align: center;
+  color: var(--color-muted);
+}

@@ -20,8 +20,12 @@ import { handleInitialPageLoad } from "@/utils/handleInitialPageLoad"
 import { MycrozineTemplateTool } from "@/tools/MycrozineTemplateTool"
 import { MycrozineTemplateShape } from "@/shapes/MycrozineTemplateShapeUtil"
 
-// Default to production URL if env var isn't available
-export const WORKER_URL = "https://jeffemmett-canvas.jeffemmett.workers.dev"
+// Use development URL when running locally
+export const WORKER_URL = import.meta.env.DEV 
+  ? "http://localhost:5172"
+  : "https://jeffemmett-canvas.jeffemmett.workers.dev"
+
+//console.log('[Debug] WORKER_URL:', WORKER_URL)
 
 const shapeUtils = [
   ChatBoxShape, 

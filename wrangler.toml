@@ -6,6 +6,15 @@ account_id = "0e7b3338d5278ed1b148e6456b940913"
 [vars]
 # Environment variables are managed in Cloudflare Dashboard
 # Workers & Pages → jeffemmett-canvas → Settings → Variables
+DEV = false
+TLDRAW_BUCKET_NAME = "jeffemmett-canvas"
+TLDRAW_BACKUP_BUCKET_NAME = "board-backups"
+
+[env.development]
+vars = { DEV = true }
+binding = 'TLDRAW_BUCKET'
+bucket_name = 'jeffemmett-canvas-preview'
+
 
 [dev]
 port = 5172
@@ -25,7 +34,10 @@ new_classes = ["TldrawDurableObject"]
 [[r2_buckets]]
 binding = 'TLDRAW_BUCKET'
 bucket_name = 'jeffemmett-canvas'
-preview_bucket_name = 'jeffemmett-canvas-preview'
+
+[[r2_buckets]]
+binding = 'TLDRAW_BACKUP_BUCKET'
+bucket_name = 'board-backups'
 
 [observability]
 enabled = true
