@@ -7,4 +7,6 @@ export interface Environment {
 	TLDRAW_DURABLE_OBJECT: DurableObjectNamespace
 	DAILY_API_KEY: string;
 	DAILY_DOMAIN: string;
+	TLDRAW_BACKUPS_BUCKET: R2Bucket
+	IS_DEVELOPMENT: boolean
 }

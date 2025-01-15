@@ -52,17 +52,27 @@ export const customSchema = createTLSchema({
 // handles websocket connections. periodically, it persists the room state to the R2 bucket.
 export class TldrawDurableObject {
   private r2: R2Bucket
+  private backupsR2: R2Bucket
+  private lastBackupDate: string | null = null
   // the room ID will be missing whilst the room is being initialized
   private roomId: string | null = null
   // when we load the room from the R2 bucket, we keep it here. it's a promise so we only ever
   // load it once.
   private roomPromise: Promise<TLSocketRoom<TLRecord, void>> | null = null
+  private isDevelopment: boolean
+  // Modify to use a more strict throttle with a flag to prevent multiple calls
+  private isPersisting = false
 
   constructor(private readonly ctx: DurableObjectState, env: Environment) {
     this.r2 = env.TLDRAW_BUCKET
+    this.backupsR2 = env.TLDRAW_BACKUPS_BUCKET
+    this.isDevelopment = env.IS_DEVELOPMENT
 
     ctx.blockConcurrencyWhile(async () => {
       this.roomId = ((await this.ctx.storage.get("roomId")) ?? null) as
+        | string
+        | null
+      this.lastBackupDate = ((await this.ctx.storage.get("lastBackupDate")) ?? null) as
         | string
         | null
     })
@@ -98,7 +108,9 @@ export class TldrawDurableObject {
       })
     })
     .post("/room/:roomId", async (request) => {
+      console.log('POST /room/:roomId called')
       const records = (await request.json()) as TLRecord[]
+      console.log('Received records:', records)
 
       return new Response(JSON.stringify(Array.from(records)), {
         headers: {
@@ -110,10 +122,29 @@ export class TldrawDurableObject {
         },
       })
     })
+    .get("/test-logs", () => {
+      console.log("Test endpoint hit")
+      return new Response("Test endpoint hit")
+    })
 
   // `fetch` is the entry point for all requests to the Durable Object
   fetch(request: Request): Response | Promise<Response> {
     try {
+      console.log('DO fetch called:', request.url, request.method)
+      
+      // Handle CORS preflight requests
+      if (request.method === 'OPTIONS') {
+        return new Response(null, {
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, UPGRADE',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization, Upgrade, Connection',
+            'Access-Control-Max-Age': '86400',
+            'Access-Control-Allow-Credentials': 'true',
+          },
+        })
+      }
+      
       return this.router.fetch(request)
     } catch (err) {
       console.error("Error in DO fetch:", err)
@@ -128,12 +159,12 @@ export class TldrawDurableObject {
             "Content-Type": "application/json",
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, POST, OPTIONS, UPGRADE",
-            "Access-Control-Allow-Headers":
+            "Access-Control-Allow-Headers": 
               "Content-Type, Authorization, Upgrade, Connection",
             "Access-Control-Max-Age": "86400",
             "Access-Control-Allow-Credentials": "true",
           },
-        },
+        }
       )
     }
   }
@@ -149,43 +180,112 @@ export class TldrawDurableObject {
       return new Response("Missing sessionId", { status: 400 })
     }
 
-    const { 0: clientWebSocket, 1: serverWebSocket } = new WebSocketPair()
+    // Check if this is a websocket upgrade request
+    const upgradeHeader = request.headers.get("Upgrade")
+    if (!upgradeHeader || upgradeHeader.toLowerCase() !== "websocket") {
+      return new Response("Expected Upgrade: websocket", { 
+        status: 426,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS, UPGRADE",
+          "Access-Control-Allow-Headers": "*",
+          "Access-Control-Allow-Credentials": "true",
+          "Upgrade": "websocket"
+        }
+      })
+    }
+
+    // Create WebSocket pair and handle connection
+    const webSocketPair = new WebSocketPair()
+    const [client, server] = Object.values(webSocketPair)
 
     try {
-      serverWebSocket.accept()
+      server.accept()
+      console.log(`Connected to room: ${this.roomId}, session: ${sessionId}`)
+      
       const room = await this.getRoom()
 
-      // Handle socket connection with proper error boundaries
+      // Add error handling for the websocket
+      server.addEventListener('error', (error) => {
+        console.error(`WebSocket error in room ${this.roomId}, session ${sessionId}:`, error)
+      })
+
+      // Handle close event
+      server.addEventListener('close', async () => {
+        console.log(`Disconnected from room: ${this.roomId}, session: ${sessionId}`)
+        if (this.roomPromise) {
+          try {
+            const room = await this.getRoom()
+            if (room) {
+              await this.schedulePersistToR2()
+            }
+          } catch (error) {
+            console.error(`Failed to persist data on disconnect for room ${this.roomId}:`, error)
+          }
+        }
+      })
+
+      // Handle message event
+      server.addEventListener('message', async (event) => {
+        try {
+          if (typeof event.data === 'string') {
+            const data = JSON.parse(event.data)
+            //console.log('Received message:', data)
+          }
+        } catch (error) {
+          console.error('Error handling message:', error)
+        }
+      })
+
       room.handleSocketConnect({
         sessionId,
         socket: {
-          send: serverWebSocket.send.bind(serverWebSocket),
-          close: serverWebSocket.close.bind(serverWebSocket),
-          addEventListener:
-            serverWebSocket.addEventListener.bind(serverWebSocket),
-          removeEventListener:
-            serverWebSocket.removeEventListener.bind(serverWebSocket),
-          readyState: serverWebSocket.readyState,
+          send: (data: string) => {
+            try {
+              if (server.readyState === WebSocket.OPEN) {
+                server.send(data)
+              }
+            } catch (error) {
+              console.error(`Failed to send websocket data in room ${this.roomId}:`, error)
+            }
+          },
+          close: (code?: number, reason?: string) => {
+            try {
+              server.close(code, reason)
+            } catch (error) {
+              console.error(`Error closing websocket in room ${this.roomId}:`, error)
+            }
+          },
+          addEventListener: server.addEventListener.bind(server),
+          removeEventListener: server.removeEventListener.bind(server),
+          readyState: server.readyState,
         },
       })
 
       return new Response(null, {
         status: 101,
-        webSocket: clientWebSocket,
+        webSocket: client,
         headers: {
-          "Access-Control-Allow-Origin": request.headers.get("Origin") || "*",
+          "Upgrade": "websocket",
+          "Connection": "Upgrade",
+          "Sec-WebSocket-Accept": "true",
+          "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "GET, POST, OPTIONS, UPGRADE",
           "Access-Control-Allow-Headers": "*",
-          "Access-Control-Allow-Credentials": "true",
-          Upgrade: "websocket",
-          Connection: "Upgrade",
-        },
+          "Access-Control-Allow-Credentials": "true"
+        }
       })
     } catch (error) {
       console.error("WebSocket connection error:", error)
-      serverWebSocket.close(1011, "Failed to initialize connection")
-      return new Response("Failed to establish WebSocket connection", {
+      server.close(1011, "Failed to initialize connection")
+      return new Response("Failed to establish WebSocket connection", { 
         status: 500,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS, UPGRADE",
+          "Access-Control-Allow-Headers": "*",
+          "Access-Control-Allow-Credentials": "true"
+        }
       })
     }
   }
@@ -193,31 +293,36 @@ export class TldrawDurableObject {
   getRoom() {
     const roomId = this.roomId
     if (!roomId) throw new Error("Missing roomId")
+    console.log('getRoom called with roomId:', roomId)
 
     if (!this.roomPromise) {
       this.roomPromise = (async () => {
         // fetch the room from R2
+        console.log(`Attempting to fetch room ${roomId} from R2...`)
         const roomFromBucket = await this.r2.get(`rooms/${roomId}`)
+        
+        if (roomFromBucket) {
+          console.log(`Found existing room in R2 for ${roomId}`)
+        } else {
+          console.log(`No existing room found in R2 for ${roomId}, creating new room`)
+        }
+
         // if it doesn't exist, we'll just create a new empty room
         const initialSnapshot = roomFromBucket
           ? ((await roomFromBucket.json()) as RoomSnapshot)
           : undefined
         if (initialSnapshot) {
-          initialSnapshot.documents = initialSnapshot.documents.filter(
-            (record) => {
-              const shape = record.state as TLShape
-              return shape.type !== "chatBox"
-            },
-          )
+          console.log(`Loaded snapshot for room ${roomId}`)
         }
-        // create a new TLSocketRoom. This handles all the sync protocol & websocket connections.
-        // it's up to us to persist the room state to R2 when needed though.
+
+        // create a new TLSocketRoom
         return new TLSocketRoom<TLRecord, void>({
           schema: customSchema,
           initialSnapshot,
-          onDataChange: () => {
-            // and persist whenever the data in the room changes
-            this.schedulePersistToR2()
+          onDataChange: async () => {
+            console.log('onDataChange triggered - scheduling persist to R2')
+            await this.schedulePersistToR2()
+            console.log('persist to R2 completed')
           },
         })
       })()
@@ -226,15 +331,69 @@ export class TldrawDurableObject {
     return this.roomPromise
   }
 
-  // we throttle persistance so it only happens every 10 seconds
-  schedulePersistToR2 = throttle(async () => {
-    if (!this.roomPromise || !this.roomId) return
-    const room = await this.getRoom()
+  private async checkAndCreateDailyBackup() {
+    if (!this.roomId) return
 
-    // convert the room to JSON and upload it to R2
-    const snapshot = JSON.stringify(room.getCurrentSnapshot())
-    await this.r2.put(`rooms/${this.roomId}`, snapshot)
-  }, 10_000)
+    const now = new Date()
+    const currentDate = now.toISOString().split('T')[0]
+    
+    // In development, check if 10 seconds have passed since last backup
+    // In production, check if it's a different day
+    const shouldBackup = this.isDevelopment
+      ? !this.lastBackupDate || (now.getTime() - new Date(this.lastBackupDate).getTime() > 10000)
+      : this.lastBackupDate !== currentDate
+
+    if (!shouldBackup) return
+
+    const room = await this.getRoom()
+    const snapshot = room.getCurrentSnapshot()
+    
+    const timestamp = now.toISOString()
+    const backupKey = `backups/${this.roomId}/${timestamp}.json`
+    
+    try {
+      await this.backupsR2.put(backupKey, JSON.stringify(snapshot))
+      
+      // Store the full ISO timestamp in development, just the date in production
+      await this.ctx.storage.put("lastBackupDate", this.isDevelopment ? timestamp : currentDate)
+      this.lastBackupDate = this.isDevelopment ? timestamp : currentDate
+      
+      console.log(`Created backup for room ${this.roomId} at ${timestamp}`)
+    } catch (error) {
+      console.error(`Failed to create backup for room ${this.roomId}:`, error)
+    }
+  }
+
+  // Modify to use a more strict throttle with a flag to prevent multiple calls
+  schedulePersistToR2 = throttle(async () => {
+    if (!this.roomPromise || !this.roomId || this.isPersisting) {
+      console.log('Skipping persist - room not ready or persist already in progress')
+      return
+    }
+
+    try {
+      this.isPersisting = true
+      console.log(`Persisting room ${this.roomId} to storage...`)
+      
+      const room = await this.getRoom()
+      if (!room) {
+        console.log(`Room ${this.roomId} no longer exists, skipping persist`)
+        return
+      }
+      
+      await this.r2.put(`rooms/${this.roomId}`, JSON.stringify(room.getCurrentSnapshot()))
+      console.log(`Successfully persisted room ${this.roomId}`)
+      
+      await this.checkAndCreateDailyBackup()
+    } catch (error) {
+      console.error(`Failed to persist room ${this.roomId}:`, error)
+    } finally {
+      this.isPersisting = false
+    }
+  }, 10_000, { 
+    leading: false,  // Don't execute on the leading edge of the timeout
+    trailing: true,  // Execute on the trailing edge of the timeout
+  })
 
   // Add CORS headers for WebSocket upgrade
   handleWebSocket(request: Request) {

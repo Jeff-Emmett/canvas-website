@@ -12,6 +12,7 @@ port = 5172
 ip = "0.0.0.0"
 local_protocol = "http"
 upstream_protocol = "https"
+IS_DEVELOPMENT = true
 
 [durable_objects]
 bindings = [
@@ -27,6 +28,10 @@ binding = 'TLDRAW_BUCKET'
 bucket_name = 'jeffemmett-canvas'
 preview_bucket_name = 'jeffemmett-canvas-preview'
 
+ [[r2_buckets]]
+ binding = 'TLDRAW_BACKUPS_BUCKET'
+ bucket_name = 'board-backups'
+ 
 [observability]
 enabled = true
 head_sampling_rate = 1  
