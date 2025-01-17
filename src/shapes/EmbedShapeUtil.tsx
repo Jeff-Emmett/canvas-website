@@ -206,6 +206,14 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
           <div
             style={contentStyle}
             onClick={() => document.querySelector("input")?.focus()}
+            onPointerDown={(e) => {
+              e.preventDefault()
+              document.querySelector("input")?.focus()
+            }}
+            onTouchStart={(e) => {
+              e.preventDefault()
+              document.querySelector("input")?.focus()
+            }}
           >
             <form
               onSubmit={handleSubmit}
@@ -431,5 +439,43 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
         </div>
       </div>
     )
+  }
+
+  override onDoubleClick = (shape: IEmbedShape) => {
+    // If no URL is set, focus the input field
+    if (!shape.props.url) {
+      const input = document.querySelector('input')
+      input?.focus()
+      return
+    }
+
+    // For Medium articles and Twitter profiles that show alternative content
+    if (
+      shape.props.url.includes('medium.com') ||
+      (shape.props.url && shape.props.url.match(/(?:twitter\.com|x\.com)\/[^\/]+$/))
+    ) {
+      window.top?.open(shape.props.url, '_blank', 'noopener,noreferrer')
+      return
+    }
+
+    // For other embeds, enable interaction by temporarily removing pointer-events: none
+    const iframe = document.querySelector(`[data-shape-id="${shape.id}"] iframe`) as HTMLIFrameElement
+    if (iframe) {
+      iframe.style.pointerEvents = 'all'
+      // Reset pointer-events after interaction
+      const cleanup = () => {
+        iframe.style.pointerEvents = 'none'
+        window.removeEventListener('pointerdown', cleanup)
+      }
+      window.addEventListener('pointerdown', cleanup)
+    }
+  }
+
+  // Add new method to handle all pointer interactions
+  onPointerDown = (shape: IEmbedShape) => {
+    if (!shape.props.url) {
+      const input = document.querySelector('input')
+      input?.focus()
+    }
   }
 }
