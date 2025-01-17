@@ -8,6 +8,7 @@ import {
 } from "./cameraUtils"
 import { saveToPdf } from "../utils/pdfUtils"
 import { searchText } from "../utils/searchUtils"
+import { EmbedShape, IEmbedShape } from "@/shapes/EmbedShapeUtil"
 
 export const overrides: TLUiOverrides = {
   tools(editor, tools) {
@@ -42,8 +43,13 @@ export const overrides: TLUiOverrides = {
 
         //TODO: Fix double click to zoom on selector tool later...
         onDoubleClick: (info: any) => {
-          // Prevent default double-click behavior (which would start text editing)
-          info.preventDefault?.()
+          const shape = editor.getShapeAtPoint(info.point)
+          if (shape?.type === 'Embed') {
+            // Let the Embed shape handle its own double-click behavior
+            const util = editor.getShapeUtil(shape) as EmbedShape
+            util?.onDoubleClick?.(shape as IEmbedShape)
+            return
+          }
           
           // Handle all pointer types (mouse, touch, pen)
           const point = info.point || (info.touches && info.touches[0]) || info

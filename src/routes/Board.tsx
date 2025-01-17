@@ -63,7 +63,26 @@ export function Board() {
         tools={tools}
         components={components}
         overrides={overrides}
-        //maxZoom={20}
+        cameraOptions={{
+          zoomSteps: [
+            0.001,  // Min zoom
+            0.0025,
+            0.005,
+            0.01,
+            0.025,
+            0.05,
+            0.1,
+            0.25,
+            0.5,
+            1,
+            2,
+            4,
+            8,
+            16,
+            32,
+            64     // Max zoom
+          ]
+        }}
         onMount={(editor) => {
           setEditor(editor)
           editor.registerExternalAssetHandler("url", unfurlBookmarkUrl)
