@@ -19,6 +19,7 @@ import { unfurlBookmarkUrl } from "../utils/unfurlBookmarkUrl"
 import { handleInitialPageLoad } from "@/utils/handleInitialPageLoad"
 import { MycrozineTemplateTool } from "@/tools/MycrozineTemplateTool"
 import { MycrozineTemplateShape } from "@/shapes/MycrozineTemplateShapeUtil"
+import { registerPropagators, ChangePropagator, TickPropagator, ClickPropagator } from "@/propagators/ScopedPropagators"
 
 // Default to production URL if env var isn't available
 export const WORKER_URL = "https://jeffemmett-canvas.jeffemmett.workers.dev"
@@ -88,6 +89,7 @@ export function Board() {
           editor.registerExternalAssetHandler("url", unfurlBookmarkUrl)
           editor.setCurrentTool("hand")
           handleInitialPageLoad(editor)
+          registerPropagators(editor, [TickPropagator,ChangePropagator,ClickPropagator])
         }}
       />
     </div>
