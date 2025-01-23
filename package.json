@@ -9,7 +9,8 @@
 		"dev:worker": "wrangler dev --local --port 5172 --ip 0.0.0.0",
 		"build": "tsc && vite build",
 		"preview": "vite preview",
-		"deploy": "tsc && vite build && vercel deploy --prod && wrangler deploy"
+		"deploy": "tsc && vite build && vercel deploy --prod && wrangler deploy",
+		"types": "tsc --noEmit"
 	},
 	"keywords": [],
 	"author": "Jeff Emmett",
