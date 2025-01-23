@@ -9,6 +9,8 @@ import {
 import { saveToPdf } from "../utils/pdfUtils"
 import { searchText } from "../utils/searchUtils"
 import { EmbedShape, IEmbedShape } from "@/shapes/EmbedShapeUtil"
+import { moveToSlide } from "@/slides/useSlides"
+import { ISlideShape } from "@/shapes/SlideShapeUtil"
 
 export const overrides: TLUiOverrides = {
   tools(editor, tools) {
@@ -44,19 +46,19 @@ export const overrides: TLUiOverrides = {
         //TODO: Fix double click to zoom on selector tool later...
         onDoubleClick: (info: any) => {
           const shape = editor.getShapeAtPoint(info.point)
-          if (shape?.type === 'Embed') {
+          if (shape?.type === "Embed") {
             // Let the Embed shape handle its own double-click behavior
             const util = editor.getShapeUtil(shape) as EmbedShape
             util?.onDoubleClick?.(shape as IEmbedShape)
             return
           }
-          
+
           // Handle all pointer types (mouse, touch, pen)
           const point = info.point || (info.touches && info.touches[0]) || info
-          
+
           // Zoom in at the clicked/touched point
           editor.zoomIn(point, { animation: { duration: 200 } })
-          
+
           // Stop event propagation and prevent default handling
           info.stopPropagation?.()
           return false
@@ -97,10 +99,10 @@ export const overrides: TLUiOverrides = {
         type: "Slide",
         readonlyOk: true,
         onSelect: () => {
-          console.log('SlideShape tool selected from menu')
-          console.log('Current tool before:', editor.getCurrentToolId())
+          console.log("SlideShape tool selected from menu")
+          console.log("Current tool before:", editor.getCurrentToolId())
           editor.setCurrentTool("Slide")
-          console.log('Current tool after:', editor.getCurrentToolId())
+          console.log("Current tool after:", editor.getCurrentToolId())
         },
       },
       Markdown: {
@@ -369,6 +371,66 @@ export const overrides: TLUiOverrides = {
         kbd: "s",
         readonlyOk: true,
         onSelect: () => searchText(editor),
+      },
+      "next-slide": {
+        id: "next-slide",
+        label: "Next slide",
+        kbd: "right",
+        onSelect() {
+          const slides = editor
+            .getCurrentPageShapes()
+            .filter((shape) => shape.type === "Slide")
+          if (slides.length === 0) return
+
+          const currentSlide = editor
+            .getSelectedShapes()
+            .find((shape) => shape.type === "Slide")
+          const currentIndex = currentSlide
+            ? slides.findIndex((slide) => slide.id === currentSlide.id)
+            : -1
+
+          // Calculate next index with wraparound
+          const nextIndex =
+            currentIndex === -1
+              ? 0
+              : currentIndex >= slides.length - 1
+              ? 0
+              : currentIndex + 1
+
+          const nextSlide = slides[nextIndex]
+
+          editor.select(nextSlide.id)
+          editor.stopCameraAnimation()
+          moveToSlide(editor, nextSlide as ISlideShape)
+        },
+      },
+      "previous-slide": {
+        id: "previous-slide",
+        label: "Previous slide",
+        kbd: "left",
+        onSelect() {
+          const slides = editor
+            .getCurrentPageShapes()
+            .filter((shape) => shape.type === "Slide")
+          if (slides.length === 0) return
+
+          const currentSlide = editor
+            .getSelectedShapes()
+            .find((shape) => shape.type === "Slide")
+          const currentIndex = currentSlide
+            ? slides.findIndex((slide) => slide.id === currentSlide.id)
+            : -1
+
+          // Calculate previous index with wraparound
+          const previousIndex =
+            currentIndex <= 0 ? slides.length - 1 : currentIndex - 1
+
+          const previousSlide = slides[previousIndex]
+
+          editor.select(previousSlide.id)
+          editor.stopCameraAnimation()
+          moveToSlide(editor, previousSlide as ISlideShape)
+        },
       },
     }
   },
