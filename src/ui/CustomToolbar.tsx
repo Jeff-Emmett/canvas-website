@@ -44,6 +44,14 @@ export function CustomToolbar() {
           isSelected={tools["Embed"].id === editor.getCurrentToolId()}
         />
       )}
+      {tools["SlideShape"] && (
+        <TldrawUiMenuItem
+          {...tools["SlideShape"]}
+          icon="slides"
+          label="Slide"
+          isSelected={tools["SlideShape"].id === editor.getCurrentToolId()}
+        />
+      )}
       {/*
       {tools["Markdown"] && (
         <TldrawUiMenuItem

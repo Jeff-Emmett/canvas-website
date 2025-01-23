@@ -102,7 +102,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
       {/* Creation Tools Group */}
       <TldrawUiMenuGroup id="creation-tools">
         <TldrawUiMenuItem
-          id="video-chat"
+          id="VideoChat"
           label="Create Video Chat"
           icon="video"
           kbd="alt+v"
@@ -112,7 +112,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           }}
         />
         <TldrawUiMenuItem
-          id="chat-box"
+          id="ChatBox"
           label="Create Chat Box"
           icon="chat"
           kbd="alt+c"
@@ -122,7 +122,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           }}
         />
         <TldrawUiMenuItem
-          id="embed"
+          id="Embed"
           label="Create Embed"
           icon="embed"
           kbd="alt+e"
@@ -131,7 +131,16 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
             editor.setCurrentTool("Embed")
           }}
         />
-        {/*
+        <TldrawUiMenuItem
+          id="Slide"
+          label="Create Slide"
+          icon="slides"
+          kbd="alt+s"
+          disabled={hasSelection}
+          onSelect={() => {
+            editor.setCurrentTool("Slide")
+          }}
+        />
         <TldrawUiMenuItem
           id="mycrozine-template"
           label="Create Mycrozine Template"
@@ -151,8 +160,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           onSelect={() => {
             editor.setCurrentTool("Markdown")
           }}
-        /> 
-        */}
+        />
       </TldrawUiMenuGroup>
 
       {/* Frame Controls */}

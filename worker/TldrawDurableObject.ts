@@ -7,6 +7,7 @@ import {
   createTLSchema,
   defaultBindingSchemas,
   defaultShapeSchemas,
+  shapeIdValidator,
 } from "@tldraw/tlschema"
 import { AutoRouter, IRequest, error } from "itty-router"
 import throttle from "lodash.throttle"
@@ -16,6 +17,8 @@ import { VideoChatShape } from "@/shapes/VideoChatShapeUtil"
 import { EmbedShape } from "@/shapes/EmbedShapeUtil"
 import { MarkdownShape } from "@/shapes/MarkdownShapeUtil"
 import { MycrozineTemplateShape } from "@/shapes/MycrozineTemplateShapeUtil"
+import { T } from "@tldraw/tldraw"
+import { SlideShapeUtil } from "@/shapes/SlideShapeUtil"
 
 // add custom shapes and bindings here if needed:
 export const customSchema = createTLSchema({
@@ -40,6 +43,10 @@ export const customSchema = createTLSchema({
     MycrozineTemplate: {
       props: MycrozineTemplateShape.props,
       migrations: MycrozineTemplateShape.migrations,
+    },
+    Slide: {
+      props: SlideShapeUtil.props,
+      migrations: SlideShapeUtil.migrations,
     },
   },
   bindings: defaultBindingSchemas,
@@ -206,7 +213,7 @@ export class TldrawDurableObject {
           initialSnapshot.documents = initialSnapshot.documents.filter(
             (record) => {
               const shape = record.state as TLShape
-              return shape.type !== "chatBox"
+              return shape.type !== "ChatBox"
             },
           )
         }
