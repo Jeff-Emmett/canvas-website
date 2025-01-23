@@ -1,4 +1,4 @@
-import { TLUiOverrides } from "tldraw"
+import { shapeIdValidator, TLUiOverrides } from "tldraw"
 import {
   cameraHistory,
   copyLinkToCurrentView,
@@ -68,6 +68,7 @@ export const overrides: TLUiOverrides = {
         label: "Video Chat",
         kbd: "alt+v",
         readonlyOk: true,
+        type: "VideoChat",
         onSelect: () => editor.setCurrentTool("VideoChat"),
       },
       ChatBox: {
@@ -76,6 +77,7 @@ export const overrides: TLUiOverrides = {
         label: "Chat",
         kbd: "alt+c",
         readonlyOk: true,
+        type: "ChatBox",
         onSelect: () => editor.setCurrentTool("ChatBox"),
       },
       Embed: {
@@ -84,26 +86,41 @@ export const overrides: TLUiOverrides = {
         label: "Embed",
         kbd: "alt+e",
         readonlyOk: true,
+        type: "Embed",
         onSelect: () => editor.setCurrentTool("Embed"),
       },
-      /*
+      SlideShape: {
+        id: "Slide",
+        icon: "slides",
+        label: "Slide",
+        kbd: "alt+s",
+        type: "Slide",
+        readonlyOk: true,
+        onSelect: () => {
+          console.log('SlideShape tool selected from menu')
+          console.log('Current tool before:', editor.getCurrentToolId())
+          editor.setCurrentTool("Slide")
+          console.log('Current tool after:', editor.getCurrentToolId())
+        },
+      },
       Markdown: {
         id: "Markdown",
         icon: "markdown",
         label: "Markdown",
         kbd: "alt+m",
         readonlyOk: true,
+        type: "Markdown",
         onSelect: () => editor.setCurrentTool("Markdown"),
       },
       MycrozineTemplate: {
         id: "MycrozineTemplate",
         icon: "rectangle",
         label: "Mycrozine Template",
+        type: "MycrozineTemplate",
         kbd: "m",
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("MycrozineTemplate"),
       },
-      */
       hand: {
         ...tools.hand,
         onDoubleClick: (info: any) => {

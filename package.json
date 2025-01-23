@@ -15,6 +15,7 @@
 	"author": "Jeff Emmett",
 	"license": "ISC",
 	"dependencies": {
+		"@anthropic-ai/sdk": "^0.33.1",
 		"@daily-co/daily-js": "^0.60.0",
 		"@daily-co/daily-react": "^0.20.0",
 		"@tldraw/assets": "^3.6.0",
@@ -25,6 +26,7 @@
 		"@types/markdown-it": "^14.1.1",
 		"@types/marked": "^5.0.2",
 		"@vercel/analytics": "^1.2.2",
+		"ai": "^4.1.0",
 		"cherry-markdown": "^0.8.57",
 		"cloudflare-workers-unfurl": "^0.0.7",
 		"gray-matter": "^4.0.3",
@@ -34,6 +36,7 @@
 		"jspdf": "^2.5.2",
 		"lodash.throttle": "^4.1.1",
 		"marked": "^15.0.4",
+		"openai": "^4.79.3",
 		"rbush": "^4.0.1",
 		"react": "^18.2.0",
 		"react-dom": "^18.2.0",
