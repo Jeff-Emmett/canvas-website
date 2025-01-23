@@ -1,4 +1,9 @@
-import { shapeIdValidator, TLUiOverrides } from "tldraw"
+import {
+  shapeIdValidator,
+  TLArrowShape,
+  TLGeoShape,
+  TLUiOverrides,
+} from "tldraw"
 import {
   cameraHistory,
   copyLinkToCurrentView,
@@ -11,6 +16,8 @@ import { searchText } from "../utils/searchUtils"
 import { EmbedShape, IEmbedShape } from "@/shapes/EmbedShapeUtil"
 import { moveToSlide } from "@/slides/useSlides"
 import { ISlideShape } from "@/shapes/SlideShapeUtil"
+import { getEdge } from "@/propagators/tlgraph"
+import { llm } from "@/utils/llm"
 
 export const overrides: TLUiOverrides = {
   tools(editor, tools) {
@@ -371,6 +378,45 @@ export const overrides: TLUiOverrides = {
         kbd: "s",
         readonlyOk: true,
         onSelect: () => searchText(editor),
+      },
+      llm: {
+        id: "llm",
+        label: "LLM",
+        kbd: "g",
+        readonlyOk: true,
+        onSelect: () => {
+          const selectedShapes = editor.getSelectedShapes()
+          if (selectedShapes.length > 0) {
+            const selectedShape = selectedShapes[0] as TLArrowShape
+            if (selectedShape.type !== "arrow") {
+              return
+            }
+            const edge = getEdge(selectedShape, editor)
+            if (!edge) {
+              return
+            }
+            const sourceShape = editor.getShape(edge.from)
+            const sourceText =
+              sourceShape && sourceShape.type === "geo"
+                ? (sourceShape as TLGeoShape).props.text
+                : ""
+            llm(
+              "You are a helpful assistant.",
+              `Instruction: ${edge.text}
+              ${sourceText ? `Context: ${sourceText}` : ""}`,
+              (partialResponse) => {
+                editor.updateShape({
+                  id: edge.to,
+                  type: "geo",
+                  props: {
+                    ...(editor.getShape(edge.to) as TLGeoShape).props,
+                    text: partialResponse,
+                  },
+                })
+              },
+            )
+          }
+        },
       },
       "next-slide": {
         id: "next-slide",

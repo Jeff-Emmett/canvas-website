@@ -121,13 +121,6 @@ export function Board() {
             ChangePropagator,
             ClickPropagator,
           ])
-          llm(
-            "You are a helpful assistant.",
-            "Hello, how are you?",
-            (partialResponse, done) => {
-              console.log({ partialResponse, done })
-            },
-          )
         }}
       />
     </div>
