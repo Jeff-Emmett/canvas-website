@@ -4,6 +4,7 @@
 
 export interface Environment {
 	TLDRAW_BUCKET: R2Bucket
+	BOARD_BACKUPS_BUCKET: R2Bucket
 	TLDRAW_DURABLE_OBJECT: DurableObjectNamespace
 	DAILY_API_KEY: string;
 	DAILY_DOMAIN: string;
