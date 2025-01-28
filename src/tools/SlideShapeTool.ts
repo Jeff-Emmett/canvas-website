@@ -7,6 +7,6 @@ export class SlideShapeTool extends BaseBoxShapeTool {
 
 	constructor(editor: any) {
 		super(editor)
-		console.log('SlideShapeTool constructed', { id: this.id, shapeType: this.shapeType })
+		//console.log('SlideShapeTool constructed', { id: this.id, shapeType: this.shapeType })
 	}
 }

@@ -106,10 +106,7 @@ export const overrides: TLUiOverrides = {
         type: "Slide",
         readonlyOk: true,
         onSelect: () => {
-          console.log("SlideShape tool selected from menu")
-          console.log("Current tool before:", editor.getCurrentToolId())
           editor.setCurrentTool("Slide")
-          console.log("Current tool after:", editor.getCurrentToolId())
         },
       },
       Markdown: {
@@ -129,6 +126,15 @@ export const overrides: TLUiOverrides = {
         kbd: "m",
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("MycrozineTemplate"),
+      },
+      Prompt: {
+        id: "Prompt",
+        icon: "prompt",
+        label: "Prompt",
+        type: "Prompt",
+        kdb: "p",
+        readonlyOk: true,
+        onSelect: () => editor.setCurrentTool("Prompt"),
       },
       hand: {
         ...tools.hand,

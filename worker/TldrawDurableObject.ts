@@ -17,8 +17,7 @@ import { VideoChatShape } from "@/shapes/VideoChatShapeUtil"
 import { EmbedShape } from "@/shapes/EmbedShapeUtil"
 import { MarkdownShape } from "@/shapes/MarkdownShapeUtil"
 import { MycrozineTemplateShape } from "@/shapes/MycrozineTemplateShapeUtil"
-import { T } from "@tldraw/tldraw"
-import { SlideShapeUtil } from "@/shapes/SlideShapeUtil"
+import { SlideShape } from "@/shapes/SlideShapeUtil"
 
 // add custom shapes and bindings here if needed:
 export const customSchema = createTLSchema({
@@ -45,8 +44,8 @@ export const customSchema = createTLSchema({
       migrations: MycrozineTemplateShape.migrations,
     },
     Slide: {
-      props: SlideShapeUtil.props,
-      migrations: SlideShapeUtil.migrations,
+      props: SlideShape.props,
+      migrations: SlideShape.migrations,
     },
   },
   bindings: defaultBindingSchemas,
@@ -225,6 +224,7 @@ export class TldrawDurableObject {
           onDataChange: () => {
             // and persist whenever the data in the room changes
             this.schedulePersistToR2()
+            console.log("Persisting", this.roomId, "to R2")
           },
         })
       })()
@@ -237,7 +237,7 @@ export class TldrawDurableObject {
   schedulePersistToR2 = throttle(async () => {
     if (!this.roomPromise || !this.roomId) return
     const room = await this.getRoom()
-
+    
     // convert the room to JSON and upload it to R2
     const snapshot = JSON.stringify(room.getCurrentSnapshot())
     await this.r2.put(`rooms/${this.roomId}`, snapshot)
