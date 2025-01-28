@@ -25,7 +25,7 @@ import {
   ClickPropagator,
 } from "@/propagators/ScopedPropagators"
 import { SlideShapeTool } from "@/tools/SlideShapeTool"
-import { SlideShapeUtil } from "@/shapes/SlideShapeUtil"
+import { SlideShape } from "@/shapes/SlideShapeUtil"
 import { makeRealSettings, applySettingsMigrations } from "@/lib/settings"
 import { PromptShapeTool } from "@/tools/PromptShapeTool"
 import { PromptShape } from "@/shapes/PromptShapeUtil"
@@ -38,7 +38,7 @@ const customShapeUtils = [
   ChatBoxShape,
   VideoChatShape,
   EmbedShape,
-  SlideShapeUtil,
+  SlideShape,
   MycrozineTemplateShape,
   MarkdownShape,
   PromptShape,

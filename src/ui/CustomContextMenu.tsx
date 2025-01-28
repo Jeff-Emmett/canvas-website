@@ -142,7 +142,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           }}
         />
         <TldrawUiMenuItem
-          id="mycrozine-template"
+          id="MycrozineTemplate"
           label="Create Mycrozine Template"
           icon="rectangle"
           kbd="m"
@@ -152,13 +152,23 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           }}
         />
         <TldrawUiMenuItem
-          id="markdown"
+          id="Markdown"
           label="Create Markdown"
           icon="markdown"
           kbd="alt+m"
           disabled={hasSelection}
           onSelect={() => {
             editor.setCurrentTool("Markdown")
+          }}
+        />
+        <TldrawUiMenuItem
+          id="Prompt"
+          label="Create Prompt"
+          icon="prompt"
+          kbd="alt+p"
+          disabled={hasSelection}
+          onSelect={() => {
+            editor.setCurrentTool("Prompt")
           }}
         />
       </TldrawUiMenuGroup>
