@@ -180,5 +180,61 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     }
   })
 
+async function backupAllBoards(env: Environment) {
+  try {
+    // List all room files from TLDRAW_BUCKET
+    const roomsList = await env.TLDRAW_BUCKET.list({ prefix: 'rooms/' })
+    
+    const date = new Date().toISOString().split('T')[0]
+    
+    // Process each room
+    for (const room of roomsList.objects) {
+      try {
+        // Get the room data
+        const roomData = await env.TLDRAW_BUCKET.get(room.key)
+        if (!roomData) continue
+
+        // Get the data as text since it's already stringified JSON
+        const jsonData = await roomData.text()
+        
+        // Create backup key with date only
+        const backupKey = `${date}/${room.key}`
+        
+        // Store in backup bucket as JSON
+        await env.BOARD_BACKUPS_BUCKET.put(backupKey, jsonData)
+        
+        console.log(`Backed up ${room.key} to ${backupKey}`)
+      } catch (error) {
+        console.error(`Failed to backup room ${room.key}:`, error)
+      }
+    }
+    
+    // Clean up old backups (keep last 30 days)
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    
+    const oldBackups = await env.BOARD_BACKUPS_BUCKET.list({
+      prefix: thirtyDaysAgo.toISOString().split('T')[0]
+    })
+    
+    for (const backup of oldBackups.objects) {
+      await env.BOARD_BACKUPS_BUCKET.delete(backup.key)
+    }
+    
+    return { success: true, message: 'Backup completed successfully' }
+  } catch (error) {
+    console.error('Backup failed:', error)
+    return { success: false, message: (error as Error).message }
+  }
+}
+
+router
+  .get("/backup", async (_, env) => {
+    const result = await backupAllBoards(env)
+    return new Response(JSON.stringify(result), {
+      headers: { 'Content-Type': 'application/json' }
+    })
+  })
+
 // export our router for cloudflare
 export default router

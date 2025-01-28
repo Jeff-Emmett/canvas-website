@@ -27,6 +27,15 @@ binding = 'TLDRAW_BUCKET'
 bucket_name = 'jeffemmett-canvas'
 preview_bucket_name = 'jeffemmett-canvas-preview'
 
+[[r2_buckets]]
+binding = 'BOARD_BACKUPS_BUCKET'
+bucket_name = 'board-backups'
+preview_bucket_name = 'board-backups-preview'
+
 [observability]
 enabled = true
 head_sampling_rate = 1  
+
+[triggers]
+crons = ["0 0 * * *"] # Run at midnight UTC every day 
+# crons = ["*/10 * * * *"] # Run every 10 minutes 
