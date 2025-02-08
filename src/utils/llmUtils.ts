@@ -7,15 +7,15 @@ const openai = new OpenAI({
 });
 
 export async function llm(
-	systemPrompt: string,
+	//systemPrompt: string,
 	userPrompt: string,
 	onToken: (partialResponse: string, done: boolean) => void,
 ) {
 	if (!apiKey) {
 		throw new Error("No API key found")
 	}
-	console.log("System Prompt:", systemPrompt);
-	console.log("User Prompt:", userPrompt);
+	//console.log("System Prompt:", systemPrompt);
+	//console.log("User Prompt:", userPrompt);
 	let partial = "";
 	const stream = await openai.chat.completions.create({
 		model: "gpt-4o",

@@ -3,6 +3,7 @@ import {
   TldrawUiMenuActionItem,
   TldrawUiMenuItem,
   TldrawUiMenuSubmenu,
+  TLGeoShape,
   TLShape,
 } from "tldraw"
 import { TldrawUiMenuGroup } from "tldraw"
@@ -19,6 +20,8 @@ import { useState, useEffect } from "react"
 import { saveToPdf } from "../utils/pdfUtils"
 import { TLFrameShape } from "tldraw"
 import { searchText } from "../utils/searchUtils"
+import { llm } from "../utils/llmUtils"
+import { getEdge } from "@/propagators/tlgraph"
 
 const getAllFrames = (editor: Editor) => {
   return editor
@@ -96,6 +99,41 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           kbd="alt+p"
           disabled={!hasSelection}
           onSelect={() => saveToPdf(editor)}
+        />
+        <TldrawUiMenuItem
+          id="run-llm-prompt"
+          label="Run LLM Prompt"
+          icon="file"
+          kbd="g"
+          disabled={!hasSelection}
+          onSelect={() => {
+            const selectedShape = editor.getSelectedShapes()[0];
+            if (!selectedShape || selectedShape.type !== 'arrow') return;
+            
+            const edge = getEdge(selectedShape, editor);
+            if (!edge) return;
+
+            const sourceShape = editor.getShape(edge.from);
+            const sourceText = 
+              sourceShape && sourceShape.type === "geo" 
+                ? (sourceShape as TLGeoShape).props.text 
+                : "";
+
+            llm(
+              `Instruction: ${edge.text}
+              ${sourceText ? `Context: ${sourceText}` : ""}`,
+              (partialResponse) => {
+                editor.updateShape({
+                  id: edge.to,
+                  type: "geo",
+                  props: {
+                    ...(editor.getShape(edge.to) as TLGeoShape).props,
+                    text: partialResponse
+                  }
+                });
+              }
+            )
+          }}
         />
       </TldrawUiMenuGroup>
 
