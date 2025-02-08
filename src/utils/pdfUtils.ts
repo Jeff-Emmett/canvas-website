@@ -41,7 +41,7 @@ export const saveToPdf = async (editor: Editor) => {
       reader.readAsDataURL(blob)
     })
 
-    // Add the image to the PDF
+    // Add the image to the PDF with compression
     pdf.addImage(
       imageData,
       "PNG",
@@ -49,6 +49,8 @@ export const saveToPdf = async (editor: Editor) => {
       0,
       selectionBounds.width,
       selectionBounds.height,
+      undefined,
+      'FAST'
     )
 
     pdf.save("canvas-selection.pdf")
