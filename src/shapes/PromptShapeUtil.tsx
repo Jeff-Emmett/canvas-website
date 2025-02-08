@@ -6,7 +6,7 @@ import {
   TLShape,
 } from "tldraw"
 import { getEdge } from "@/propagators/tlgraph"
-import { llm } from "@/utils/llm"
+import { llm } from "@/utils/llmUtils"
 import { isShapeOfType } from "@/propagators/utils"
 
 type IPrompt = TLBaseShape<
@@ -74,8 +74,8 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
       return acc
     }, {} as Record<string, TLShape>)
 
-    const generateText = async (prompt: string) => {
-      await llm("", prompt, (partial: string, done: boolean) => {
+     const generateText = async (prompt: string) => {
+      await llm(prompt, (partial: string, done: boolean) => {
         console.log("DONE??", done)
         this.editor.updateShape<IPrompt>({
           id: shape.id,

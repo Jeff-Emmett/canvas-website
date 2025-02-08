@@ -17,7 +17,7 @@ import { EmbedShape, IEmbedShape } from "@/shapes/EmbedShapeUtil"
 import { moveToSlide } from "@/slides/useSlides"
 import { ISlideShape } from "@/shapes/SlideShapeUtil"
 import { getEdge } from "@/propagators/tlgraph"
-import { llm } from "@/utils/llm"
+import { llm } from "@/utils/llmUtils"
 
 export const overrides: TLUiOverrides = {
   tools(editor, tools) {
@@ -407,7 +407,6 @@ export const overrides: TLUiOverrides = {
                 ? (sourceShape as TLGeoShape).props.text
                 : ""
             llm(
-              "You are a helpful assistant.",
               `Instruction: ${edge.text}
               ${sourceText ? `Context: ${sourceText}` : ""}`,
               (partialResponse) => {
