@@ -19,12 +19,36 @@ export function CustomToolbar() {
     }
   }, [editor, tools])
 
-  useEffect(() => {
-    const settings = localStorage.getItem("jeff_keys")
-    if (settings) {
-      const { keys } = JSON.parse(settings)
-      setHasApiKey(Object.values(keys).some((key) => key))
+  const checkApiKeys = () => {
+    const settings = localStorage.getItem("openai_api_key")
+  
+    try {
+      if (settings) {
+        try {
+          const { keys } = JSON.parse(settings)
+          const hasValidKey = keys && Object.values(keys).some(key => typeof key === 'string' && key.trim() !== '')
+          setHasApiKey(hasValidKey)
+        } catch (e) {
+          const hasValidKey = typeof settings === 'string' && settings.trim() !== ''
+          setHasApiKey(hasValidKey)
+        }
+      } else {
+        setHasApiKey(false)
+      }
+    } catch (e) {
+      setHasApiKey(false)
     }
+  }
+
+  // Initial check
+  useEffect(() => {
+    checkApiKeys()
+  }, [])
+
+  // Periodic check
+  useEffect(() => {
+    const interval = setInterval(checkApiKeys, 5000)
+    return () => clearInterval(interval)
   }, [])
 
   if (!isReady) return null
@@ -34,8 +58,8 @@ export function CustomToolbar() {
       <div
         style={{
           position: "fixed",
-          top: "40px",
-          right: "12px",
+          top: "4px",
+          left: "350px",
           zIndex: 99999,
           pointerEvents: "auto",
           display: "flex",
@@ -51,7 +75,7 @@ export function CustomToolbar() {
                   onClose={() => {
                     onClose()
                     removeDialog("api-keys")
-                    const settings = localStorage.getItem("jeff_keys")
+                    const settings = localStorage.getItem("openai_api_key")
                     if (settings) {
                       const { keys } = JSON.parse(settings)
                       setHasApiKey(Object.values(keys).some((key) => key))
@@ -64,7 +88,7 @@ export function CustomToolbar() {
           style={{
             padding: "8px 16px",
             borderRadius: "4px",
-            background: "#2F80ED",
+            background: hasApiKey ? "#6B7280" : "#2F80ED",
             color: "white",
             border: "none",
             cursor: "pointer",
@@ -75,10 +99,10 @@ export function CustomToolbar() {
             userSelect: "none",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = "#1366D6"
+            e.currentTarget.style.background = hasApiKey ? "#4B5563" : "#1366D6"
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = "#2F80ED"
+            e.currentTarget.style.background = hasApiKey ? "#6B7280" : "#2F80ED"
           }}
         >
           Keys {hasApiKey ? "✅" : "❌"}
