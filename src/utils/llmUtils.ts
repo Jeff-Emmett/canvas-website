@@ -1,14 +1,9 @@
 import OpenAI from "openai";
 
-const apiKey = localStorage.getItem("openai_api_key") || ""
-const openai = new OpenAI({
-	apiKey,
-	dangerouslyAllowBrowser: true,
-});
-
 export async function llm(
 	//systemPrompt: string,
 	userPrompt: string,
+	apiKey: string,
 	onToken: (partialResponse: string, done: boolean) => void,
 ) {
 	if (!apiKey) {
@@ -17,6 +12,10 @@ export async function llm(
 	//console.log("System Prompt:", systemPrompt);
 	//console.log("User Prompt:", userPrompt);
 	let partial = "";
+	const openai = new OpenAI({
+		apiKey,
+		dangerouslyAllowBrowser: true,
+	});
 	const stream = await openai.chat.completions.create({
 		model: "gpt-4o",
 		messages: [

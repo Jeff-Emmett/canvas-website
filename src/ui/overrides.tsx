@@ -409,7 +409,8 @@ export const overrides: TLUiOverrides = {
             llm(
               `Instruction: ${edge.text}
               ${sourceText ? `Context: ${sourceText}` : ""}`,
-              (partialResponse) => {
+              localStorage.getItem("openai_api_key") || "",
+              (partialResponse: string) => {
                 editor.updateShape({
                   id: edge.to,
                   type: "geo",

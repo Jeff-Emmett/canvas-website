@@ -75,7 +75,7 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
     }, {} as Record<string, TLShape>)
 
      const generateText = async (prompt: string) => {
-      await llm(prompt, (partial: string, done: boolean) => {
+      await llm(prompt, localStorage.getItem("openai_api_key") || "", (partial: string, done: boolean) => {
         console.log("DONE??", done)
         this.editor.updateShape<IPrompt>({
           id: shape.id,
