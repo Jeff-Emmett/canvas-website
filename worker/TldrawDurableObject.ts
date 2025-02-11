@@ -18,6 +18,7 @@ import { EmbedShape } from "@/shapes/EmbedShapeUtil"
 import { MarkdownShape } from "@/shapes/MarkdownShapeUtil"
 import { MycrozineTemplateShape } from "@/shapes/MycrozineTemplateShapeUtil"
 import { SlideShape } from "@/shapes/SlideShapeUtil"
+import { PromptShape } from "@/shapes/PromptShapeUtil"
 
 // add custom shapes and bindings here if needed:
 export const customSchema = createTLSchema({
@@ -46,6 +47,10 @@ export const customSchema = createTLSchema({
     Slide: {
       props: SlideShape.props,
       migrations: SlideShape.migrations,
+    },
+    Prompt: {
+      props: PromptShape.props,
+      migrations: PromptShape.migrations,
     },
   },
   bindings: defaultBindingSchemas,
