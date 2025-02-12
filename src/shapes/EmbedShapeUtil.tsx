@@ -8,6 +8,7 @@ export type IEmbedShape = TLBaseShape<
     w: number
     h: number
     url: string | null
+    isMinimized?: boolean
     interactionState?: {
       scrollPosition?: { x: number; y: number }
       currentTime?: number // for videos
@@ -91,19 +92,19 @@ const transformUrl = (url: string): string => {
 const getDefaultDimensions = (url: string): { w: number; h: number } => {
   // YouTube default dimensions (16:9 ratio)
   if (url.match(/(?:youtube\.com|youtu\.be)/)) {
-    return { w: 560, h: 315 }
+    return { w: 800, h: 450 }
   }
 
   // Twitter/X default dimensions
   if (url.match(/(?:twitter\.com|x\.com)/)) {
     if (url.match(/\/status\/|\/tweets\//)) {
-      return { w: 500, h: 420 } // For individual tweets
+      return { w: 800, h: 600 } // For individual tweets
     }
   }
 
   // Google Maps default dimensions
   if (url.includes("google.com/maps") || url.includes("goo.gl/maps")) {
-    return { w: 600, h: 450 }
+    return { w: 800, h: 600 }
   }
 
   // Gather.town default dimensions
@@ -112,7 +113,36 @@ const getDefaultDimensions = (url: string): { w: number; h: number } => {
   }
 
   // Default dimensions for other embeds
-  return { w: 640, h: 480 }
+  return { w: 800, h: 600 }
+}
+
+const getFaviconUrl = (url: string): string => {
+  try {
+    const urlObj = new URL(url)
+    return `https://www.google.com/s2/favicons?domain=${urlObj.hostname}&sz=32`
+  } catch {
+    return '' // Return empty if URL is invalid
+  }
+}
+
+const getDisplayTitle = (url: string): string => {
+  try {
+    const urlObj = new URL(url)
+    // Handle special cases
+    if (urlObj.hostname.includes('youtube.com')) {
+      return 'YouTube'
+    }
+    if (urlObj.hostname.includes('twitter.com') || urlObj.hostname.includes('x.com')) {
+      return 'Twitter/X'
+    }
+    if (urlObj.hostname.includes('google.com/maps')) {
+      return 'Google Maps'
+    }
+    // Default: return clean hostname
+    return urlObj.hostname.replace('www.', '')
+  } catch {
+    return url // Return original URL if parsing fails
+  }
 }
 
 export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
@@ -121,16 +151,21 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
   getDefaultProps(): IEmbedShape["props"] {
     return {
       url: null,
-      w: 640,
-      h: 480,
+      w: 800,
+      h: 600,
+      isMinimized: false,
     }
   }
 
   indicator(shape: IEmbedShape) {
     return (
-      <g>
-        <rect x={0} y={0} width={shape.props.w} height={shape.props.h} />
-      </g>
+      <rect 
+        x={0} 
+        y={0} 
+        width={shape.props.w} 
+        height={shape.props.isMinimized ? 40 : shape.props.h}
+        fill="none"
+      />
     )
   }
 
@@ -179,15 +214,6 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
       })
     }
 
-    const wrapperStyle = {
-      width: `${shape.props.w}px`,
-      height: `${shape.props.h}px`,
-      padding: "15px",
-      boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)",
-      backgroundColor: "#F0F0F0",
-      borderRadius: "4px",
-    }
-
     const contentStyle = {
       pointerEvents: isSelected ? "none" as const : "all" as const,
       width: "100%",
@@ -200,21 +226,153 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
       overflow: "hidden",
     }
 
-    if (!shape.props.url) {
+    const wrapperStyle = {
+      position: 'relative' as const,
+      width: `${shape.props.w}px`,
+      height: `${shape.props.isMinimized ? 40 : shape.props.h}px`,
+      backgroundColor: "#F0F0F0",
+      borderRadius: "4px",
+      transition: "height 0.3s, width 0.3s",
+      overflow: "hidden",
+    }
+
+    // Update control button styles
+    const controlButtonStyle = {
+      border: "none",
+      background: "#666666", // Grey background
+      color: "white", // White text
+      padding: "4px 12px",
+      margin: "0 4px",
+      borderRadius: "4px",
+      cursor: "pointer",
+      fontSize: "12px",
+      pointerEvents: "all" as const,
+      whiteSpace: "nowrap" as const,
+      transition: "background-color 0.2s",
+      "&:hover": {
+        background: "#4D4D4D", // Darker grey on hover
+      }
+    }
+
+    const controlsContainerStyle = {
+      position: "absolute" as const,
+      top: "8px",
+      right: "8px",
+      display: "flex",
+      gap: "8px",
+      zIndex: 1,
+    }
+
+    const handleToggleMinimize = (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      this.editor.updateShape<IEmbedShape>({
+        id: shape.id,
+        type: "Embed",
+        props: {
+          ...shape.props,
+          isMinimized: !shape.props.isMinimized,
+        },
+      })
+    }
+
+    const controls = (url: string) => (
+      <div style={controlsContainerStyle}>
+        <button
+          onClick={() => navigator.clipboard.writeText(url)}
+          style={controlButtonStyle}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          Copy Link
+        </button>
+        <button
+          onClick={() => window.open(url, '_blank')}
+          style={controlButtonStyle}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          Open in Tab
+        </button>
+        <button
+          onClick={handleToggleMinimize}
+          style={controlButtonStyle}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          {shape.props.isMinimized ? "Maximize" : "Minimize"}
+        </button>
+      </div>
+    )
+
+    // For minimized state, show URL and all controls
+    if (shape.props.url && shape.props.isMinimized) {
       return (
         <div style={wrapperStyle}>
           <div
-            style={contentStyle}
-            onClick={() => document.querySelector("input")?.focus()}
-            onPointerDown={(e) => {
-              e.preventDefault()
-              document.querySelector("input")?.focus()
-            }}
-            onTouchStart={(e) => {
-              e.preventDefault()
-              document.querySelector("input")?.focus()
+            style={{
+              ...contentStyle,
+              height: "40px",
+              alignItems: "center",
+              padding: "0 15px",
+              position: "relative",
+              display: "flex",
+              gap: "8px",
             }}
           >
+            <img 
+              src={getFaviconUrl(shape.props.url)}
+              alt=""
+              style={{
+                width: "16px",
+                height: "16px",
+                flexShrink: 0,
+              }}
+              onError={(e) => {
+                // Hide broken favicon
+                (e.target as HTMLImageElement).style.display = 'none'
+              }}
+            />
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+                flex: 1,
+              }}
+            >
+              <span
+                style={{
+                  fontWeight: 500,
+                  color: "#333",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {getDisplayTitle(shape.props.url)}
+              </span>
+              <span
+                style={{
+                  fontSize: "11px",
+                  color: "#666",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {shape.props.url}
+              </span>
+            </div>
+            {controls(shape.props.url)}
+          </div>
+        </div>
+      )
+    }
+
+    // For empty state
+    if (!shape.props.url) {
+      return (
+        <div style={wrapperStyle}>
+          {controls("")}
+          <div style={contentStyle}>
             <form
               onSubmit={handleSubmit}
               style={{ width: "100%", height: "100%", padding: "10px" }}
@@ -245,9 +403,12 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
       )
     }
 
-    if (shape.props.url?.includes("medium.com")) {
+    // For medium.com and twitter profile views
+    if (shape.props.url?.includes("medium.com") || 
+        (shape.props.url && shape.props.url.match(/(?:twitter\.com|x\.com)\/[^\/]+$/))) {
       return (
         <div style={wrapperStyle}>
+          {controls(shape.props.url)}
           <div
             style={{
               ...contentStyle,
@@ -279,164 +440,87 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
       )
     }
 
-    if (
-      shape.props.url &&
-      shape.props.url.match(/(?:twitter\.com|x\.com)\/[^\/]+$/)
-    ) {
-      const username = shape.props.url.split("/").pop()
-      return (
-        <div style={wrapperStyle}>
-          <div
-            style={{
-              ...contentStyle,
-              flexDirection: "column",
-              gap: "12px",
-              padding: "20px",
-              textAlign: "center",
-              pointerEvents: "all",
-            }}
-          >
-            <p>X (Twitter) does not support embedding profile timelines.</p>
-            <a
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                window.top?.open(
-                  shape.props.url || "",
-                  "_blank",
-                  "noopener,noreferrer",
-                )
-              }}
-              href={shape.props.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                color: "#1976d2",
-                textDecoration: "none",
-                cursor: "pointer",
-              }}
-              onPointerDown={(e) => e.stopPropagation()}
-            >
-              View @{username}'s profile in new tab →
-            </a>
-          </div>
-        </div>
-      )
-    }
-
+    // For normal embed view
     return (
       <div style={wrapperStyle}>
-        <div style={contentStyle}>
-          <iframe
-            src={transformUrl(shape.props.url)}
-            width={shape.props.w}
-            height={shape.props.h}
-            style={{ border: "none" }}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            loading="lazy"
-            referrerPolicy="no-referrer"
-            onLoad={(e) => {
-              // Only add listener if we have a valid iframe
-              const iframe = e.currentTarget as HTMLIFrameElement
-              if (!iframe) return;
-
-              const messageHandler = (event: MessageEvent) => {
-                if (event.source === iframe.contentWindow) {
-                  handleIframeInteraction(event.data)
-                }
-              }
-
-              window.addEventListener("message", messageHandler)
-              
-              // Clean up listener when iframe changes
-              return () => window.removeEventListener("message", messageHandler)
-            }}
-          />
-        </div>
-        <div
+        <div 
           style={{
+            height: "40px",
+            position: "relative",
+            backgroundColor: "#F0F0F0",
+            borderTopLeftRadius: "4px",
+            borderTopRightRadius: "4px",
             display: "flex",
-            justifyContent: "space-between",
             alignItems: "center",
-            padding: "8px",
-            minHeight: "24px",
-            fontSize: "12px",
-            position: "absolute",
-            bottom: "15px",
-            left: "15px",
-            right: "15px",
-            backgroundColor: "rgba(255, 255, 255, 0.9)",
-            borderRadius: "4px",
+            padding: "0 8px",
           }}
         >
-          <span
-            style={{
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              flex: 1,
-              marginRight: "8px",
-              color: "#666",
-            }}
-          >
-            {shape.props.url}
-          </span>
-          <div
-            style={{
-              display: "flex",
-              gap: "8px",
-              pointerEvents: "all",
-            }}
-          >
-            <button
-              onClick={async (e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                try {
-                  await navigator.clipboard.writeText(shape.props.url || "")
-                  setCopyStatus(true)
-                  setTimeout(() => setCopyStatus(false), 2000)
-                } catch (err) {
-                  console.error("Failed to copy:", err)
-                }
-              }}
-              style={{
-                border: "none",
-                background: "transparent",
-                color: "#1976d2",
-                cursor: "pointer",
-                padding: "0 4px",
-                fontSize: "12px",
-              }}
-              onPointerDown={(e) => e.stopPropagation()}
-            >
-              {copyStatus ? "Copied" : "Copy link"}
-            </button>
-            <button
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                window.top?.open(
-                  shape.props.url || "",
-                  "_blank",
-                  "noopener,noreferrer",
-                )
-              }}
-              style={{
-                border: "none",
-                background: "transparent",
-                color: "#1976d2",
-                cursor: "pointer",
-                padding: "0 4px",
-                fontSize: "12px",
-              }}
-              onPointerDown={(e) => e.stopPropagation()}
-            >
-              Open in new tab ↗
-            </button>
-          </div>
+          {controls(shape.props.url)}
         </div>
+        {!shape.props.isMinimized && (
+          <>
+            <div style={{
+              ...contentStyle,
+              height: `${shape.props.h - 80}px`,
+            }}>
+              <iframe
+                src={transformUrl(shape.props.url)}
+                width="100%"
+                height="100%"
+                style={{ border: "none" }}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                loading="lazy"
+                referrerPolicy="no-referrer"
+                onLoad={(e) => {
+                  // Only add listener if we have a valid iframe
+                  const iframe = e.currentTarget as HTMLIFrameElement
+                  if (!iframe) return;
+
+                  const messageHandler = (event: MessageEvent) => {
+                    if (event.source === iframe.contentWindow) {
+                      handleIframeInteraction(event.data)
+                    }
+                  }
+
+                  window.addEventListener("message", messageHandler)
+                  
+                  // Clean up listener when iframe changes
+                  return () => window.removeEventListener("message", messageHandler)
+                }}
+              />
+            </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "8px",
+                height: "40px",
+                fontSize: "12px",
+                backgroundColor: "rgba(255, 255, 255, 0.9)",
+                borderRadius: "4px",
+                position: "absolute",
+                bottom: 0,
+                left: 0,
+                right: 0,
+              }}
+            >
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  flex: 1,
+                  marginRight: "8px",
+                  color: "#666",
+                }}
+              >
+                {shape.props.url}
+              </span>
+            </div>
+          </>
+        )}
       </div>
     )
   }
@@ -477,5 +561,37 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
       const input = document.querySelector('input')
       input?.focus()
     }
+  }
+
+  // Add a method to handle URL updates
+  override onBeforeCreate = (shape: IEmbedShape) => {
+    if (shape.props.url) {
+      const dimensions = getDefaultDimensions(shape.props.url)
+      return {
+        ...shape,
+        props: {
+          ...shape.props,
+          w: dimensions.w,
+          h: dimensions.h,
+        },
+      }
+    }
+    return shape
+  }
+
+  // Handle URL updates after creation
+  override onBeforeUpdate = (prev: IEmbedShape, next: IEmbedShape) => {
+    if (next.props.url && prev.props.url !== next.props.url) {
+      const dimensions = getDefaultDimensions(next.props.url)
+      return {
+        ...next,
+        props: {
+          ...next.props,
+          w: dimensions.w,
+          h: dimensions.h,
+        },
+      }
+    }
+    return next
   }
 }
