@@ -174,3 +174,4 @@ dist
 .env.local
 .env.*.local
 .dev.vars
+.env.production

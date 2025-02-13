@@ -6,6 +6,7 @@ account_id = "0e7b3338d5278ed1b148e6456b940913"
 [vars]
 # Environment variables are managed in Cloudflare Dashboard
 # Workers & Pages → jeffemmett-canvas → Settings → Variables
+DAILY_DOMAIN = "mycopunks.daily.co"
 
 [dev]
 port = 5172
@@ -32,6 +33,11 @@ binding = 'BOARD_BACKUPS_BUCKET'
 bucket_name = 'board-backups'
 preview_bucket_name = 'board-backups-preview'
 
+[miniflare]
+kv_persist = true
+r2_persist = true
+durable_objects_persist = true
+
 [observability]
 enabled = true
 head_sampling_rate = 1  
@@ -39,3 +45,9 @@ head_sampling_rate = 1
 [triggers]
 crons = ["0 0 * * *"] # Run at midnight UTC every day 
 # crons = ["*/10 * * * *"] # Run every 10 minutes 
+
+# Secrets should be set using `wrangler secret put` command
+# DO NOT put these directly in wrangler.toml:
+# - DAILY_API_KEY
+# - CLOUDFLARE_API_TOKEN
+# etc.
