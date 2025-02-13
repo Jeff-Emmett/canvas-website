@@ -1,6 +1,10 @@
 import { BaseBoxShapeUtil, TLBaseShape } from "tldraw"
 import { useEffect, useState } from "react"
 
+interface DailyApiResponse {
+  url: string;
+}
+
 export type IVideoChatShape = TLBaseShape<
   "VideoChat",
   {
@@ -36,33 +40,36 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     }
 
     try {
-      const apiKey = import.meta.env["VITE_DAILY_API_KEY"]
-      console.log("API Key available:", !!apiKey)
-      if (!apiKey) throw new Error("Daily API key is missing")
+      const workerUrl = import.meta.env.VITE_TLDRAW_WORKER_URL
+      const apiKey = import.meta.env.VITE_DAILY_API_KEY
 
-      const response = await fetch("https://api.daily.co/v1/rooms", {
-        method: "POST",
+      if (!apiKey) {
+        throw new Error('Daily.co API key not configured')
+      }
+
+      const response = await fetch(`${workerUrl}/daily/rooms`, {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey.trim()}`,
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
           properties: {
             enable_chat: true,
-            start_audio_off: true,
+            enable_screenshare: true,
             start_video_off: true,
-          },
-        }),
+            start_audio_off: true
+          }
+        })
       })
 
-      console.log("Response status:", response.status)
-      console.log("Response data:", await response.clone().json())
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(`Failed to create room (${response.status}): ${JSON.stringify(error)}`)
+      }
 
-      if (!response.ok)
-        throw new Error(`Failed to create room (${response.status})`)
-
-      const responseData = (await response.json()) as { url: string }
-      const url = responseData.url
+      const data = (await response.json()) as DailyApiResponse;
+      const url = data.url;
 
       if (!url) throw new Error("Room URL is missing")
 

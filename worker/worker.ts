@@ -124,59 +124,34 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     })
   })
 
-  .post("/daily/rooms", async (request, env) => {
-    try {
-      const { name, properties } = (await request.json()) as {
-        name: string
-        properties: Record<string, unknown>
-      }
+  .post("/daily/rooms", async (req) => {
+    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+    
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: 'No API key provided' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
 
-      // Create a room using Daily.co API
-      const dailyResponse = await fetch("https://api.daily.co/v1/rooms", {
-        method: "POST",
+    try {
+      const response = await fetch('https://api.daily.co/v1/rooms', {
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${env.DAILY_API_KEY}`,
-        },
-        body: JSON.stringify({
-          name,
-          properties,
-        }),
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        }
       })
 
-      const dailyData = await dailyResponse.json()
-
-      if (!dailyResponse.ok) {
-        return new Response(
-          JSON.stringify({
-            message:
-              (dailyData as any).info || "Failed to create Daily.co room",
-          }),
-          {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          },
-        )
-      }
-
-      return new Response(
-        JSON.stringify({
-          url: `https://${env.DAILY_DOMAIN}/${(dailyData as any).name}`,
-        }),
-        {
-          headers: { "Content-Type": "application/json" },
-        },
-      )
+      const data = await response.json()
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      })
     } catch (error) {
-      return new Response(
-        JSON.stringify({
-          message: error instanceof Error ? error.message : "Unknown error",
-        }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        },
-      )
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
   })
 
