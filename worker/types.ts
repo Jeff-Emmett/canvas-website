@@ -8,4 +8,5 @@ export interface Environment {
 	TLDRAW_DURABLE_OBJECT: DurableObjectNamespace
 	DAILY_API_KEY: string;
 	DAILY_DOMAIN: string;
+	//RECORDING_PROCESSOR: Workflow;
 }

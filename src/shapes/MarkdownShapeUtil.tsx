@@ -41,10 +41,24 @@ export class MarkdownShape extends BaseBoxShapeUtil<
 > {
   static override type = "MarkdownTool"
 
-  styles = {
-    color: MarkdownColor,
-    size: MarkdownSize,
-    font: MarkdownFont,
+  static styles = {
+    color: DefaultColorStyle,
+    size: DefaultSizeStyle,
+    font: DefaultFontStyle,
+  } as any  // Type assertion to allow dynamic property addition
+
+  styles = MarkdownShape.styles
+
+  constructor(props: any) {
+    super(props)
+    console.log('MarkdownShape constructor - styles:', this.styles)
+    // Add a fallback get method if it doesn't exist
+    if (!this.styles.get) {
+      this.styles.get = function(style: string) {
+        console.log('Fallback get called for style:', style)
+        return this[style] || null
+      }
+    }
   }
 
   getDefaultProps(): IMarkdownShape["props"] & { w: number; h: number } {

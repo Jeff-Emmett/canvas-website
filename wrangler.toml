@@ -33,6 +33,11 @@ binding = 'BOARD_BACKUPS_BUCKET'
 bucket_name = 'board-backups'
 preview_bucket_name = 'board-backups-preview'
 
+# [[workflows]]
+# name = "recording-processor"
+# binding = "RECORDING_PROCESSOR"
+# class_name = "RecordingProcessor"
+
 [miniflare]
 kv_persist = true
 r2_persist = true

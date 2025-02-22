@@ -2,6 +2,10 @@ import { handleUnfurlRequest } from "cloudflare-workers-unfurl"
 import { AutoRouter, cors, error, IRequest } from "itty-router"
 import { handleAssetDownload, handleAssetUpload } from "./assetUploads"
 import { Environment } from "./types"
+import { RecordingProcessor } from './RecordingProcessor'
+
+// At the top with other exports
+export { RecordingProcessor } from './RecordingProcessor'
 
 // make sure our sync durable object is made available to cloudflare
 export { TldrawDurableObject } from "./TldrawDurableObject"
@@ -40,7 +44,7 @@ const { preflight, corsify } = cors({
     // For development - check if it's a localhost or local IP
     if (
       origin.match(
-        /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.|169\.254\.|10\.)/,
+        /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.|169\.254\.|10\.255\.255\.254|10\.)/,
       )
     ) {
       return origin
@@ -155,6 +159,169 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     }
   })
 
+  // Update the recording start endpoint to use room name in the URL
+  .post("/daily/recordings/:roomName/start", async (req) => {
+    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+    const roomName = req.params.roomName
+    
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: 'No API key provided' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      const body = await req.json() as { layout?: { preset: string } };
+      const requestBody = {
+        layout: body.layout
+      };
+      
+      const response = await fetch(`https://api.daily.co/v1/rooms/${roomName}/recordings/start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      const data = await response.json();
+      
+      // Return the response with the same status code
+      return new Response(JSON.stringify(data), {
+        status: response.status,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  })
+
+  .post("/daily/recordings/:roomName/stop", async (req) => {
+    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+    const roomName = req.params.roomName
+    
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: 'No API key provided' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      const response = await fetch(`https://api.daily.co/v1/rooms/${roomName}/recordings/stop`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        }
+      })
+
+      const data = await response.json()
+      return new Response(JSON.stringify(data), {
+        status: response.status,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
+  // Add new endpoint to list recordings for a room
+  .get("/daily/recordings/:roomName", async (req) => {
+    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+    const roomName = req.params.roomName
+    
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: 'No API key provided' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      // Add query parameters to get recent recordings
+      const timeframeStart = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(); // Last 24 hours
+      const response = await fetch(`https://api.daily.co/v1/recordings?room_name=${roomName}&timeframe_start=${timeframeStart}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Failed to fetch recordings: ${JSON.stringify(errorData)}`);
+      }
+
+      const data = await response.json();
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      console.error('Fetching recordings failed:', error);
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  });
+
+interface DailyWebhookPayload {
+  event: string;
+  recording: {
+    download_url: string;
+    id: string;
+  };
+  room: {
+    name: string;
+  };
+}
+
+// Add a new webhook endpoint for Daily.co
+router
+  .post("/webhooks/daily", async (request: IRequest, env: Environment) => {
+    // 1. Verify webhook signature
+    const signature = request.headers.get('X-Webhook-Signature');
+    const timestamp = request.headers.get('X-Webhook-Timestamp');
+    
+    if (!signature || !timestamp) {
+      return new Response('Missing webhook signature headers', { status: 401 });
+    }
+
+    const payload = await request.json() as DailyWebhookPayload;
+    
+    // Only process recording-ready events
+    if (payload.event !== 'recording-ready') {
+      return new Response('Ignored non-recording event', { status: 200 });
+    }
+
+    try {
+      const processor = new RecordingProcessor();
+      const response = await processor.fetch(new Request(payload.recording.download_url), env);
+      const result = await response.json() as { location: string };
+
+      return Response.json({
+        success: true,
+        location: result.location
+      });
+    } catch (error) {
+      console.error('Failed to process recording:', error);
+      return Response.json({
+        success: false,
+        error: (error as Error).message
+      }, { status: 500 });
+    }
+  })
+
 async function backupAllBoards(env: Environment) {
   try {
     // List all room files from TLDRAW_BUCKET
@@ -210,6 +377,161 @@ router
       headers: { 'Content-Type': 'application/json' }
     })
   })
+
+// Start transcription
+router
+  .post('/daily/transcription/:room/start', async (req, _env) => {
+    const { room } = req.params;
+    const apiKey = req.headers.get('Authorization')?.split(' ')[1];
+    
+    if (!apiKey) {
+      return new Response('API key required', { status: 401 });
+    }
+
+    try {
+      const response = await fetch(`https://api.daily.co/v1/rooms/${room}/transcription/start`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(req.body)
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error((data as { error?: string })?.error || 'Failed to start transcription');
+      }
+
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      console.error('Error starting transcription:', error);
+      return new Response(JSON.stringify({ error: 'Failed to start transcription' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  })
+
+// Stop transcription
+router
+  .post('/daily/transcription/:room/stop', async (req, _env) => {
+    const { room } = req.params;
+    const apiKey = req.headers.get('Authorization')?.split(' ')[1];
+    
+    if (!apiKey) {
+      return new Response('API key required', { status: 401 });
+    }
+
+    try {
+      const response = await fetch(`https://api.daily.co/v1/rooms/${room}/transcription/stop`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error((data as { error?: string })?.error || 'Failed to stop transcription');
+      }
+
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      console.error('Error stopping transcription:', error);
+      return new Response(JSON.stringify({ error: 'Failed to stop transcription' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  })
+
+// Add new endpoint to list transcripts for a room
+router
+  .get("/daily/transcription/:roomName", async (req) => {
+    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+    const roomName = req.params.roomName
+    
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: 'No API key provided' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      // Use the correct query parameter name: room_name instead of roomId
+      const response = await fetch(`https://api.daily.co/v1/transcript?room_name=${roomName}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Failed to fetch transcripts: ${JSON.stringify(errorData)}`);
+      }
+
+      const data = await response.json();
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      console.error('Fetching transcripts failed:', error);
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  });
+
+// Add new endpoint to get transcript access link
+router.get("/daily/transcription/:id/access-link", async (req) => {
+  const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1];
+  const transcriptId = req.params.id;
+  
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: 'No API key provided' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  try {
+    const response = await fetch(`https://api.daily.co/v1/transcript/${transcriptId}/access-link`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Failed to get transcript link: ${JSON.stringify(errorData)}`);
+    }
+
+    const data = await response.json();
+    return new Response(JSON.stringify(data), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (error) {
+    console.error('Getting transcript link failed:', error);
+    return new Response(JSON.stringify({ error: (error as Error).message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+});
 
 // export our router for cloudflare
 export default router

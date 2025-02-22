@@ -1,3 +1,5 @@
+// FIX DEFAULT MENU (copy, paste, etc)
+
 import {
   Editor,
   TldrawUiMenuActionItem,
@@ -67,6 +69,8 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
 
   return (
     <DefaultContextMenu {...props}>
+      {props.children}
+      
       {/* Camera Controls Group */}
       <TldrawUiMenuGroup id="camera-controls">
         <TldrawUiMenuItem

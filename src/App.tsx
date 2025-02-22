@@ -1,6 +1,8 @@
 import { inject } from "@vercel/analytics"
 import "tldraw/tldraw.css"
 import "@/css/style.css"
+import "@uiw/react-md-editor/markdown-editor.css"
+import "@uiw/react-markdown-preview/markdown.css"
 import { Default } from "@/routes/Default"
 import { BrowserRouter, Route, Routes } from "react-router-dom"
 import { Contact } from "@/routes/Contact"
