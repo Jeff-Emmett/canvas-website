@@ -8,7 +8,7 @@ import {
 import { getEdge } from "@/propagators/tlgraph"
 import { llm } from "@/utils/llmUtils"
 import { isShapeOfType } from "@/propagators/utils"
-import React from "react"
+import React, { useState } from "react"
 
 type IPrompt = TLBaseShape<
   "Prompt",
@@ -25,6 +25,12 @@ type IPrompt = TLBaseShape<
 const CopyIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
     <path d="M16 1H4C2.9 1 2 1.9 2 3V17H4V3H16V1ZM19 5H8C6.9 5 6 5.9 6 7V21C6 22.1 6.9 23 8 23H19C20.1 23 21 22.1 21 21V7C21 5.9 20.1 5 19 5ZM19 21H8V7H19V21Z"/>
+  </svg>
+)
+
+const CheckIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
   </svg>
 )
 
@@ -83,42 +89,69 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
     }, {} as Record<string, TLShape>)
 
     const generateText = async (prompt: string) => {
-      // Get existing conversation history, ensure it ends with a newline if not empty
       const conversationHistory = shape.props.value ? shape.props.value + '\n' : ''
-      const escapedPrompt = prompt.replace(/"/g, '\\"').replace(/\n/g, '\\n')
-      const newPrompt = `{"role": "user", "content": "${escapedPrompt}"}\n{"role": "assistant", "content": "`
-      const fullPrompt = `${conversationHistory}${newPrompt}`
-
-      // First update: Show the user's prompt while preserving history
+      const escapedPrompt = prompt.replace(/[\\"]/g, '\\$&').replace(/\n/g, '\\n')
+      const userMessage = `{"role": "user", "content": "${escapedPrompt}"}`
+      
+      // Update with user message and trigger scroll
       this.editor.updateShape<IPrompt>({
         id: shape.id,
         type: "Prompt",
         props: { 
-          value: fullPrompt,
+          value: conversationHistory + userMessage,
           agentBinding: "someone" 
         },
       })
 
-      // Send just the new prompt to the LLM
-      let lastResponseLength = 0
-      let fullResponse = ''  // Track the complete response
+      let fullResponse = ''
+
       await llm(prompt, localStorage.getItem("openai_api_key") || "", (partial: string, done: boolean) => {
         if (partial) {
-          fullResponse = partial  // Store the complete response
-          // Only get the new content by slicing from the last response length
-          const newContent = partial.slice(lastResponseLength)
-          lastResponseLength = partial.length
+          fullResponse = partial
+          const escapedResponse = partial.replace(/[\\"]/g, '\\$&').replace(/\n/g, '\\n')
+          const assistantMessage = `{"role": "assistant", "content": "${escapedResponse}"}`
+          
+          try {
+            JSON.parse(assistantMessage)
+            
+            // Use requestAnimationFrame to ensure smooth scrolling during streaming
+            requestAnimationFrame(() => {
+              this.editor.updateShape<IPrompt>({
+                id: shape.id,
+                type: "Prompt",
+                props: { 
+                  value: conversationHistory + userMessage + '\n' + assistantMessage,
+                  agentBinding: done ? null : "someone" 
+                },
+              })
+            })
+          } catch (error) {
+            console.error('Invalid JSON message:', error)
+          }
+        }
+      })
+
+      // Ensure the final message is saved after streaming is complete
+      if (fullResponse) {
+        const escapedResponse = fullResponse.replace(/[\\"]/g, '\\$&').replace(/\n/g, '\\n')
+        const assistantMessage = `{"role": "assistant", "content": "${escapedResponse}"}`
+        
+        try {
+          // Verify the final message is valid JSON before updating
+          JSON.parse(assistantMessage)
           
           this.editor.updateShape<IPrompt>({
             id: shape.id,
             type: "Prompt",
             props: { 
-              value: `${fullPrompt}${fullResponse}"}`, // Use the complete response
-              agentBinding: done ? null : "someone" 
+              value: conversationHistory + userMessage + '\n' + assistantMessage,
+              agentBinding: null 
             },
           })
+        } catch (error) {
+          console.error('Invalid JSON in final message:', error)
         }
-      })
+      }
     }
 
     const handlePrompt = () => {
@@ -147,6 +180,32 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
 
     // Add state for copy button text
     const [copyButtonText, setCopyButtonText] = React.useState("Copy Conversation")
+
+    // In the component function, add state for tracking copy success
+    const [isCopied, setIsCopied] = React.useState(false)
+
+    // In the component function, update the state to track which message was copied
+    const [copiedIndex, setCopiedIndex] = React.useState<number | null>(null)
+
+    // Add ref for the chat container
+    const chatContainerRef = React.useRef<HTMLDivElement>(null)
+
+    // Add function to scroll to bottom
+    const scrollToBottom = () => {
+      if (chatContainerRef.current) {
+        // Use requestAnimationFrame for smooth scrolling
+        requestAnimationFrame(() => {
+          if (chatContainerRef.current) {
+            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+          }
+        })
+      }
+    }
+
+    // Use both value and agentBinding as dependencies to catch all updates
+    React.useEffect(() => {
+      scrollToBottom()
+    }, [shape.props.value, shape.props.agentBinding])
 
     const handleCopy = async () => {
       try {
@@ -179,6 +238,9 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
       }
     };
 
+    const isSelected = this.editor.getSelectedShapeIds().includes(shape.id)
+    const [isHovering, setIsHovering] = useState(false)
+
     return (
       <HTMLContainer
         style={{
@@ -187,7 +249,7 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
           padding: this.PADDING,
           height: this.FIXED_HEIGHT,
           width: shape.props.w,
-          pointerEvents: "all",
+          pointerEvents: isSelected || isHovering ? "all" : "none",
           backgroundColor: "#efefef",
           overflow: "visible",
           display: "flex",
@@ -196,8 +258,22 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
           alignItems: "stretch",
           outline: shape.props.agentBinding ? "2px solid orange" : "none",
         }}
+        //TODO: FIX SCROLL IN PROMPT CHAT WHEN HOVERING OVER ELEMENT
+        onPointerEnter={() => setIsHovering(true)}
+        onPointerLeave={() => setIsHovering(false)}
+        onWheel={(e) => {
+          if (isSelected || isHovering) {
+            e.preventDefault()
+            e.stopPropagation()
+            
+            if (chatContainerRef.current) {
+              chatContainerRef.current.scrollTop += e.deltaY
+            }
+          }
+        }}
       >
         <div
+          ref={chatContainerRef}
           style={{
             padding: "4px 8px",
             flex: 1,
@@ -208,6 +284,7 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
             overflowY: "auto",
             whiteSpace: "pre-wrap",
             fontFamily: "monospace",
+            pointerEvents: isSelected || isHovering ? "all" : "none",
           }}
         >
           {shape.props.value ? (
@@ -263,7 +340,10 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
                         onClick={async () => {
                           try {
                             await navigator.clipboard.writeText(parsed.content)
-                            // Optional: Show a brief "Copied!" tooltip
+                            setCopiedIndex(index)
+                            setTimeout(() => {
+                              setCopiedIndex(null)
+                            }, 2000)
                           } catch (err) {
                             console.error('Failed to copy text:', err)
                           }
@@ -275,7 +355,7 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
                           e.currentTarget.style.opacity = '0.7'
                         }}
                       >
-                        <CopyIcon />
+                        {copiedIndex === index ? <CheckIcon /> : <CopyIcon />}
                       </button>
                     </div>
                   </div>
@@ -292,7 +372,8 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
           display: "flex", 
           flexDirection: "column",
           gap: "5px",
-          marginTop: "auto"
+          marginTop: "auto",
+          pointerEvents: isSelected || isHovering ? "all" : "none",
         }}>
           <div style={{ 
             display: "flex", 
@@ -362,7 +443,15 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
     )
   }
 
-  indicator(shape: IPrompt) {
-    return <rect width={shape.props.w} height={shape.props.h} rx={5} />
+  // Override the default indicator behavior
+  // TODO: FIX SECOND INDICATOR UX GLITCH
+  override indicator(shape: IPrompt) {
+    return (
+      <rect
+        width={shape.props.w}
+        height={this.FIXED_HEIGHT}
+        rx={6}
+      />
+    )
   }
 }
