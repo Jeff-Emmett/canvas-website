@@ -147,6 +147,14 @@ export const overrides: TLUiOverrides = {
   actions(editor, actions) {
     return {
       ...actions,
+      "zoom-in": {
+        ...actions["zoom-in"],
+        kbd: "ctrl+up",
+      },
+      "zoom-out": {
+        ...actions["zoom-out"],
+        kbd: "ctrl+down",
+      },
       zoomToSelection: {
         id: "zoom-to-selection",
         label: "Zoom to Selection",
@@ -187,7 +195,7 @@ export const overrides: TLUiOverrides = {
       saveToPdf: {
         id: "save-to-pdf",
         label: "Save Selection as PDF",
-        kbd: "alt+p",
+        kbd: "alt+s",
         onSelect: () => {
           if (editor.getSelectedShapeIds().length > 0) {
             saveToPdf(editor)
@@ -262,93 +270,6 @@ export const overrides: TLUiOverrides = {
                 type: shape.type,
                 x: shape.x,
                 y: shape.y + 50,
-              })
-            })
-          }
-        },
-      },
-
-      // TODO: FIX THIS
-      resizeSelectedUp: {
-        id: "resize-selected-up",
-        label: "Resize Up",
-        kbd: "ctrl+ArrowUp",
-        onSelect: () => {
-          const selectedShapes = editor.getSelectedShapes()
-          if (selectedShapes.length > 0) {
-            selectedShapes.forEach((shape) => {
-              const bounds = editor.getShapeGeometry(shape).bounds
-              editor.updateShape({
-                id: shape.id,
-                type: shape.type,
-                //y: shape.y - 50,
-                props: {
-                  ...shape.props,
-                  h: bounds.height + 50,
-                },
-              })
-            })
-          }
-        },
-      },
-      resizeSelectedDown: {
-        id: "resize-selected-down",
-        label: "Resize Down",
-        kbd: "ctrl+ArrowDown",
-        onSelect: () => {
-          const selectedShapes = editor.getSelectedShapes()
-          if (selectedShapes.length > 0) {
-            selectedShapes.forEach((shape) => {
-              const bounds = editor.getShapeGeometry(shape).bounds
-              editor.updateShape({
-                id: shape.id,
-                type: shape.type,
-                props: {
-                  ...shape.props,
-                  h: bounds.height + 50,
-                },
-              })
-            })
-          }
-        },
-      },
-      resizeSelectedLeft: {
-        id: "resize-selected-left",
-        label: "Resize Left",
-        kbd: "ctrl+ArrowLeft",
-        onSelect: () => {
-          const selectedShapes = editor.getSelectedShapes()
-          if (selectedShapes.length > 0) {
-            selectedShapes.forEach((shape) => {
-              const bounds = editor.getShapeGeometry(shape).bounds
-              editor.updateShape({
-                id: shape.id,
-                type: shape.type,
-                props: {
-                  ...shape.props,
-                  w: bounds.width + 50,
-                },
-              })
-            })
-          }
-        },
-      },
-      resizeSelectedRight: {
-        id: "resize-selected-right",
-        label: "Resize Right",
-        kbd: "ctrl+ArrowRight",
-        onSelect: () => {
-          const selectedShapes = editor.getSelectedShapes()
-          if (selectedShapes.length > 0) {
-            selectedShapes.forEach((shape) => {
-              const bounds = editor.getShapeGeometry(shape).bounds
-              editor.updateShape({
-                id: shape.id,
-                type: shape.type,
-                props: {
-                  ...shape.props,
-                  w: bounds.width + 50,
-                },
               })
             })
           }
