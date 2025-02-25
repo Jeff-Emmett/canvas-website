@@ -97,7 +97,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           id="save-to-pdf"
           label="Save Selection as PDF"
           icon="file"
-          kbd="alt+p"
+          kbd="alt+s"
           disabled={!hasSelection}
           onSelect={() => saveToPdf(editor)}
         />
