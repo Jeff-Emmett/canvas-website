@@ -7,7 +7,7 @@ import {
   TLShape,
 } from "tldraw"
 import { TldrawUiMenuGroup } from "tldraw"
-import { DefaultContextMenu } from "tldraw"
+import { DefaultContextMenu, DefaultContextMenuContent } from "tldraw"
 import { TLUiContextMenuProps, useEditor } from "tldraw"
 import {
   cameraHistory,
@@ -67,6 +67,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
 
   return (
     <DefaultContextMenu {...props}>
+      <DefaultContextMenuContent />
       {/* Camera Controls Group */}
       <TldrawUiMenuGroup id="camera-controls">
         <TldrawUiMenuItem
