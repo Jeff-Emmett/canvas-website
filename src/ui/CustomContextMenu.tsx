@@ -185,7 +185,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           id="MycrozineTemplate"
           label="Create Mycrozine Template"
           icon="rectangle"
-          kbd="m"
+          kbd="alt+z"
           disabled={hasSelection}
           onSelect={() => {
             editor.setCurrentTool("MycrozineTemplate")
