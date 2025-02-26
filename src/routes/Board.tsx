@@ -30,6 +30,7 @@ import { makeRealSettings, applySettingsMigrations } from "@/lib/settings"
 import { PromptShapeTool } from "@/tools/PromptShapeTool"
 import { PromptShape } from "@/shapes/PromptShapeUtil"
 import { llm } from "@/utils/llmUtils"
+import { setInitialCameraFromUrl } from "@/ui/cameraUtils"
 
 // Default to production URL if env var isn't available
 export const WORKER_URL = "https://jeffemmett-canvas.jeffemmett.workers.dev"
@@ -115,6 +116,7 @@ export function Board() {
           setEditor(editor)
           editor.registerExternalAssetHandler("url", unfurlBookmarkUrl)
           editor.setCurrentTool("hand")
+          setInitialCameraFromUrl(editor)
           handleInitialPageLoad(editor)
           registerPropagators(editor, [
             TickPropagator,

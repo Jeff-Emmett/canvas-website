@@ -1,4 +1,4 @@
-import { Editor } from "tldraw"
+import { Editor, TLFrameShape, TLParentId, TLShape, TLShapeId } from "tldraw"
 
 export const cameraHistory: { x: number; y: number; z: number }[] = []
 const MAX_HISTORY = 10 // Keep last 10 camera positions
@@ -221,4 +221,70 @@ export const lockCameraToFrame = async (editor: Editor) => {
     console.error("Failed to copy frame link:", error)
     alert("Failed to copy frame link. Please check clipboard permissions.")
   }
+}
+
+export const setInitialCameraFromUrl = (editor: Editor) => {
+  const url = new URL(window.location.href)
+  const x = url.searchParams.get("x")
+  const y = url.searchParams.get("y")
+  const zoom = url.searchParams.get("zoom")
+  const shapeId = url.searchParams.get("shapeId")
+  const frameId = url.searchParams.get("frameId")
+  //const isLocked = url.searchParams.get("isLocked") === "true"
+
+  console.log('Setting initial camera from URL:', { x, y, zoom, shapeId, frameId })
+
+  if (x && y && zoom) {
+    editor.stopCameraAnimation()
+    editor.setCamera(
+      {
+        x: parseFloat(x),
+        y: parseFloat(y),
+        z: parseFloat(zoom)
+      },
+      { animation: { duration: 0 } }
+    )
+  }
+
+  // Handle shape/frame selection and zoom
+  if (shapeId) {
+    editor.select(shapeId as TLShapeId)
+    const bounds = editor.getSelectionPageBounds()
+    if (bounds && !x && !y && !zoom) {
+      zoomToSelection(editor)
+    }
+  } else if (frameId) {
+    editor.select(frameId as TLShapeId)
+    const frame = editor.getShape(frameId as TLShapeId)
+    if (frame && !x && !y && !zoom) {
+      const bounds = editor.getShapePageBounds(frame as TLShape)
+      if (bounds) {
+        editor.zoomToBounds(bounds, {
+          targetZoom: 1,
+          animation: { duration: 0 },
+        })
+      }
+    }
+  }
+
+  // if (isLocked) {
+  //   editor.setCameraOptions({ isLocked: true })
+  // }
+}
+
+export const zoomToFrame = (editor: Editor, frameId: string) => {
+  if (!editor) return
+  const frame = editor.getShape(frameId as TLParentId) as TLFrameShape
+  if (!frame) return
+
+  editor.zoomToBounds(editor.getShapePageBounds(frame)!, {
+    inset: 32,
+    animation: { duration: 500 },
+  })
+}
+
+export const copyFrameLink = (_editor: Editor, frameId: string) => {
+  const url = new URL(window.location.href)
+  url.searchParams.set("frameId", frameId)
+  navigator.clipboard.writeText(url.toString())
 }

@@ -1,6 +1,6 @@
 import { useEffect } from "react"
-import { Editor, TLEventMap, TLFrameShape, TLParentId, TLShapeId } from "tldraw"
-import { useSearchParams } from "react-router-dom"
+import { Editor, TLEventMap, TLFrameShape, TLParentId } from "tldraw"
+import { cameraHistory } from "@/ui/cameraUtils"
 
 // Define camera state interface
 interface CameraState {
@@ -10,16 +10,12 @@ interface CameraState {
 }
 
 const MAX_HISTORY = 10
-let cameraHistory: CameraState[] = []
 
-// TODO: use this
-
-// Improved camera change tracking with debouncing
+// Track camera changes
 const trackCameraChange = (editor: Editor) => {
   const currentCamera = editor.getCamera()
   const lastPosition = cameraHistory[cameraHistory.length - 1]
 
-  // Store any viewport change that's not from a revert operation
   if (
     !lastPosition ||
     currentCamera.x !== lastPosition.x ||
@@ -34,80 +30,6 @@ const trackCameraChange = (editor: Editor) => {
 }
 
 export function useCameraControls(editor: Editor | null) {
-  const [searchParams] = useSearchParams()
-
-  // Handle URL-based camera positioning
-  useEffect(() => {
-    if (!editor || !editor.store || !editor.getInstanceState().isFocused) {
-      console.log("Editor not ready:", {
-        editor: !!editor,
-        store: !!editor?.store,
-        isFocused: editor?.getInstanceState().isFocused,
-      })
-      return
-    }
-
-    const x = searchParams.get("x")
-    const y = searchParams.get("y")
-    const zoom = searchParams.get("zoom")
-    const frameId = searchParams.get("frameId")
-    const isLocked = searchParams.get("isLocked") === "true"
-
-    console.log("Setting camera:", { x, y, zoom, frameId, isLocked })
-
-    // Set camera position if coordinates exist
-    if (x && y && zoom) {
-      const position = {
-        x: Math.round(parseFloat(x)),
-        y: Math.round(parseFloat(y)),
-        z: Math.round(parseFloat(zoom)),
-      }
-      console.log("Camera position:", position)
-
-      requestAnimationFrame(() => {
-        editor.setCamera(position, { animation: { duration: 0 } })
-
-        // Apply camera lock immediately after setting position if needed
-        if (isLocked) {
-          editor.setCameraOptions({ isLocked: true })
-        }
-
-        console.log("Current camera:", editor.getCamera())
-      })
-    }
-
-    // Handle frame-specific logic
-    if (frameId) {
-      const frame = editor.getShape(frameId as TLShapeId)
-      if (frame) {
-        editor.select(frameId as TLShapeId)
-
-        // If x/y/zoom are not provided in URL, zoom to frame bounds
-        if (!x || !y || !zoom) {
-          const bounds = editor.getShapePageBounds(frame)!
-          const viewportPageBounds = editor.getViewportPageBounds()
-          const targetZoom = Math.min(
-            viewportPageBounds.width / bounds.width,
-            viewportPageBounds.height / bounds.height,
-            1, // Cap at 1x zoom, matching lockCameraToFrame
-          )
-
-          editor.zoomToBounds(bounds, {
-            animation: { duration: 0 },
-            targetZoom,
-          })
-        }
-
-        // Apply camera lock after camera is positioned
-        if (isLocked) {
-          requestAnimationFrame(() => {
-            editor.setCameraOptions({ isLocked: true })
-          })
-        }
-      }
-    }
-  }, [editor, searchParams])
-
   // Track camera changes
   useEffect(() => {
     if (!editor) return
@@ -116,7 +38,6 @@ export function useCameraControls(editor: Editor | null) {
       trackCameraChange(editor)
     }
 
-    // Track both viewport changes and user interaction end
     editor.on("viewportChange" as keyof TLEventMap, handler)
     editor.on("userChangeEnd" as keyof TLEventMap, handler)
 
@@ -126,7 +47,7 @@ export function useCameraControls(editor: Editor | null) {
     }
   }, [editor])
 
-  // Enhanced camera control functions
+  // Camera control functions
   return {
     zoomToFrame: (frameId: string) => {
       if (!editor) return
