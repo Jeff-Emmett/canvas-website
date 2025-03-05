@@ -203,7 +203,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
         />
         <TldrawUiMenuItem
           id="Prompt"
-          label="Create Prompt"
+          label="Create LLM Chat Prompt"
           icon="prompt"
           kbd="alt+p"
           disabled={hasSelection}
@@ -245,37 +245,36 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           ))}
         </TldrawUiMenuSubmenu>
       </TldrawUiMenuGroup>
-
-      <TldrawUiMenuGroup id="broadcast-controls">
+      {/* TODO: FIX & IMPLEMENT BROADCASTING*/}
+      {/* <TldrawUiMenuGroup id="broadcast-controls">
         <TldrawUiMenuItem
-          id="broadcast-view"
-          label="Start Broadcasting View"
+          id="start-broadcast"
+          label="Start Broadcasting"
           icon="broadcast"
           kbd="alt+b"
           onSelect={() => {
-            const otherUsers = Array.from(editor.store.allRecords()).filter(
-              (record) =>
-                record.typeName === "instance_presence" &&
-                record.id !== editor.user.getId(),
-            )
-            otherUsers.forEach((user) => editor.startFollowingUser(user.id))
+            editor.markHistoryStoppingPoint('start-broadcast')
+            editor.updateInstanceState({ isBroadcasting: true })
+            const url = new URL(window.location.href)
+            url.searchParams.set("followId", editor.user.getId())
+            window.history.replaceState(null, "", url.toString())
           }}
         />
         <TldrawUiMenuItem
           id="stop-broadcast"
-          label="Stop Broadcasting View"
+          label="Stop Broadcasting"
           icon="broadcast-off"
           kbd="alt+shift+b"
           onSelect={() => {
-            const otherUsers = Array.from(editor.store.allRecords()).filter(
-              (record) =>
-                record.typeName === "instance_presence" &&
-                record.id !== editor.user.getId(),
-            )
-            otherUsers.forEach((_user) => editor.stopFollowingUser())
+            editor.markHistoryStoppingPoint('stop-broadcast')
+            editor.updateInstanceState({ isBroadcasting: false }) 
+            editor.stopFollowingUser()
+            const url = new URL(window.location.href)
+            url.searchParams.delete("followId")
+            window.history.replaceState(null, "", url.toString())
           }}
         />
-      </TldrawUiMenuGroup>
+      </TldrawUiMenuGroup> */}
 
       <TldrawUiMenuGroup id="search-controls">
         <TldrawUiMenuItem

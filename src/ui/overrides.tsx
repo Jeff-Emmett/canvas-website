@@ -51,25 +51,38 @@ export const overrides: TLUiOverrides = {
         },
 
         //TODO: Fix double click to zoom on selector tool later...
-        onDoubleClick: (info: any) => {
-          const shape = editor.getShapeAtPoint(info.point)
-          if (shape?.type === "Embed") {
-            // Let the Embed shape handle its own double-click behavior
-            const util = editor.getShapeUtil(shape) as EmbedShape
-            util?.onDoubleClick?.(shape as IEmbedShape)
-            return
-          }
+        // onDoubleClick: (info: any) => {
+        //   const shape = editor.getShapeAtPoint(info.point)
+        //   if (shape?.type === "Embed") {
+        //     // Let the Embed shape handle its own double-click behavior
+        //     const util = editor.getShapeUtil(shape) as EmbedShape
+        //     util?.onDoubleClick?.(shape as IEmbedShape)
+        //     return true
+        //   }
 
-          // Handle all pointer types (mouse, touch, pen)
-          const point = info.point || (info.touches && info.touches[0]) || info
+        //   // Handle all pointer types (mouse, touch, pen)
+        //   const point = info.point || (info.touches && info.touches[0]) || info
 
-          // Zoom in at the clicked/touched point
-          editor.zoomIn(point, { animation: { duration: 200 } })
+        //   // Zoom in at the clicked/touched point
+        //   editor.zoomIn(point, { animation: { duration: 200 } })
 
-          // Stop event propagation and prevent default handling
-          info.stopPropagation?.()
-          return false
-        },
+        //   // Prevent default text creation
+        //   info.preventDefault?.()
+        //   info.stopPropagation?.()
+        //   return true
+        // },
+        // onDoubleClickCanvas: (info: any) => {
+        //   // Handle all pointer types (mouse, touch, pen)
+        //   const point = info.point || (info.touches && info.touches[0]) || info
+
+        //   // Zoom in at the clicked/touched point
+        //   editor.zoomIn(point, { animation: { duration: 200 } })
+
+        //   // Prevent default text creation
+        //   info.preventDefault?.()
+        //   info.stopPropagation?.()
+        //   return true
+        // },
       },
       VideoChat: {
         id: "VideoChat",
@@ -276,18 +289,17 @@ export const overrides: TLUiOverrides = {
         },
       },
       //TODO: MAKE THIS WORK, ADD USER PERMISSIONING TO JOIN BROADCAST?
-      broadcastView: {
-        id: "broadcast-view",
-        label: "Broadcast View",
+      startBroadcast: {
+        id: "start-broadcast",
+        label: "Start Broadcasting",
         kbd: "alt+b",
         readonlyOk: true,
         onSelect: () => {
-          const collaborators = editor.getCollaborators()
-          collaborators
-            .filter((user) => user.id !== editor.user.getId())
-            .forEach((user) => {
-              editor.startFollowingUser(user.id)
-            })
+          editor.markHistoryStoppingPoint('start-broadcast')
+          editor.updateInstanceState({ isBroadcasting: true })
+          const url = new URL(window.location.href)
+          url.searchParams.set("followId", editor.user.getId())
+          window.history.replaceState(null, "", url.toString())
         },
       },
       stopBroadcast: {
@@ -296,7 +308,13 @@ export const overrides: TLUiOverrides = {
         kbd: "alt+shift+b",
         readonlyOk: true,
         onSelect: () => {
+          editor.updateInstanceState({ isBroadcasting: false })
           editor.stopFollowingUser()
+          
+          // Remove followId from URL
+          const url = new URL(window.location.href)
+          url.searchParams.delete("followId")
+          window.history.replaceState(null, "", url.toString())
         },
       },
       searchShapes: {
