@@ -28,6 +28,6 @@ export async function llm(
 		partial += chunk.choices[0]?.delta?.content || "";
 		onToken(partial, false);
 	}
-	console.log("Generated:", partial);
+	//console.log("Generated:", partial);
 	onToken(partial, true);
 }

@@ -184,7 +184,7 @@ async function sendMessageToChat(
     })
 
     const result = await response.text()
-    console.log("Message sent successfully:", result)
+    //console.log("Message sent successfully:", result)
   } catch (error) {
     console.error("Error sending message:", error)
   }
