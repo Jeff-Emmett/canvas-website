@@ -1,6 +1,6 @@
 import { useSync } from "@tldraw/sync"
 import { useMemo, useEffect, useState } from "react"
-import { Tldraw, Editor } from "tldraw"
+import { Tldraw, Editor, TLShapeId } from "tldraw"
 import { useParams } from "react-router-dom"
 import { ChatBoxTool } from "@/tools/ChatBoxTool"
 import { ChatBoxShape } from "@/shapes/ChatBoxShapeUtil"
@@ -30,7 +30,13 @@ import { makeRealSettings, applySettingsMigrations } from "@/lib/settings"
 import { PromptShapeTool } from "@/tools/PromptShapeTool"
 import { PromptShape } from "@/shapes/PromptShapeUtil"
 import { llm } from "@/utils/llmUtils"
-import { setInitialCameraFromUrl } from "@/ui/cameraUtils"
+import {
+  lockElement,
+  unlockElement,
+  setInitialCameraFromUrl,
+  initLockIndicators,
+  watchForLockedShapes,
+} from "@/ui/cameraUtils"
 
 // Default to production URL if env var isn't available
 export const WORKER_URL = "https://jeffemmett-canvas.jeffemmett.workers.dev"
@@ -84,6 +90,13 @@ export function Board() {
     }
   }, [])
 
+  // Remove the URL-based locking effect and replace with store-based initialization
+  useEffect(() => {
+    if (!editor) return
+    initLockIndicators(editor)
+    watchForLockedShapes(editor)
+  }, [editor])
+
   return (
     <div style={{ position: "fixed", inset: 0 }}>
       <Tldraw
@@ -91,7 +104,16 @@ export function Board() {
         shapeUtils={customShapeUtils}
         tools={customTools}
         components={components}
-        overrides={overrides}
+        overrides={{
+          ...overrides,
+          actions: (editor, actions, helpers) => {
+            const customActions = overrides.actions?.(editor, actions, helpers) ?? {}
+            return {
+              ...actions,
+              ...customActions,
+            }
+          }
+        }}
         cameraOptions={{
           zoomSteps: [
             0.001, // Min zoom

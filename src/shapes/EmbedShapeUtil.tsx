@@ -2,6 +2,9 @@ import { BaseBoxShapeUtil, TLBaseShape } from "tldraw"
 import { useCallback, useState } from "react"
 //import Embed from "react-embed"
 
+
+//TODO: FIX PEN AND MOBILE INTERACTION WITH EDITING EMBED URL - DEFAULT TO TEXT SELECTED
+
 export type IEmbedShape = TLBaseShape<
   "Embed",
   {
@@ -372,26 +375,52 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
       return (
         <div style={wrapperStyle}>
           {controls("")}
-          <div style={contentStyle}>
+          <div 
+            style={{
+              ...contentStyle,
+              cursor: 'text',  // Add text cursor to indicate clickable
+              touchAction: 'none', // Prevent touch scrolling
+            }}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              const input = e.currentTarget.querySelector('input')
+              input?.focus()
+            }}
+          >
             <form
               onSubmit={handleSubmit}
-              style={{ width: "100%", height: "100%", padding: "10px" }}
+              style={{ 
+                width: "100%", 
+                height: "100%", 
+                padding: "10px",
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+              }}
+              onClick={(e) => e.stopPropagation()}
             >
               <input
                 type="text"
                 value={inputUrl}
                 onChange={(e) => setInputUrl(e.target.value)}
-                placeholder="Enter URL"
+                placeholder="Enter URL to embed"
                 style={{
                   width: "100%",
-                  height: "100%",
-                  border: "none",
-                  padding: "10px",
+                  padding: "15px",  // Increased padding for better touch target
+                  border: "1px solid #ccc",
+                  borderRadius: "4px",
+                  fontSize: "16px",  // Increased font size for better visibility
+                  touchAction: 'none',
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     handleSubmit(e)
                   }
+                }}
+                onPointerDown={(e) => {
+                  e.stopPropagation()
+                  e.currentTarget.focus()
                 }}
               />
               {error && (
@@ -555,7 +584,7 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
     }
   }
 
-  // Add new method to handle all pointer interactions
+  // Update the pointer down handler
   onPointerDown = (shape: IEmbedShape) => {
     if (!shape.props.url) {
       const input = document.querySelector('input')

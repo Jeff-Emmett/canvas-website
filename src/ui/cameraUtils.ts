@@ -3,6 +3,8 @@ import { Editor, TLFrameShape, TLParentId, TLShape, TLShapeId } from "tldraw"
 export const cameraHistory: { x: number; y: number; z: number }[] = []
 const MAX_HISTORY = 10 // Keep last 10 camera positions
 
+const frameObservers = new Map<string, ResizeObserver>()
+
 // Helper function to store camera position
 const storeCameraPosition = (editor: Editor) => {
   const currentCamera = editor.getCamera()
@@ -80,9 +82,9 @@ export const zoomToSelection = (editor: Editor) => {
   const newCamera = editor.getCamera()
   const url = new URL(window.location.href)
   url.searchParams.set("shapeId", selectedIds[0].toString())
-  url.searchParams.set("x", newCamera.x.toString())
-  url.searchParams.set("y", newCamera.y.toString())
-  url.searchParams.set("zoom", newCamera.z.toString())
+  url.searchParams.set("x", Math.round(newCamera.x).toString())
+  url.searchParams.set("y", Math.round(newCamera.y).toString())
+  url.searchParams.set("zoom", Math.round(newCamera.z).toString())
   window.history.replaceState(null, "", url.toString())
 }
 
@@ -127,22 +129,14 @@ export const copyLinkToCurrentView = async (editor: Editor) => {
 
   try {
     const baseUrl = `${window.location.origin}${window.location.pathname}`
-    console.log("Base URL:", baseUrl)
-
     const url = new URL(baseUrl)
     const camera = editor.getCamera()
-    console.log("Current camera position:", {
-      x: camera.x,
-      y: camera.y,
-      zoom: camera.z,
-    })
 
-    // Set camera parameters first
-    url.searchParams.set("x", camera.x.toString())
-    url.searchParams.set("y", camera.y.toString())
-    url.searchParams.set("zoom", camera.z.toString())
+    // Round camera values to integers
+    url.searchParams.set("x", Math.round(camera.x).toString())
+    url.searchParams.set("y", Math.round(camera.y).toString())
+    url.searchParams.set("zoom", Math.round(camera.z).toString())
 
-    // Add shape ID last if needed
     const selectedIds = editor.getSelectedShapeIds()
     if (selectedIds.length > 0) {
       url.searchParams.set("shapeId", selectedIds[0].toString())
@@ -152,11 +146,8 @@ export const copyLinkToCurrentView = async (editor: Editor) => {
     console.log("Final URL to copy:", finalUrl)
 
     if (navigator.clipboard && window.isSecureContext) {
-      console.log("Using modern clipboard API...")
       await navigator.clipboard.writeText(finalUrl)
-      console.log("URL copied successfully using clipboard API")
     } else {
-      console.log("Falling back to legacy clipboard method...")
       const textArea = document.createElement("textarea")
       textArea.value = finalUrl
       document.body.appendChild(textArea)
@@ -173,54 +164,128 @@ export const copyLinkToCurrentView = async (editor: Editor) => {
   }
 }
 
-/** TODO: doesnt UNlock */
-export const lockCameraToFrame = async (editor: Editor) => {
+// Add this function to create lock indicators
+const createLockIndicator = (editor: Editor, shape: TLShape) => {
+  const lockIndicator = document.createElement('div')
+  lockIndicator.id = `lock-indicator-${shape.id}`
+  lockIndicator.className = 'lock-indicator'
+  lockIndicator.innerHTML = '🔒'
+  
+  // Set styles to position at top-right of shape
+  lockIndicator.style.position = 'absolute'
+  lockIndicator.style.right = '3px'
+  lockIndicator.style.top = '3px'
+  lockIndicator.style.pointerEvents = 'all'
+  lockIndicator.style.zIndex = '99999'
+  lockIndicator.style.background = 'white'
+  lockIndicator.style.border = '1px solid #ddd'
+  lockIndicator.style.borderRadius = '4px'
+  lockIndicator.style.padding = '4px'
+  lockIndicator.style.cursor = 'pointer'
+  lockIndicator.style.boxShadow = '0 1px 3px rgba(0,0,0,0.12)'
+  lockIndicator.style.fontSize = '12px'
+  lockIndicator.style.lineHeight = '1'
+  lockIndicator.style.display = 'flex'
+  lockIndicator.style.alignItems = 'center'
+  lockIndicator.style.justifyContent = 'center'
+  lockIndicator.style.width = '20px'
+  lockIndicator.style.height = '20px'
+  lockIndicator.style.userSelect = 'none'
+  
+  // Add hover effect
+  lockIndicator.onmouseenter = () => {
+    lockIndicator.style.backgroundColor = '#f0f0f0'
+  }
+  lockIndicator.onmouseleave = () => {
+    lockIndicator.style.backgroundColor = 'white'
+  }
+  
+  // Add tooltip and click handlers with stopPropagation
+  lockIndicator.title = 'Unlock shape'
+  
+  lockIndicator.addEventListener('click', (e) => {
+    e.stopPropagation()
+    e.preventDefault()
+    unlockElement(editor, shape.id)
+  }, true)
+
+  lockIndicator.addEventListener('mousedown', (e) => {
+    e.stopPropagation()
+    e.preventDefault()
+  }, true)
+
+  lockIndicator.addEventListener('pointerdown', (e) => {
+    e.stopPropagation()
+    e.preventDefault()
+  }, true)
+
+  const shapeElement = document.querySelector(`[data-shape-id="${shape.id}"]`)
+  if (shapeElement) {
+    shapeElement.appendChild(lockIndicator)
+  }
+}
+
+// Modify lockElement to use the new function
+export const lockElement = async (editor: Editor) => {
   const selectedShapes = editor.getSelectedShapes()
   if (selectedShapes.length === 0) return
-  const selectedShape = selectedShapes[0]
-  const isFrame = selectedShape.type === "frame"
-  const bounds = editor.getShapePageBounds(selectedShape)
-  if (!isFrame || !bounds) return
 
   try {
-    const baseUrl = `${window.location.origin}${window.location.pathname}`
-    const url = new URL(baseUrl)
-
-    // Calculate zoom level to fit the frame (for URL only)
-    const viewportPageBounds = editor.getViewportPageBounds()
-    const targetZoom = Math.min(
-      viewportPageBounds.width / bounds.width,
-      viewportPageBounds.height / bounds.height,
-      1, // Cap at 1x zoom
-    )
-
-    // Set URL parameters without affecting the current view
-    url.searchParams.set("x", Math.round(bounds.x).toString())
-    url.searchParams.set("y", Math.round(bounds.y).toString())
-    url.searchParams.set(
-      "zoom",
-      (Math.round(targetZoom * 100) / 100).toString(),
-    )
-    url.searchParams.set("frameId", selectedShape.id)
-    url.searchParams.set("isLocked", "true")
-
-    const finalUrl = url.toString()
-
-    // Copy URL to clipboard without modifying the current view
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(finalUrl)
-    } else {
-      const textArea = document.createElement("textarea")
-      textArea.value = finalUrl
-      document.body.appendChild(textArea)
-      textArea.select()
-      document.execCommand("copy")
-      document.body.removeChild(textArea)
-    }
+    selectedShapes.forEach(shape => {
+      editor.updateShape({
+        id: shape.id,
+        type: shape.type,
+        isLocked: true,
+        meta: {
+          ...shape.meta,
+          isLocked: true,
+          canInteract: true,    // Allow interactions
+          canMove: false,       // Prevent moving
+          canResize: false,     // Prevent resizing
+          canEdit: true,        // Allow text editing
+          canUpdateProps: true  // Allow updating props (for prompt inputs/outputs)
+          //TO DO: FIX TEXT INPUT ON LOCKED ELEMENTS (e.g. prompt shape) AND ATTACH TO SCREEN EDGE
+        }
+      })
+      createLockIndicator(editor, shape)
+    })
   } catch (error) {
-    console.error("Failed to copy frame link:", error)
-    alert("Failed to copy frame link. Please check clipboard permissions.")
+    console.error("Failed to lock elements:", error)
   }
+}
+
+export const unlockElement = (editor: Editor, shapeId: string) => {
+  const indicator = document.getElementById(`lock-indicator-${shapeId}`)
+  if (indicator) {
+    indicator.remove()
+  }
+
+  const shape = editor.getShape(shapeId as TLShapeId)
+  if (shape) {
+    editor.updateShape({
+      id: shapeId as TLShapeId,
+      type: shape.type,
+      isLocked: false,
+      meta: {
+        ...shape.meta,
+        isLocked: false,
+        canInteract: true,
+        canMove: true,
+        canResize: true,
+        canEdit: true,
+        canUpdateProps: true
+      }
+    })
+  }
+}
+
+// Initialize lock indicators based on stored state
+export const initLockIndicators = (editor: Editor) => {
+  editor.getCurrentPageShapes().forEach(shape => {
+    if (shape.isLocked || shape.meta?.isLocked) {
+      createLockIndicator(editor, shape)
+    }
+  })
 }
 
 export const setInitialCameraFromUrl = (editor: Editor) => {
@@ -230,7 +295,6 @@ export const setInitialCameraFromUrl = (editor: Editor) => {
   const zoom = url.searchParams.get("zoom")
   const shapeId = url.searchParams.get("shapeId")
   const frameId = url.searchParams.get("frameId")
-  //const isLocked = url.searchParams.get("isLocked") === "true"
 
   console.log('Setting initial camera from URL:', { x, y, zoom, shapeId, frameId })
 
@@ -238,9 +302,9 @@ export const setInitialCameraFromUrl = (editor: Editor) => {
     editor.stopCameraAnimation()
     editor.setCamera(
       {
-        x: parseFloat(x),
-        y: parseFloat(y),
-        z: parseFloat(zoom)
+        x: Math.round(parseFloat(x)),
+        y: Math.round(parseFloat(y)),
+        z: Math.round(parseFloat(zoom))
       },
       { animation: { duration: 0 } }
     )
@@ -266,10 +330,6 @@ export const setInitialCameraFromUrl = (editor: Editor) => {
       }
     }
   }
-
-  // if (isLocked) {
-  //   editor.setCameraOptions({ isLocked: true })
-  // }
 }
 
 export const zoomToFrame = (editor: Editor, frameId: string) => {
@@ -287,4 +347,18 @@ export const copyFrameLink = (_editor: Editor, frameId: string) => {
   const url = new URL(window.location.href)
   url.searchParams.set("frameId", frameId)
   navigator.clipboard.writeText(url.toString())
+}
+
+// Initialize lock indicators and watch for changes
+export const watchForLockedShapes = (editor: Editor) => {
+  editor.on('change', () => {
+    editor.getCurrentPageShapes().forEach(shape => {
+      const hasIndicator = document.getElementById(`lock-indicator-${shape.id}`)
+      if (shape.isLocked && !hasIndicator) {
+        createLockIndicator(editor, shape)
+      } else if (!shape.isLocked && hasIndicator) {
+        hasIndicator.remove()
+      }
+    })
+  })
 }
