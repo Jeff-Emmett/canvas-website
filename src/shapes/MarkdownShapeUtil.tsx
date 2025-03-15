@@ -1,188 +1,170 @@
-/** TODO: build this */
-
-import { BaseBoxShapeUtil, TLBaseBoxShape, TLBaseShape, StyleProp, T, DefaultSizeStyle, DefaultFontStyle, DefaultColorStyle } from "tldraw"
-import { useEffect, useRef, useState } from "react"
-import { marked } from "marked"
-
-// Uncomment and use these style definitions
-const MarkdownColor = StyleProp.defineEnum('markdown:color', {
-  defaultValue: 'black',
-  values: ['black', 'blue', 'green', 'grey', 'light-blue', 'light-green', 'light-red', 'light-violet', 'orange', 'red', 'violet', 'yellow'],
-})
-
-const MarkdownSize = StyleProp.defineEnum('markdown:size', {
-  defaultValue: 'medium',
-  values: ['small', 'medium', 'large'],
-})
-
-const MarkdownFont = StyleProp.defineEnum('markdown:font', {
-  defaultValue: 'draw',
-  values: ['draw', 'sans', 'serif', 'mono'],
-})
-
-//const MarkdownHorizontalAlign = StyleProp.define('markdown:horizontalalign', { defaultValue: 'start' })
-//const MarkdownVerticalAlign = StyleProp.define('markdown:verticalalign', { defaultValue: 'start' })
+import React from 'react'
+import MDEditor from '@uiw/react-md-editor'
+import { BaseBoxShapeUtil, TLBaseShape } from '@tldraw/tldraw'
 
 export type IMarkdownShape = TLBaseShape<
-  "MarkdownTool",
+  'Markdown',
   {
-    content: string
-    isPreview: boolean
     w: number
     h: number
-    color: string
-    size: string
-    font: string    
+    text: string
   }
 >
 
-export class MarkdownShape extends BaseBoxShapeUtil<
-  IMarkdownShape & TLBaseBoxShape
-> {
-  static override type = "MarkdownTool"
+export class MarkdownShape extends BaseBoxShapeUtil<IMarkdownShape> {
+  static type = 'Markdown' as const
 
-  styles = {
-    color: MarkdownColor,
-    size: MarkdownSize,
-    font: MarkdownFont,
-  }
-
-  getDefaultProps(): IMarkdownShape["props"] & { w: number; h: number } {
-    console.log('getDefaultProps called');
-    const props = {
-      content: "",
-      isPreview: false,
-      w: 400,
-      h: 300,
-      color: 'black',
-      size: 'medium',
-      font: 'draw'
-    };
-    console.log('Default props:', props);
-    return props;
-  }
-
-  indicator(shape: IMarkdownShape) {
-    return (
-    <g>
-    <rect x={0} y={0} width={shape.props.w} height={shape.props.h} />
-  </g>
-  )
+  getDefaultProps(): IMarkdownShape['props'] {
+    return {
+      w: 300,
+      h: 200,
+      text: '',
+    }
   }
 
   component(shape: IMarkdownShape) {
-    console.log('Component rendering with shape:', shape);
-    console.log('Available styles:', this.styles);
-    const editor = this.editor
-    return <MarkdownEditor shape={shape} editor={editor} />
-  }
-}
-
-function MarkdownEditor({ shape, editor }: { shape: IMarkdownShape; editor: any }) {
-  console.log('MarkdownEditor mounted with shape:', shape);
-  console.log('Editor instance:', editor);
-  
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const [isPreview, setIsPreview] = useState(shape.props.isPreview)
-  const [renderedContent, setRenderedContent] = useState("")
-
-  useEffect(() => {
-    if (textareaRef.current && textareaRef.current.value !== shape.props.content) {
-      textareaRef.current.value = shape.props.content
-    }
-  }, [shape.props.content])
-
-  useEffect(() => {
-    const html = marked.parse(shape.props.content, { breaks: true }) as string
-    setRenderedContent(html)
-  }, [shape.props.content])
-
-  const togglePreview = () => {
-    const newPreviewState = !isPreview
-    setIsPreview(newPreviewState)
-    editor.updateShape(shape.id, {
-      props: {
-        ...shape.props,
-        isPreview: newPreviewState
+    // Hooks must be at the top level
+    const isSelected = this.editor.getSelectedShapeIds().includes(shape.id)
+    const markdownRef = React.useRef<HTMLDivElement>(null)
+    
+    // Single useEffect hook that handles checkbox interactivity
+    React.useEffect(() => {
+      if (!isSelected && markdownRef.current) {
+        const checkboxes = markdownRef.current.querySelectorAll('input[type="checkbox"]')
+        checkboxes.forEach((checkbox) => {
+          checkbox.removeAttribute('disabled')
+          checkbox.addEventListener('click', handleCheckboxClick)
+        })
+        
+        // Cleanup function
+        return () => {
+          if (markdownRef.current) {
+            const checkboxes = markdownRef.current.querySelectorAll('input[type="checkbox"]')
+            checkboxes.forEach((checkbox) => {
+              checkbox.removeEventListener('click', handleCheckboxClick)
+            })
+          }
+        }
       }
-    })
-  }
+    }, [isSelected, shape.props.text])
 
-  return (
-    <div style={{
+    // Handler function defined outside useEffect
+    const handleCheckboxClick = (event: Event) => {
+      event.stopPropagation()
+      const target = event.target as HTMLInputElement
+      const checked = target.checked
+      
+      const text = shape.props.text
+      const lines = text.split('\n')
+      const checkboxRegex = /^\s*[-*+]\s+\[([ x])\]/
+      
+      const newText = lines.map(line => {
+        if (line.includes(target.parentElement?.textContent || '')) {
+          return line.replace(checkboxRegex, `- [${checked ? 'x' : ' '}]`)
+        }
+        return line
+      }).join('\n')
+
+      this.editor.updateShape<IMarkdownShape>({
+        id: shape.id,
+        type: 'Markdown',
+        props: {
+          ...shape.props,
+          text: newText,
+        },
+      })
+    }
+
+    const wrapperStyle: React.CSSProperties = {
       width: '100%',
       height: '100%',
-      display: 'flex',
-      flexDirection: 'column',
       backgroundColor: 'white',
-      border: '1px solid #e0e0e0',
+      border: '1px solid #ddd',
       borderRadius: '4px',
-      overflow: 'hidden'
-    }}>
-      {/* Toolbar */}
-      <div style={{
-        padding: '4px 8px',
-        borderBottom: '1px solid #e0e0e0',
-        backgroundColor: '#f5f5f5',
-        display: 'flex',
-        gap: '8px',
-        alignItems: 'center'
-      }}>
-        <button
-          onClick={togglePreview}
-          style={{
-            padding: '4px 8px',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-            backgroundColor: 'white',
-            cursor: 'pointer',
-            fontSize: '12px'
-          }}
-        >
-          {isPreview ? 'Edit' : 'Preview'}
-        </button>
-      </div>
+      overflow: 'hidden',
+    }
 
-      {/* Editor/Preview Area */}
-      <div style={{
-        flex: 1,
-        overflow: 'auto',
-        position: 'relative'
-      }}>
-        {isPreview ? (
-          <div
-            style={{
-              padding: '8px',
-              height: '100%',
-              overflow: 'auto'
-            }}
-            dangerouslySetInnerHTML={{
-              __html: marked(shape.props.content, { breaks: true }) as string
-            }}
-          />
-        ) : (
-          <textarea
-            ref={textareaRef}
-            defaultValue={shape.props.content}
-            style={{
-              width: '100%',
-              height: '100%',
-              resize: 'none',
-              border: 'none',
-              padding: '8px',
-              fontFamily: 'inherit',
-            }}
-            onChange={(e) => {
-              editor.updateShape(shape.id, {
-                props: {
-                  ...shape.props,
-                  content: e.target.value
+    // Simplified contentStyle - removed padding and center alignment
+    const contentStyle: React.CSSProperties = {
+      width: '100%',
+      height: '100%',
+      backgroundColor: '#FFFFFF',
+      cursor: isSelected ? 'text' : 'default',
+      pointerEvents: 'all',
+    }
+
+    // Show MDEditor when selected
+    if (isSelected) {
+      return (
+        <div style={wrapperStyle}>
+          <div style={contentStyle}>
+            <MDEditor
+              value={shape.props.text}
+              onChange={(value = '') => {
+                this.editor.updateShape<IMarkdownShape>({
+                  id: shape.id,
+                  type: 'Markdown',
+                  props: {
+                    ...shape.props,
+                    text: value,
+                  },
+                })
+              }}
+              preview='edit'
+              hideToolbar={true}
+              style={{
+                height: '100%',
+                border: 'none',
+              }}
+              textareaProps={{
+                placeholder: "Enter markdown text...",
+                style: {
+                  backgroundColor: 'transparent',
+                  height: '100%',
+                  padding: '12px',
+                  lineHeight: '1.5',
+                  fontSize: '14px',
                 }
-              })
-            }}
-          />
-        )}
+              }}
+              onPointerDown={(e) => {
+                e.stopPropagation()
+              }}
+            />
+          </div>
+        </div>
+      )
+    }
+
+    // Show rendered markdown when not selected
+    return (
+      <div style={wrapperStyle}>
+        <div style={contentStyle}>
+          <div ref={markdownRef} style={{ width: '100%', height: '100%', padding: '12px' }}>
+            {shape.props.text ? (
+              <MDEditor.Markdown source={shape.props.text} />
+            ) : (
+              <span style={{ opacity: 0.5 }}>Click to edit markdown...</span>
+            )}
+          </div>
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
+
+  indicator(shape: IMarkdownShape) {
+    return <rect width={shape.props.w} height={shape.props.h} />
+  }
+
+  // Add handlers for better interaction
+  override onDoubleClick = (shape: IMarkdownShape) => {
+    const textarea = document.querySelector(`[data-shape-id="${shape.id}"] textarea`) as HTMLTextAreaElement
+    textarea?.focus()
+  }
+
+  onPointerDown = (shape: IMarkdownShape) => {
+    if (!shape.props.text) {
+      const textarea = document.querySelector(`[data-shape-id="${shape.id}"] textarea`) as HTMLTextAreaElement
+      textarea?.focus()
+    }
+  }
 }

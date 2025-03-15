@@ -17,7 +17,7 @@ export class MycrozineTemplateShape extends BaseBoxShapeUtil<IMycrozineTemplateS
       w: 2550,
       h: 3300,
     }
-    console.log('MycrozineTemplate - Default props:', props)
+    //console.log('MycrozineTemplate - Default props:', props)
     return props
   }
 

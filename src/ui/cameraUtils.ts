@@ -20,7 +20,6 @@ const storeCameraPosition = (editor: Editor) => {
     if (cameraHistory.length > MAX_HISTORY) {
       cameraHistory.shift()
     }
-    console.log("Stored camera position:", currentCamera)
   }
 }
 
@@ -112,18 +111,17 @@ export const revertCamera = (editor: Editor) => {
         },
       })
 
-      console.log("Reverted to camera position:", previousCamera)
+      //console.log("Reverted to camera position:", previousCamera)
     }
   } else {
-    console.log("No camera history available")
+    //console.log("No camera history available")
   }
 }
 
 export const copyLinkToCurrentView = async (editor: Editor) => {
-  console.log("Starting copyLinkToCurrentView")
 
   if (!editor.store.serialize()) {
-    console.warn("Store not ready")
+    //console.warn("Store not ready")
     return
   }
 
@@ -143,7 +141,6 @@ export const copyLinkToCurrentView = async (editor: Editor) => {
     }
 
     const finalUrl = url.toString()
-    console.log("Final URL to copy:", finalUrl)
 
     if (navigator.clipboard && window.isSecureContext) {
       await navigator.clipboard.writeText(finalUrl)
@@ -154,12 +151,10 @@ export const copyLinkToCurrentView = async (editor: Editor) => {
       try {
         await navigator.clipboard.writeText(textArea.value)
       } catch (err) {
-        console.error("Clipboard API failed:", err)
       }
       document.body.removeChild(textArea)
     }
   } catch (error) {
-    console.error("Failed to copy to clipboard:", error)
     alert("Failed to copy link. Please check clipboard permissions.")
   }
 }
@@ -295,8 +290,6 @@ export const setInitialCameraFromUrl = (editor: Editor) => {
   const zoom = url.searchParams.get("zoom")
   const shapeId = url.searchParams.get("shapeId")
   const frameId = url.searchParams.get("frameId")
-
-  console.log('Setting initial camera from URL:', { x, y, zoom, shapeId, frameId })
 
   if (x && y && zoom) {
     editor.stopCameraAnimation()
