@@ -1,3 +1,4 @@
+import { Editor, useDefaultHelpers } from "tldraw"
 import {
   shapeIdValidator,
   TLArrowShape,
@@ -7,8 +8,9 @@ import {
 import {
   cameraHistory,
   copyLinkToCurrentView,
-  lockCameraToFrame,
+  lockElement,
   revertCamera,
+  unlockElement,
   zoomToSelection,
 } from "./cameraUtils"
 import { saveToPdf } from "../utils/pdfUtils"
@@ -158,8 +160,7 @@ export const overrides: TLUiOverrides = {
     }
   },
   actions(editor, actions) {
-    return {
-      ...actions,
+    const customActions = {
       "zoom-in": {
         ...actions["zoom-in"],
         kbd: "ctrl+up",
@@ -183,9 +184,7 @@ export const overrides: TLUiOverrides = {
         id: "copy-link-to-current-view",
         label: "Copy Link to Current View",
         kbd: "alt+c",
-        onSelect: () => {
-          copyLinkToCurrentView(editor)
-        },
+        onSelect: () => copyLinkToCurrentView(editor),
         readonlyOk: true,
       },
       revertCamera: {
@@ -199,11 +198,26 @@ export const overrides: TLUiOverrides = {
         },
         readonlyOk: true,
       },
-      lockToFrame: {
-        id: "lock-to-frame",
-        label: "Lock to Frame",
+      lockElement: {
+        id: "lock-element",
+        label: "Lock Element",
         kbd: "shift+l",
-        onSelect: () => lockCameraToFrame(editor),
+        onSelect: () => {
+          const selectedShapes = editor.getSelectedShapes()
+          if (selectedShapes.length > 0) {
+            lockElement(editor)
+          }
+        },
+        readonlyOk: true,
+      },
+      unlockElement: {
+        id: "unlock-element",
+        label: "Unlock Element",
+        onSelect: () => {
+          if (editor.getSelectedShapeIds().length > 0) {
+            unlockElement(editor, editor.getSelectedShapeIds()[0])
+          }
+        },
       },
       saveToPdf: {
         id: "save-to-pdf",
@@ -288,35 +302,6 @@ export const overrides: TLUiOverrides = {
           }
         },
       },
-      //TODO: MAKE THIS WORK, ADD USER PERMISSIONING TO JOIN BROADCAST?
-      startBroadcast: {
-        id: "start-broadcast",
-        label: "Start Broadcasting",
-        kbd: "alt+b",
-        readonlyOk: true,
-        onSelect: () => {
-          editor.markHistoryStoppingPoint('start-broadcast')
-          editor.updateInstanceState({ isBroadcasting: true })
-          const url = new URL(window.location.href)
-          url.searchParams.set("followId", editor.user.getId())
-          window.history.replaceState(null, "", url.toString())
-        },
-      },
-      stopBroadcast: {
-        id: "stop-broadcast",
-        label: "Stop Broadcasting",
-        kbd: "alt+shift+b",
-        readonlyOk: true,
-        onSelect: () => {
-          editor.updateInstanceState({ isBroadcasting: false })
-          editor.stopFollowingUser()
-          
-          // Remove followId from URL
-          const url = new URL(window.location.href)
-          url.searchParams.delete("followId")
-          window.history.replaceState(null, "", url.toString())
-        },
-      },
       searchShapes: {
         id: "search-shapes",
         label: "Search Shapes",
@@ -326,7 +311,7 @@ export const overrides: TLUiOverrides = {
       },
       llm: {
         id: "llm",
-        label: "LLM",
+        label: "Run LLM Prompt",
         kbd: "g",
         readonlyOk: true,
         onSelect: () => {
@@ -424,5 +409,16 @@ export const overrides: TLUiOverrides = {
         },
       },
     }
+
+    return {
+      ...actions,
+      ...customActions,
+    }
   },
+}
+
+// Export actions for use in context menu
+export const getCustomActions = (editor: Editor) => {
+  const helpers = useDefaultHelpers()
+  return overrides.actions?.(editor, {}, helpers) ?? {}
 }
