@@ -37,18 +37,19 @@ const { preflight, corsify } = cors({
       return origin
     }
 
-    // For development - check if it's a localhost or local IP
+    // For development - check if it's a localhost or local IP (both http and https)
     if (
       origin.match(
-        /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.|169\.254\.|10\.)/,
+        /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.|169\.254\.|10\.)/,
       )
     ) {
       return origin
     }
 
-    return undefined
+    // If no match found, return * to allow all origins
+    return "*"
   },
-  allowMethods: ["GET", "POST", "OPTIONS", "UPGRADE"],
+  allowMethods: ["GET", "POST", "HEAD", "OPTIONS", "UPGRADE"],
   allowHeaders: [
     "Content-Type",
     "Authorization",
@@ -62,7 +63,8 @@ const { preflight, corsify } = cors({
     "Content-Range",
     "Range",
     "If-None-Match",
-    "If-Modified-Since"
+    "If-Modified-Since",
+    "*"
   ],
   maxAge: 86400,
   credentials: true,

@@ -10,15 +10,17 @@ function getAssetObjectName(uploadId: string) {
 
 // when a user uploads an asset, we store it in the bucket. we only allow image and video assets.
 export async function handleAssetUpload(request: IRequest, env: Environment) {
-	// If this is a preflight request, return appropriate CORS headers
+	// Add CORS headers that will be used for both success and error responses
+	const corsHeaders = {
+		'access-control-allow-origin': '*',
+		'access-control-allow-methods': 'GET, POST, HEAD, OPTIONS',
+		'access-control-allow-headers': '*',
+		'access-control-max-age': '86400',
+	}
+
+	// Handle preflight
 	if (request.method === 'OPTIONS') {
-		const headers = new Headers({
-			'access-control-allow-origin': '*',
-			'access-control-allow-methods': 'POST, OPTIONS',
-			'access-control-allow-headers': 'content-type',
-			'access-control-max-age': '86400',
-		})
-		return new Response(null, { headers })
+		return new Response(null, { headers: corsHeaders })
 	}
 
 	try {
@@ -26,21 +28,38 @@ export async function handleAssetUpload(request: IRequest, env: Environment) {
 
 		const contentType = request.headers.get('content-type') ?? ''
 		if (!contentType.startsWith('image/') && !contentType.startsWith('video/')) {
-			return error(400, 'Invalid content type')
+			return new Response('Invalid content type', { 
+				status: 400,
+				headers: corsHeaders
+			})
 		}
 
 		if (await env.TLDRAW_BUCKET.head(objectName)) {
-			return error(409, 'Upload already exists')
+			return new Response('Upload already exists', {
+				status: 409,
+				headers: corsHeaders
+			})
 		}
 
 		await env.TLDRAW_BUCKET.put(objectName, request.body, {
 			httpMetadata: request.headers,
 		})
 
-		return { ok: true }
+		return new Response(JSON.stringify({ ok: true }), {
+			headers: {
+				...corsHeaders,
+				'content-type': 'application/json'
+			}
+		})
 	} catch (error) {
-		console.error('Asset upload failed:', error);
-		return new Response(`Upload failed: ${(error as Error).message}`, { status: 500 });
+		console.error('Asset upload failed:', error)
+		return new Response(JSON.stringify({ error: (error as Error).message }), {
+			status: 500,
+			headers: {
+				...corsHeaders,
+				'content-type': 'application/json'
+			}
+		})
 	}
 }
 
@@ -50,75 +69,103 @@ export async function handleAssetDownload(
 	env: Environment,
 	ctx: ExecutionContext
 ) {
-	const objectName = getAssetObjectName(request.params.uploadId)
-
-	// if we have a cached response for this request (automatically handling ranges etc.), return it
-	const cacheKey = new Request(request.url, { headers: request.headers })
-	// @ts-ignore
-	const cachedResponse = await caches.default.match(cacheKey)
-	if (cachedResponse) {
-		return cachedResponse
+	// Define CORS headers to be used consistently
+	const corsHeaders = {
+		'access-control-allow-origin': '*',
+		'access-control-allow-methods': 'GET, HEAD, OPTIONS',
+		'access-control-allow-headers': '*',
+		'access-control-expose-headers': 'content-length, content-range',
+		'access-control-max-age': '86400',
 	}
 
-	// if not, we try to fetch the asset from the bucket
-	const object = await env.TLDRAW_BUCKET.get(objectName, {
-		range: request.headers,
-		onlyIf: request.headers,
-	})
-
-	if (!object) {
-		return error(404)
+	// Handle preflight
+	if (request.method === 'OPTIONS') {
+		return new Response(null, { headers: corsHeaders })
 	}
 
-	// write the relevant metadata to the response headers
-	const headers = new Headers()
-	object.writeHttpMetadata(headers)
+	try {
+		const objectName = getAssetObjectName(request.params.uploadId)
 
-	// assets are immutable, so we can cache them basically forever:
-	headers.set('cache-control', 'public, max-age=31536000, immutable')
-	headers.set('etag', object.httpEtag)
+		// Handle cached response
+		const cacheKey = new Request(request.url, { headers: request.headers })
+		// @ts-ignore
+		const cachedResponse = await caches.default.match(cacheKey)
+		if (cachedResponse) {
+			const headers = new Headers(cachedResponse.headers)
+			Object.entries(corsHeaders).forEach(([key, value]) => headers.set(key, value))
+			return new Response(cachedResponse.body, {
+				status: cachedResponse.status,
+				headers
+			})
+		}
 
-	// Set comprehensive CORS headers for asset access
-	headers.set('access-control-allow-origin', '*')
-	headers.set('access-control-allow-methods', 'GET, HEAD, OPTIONS')
-	headers.set('access-control-allow-headers', '*')
-	headers.set('access-control-expose-headers', 'content-length, content-range')
-	headers.set('cross-origin-resource-policy', 'cross-origin')
-	headers.set('cross-origin-opener-policy', 'same-origin')
-	headers.set('cross-origin-embedder-policy', 'require-corp')
+		// Get from bucket
+		const object = await env.TLDRAW_BUCKET.get(objectName, {
+			range: request.headers,
+			onlyIf: request.headers,
+		})
 
-	// cloudflare doesn't set the content-range header automatically in writeHttpMetadata, so we
-	// need to do it ourselves.
-	let contentRange
-	if (object.range) {
-		if ('suffix' in object.range) {
-			const start = object.size - object.range.suffix
-			const end = object.size - 1
-			contentRange = `bytes ${start}-${end}/${object.size}`
-		} else {
-			const start = object.range.offset ?? 0
-			const end = object.range.length ? start + object.range.length - 1 : object.size - 1
-			if (start !== 0 || end !== object.size - 1) {
+		if (!object) {
+			return new Response('Not Found', { 
+				status: 404,
+				headers: corsHeaders
+			})
+		}
+
+		// Set up response headers
+		const headers = new Headers()
+		object.writeHttpMetadata(headers)
+		Object.entries(corsHeaders).forEach(([key, value]) => headers.set(key, value))
+		
+		headers.set('cache-control', 'public, max-age=31536000, immutable')
+		headers.set('etag', object.httpEtag)
+		headers.set('cross-origin-resource-policy', 'cross-origin')
+		headers.set('cross-origin-opener-policy', 'same-origin')
+		headers.set('cross-origin-embedder-policy', 'require-corp')
+
+		// Handle content range
+		let contentRange
+		if (object.range) {
+			if ('suffix' in object.range) {
+				const start = object.size - object.range.suffix
+				const end = object.size - 1
 				contentRange = `bytes ${start}-${end}/${object.size}`
+			} else {
+				const start = object.range.offset ?? 0
+				const end = object.range.length ? start + object.range.length - 1 : object.size - 1
+				if (start !== 0 || end !== object.size - 1) {
+					contentRange = `bytes ${start}-${end}/${object.size}`
+				}
 			}
 		}
+
+		if (contentRange) {
+			headers.set('content-range', contentRange)
+		}
+
+		const body = 'body' in object && object.body ? object.body : null
+		const status = body ? (contentRange ? 206 : 200) : 304
+
+		// Cache successful responses
+		if (status === 200) {
+			const [cacheBody, responseBody] = body!.tee()
+			// @ts-ignore
+			ctx.waitUntil(caches.default.put(cacheKey, new Response(cacheBody, { headers, status })))
+			return new Response(responseBody, { headers, status })
+		}
+
+		return new Response(body, { headers, status })
+	} catch (error) {
+		console.error('Asset download failed:', error)
+		return new Response(
+			JSON.stringify({ error: (error as Error).message }), 
+			{ 
+				status: 500,
+				headers: {
+					...corsHeaders,
+					'content-type': 'application/json'
+				}
+			}
+		)
 	}
-
-	if (contentRange) {
-		headers.set('content-range', contentRange)
-	}
-
-	// make sure we get the correct body/status for the response
-	const body = 'body' in object && object.body ? object.body : null
-	const status = body ? (contentRange ? 206 : 200) : 304
-
-	// we only cache complete (200) responses
-	if (status === 200) {
-		const [cacheBody, responseBody] = body!.tee()
-		// @ts-ignore
-		ctx.waitUntil(caches.default.put(cacheKey, new Response(cacheBody, { headers, status })))
-		return new Response(responseBody, { headers, status })
-	}
-
-	return new Response(body, { headers, status })
 }
