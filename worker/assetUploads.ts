@@ -10,6 +10,17 @@ function getAssetObjectName(uploadId: string) {
 
 // when a user uploads an asset, we store it in the bucket. we only allow image and video assets.
 export async function handleAssetUpload(request: IRequest, env: Environment) {
+	// If this is a preflight request, return appropriate CORS headers
+	if (request.method === 'OPTIONS') {
+		const headers = new Headers({
+			'access-control-allow-origin': '*',
+			'access-control-allow-methods': 'POST, OPTIONS',
+			'access-control-allow-headers': 'content-type',
+			'access-control-max-age': '86400',
+		})
+		return new Response(null, { headers })
+	}
+
 	try {
 		const objectName = getAssetObjectName(request.params.uploadId)
 
@@ -67,10 +78,14 @@ export async function handleAssetDownload(
 	headers.set('cache-control', 'public, max-age=31536000, immutable')
 	headers.set('etag', object.httpEtag)
 
-	// we set CORS headers so all clients can access assets. we do this here so our `cors` helper in
-	// worker.ts doesn't try to set extra cors headers on responses that have been read from the
-	// cache, which isn't allowed by cloudflare.
+	// Set comprehensive CORS headers for asset access
 	headers.set('access-control-allow-origin', '*')
+	headers.set('access-control-allow-methods', 'GET, HEAD, OPTIONS')
+	headers.set('access-control-allow-headers', '*')
+	headers.set('access-control-expose-headers', 'content-length, content-range')
+	headers.set('cross-origin-resource-policy', 'cross-origin')
+	headers.set('cross-origin-opener-policy', 'same-origin')
+	headers.set('cross-origin-embedder-policy', 'require-corp')
 
 	// cloudflare doesn't set the content-range header automatically in writeHttpMetadata, so we
 	// need to do it ourselves.

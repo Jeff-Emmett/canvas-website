@@ -147,7 +147,7 @@ export const overrides: TLUiOverrides = {
         icon: "prompt",
         label: "Prompt",
         type: "Prompt",
-        kbd: "alt+p",
+        kbd: "alt+l",
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("Prompt"),
       },
@@ -222,7 +222,7 @@ export const overrides: TLUiOverrides = {
       saveToPdf: {
         id: "save-to-pdf",
         label: "Save Selection as PDF",
-        kbd: "alt+s",
+        kbd: "alt+p",
         onSelect: () => {
           if (editor.getSelectedShapeIds().length > 0) {
             saveToPdf(editor)
@@ -348,66 +348,67 @@ export const overrides: TLUiOverrides = {
           }
         },
       },
-      "next-slide": {
-        id: "next-slide",
-        label: "Next slide",
-        kbd: "right",
-        onSelect() {
-          const slides = editor
-            .getCurrentPageShapes()
-            .filter((shape) => shape.type === "Slide")
-          if (slides.length === 0) return
+      //TODO: FIX PREV & NEXT SLIDE KEYBOARD COMMANDS
+      // "next-slide": {
+      //   id: "next-slide",
+      //   label: "Next slide",
+      //   kbd: "right",
+      //   onSelect() {
+      //     const slides = editor
+      //       .getCurrentPageShapes()
+      //       .filter((shape) => shape.type === "Slide")
+      //     if (slides.length === 0) return
 
-          const currentSlide = editor
-            .getSelectedShapes()
-            .find((shape) => shape.type === "Slide")
-          const currentIndex = currentSlide
-            ? slides.findIndex((slide) => slide.id === currentSlide.id)
-            : -1
+      //     const currentSlide = editor
+      //       .getSelectedShapes()
+      //       .find((shape) => shape.type === "Slide")
+      //     const currentIndex = currentSlide
+      //       ? slides.findIndex((slide) => slide.id === currentSlide.id)
+      //       : -1
 
-          // Calculate next index with wraparound
-          const nextIndex =
-            currentIndex === -1
-              ? 0
-              : currentIndex >= slides.length - 1
-              ? 0
-              : currentIndex + 1
+      //     // Calculate next index with wraparound
+      //     const nextIndex =
+      //       currentIndex === -1
+      //         ? 0
+      //         : currentIndex >= slides.length - 1
+      //         ? 0
+      //         : currentIndex + 1
 
-          const nextSlide = slides[nextIndex]
+      //     const nextSlide = slides[nextIndex]
 
-          editor.select(nextSlide.id)
-          editor.stopCameraAnimation()
-          moveToSlide(editor, nextSlide as ISlideShape)
-        },
-      },
-      "previous-slide": {
-        id: "previous-slide",
-        label: "Previous slide",
-        kbd: "left",
-        onSelect() {
-          const slides = editor
-            .getCurrentPageShapes()
-            .filter((shape) => shape.type === "Slide")
-          if (slides.length === 0) return
+      //     editor.select(nextSlide.id)
+      //     editor.stopCameraAnimation()
+      //     moveToSlide(editor, nextSlide as ISlideShape)
+      //   },
+      // },
+      // "previous-slide": {
+      //   id: "previous-slide",
+      //   label: "Previous slide",
+      //   kbd: "left",
+      //   onSelect() {
+      //     const slides = editor
+      //       .getCurrentPageShapes()
+      //       .filter((shape) => shape.type === "Slide")
+      //     if (slides.length === 0) return
 
-          const currentSlide = editor
-            .getSelectedShapes()
-            .find((shape) => shape.type === "Slide")
-          const currentIndex = currentSlide
-            ? slides.findIndex((slide) => slide.id === currentSlide.id)
-            : -1
+      //     const currentSlide = editor
+      //       .getSelectedShapes()
+      //       .find((shape) => shape.type === "Slide")
+      //     const currentIndex = currentSlide
+      //       ? slides.findIndex((slide) => slide.id === currentSlide.id)
+      //       : -1
 
-          // Calculate previous index with wraparound
-          const previousIndex =
-            currentIndex <= 0 ? slides.length - 1 : currentIndex - 1
+      //     // Calculate previous index with wraparound
+      //     const previousIndex =
+      //       currentIndex <= 0 ? slides.length - 1 : currentIndex - 1
 
-          const previousSlide = slides[previousIndex]
+      //     const previousSlide = slides[previousIndex]
 
-          editor.select(previousSlide.id)
-          editor.stopCameraAnimation()
-          moveToSlide(editor, previousSlide as ISlideShape)
-        },
-      },
+      //     editor.select(previousSlide.id)
+      //     editor.stopCameraAnimation()
+      //     moveToSlide(editor, previousSlide as ISlideShape)
+      //   },
+      // },
     }
 
     return {
