@@ -16,8 +16,8 @@ export class MarkdownShape extends BaseBoxShapeUtil<IMarkdownShape> {
 
   getDefaultProps(): IMarkdownShape['props'] {
     return {
-      w: 300,
-      h: 200,
+      w: 500,
+      h: 400,
       text: '',
     }
   }
@@ -110,20 +110,28 @@ export class MarkdownShape extends BaseBoxShapeUtil<IMarkdownShape> {
                   },
                 })
               }}
-              preview='edit'
-              hideToolbar={true}
+              preview='live'
+              visibleDragbar={false}
               style={{
-                height: '100%',
+                height: 'auto',
+                minHeight: '100%',
                 border: 'none',
+                backgroundColor: 'transparent',
+              }}
+              previewOptions={{
+                style: {
+                  padding: '8px',
+                  backgroundColor: 'transparent',
+                }
               }}
               textareaProps={{
-                placeholder: "Enter markdown text...",
                 style: {
-                  backgroundColor: 'transparent',
-                  height: '100%',
-                  padding: '12px',
+                  padding: '8px',
                   lineHeight: '1.5',
-                  fontSize: '14px',
+                  height: 'auto',
+                  minHeight: '100%',
+                  resize: 'none',
+                  backgroundColor: 'transparent',
                 }
               }}
               onPointerDown={(e) => {

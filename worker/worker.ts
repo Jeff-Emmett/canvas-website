@@ -58,6 +58,11 @@ const { preflight, corsify } = cors({
     "Sec-WebSocket-Version",
     "Sec-WebSocket-Extensions",
     "Sec-WebSocket-Protocol",
+    "Content-Length",
+    "Content-Range",
+    "Range",
+    "If-None-Match",
+    "If-Modified-Since"
   ],
   maxAge: 86400,
   credentials: true,
@@ -142,6 +147,169 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
           'Authorization': `Bearer ${apiKey}`
         }
       })
+
+      const data = await response.json()
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
+  // Add new transcription endpoints
+  .post("/daily/rooms/:roomName/start-transcription", async (req) => {
+    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+    const { roomName } = req.params
+    
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: 'No API key provided' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      const response = await fetch(`https://api.daily.co/v1/rooms/${roomName}/transcription/start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        }
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        return new Response(JSON.stringify(error), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      const data = await response.json()
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
+  .post("/daily/rooms/:roomName/stop-transcription", async (req) => {
+    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+    const { roomName } = req.params
+    
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: 'No API key provided' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      const response = await fetch(`https://api.daily.co/v1/rooms/${roomName}/transcription/stop`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        }
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        return new Response(JSON.stringify(error), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      const data = await response.json()
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
+  // Add endpoint to get transcript access link
+  .get("/daily/transcript/:transcriptId/access-link", async (req) => {
+    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+    const { transcriptId } = req.params
+    
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: 'No API key provided' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      const response = await fetch(`https://api.daily.co/v1/transcript/${transcriptId}/access-link`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        return new Response(JSON.stringify(error), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      const data = await response.json()
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
+  // Add endpoint to get transcript text
+  .get("/daily/transcript/:transcriptId", async (req) => {
+    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+    const { transcriptId } = req.params
+    
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: 'No API key provided' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      const response = await fetch(`https://api.daily.co/v1/transcripts/${transcriptId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        return new Response(JSON.stringify(error), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
 
       const data = await response.json()
       return new Response(JSON.stringify(data), {

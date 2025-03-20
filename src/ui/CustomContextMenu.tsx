@@ -68,6 +68,29 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
   return (
     <DefaultContextMenu {...props}>
       <DefaultContextMenuContent />
+      
+      {/* Frames List - Moved to top */}
+      <TldrawUiMenuGroup id="frames-list">
+        <TldrawUiMenuSubmenu id="frames-dropdown" label="Shortcut to Frames">
+          {getAllFrames(editor).map((frame) => (
+            <TldrawUiMenuItem
+              key={frame.id}
+              id={`frame-${frame.id}`}
+              label={frame.title}
+              onSelect={() => {
+                const shape = editor.getShape(frame.id)
+                if (shape) {
+                  editor.zoomToBounds(editor.getShapePageBounds(shape)!, {
+                    animation: { duration: 400, easing: (t) => t * (2 - t) },
+                  })
+                  editor.select(frame.id)
+                }
+              }}
+            />
+          ))}
+        </TldrawUiMenuSubmenu>
+      </TldrawUiMenuGroup>
+
       {/* Camera Controls Group */}
       <TldrawUiMenuGroup id="camera-controls">
         <TldrawUiMenuItem {...customActions.zoomToSelection} disabled={!hasSelection} />
@@ -90,27 +113,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
         <TldrawUiMenuItem {...tools.Prompt} disabled={hasSelection} />
       </TldrawUiMenuGroup>
 
-      {/* Frame Controls */}
-      <TldrawUiMenuGroup id="frames-list">
-        <TldrawUiMenuSubmenu id="frames-dropdown" label="Shortcut to Frames">
-          {getAllFrames(editor).map((frame) => (
-            <TldrawUiMenuItem
-              key={frame.id}
-              id={`frame-${frame.id}`}
-              label={frame.title}
-              onSelect={() => {
-                const shape = editor.getShape(frame.id)
-                if (shape) {
-                  editor.zoomToBounds(editor.getShapePageBounds(shape)!, {
-                    animation: { duration: 400, easing: (t) => t * (2 - t) },
-                  })
-                  editor.select(frame.id)
-                }
-              }}
-            />
-          ))}
-        </TldrawUiMenuSubmenu>
-      </TldrawUiMenuGroup>
+      
       {/* TODO: FIX & IMPLEMENT BROADCASTING*/}
       {/* <TldrawUiMenuGroup id="broadcast-controls">
         <TldrawUiMenuItem
