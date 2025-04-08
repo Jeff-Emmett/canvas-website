@@ -12,6 +12,7 @@ import { DefaultContextMenu, DefaultContextMenuContent } from "tldraw"
 import { TLUiContextMenuProps, useEditor } from "tldraw"
 import {
   cameraHistory,
+  copyLinkToLockedView,
 } from "./cameraUtils"
 import { useState, useEffect } from "react"
 import { saveToPdf } from "../utils/pdfUtils"
@@ -95,11 +96,13 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
       <TldrawUiMenuGroup id="camera-controls">
         <TldrawUiMenuItem {...customActions.zoomToSelection} disabled={!hasSelection} />
         <TldrawUiMenuItem {...customActions.copyLinkToCurrentView} />
+        <TldrawUiMenuItem {...customActions.copyLockedLink} />
         <TldrawUiMenuItem {...customActions.revertCamera} disabled={!hasCameraHistory} />
         <TldrawUiMenuItem {...customActions.lockElement} disabled={!hasSelection} />
         <TldrawUiMenuItem {...customActions.unlockElement} disabled={!hasSelection} />
         <TldrawUiMenuItem {...customActions.saveToPdf} disabled={!hasSelection} />
         <TldrawUiMenuItem {...customActions.llm} disabled={!hasSelection} />
+        
       </TldrawUiMenuGroup>
 
       {/* Creation Tools Group */}

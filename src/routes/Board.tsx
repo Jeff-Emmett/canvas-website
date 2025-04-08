@@ -33,9 +33,10 @@ import { llm } from "@/utils/llmUtils"
 import {
   lockElement,
   unlockElement,
-  setInitialCameraFromUrl,
+  //setInitialCameraFromUrl,
   initLockIndicators,
   watchForLockedShapes,
+  zoomToSelection,
 } from "@/ui/cameraUtils"
 
 // Default to production URL if env var isn't available
@@ -77,6 +78,8 @@ export function Board() {
   const store = useSync(storeConfig)
   const [editor, setEditor] = useState<Editor | null>(null)
 
+  const [isCameraLocked, setIsCameraLocked] = useState(false)
+
   useEffect(() => {
     const value = localStorage.getItem("makereal_settings_2")
     if (value) {
@@ -97,6 +100,71 @@ export function Board() {
     watchForLockedShapes(editor)
   }, [editor])
 
+  useEffect(() => {
+    if (!editor) return
+    
+    // First set the camera position
+    const url = new URL(window.location.href)
+    const x = url.searchParams.get("x")
+    const y = url.searchParams.get("y")
+    const zoom = url.searchParams.get("zoom")
+    const shapeId = url.searchParams.get("shapeId")
+    const frameId = url.searchParams.get("frameId")
+    const isLocked = url.searchParams.get("isLocked") === "true"
+    
+    const initializeCamera = async () => {
+      // Start with camera unlocked
+      setIsCameraLocked(false)
+      
+      if (x && y && zoom) {
+        editor.stopCameraAnimation()
+        
+        // Set camera position immediately when editor is available
+        editor.setCamera(
+          {
+            x: parseFloat(parseFloat(x).toFixed(2)),
+            y: parseFloat(parseFloat(y).toFixed(2)),
+            z: parseFloat(parseFloat(zoom).toFixed(2))
+          },
+          { animation: { duration: 0 } }
+        )
+        
+        // Ensure camera update is applied
+        editor.updateInstanceState({ ...editor.getInstanceState() })
+      }
+
+      // Handle shape/frame selection after camera position is set
+      if (shapeId) {
+        editor.select(shapeId as TLShapeId)
+        const bounds = editor.getSelectionPageBounds()
+        if (bounds && !x && !y && !zoom) {
+          zoomToSelection(editor)
+        }
+      } else if (frameId) {
+        editor.select(frameId as TLShapeId)
+        const frame = editor.getShape(frameId as TLShapeId)
+        if (frame && !x && !y && !zoom) {
+          const bounds = editor.getShapePageBounds(frame)
+          if (bounds) {
+            editor.zoomToBounds(bounds, {
+              targetZoom: 1,
+              animation: { duration: 0 },
+            })
+          }
+        }
+      }
+
+      // Lock camera after all initialization is complete
+      if (isLocked) {
+          requestAnimationFrame(() => {
+            setIsCameraLocked(true)
+          })
+      }
+    }
+
+    initializeCamera()
+  }, [editor])
+
   return (
     <div style={{ position: "fixed", inset: 0 }}>
       <Tldraw
@@ -115,6 +183,7 @@ export function Board() {
           }
         }}
         cameraOptions={{
+          isLocked: isCameraLocked,
           zoomSteps: [
             0.001, // Min zoom
             0.0025,
@@ -138,8 +207,7 @@ export function Board() {
           setEditor(editor)
           editor.registerExternalAssetHandler("url", unfurlBookmarkUrl)
           editor.setCurrentTool("hand")
-          setInitialCameraFromUrl(editor)
-          handleInitialPageLoad(editor)
+          
           registerPropagators(editor, [
             TickPropagator,
             ChangePropagator,
