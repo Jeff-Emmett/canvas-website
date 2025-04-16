@@ -12,7 +12,6 @@ import {
   revertCamera,
   unlockElement,
   zoomToSelection,
-  copyLinkToLockedView,
 } from "./cameraUtils"
 import { saveToPdf } from "../utils/pdfUtils"
 import { searchText } from "../utils/searchUtils"
@@ -349,16 +348,6 @@ export const overrides: TLUiOverrides = {
           }
         },
       },
-      //TODO: FIX COPY LOCKED LINK
-       copyLockedLink: {
-         id: "copy-locked-link",
-         label: "Copy Locked View Link",
-         kbd: "alt+shift+c",
-         onSelect() {
-           copyLinkToLockedView(editor)
-         },
-         readonlyOk: true,
-       },
       //TODO: FIX PREV & NEXT SLIDE KEYBOARD COMMANDS
       // "next-slide": {
       //   id: "next-slide",

@@ -5,11 +5,8 @@ interface DailyApiResponse {
   url: string;
 }
 
-interface DailyTranscriptResponse {
+interface DailyRecordingResponse {
   id: string;
-  transcriptionId: string;
-  text?: string;
-  link?: string;
 }
 
 export type IVideoChatShape = TLBaseShape<
@@ -20,9 +17,8 @@ export type IVideoChatShape = TLBaseShape<
     roomUrl: string | null
     allowCamera: boolean
     allowMicrophone: boolean
-    enableTranscription: boolean
-    transcriptionId: string | null
-    isTranscribing: boolean
+    enableRecording: boolean
+    recordingId: string | null // Track active recording
   }
 >
 
@@ -40,9 +36,8 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
       h: 600,
       allowCamera: false,
       allowMicrophone: false,
-      enableTranscription: true,
-      transcriptionId: null,
-      isTranscribing: false
+      enableRecording: true,
+      recordingId: null
     }
   }
 
@@ -150,152 +145,73 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     }
   }
 
-  async startTranscription(shape: IVideoChatShape) {
+  async startRecording(shape: IVideoChatShape) {
     if (!shape.props.roomUrl) return;
     
     const workerUrl = import.meta.env.VITE_TLDRAW_WORKER_URL;
     const apiKey = import.meta.env.VITE_DAILY_API_KEY;
 
-    if (!apiKey) {
-      throw new Error('Daily.co API key not configured');
-    }
-
     try {
-      // Extract room name from the room URL
-      const roomName = new URL(shape.props.roomUrl).pathname.split('/').pop();
-      
-      const response = await fetch(`${workerUrl}/daily/rooms/${roomName}/start-transcription`, {
+      const response = await fetch(`${workerUrl}/daily/recordings/start`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({
+          room_name: shape.id,
+          layout: {
+            preset: "active-speaker"
+          }
+        })
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(`Failed to start transcription: ${JSON.stringify(error)}`);
-      }
+      if (!response.ok) throw new Error('Failed to start recording');
       
-      const data = await response.json() as DailyTranscriptResponse;
+      const data = await response.json() as DailyRecordingResponse;
       
       await this.editor.updateShape<IVideoChatShape>({
         id: shape.id,
         type: shape.type,
         props: {
           ...shape.props,
-          transcriptionId: data.transcriptionId || data.id,
-          isTranscribing: true
+          recordingId: data.id
         }
       });
 
     } catch (error) {
-      console.error('Error starting transcription:', error);
+      console.error('Error starting recording:', error);
       throw error;
     }
   }
 
-  async stopTranscription(shape: IVideoChatShape) {
-    if (!shape.props.roomUrl) return;
+  async stopRecording(shape: IVideoChatShape) {
+    if (!shape.props.recordingId) return;
 
     const workerUrl = import.meta.env.VITE_TLDRAW_WORKER_URL;
     const apiKey = import.meta.env.VITE_DAILY_API_KEY;
 
-    if (!apiKey) {
-      throw new Error('Daily.co API key not configured');
-    }
-
     try {
-      // Extract room name from the room URL
-      const roomName = new URL(shape.props.roomUrl).pathname.split('/').pop();
-
-      const response = await fetch(`${workerUrl}/daily/rooms/${roomName}/stop-transcription`, {
+      await fetch(`${workerUrl}/daily/recordings/${shape.props.recordingId}/stop`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${apiKey}`
         }
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(`Failed to stop transcription: ${JSON.stringify(error)}`);
-      }
-
-      const data = await response.json() as DailyTranscriptResponse;
-      console.log('Stop transcription response:', data);
-
-      // Update both transcriptionId and isTranscribing state
       await this.editor.updateShape<IVideoChatShape>({
         id: shape.id,
         type: shape.type,
         props: {
           ...shape.props,
-          transcriptionId: data.transcriptionId || data.id || 'completed',
-          isTranscribing: false
+          recordingId: null
         }
       });
 
     } catch (error) {
-      console.error('Error stopping transcription:', error);
+      console.error('Error stopping recording:', error);
       throw error;
     }
-  }
-
-  async getTranscriptionText(transcriptId: string): Promise<string> {
-    const workerUrl = import.meta.env.VITE_TLDRAW_WORKER_URL;
-    const apiKey = import.meta.env.VITE_DAILY_API_KEY;
-
-    if (!apiKey) {
-      throw new Error('Daily.co API key not configured');
-    }
-
-    console.log('Fetching transcript for ID:', transcriptId); // Debug log
-
-    const response = await fetch(`${workerUrl}/transcript/${transcriptId}`, { // Remove 'daily' from path
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      console.error('Transcript API response:', error); // Debug log
-      throw new Error(`Failed to get transcription: ${JSON.stringify(error)}`);
-    }
-
-    const data = await response.json() as DailyTranscriptResponse;
-    console.log('Transcript data received:', data); // Debug log
-    return data.text || 'No transcription available';
-  }
-
-  async getTranscriptAccessLink(transcriptId: string): Promise<string> {
-    const workerUrl = import.meta.env.VITE_TLDRAW_WORKER_URL;
-    const apiKey = import.meta.env.VITE_DAILY_API_KEY;
-
-    if (!apiKey) {
-      throw new Error('Daily.co API key not configured');
-    }
-
-    console.log('Fetching transcript access link for ID:', transcriptId); // Debug log
-
-    const response = await fetch(`${workerUrl}/transcript/${transcriptId}/access-link`, { // Remove 'daily' from path
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      console.error('Transcript link API response:', error); // Debug log
-      throw new Error(`Failed to get transcript access link: ${JSON.stringify(error)}`);
-    }
-
-    const data = await response.json() as DailyTranscriptResponse;
-    console.log('Transcript link data received:', data); // Debug log
-    return data.link || 'No transcript link available';
   }
 
   component(shape: IVideoChatShape) {
@@ -303,43 +219,6 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     const [error, setError] = useState<Error | null>(null)
     const [isLoading, setIsLoading] = useState(true)
     const [roomUrl, setRoomUrl] = useState<string | null>(shape.props.roomUrl)
-    const [isCallActive, setIsCallActive] = useState(false)
-
-    const handleIframeMessage = (event: MessageEvent) => {
-      // Check if message is from Daily.co
-      if (!event.origin.includes('daily.co')) return;
-
-      console.log('Daily message received:', event.data);
-
-      // Check for call state updates
-      if (event.data?.action === 'daily-method-result') {
-        // Handle join success
-        if (event.data.method === 'join' && !event.data.error) {
-          console.log('Join successful - setting call as active');
-          setIsCallActive(true);
-        }
-      }
-      
-      // Also check for participant events
-      if (event.data?.action === 'participant-joined') {
-        console.log('Participant joined - setting call as active');
-        setIsCallActive(true);
-      }
-
-      // Check for call ended
-      if (event.data?.action === 'left-meeting' || 
-          event.data?.action === 'participant-left') {
-        console.log('Call ended - setting call as inactive');
-        setIsCallActive(false);
-      }
-    };
-
-    useEffect(() => {
-      window.addEventListener('message', handleIframeMessage);
-      return () => {
-        window.removeEventListener('message', handleIframeMessage);
-      };
-    }, []);
 
     useEffect(() => {
         let mounted = true;
@@ -371,7 +250,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         return () => {
             mounted = false;
         };
-    }, [shape.id]);
+    }, [shape.id]); // Only re-run if shape.id changes
 
     useEffect(() => {
       let mounted = true;
@@ -402,28 +281,6 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         mounted = false;
       }
     }, [shape.props.allowCamera, shape.props.allowMicrophone])
-
-    const handleTranscriptionClick = async (e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      if (!isCallActive) {
-        console.log('Cannot control transcription when call is not active');
-        return;
-      }
-
-      try {
-        if (shape.props.isTranscribing) {
-          console.log('Stopping transcription');
-          await this.stopTranscription(shape);
-        } else {
-          console.log('Starting transcription');
-          await this.startTranscription(shape);
-        }
-      } catch (err) {
-        console.error('Transcription error:', err);
-      }
-    };
 
     if (error) {
         return <div>Error creating room: {error.message}</div>
@@ -460,16 +317,6 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 
     console.log(roomUrl)
 
-    // Debug log for render
-    console.log('Current call state:', { isCallActive, roomUrl });
-
-    // Add debug log before render
-    console.log('Rendering component with states:', {
-      isCallActive,
-      isTranscribing: shape.props.isTranscribing,
-      roomUrl
-    });
-
     return (
       <div
         style={{
@@ -477,7 +324,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
           height: `${shape.props.h}px`,
           position: "relative",
           pointerEvents: "all",
-          overflow: "visible",
+          overflow: "hidden",
         }}
       >
         <iframe
@@ -492,80 +339,58 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
             right: 0,
             bottom: 0,
           }}
-          allow="camera *; microphone *; display-capture *; clipboard-read; clipboard-write"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals"
-        />
+          allow={`camera ${shape.props.allowCamera ? "self" : ""}; microphone ${
+            shape.props.allowMicrophone ? "self" : ""
+          }`}
+        ></iframe>
         
-        {/* Add data-testid to help debug iframe messages */}
-        <div data-testid="call-status">
-          Call Active: {isCallActive ? 'Yes' : 'No'}
-        </div>
-
-        <div
-          style={{
-            position: "absolute",
-            bottom: -48,
-            left: 0,
-            right: 0,
-            margin: "8px",
-            padding: "8px 12px",
-            background: "rgba(255, 255, 255, 0.95)",
-            borderRadius: "6px",
-            fontSize: "12px",
-            pointerEvents: "all",
-            touchAction: "manipulation",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            zIndex: 999,
-            border: "1px solid #ccc",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-            userSelect: "none",
-          }}
-        >
-          <span style={{ 
-            cursor: "text", 
-            userSelect: "text",
-            maxWidth: "60%",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            pointerEvents: "all",
-            touchAction: "auto"
-          }}>
-            url: {roomUrl}
-          </span>
+        {shape.props.enableRecording && (
           <button
-            onClick={handleTranscriptionClick}
-            disabled={!isCallActive}
+            onClick={async () => {
+              try {
+                if (shape.props.recordingId) {
+                  await this.stopRecording(shape);
+                } else {
+                  await this.startRecording(shape);
+                }
+              } catch (err) {
+                console.error('Recording error:', err);
+              }
+            }}
             style={{
-              marginLeft: "12px",
-              padding: "6px 12px",
-              background: shape.props.isTranscribing ? "#ff4444" : "#ffffff",
+              position: "absolute",
+              top: "8px",
+              right: "8px",
+              padding: "4px 8px",
+              background: shape.props.recordingId ? "#ff4444" : "#ffffff",
               border: "1px solid #ccc",
               borderRadius: "4px",
-              cursor: isCallActive ? "pointer" : "not-allowed",
-              whiteSpace: "nowrap",
-              flexShrink: 0,
-              pointerEvents: isCallActive ? "all" : "none", // Add explicit pointer-events control
-              touchAction: "manipulation",
-              WebkitTapHighlightColor: "transparent",
-              userSelect: "none",
-              minHeight: "32px",
-              minWidth: "44px",
-              zIndex: 1000,
-              position: "relative",
-              opacity: isCallActive ? 1 : 0.5
+              cursor: "pointer",
+              zIndex: 1,
             }}
           >
-            {!isCallActive 
-              ? "Join call to enable transcription"
-              : shape.props.isTranscribing 
-                ? "Stop Transcription" 
-                : "Start Transcription"
-            }
+            {shape.props.recordingId ? "Stop Recording" : "Start Recording"}
           </button>
-        </div>
+        )}
+
+        <p
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            margin: "8px",
+            padding: "4px 8px",
+            background: "rgba(255, 255, 255, 0.9)",
+            borderRadius: "4px",
+            fontSize: "12px",
+            pointerEvents: "all",
+            cursor: "text",
+            userSelect: "text",
+            zIndex: 1,
+          }}
+        >
+          url: {roomUrl}
+        </p>
       </div>
     )
   }

@@ -4,38 +4,34 @@ export function Default() {
       <header>Jeff Emmett</header>
       <h2>Hello! 👋🍄</h2>
       <p>
-        My research investigates the intersection of mycelial patterns and emancipatory
+        My research investigates the intersection of mycelium and emancipatory
         technologies. I am interested in the potential of new convivial tooling
         as a medium for group consensus building and collective action, in order
-        to empower communities of practice to address their local challenges in an 
-        age of ecological and instititutional collapse.
+        to empower communities of practice to address their own challenges.
       </p>
 
       <p>
-        I let my curiosity about mushrooms guide me, taking inspiration from their 
-        willingness to playfully experiment and adapt, even in the most chaotic environments. 
-        I am fascinated by the potential of mycelial networks to create new forms of bottoms-up
-        sensing, collective cohereing around sensible directions, and emergent dynamic action 
-        towards addressing local challenges.
+        My current focus is basic research into the nature of digital
+        organisation, developing prototype toolkits to improve shared
+        infrastructure, and applying this research to the design of new systems
+        and protocols which support the self-organisation of knowledge and
+        emergent response to local needs.
       </p>
 
       <h2>My work</h2>
       <p>
-        I am fortunate enough to collaborate with some pretty incredible groups of
-        researchers and builders. I am a research communicator at 
-        <a href="https://block.science/">Block Science</a>, an
-        advisor to the <a href= "https://activeinference.org/">Active Inference Lab</a>, 
-        co-founder of <a href="https://commonsstack.org/">Commons Stack</a>, and 
-        board member of the <a href="https://trustedseed.org/">Trusted Seed</a>. I am also 
-        a collaborator with <a href="https://economicspace.agency/">The Economic Space Agency</a>.
+        Alongside my independent work, I am a researcher and engineering
+        communicator at <a href="https://block.science/">Block Science</a>, an
+        advisor to the Active Inference Lab, Commons Stack, and the Trusted
+        Seed. I am also an occasional collaborator with{" "}
+        <a href="https://economicspace.agency/">ECSA</a>.
       </p>
 
-      <h2>Get in Touch to Collaborate</h2>
+      <h2>Get in touch</h2>
       <p>
-        I am on Substack <a href="https://allthingsdecent.substack.com/">@All Things Decent</a>,
-        Bluesky <a href="https://bsky.app/profile/jeffemmett.com">@jeffemmett</a>,
-        Twitter <a href="https://x.com/jeffemmett">@jeffemmett</a>,
-        Mastodon<a href="https://social.coop/@jeffemmett">@jeffemmett@social.coop</a>
+        I am on Twitter <a href="https://twitter.com/jeffemmett">@jeffemmett</a>
+        , Mastodon{" "}
+        <a href="https://social.coop/@jeffemmett">@jeffemmett@social.coop</a>{" "}
         and GitHub <a href="https://github.com/Jeff-Emmett">@Jeff-Emmett</a>.
       </p>
 
@@ -46,29 +42,34 @@ export function Default() {
         <li>
           <a href="https://www.teamhuman.fm/episodes/238-jeff-emmett">
             MycoPunk Futures on Team Human with Douglas Rushkoff
-          </a>
+          </a>{" "}
+          (<a href="artifact/tft-rocks-integration-domain.pdf">slides</a>)
         </li>
         <li>
           <a href="https://www.youtube.com/watch?v=AFJFDajuCSg">
             Exploring MycoFi on the Greenpill Network with Kevin Owocki
-          </a>
+          </a>{" "}
+          (<a href="artifact/tft-rocks-integration-domain.pdf">slides</a>)
         </li>
         <li>
           <a href="https://youtu.be/9ad2EJhMbZ8">
             Re-imagining Human Value on the Telos Podcast with Rieki &
-            Brandon from SEEDS
-          </a>
+            Brandonfrom SEEDS
+          </a>{" "}
+          (<a href="artifact/tft-rocks-integration-domain.pdf">slides</a>)
         </li>
         <li>
           <a href="https://www.youtube.com/watch?v=i8qcg7FfpLM&t=1348s">
             Move Slow & Fix Things: Design Patterns from Nature
-          </a>
+          </a>{" "}
+          (<a href="artifact/tft-rocks-integration-domain.pdf">slides</a>)
         </li>
         <li>
           <a href="https://podcasters.spotify.com/pod/show/theownershipeconomy/episodes/Episode-009---Localized-Democracy-and-Public-Goods-with-Token-Engineering--with-Jeff-Emmett-of-The-Commons-Stack--BlockScience-Labs-e1ggkqo">
             Localized Democracy and Public Goods with Token Engineering on the
             Ownership Economy
-          </a>
+          </a>{" "}
+          (<a href="artifact/tft-rocks-integration-domain.pdf">slides</a>)
         </li>
         <li>
           <a href="https://youtu.be/kxcat-XBWas">
