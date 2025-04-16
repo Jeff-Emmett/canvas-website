@@ -39,8 +39,10 @@ import {
   zoomToSelection,
 } from "@/ui/cameraUtils"
 
-// Default to production URL if env var isn't available
-export const WORKER_URL = "https://jeffemmett-canvas.jeffemmett.workers.dev"
+// Use environment-specific worker URL
+export const WORKER_URL = import.meta.env.MODE === 'production' 
+  ? "https://api.jeffemmett.com"
+  : "http://localhost:5172"
 
 const customShapeUtils = [
   ChatBoxShape,
@@ -79,6 +81,7 @@ export function Board() {
   const [editor, setEditor] = useState<Editor | null>(null)
 
   const [isCameraLocked, setIsCameraLocked] = useState(false)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
 
   useEffect(() => {
     const value = localStorage.getItem("makereal_settings_2")
@@ -215,6 +218,12 @@ export function Board() {
           ])
         }}
       />
+      {connectionError && (
+        <div className="connection-error">
+          <p>{connectionError}</p>
+          <button onClick={() => window.location.reload()}>Retry</button>
+        </div>
+      )}
     </div>
   )
 }

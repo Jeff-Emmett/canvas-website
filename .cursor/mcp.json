@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "obsidian-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "obsidian-mcp",
+        "--key",
+        "301b50ba-715f-45df-8f1d-d9695232d0b4"
+      ]
+    }
+  },
+    "MCP Installer": {
+      "command": "cursor-mcp-installer-free",
+      "type": "stdio",
+      "args": [
+        "index.mjs"
+      ]
+    }
+} 
+
