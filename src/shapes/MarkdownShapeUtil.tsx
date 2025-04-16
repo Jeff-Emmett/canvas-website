@@ -111,7 +111,7 @@ export class MarkdownShape extends BaseBoxShapeUtil<IMarkdownShape> {
                 })
               }}
               preview='live'
-              visibleDragbar={false}
+              visibleDragbar={true}
               style={{
                 height: 'auto',
                 minHeight: '100%',
@@ -120,13 +120,13 @@ export class MarkdownShape extends BaseBoxShapeUtil<IMarkdownShape> {
               }}
               previewOptions={{
                 style: {
-                  padding: '8px',
+                  padding: '12px',
                   backgroundColor: 'transparent',
                 }
               }}
               textareaProps={{
                 style: {
-                  padding: '8px',
+                  padding: '12px',
                   lineHeight: '1.5',
                   height: 'auto',
                   minHeight: '100%',
