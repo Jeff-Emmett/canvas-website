@@ -150,4 +150,3 @@ This project is licensed under the ISC License - see the LICENSE file for detail
 - [TLDraw](https://tldraw.com) for the collaborative canvas
 - [Daily.co](https://daily.co) for video chat functionality
 - [Cloudflare Workers](https://workers.cloudflare.com) for serverless backend
-- [Fal.ai](https://fal.ai) for the AI-powered image generation
