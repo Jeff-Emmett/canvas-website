@@ -81,9 +81,9 @@ export const zoomToSelection = (editor: Editor) => {
   const newCamera = editor.getCamera()
   const url = new URL(window.location.href)
   url.searchParams.set("shapeId", selectedIds[0].toString())
-  url.searchParams.set("x", newCamera.x.toFixed(2))
-  url.searchParams.set("y", newCamera.y.toFixed(2))
-  url.searchParams.set("zoom", newCamera.z.toFixed(2))
+  url.searchParams.set("x", Math.round(newCamera.x).toString())
+  url.searchParams.set("y", Math.round(newCamera.y).toString())
+  url.searchParams.set("zoom", Math.round(newCamera.z).toString())
   window.history.replaceState(null, "", url.toString())
 }
 
@@ -119,49 +119,41 @@ export const revertCamera = (editor: Editor) => {
 }
 
 export const copyLinkToCurrentView = async (editor: Editor) => {
-  if (!editor.store.serialize()) return
 
-  try {
-    const baseUrl = `${window.location.origin}${window.location.pathname}`
-    const url = new URL(baseUrl)
-    const camera = editor.getCamera()
-
-    // Round camera values to 2 decimal places
-    url.searchParams.set("x", camera.x.toFixed(2))
-    url.searchParams.set("y", camera.y.toFixed(2))
-    url.searchParams.set("zoom", camera.z.toFixed(2))
-
-    const selectedIds = editor.getSelectedShapeIds()
-    if (selectedIds.length > 0) {
-      url.searchParams.set("shapeId", selectedIds[0].toString())
-    }
-
-    await navigator.clipboard.writeText(url.toString())
-  } catch (error) {
-    alert("Failed to copy link. Please check clipboard permissions.")
+  if (!editor.store.serialize()) {
+    //console.warn("Store not ready")
+    return
   }
-}
-
-export const copyLinkToLockedView = async (editor: Editor) => {
-  if (!editor.store.serialize()) return
 
   try {
     const baseUrl = `${window.location.origin}${window.location.pathname}`
     const url = new URL(baseUrl)
     const camera = editor.getCamera()
 
-    // Round camera values to 2 decimal places
-    url.searchParams.set("x", camera.x.toFixed(2))
-    url.searchParams.set("y", camera.y.toFixed(2))
-    url.searchParams.set("zoom", camera.z.toFixed(2))
-    url.searchParams.set("isLocked", "true")
+    // Round camera values to integers
+    url.searchParams.set("x", Math.round(camera.x).toString())
+    url.searchParams.set("y", Math.round(camera.y).toString())
+    url.searchParams.set("zoom", Math.round(camera.z).toString())
 
     const selectedIds = editor.getSelectedShapeIds()
     if (selectedIds.length > 0) {
       url.searchParams.set("shapeId", selectedIds[0].toString())
     }
 
-    await navigator.clipboard.writeText(url.toString())
+    const finalUrl = url.toString()
+
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(finalUrl)
+    } else {
+      const textArea = document.createElement("textarea")
+      textArea.value = finalUrl
+      document.body.appendChild(textArea)
+      try {
+        await navigator.clipboard.writeText(textArea.value)
+      } catch (err) {
+      }
+      document.body.removeChild(textArea)
+    }
   } catch (error) {
     alert("Failed to copy link. Please check clipboard permissions.")
   }
@@ -291,55 +283,47 @@ export const initLockIndicators = (editor: Editor) => {
   })
 }
 
-// export const setInitialCameraFromUrl = (editor: Editor) => {
-//   const url = new URL(window.location.href)
-//   const x = url.searchParams.get("x")
-//   const y = url.searchParams.get("y")
-//   const zoom = url.searchParams.get("zoom")
-//   const shapeId = url.searchParams.get("shapeId")
-//   const frameId = url.searchParams.get("frameId")
-//   const isLocked = url.searchParams.get("isLocked") === "true"
+export const setInitialCameraFromUrl = (editor: Editor) => {
+  const url = new URL(window.location.href)
+  const x = url.searchParams.get("x")
+  const y = url.searchParams.get("y")
+  const zoom = url.searchParams.get("zoom")
+  const shapeId = url.searchParams.get("shapeId")
+  const frameId = url.searchParams.get("frameId")
 
-//   // Always set camera position first if coordinates exist
-//   if (x && y && zoom) {
-//     editor.stopCameraAnimation()
-//     // Force camera position update
-//     editor.setCamera(
-//       {
-//         x: Math.round(parseFloat(x)),
-//         y: Math.round(parseFloat(y)),
-//         z: Math.round(parseFloat(zoom))
-//       },
-//       { animation: { duration: 0 } }
-//     )
-    
-//     // Ensure camera update is applied
-//     editor.updateInstanceState({ ...editor.getInstanceState() })
-//   }
+  if (x && y && zoom) {
+    editor.stopCameraAnimation()
+    editor.setCamera(
+      {
+        x: Math.round(parseFloat(x)),
+        y: Math.round(parseFloat(y)),
+        z: Math.round(parseFloat(zoom))
+      },
+      { animation: { duration: 0 } }
+    )
+  }
 
-//   // Handle other camera operations after position is set
-//   if (shapeId) {
-//     editor.select(shapeId as TLShapeId)
-//     const bounds = editor.getSelectionPageBounds()
-//     if (bounds && !x && !y && !zoom) {
-//       zoomToSelection(editor)
-//     }
-//   } else if (frameId) {
-//     editor.select(frameId as TLShapeId)
-//     const frame = editor.getShape(frameId as TLShapeId)
-//     if (frame && !x && !y && !zoom) {
-//       const bounds = editor.getShapePageBounds(frame as TLShape)
-//       if (bounds) {
-//         editor.zoomToBounds(bounds, {
-//           targetZoom: 1,
-//           animation: { duration: 0 },
-//         })
-//       }
-//     }
-//   }
-
-//   return isLocked
-// }
+  // Handle shape/frame selection and zoom
+  if (shapeId) {
+    editor.select(shapeId as TLShapeId)
+    const bounds = editor.getSelectionPageBounds()
+    if (bounds && !x && !y && !zoom) {
+      zoomToSelection(editor)
+    }
+  } else if (frameId) {
+    editor.select(frameId as TLShapeId)
+    const frame = editor.getShape(frameId as TLShapeId)
+    if (frame && !x && !y && !zoom) {
+      const bounds = editor.getShapePageBounds(frame as TLShape)
+      if (bounds) {
+        editor.zoomToBounds(bounds, {
+          targetZoom: 1,
+          animation: { duration: 0 },
+        })
+      }
+    }
+  }
+}
 
 export const zoomToFrame = (editor: Editor, frameId: string) => {
   if (!editor) return

@@ -64,9 +64,9 @@ export function useCameraControls(editor: Editor | null) {
       if (!editor) return
       const camera = editor.getCamera()
       const url = new URL(window.location.href)
-      url.searchParams.set("x", camera.x.toFixed(2))
-      url.searchParams.set("y", camera.y.toFixed(2))
-      url.searchParams.set("zoom", camera.z.toFixed(2))
+      url.searchParams.set("x", Math.round(camera.x).toString())
+      url.searchParams.set("y", Math.round(camera.y).toString())
+      url.searchParams.set("zoom", Math.round(camera.z).toString())
       navigator.clipboard.writeText(url.toString())
     },
 

@@ -77,9 +77,9 @@ export const searchText = (editor: Editor) => {
     const newCamera = editor.getCamera()
     const url = new URL(window.location.href)
     url.searchParams.set("shapeId", matchingShapes[0].id)
-    url.searchParams.set("x", newCamera.x.toFixed(2))
-    url.searchParams.set("y", newCamera.y.toFixed(2))
-    url.searchParams.set("zoom", newCamera.z.toFixed(2))
+    url.searchParams.set("x", newCamera.x.toString())
+    url.searchParams.set("y", newCamera.y.toString())
+    url.searchParams.set("zoom", newCamera.z.toString())
     window.history.replaceState(null, "", url.toString())
   } else {
     alert("No matches found")
