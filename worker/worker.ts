@@ -380,12 +380,5 @@ router
     })
   })
 
-// Add this before the router definition
-export default {
-  fetch: router.handle,
-  scheduled: async (_event: ScheduledEvent, env: Environment, _ctx: ExecutionContext) => {
-    console.log('Running scheduled backup...');
-    const result = await backupAllBoards(env);
-    console.log('Backup result:', result);
-  }
-};
+// export our router for cloudflare
+export default router
