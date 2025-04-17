@@ -5,6 +5,8 @@ import { useEditor } from "tldraw"
 import { useState, useEffect } from "react"
 import { useDialogs } from "tldraw"
 import { SettingsDialog } from "./SettingsDialog"
+import { AuthDialog } from "./AuthDialog"
+import { useAuth, clearSession } from "../context/AuthContext"
 
 export function CustomToolbar() {
   const editor = useEditor()
@@ -12,6 +14,8 @@ export function CustomToolbar() {
   const [isReady, setIsReady] = useState(false)
   const [hasApiKey, setHasApiKey] = useState(false)
   const { addDialog, removeDialog } = useDialogs()
+  const { session, updateSession } = useAuth()
+  const [showProfilePopup, setShowProfilePopup] = useState(false)
 
   useEffect(() => {
     if (editor && tools) {
@@ -50,6 +54,21 @@ export function CustomToolbar() {
     const interval = setInterval(checkApiKeys, 5000)
     return () => clearInterval(interval)
   }, [])
+
+  const handleLogout = () => {
+    // Clear the session
+    clearSession()
+    
+    // Update the auth context
+    updateSession({
+      username: '',
+      authed: false,
+      backupCreated: null,
+    })
+    
+    // Close the popup
+    setShowProfilePopup(false)
+  }
 
   if (!isReady) return null
 
@@ -107,6 +126,100 @@ export function CustomToolbar() {
         >
           Keys {hasApiKey ? "✅" : "❌"}
         </button>
+        
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => {
+              if (session.authed) {
+                setShowProfilePopup(!showProfilePopup)
+              } else {
+                addDialog({
+                  id: "auth",
+                  component: ({ onClose }: { onClose: () => void }) => (
+                    <AuthDialog onClose={onClose} autoFocus={true} />
+                  ),
+                })
+              }
+            }}
+            style={{
+              padding: "8px 16px",
+              borderRadius: "4px",
+              background: session.authed ? "#6B7280" : "#2F80ED",
+              color: "white",
+              border: "none",
+              cursor: "pointer",
+              fontWeight: 500,
+              transition: "background 0.2s ease",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+              whiteSpace: "nowrap",
+              userSelect: "none",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = session.authed ? "#4B5563" : "#1366D6"
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = session.authed ? "#6B7280" : "#2F80ED"
+            }}
+          >
+            {session.authed ? `${session.username} ✅` : "Sign In"}
+          </button>
+          
+          {showProfilePopup && session.authed && (
+            <div 
+              style={{
+                position: "absolute",
+                top: "40px",
+                right: "0",
+                width: "200px",
+                backgroundColor: "white",
+                borderRadius: "4px",
+                boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
+                padding: "16px",
+                zIndex: 100000,
+              }}
+            >
+              <div style={{ marginBottom: "12px", fontWeight: "bold" }}>
+                Hello, {session.username}!
+              </div>
+              
+              {!session.backupCreated && (
+                <div style={{ 
+                  marginBottom: "12px", 
+                  fontSize: "12px", 
+                  color: "#666",
+                  padding: "8px",
+                  backgroundColor: "#f8f8f8",
+                  borderRadius: "4px"
+                }}>
+                  Remember to back up your encryption keys to prevent data loss!
+                </div>
+              )}
+              
+              <button
+                onClick={handleLogout}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  backgroundColor: "#EF4444",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                  transition: "background 0.2s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#DC2626"
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "#EF4444"
+                }}
+              >
+                Sign Out
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       <DefaultToolbar>
         <DefaultToolbarContent />
