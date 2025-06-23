@@ -1,19 +1,35 @@
+import './Default.css'
+
 export function Default() {
   return (
     <main>
-      <header>Jeff Emmett</header>
-      <h2>Hello! 👋🍄</h2>
+      <header>
+        <nav className="header-links">
+          <span className="explainer">Quick Links:</span>
+          <a href="https://draw.jeffemmett.com" className="nav-link">🎨 Drawfast</a>
+          <a href="https://jeffemmett.com/board/bsci-demo" className="nav-link">🖼️ Canvas</a>
+          <a href="https://jeffemmett.com/board/mycofi" className="nav-link">🍄 MycoFi</a>
+          <a href="https://quartz.jeffemmett.com" className="nav-link">📚 Knowledge Base</a>
+          <a href="https://bored.jeffemmett.com" className="nav-link">🥱 Bored</a>
+          <a href="https://betting.jeffemmett.com" className="nav-link">♟️ Chess Prediction Markets</a>
+        </nav>
+        <div className="header-content">
+          <span className="site-title">Jeff Emmett's Website</span>
+        </div>
+      </header>
+      <h2>Hey there! 👋🍄</h2>
       <p>
         My research investigates the intersection of mycelium and emancipatory
         technologies. I am interested in the potential of new convivial tooling
         as a medium for group consensus building and collective action, in order
-        to empower communities of practice to address their own challenges.
+        to empower communities of practice to address their own challenges with 
+        self-provisioned infrastructure.
       </p>
 
       <p>
         My current focus is basic research into the nature of digital
         organisation, developing prototype toolkits to improve shared
-        infrastructure, and applying this research to the design of new systems
+        tooling, and applying this research to the design of new systems
         and protocols which support the self-organisation of knowledge and
         emergent response to local needs.
       </p>
@@ -37,8 +53,20 @@ export function Default() {
 
       <span className="dinkus">***</span>
 
+      <div className="quicklinks">
+        <h3>Active Projects</h3>
+        <ul>
+          <li><a href="https://draw.jeffemmett.com">🎨 Drawfast</a> - AI sketching tool</li>
+          <li><a href="https://jeffemmett.com/board/bsci-demo">📊 Canvas</a> - Collaborative whiteboards</li>
+          <li><a href="https://jeffemmett.com/board/mycofi">🍄 MycoFi</a> - Mycelial design patterns</li>
+          <li><a href="https://quartz.jeffemmett.com">📚 Knowledge Base</a> - Obsidian second brain</li>
+          <li><a href="https://bored.jeffemmett.com">🥱 Bored</a> - Boredom exploration</li>
+          <li><a href="https://betting.jeffemmett.com">♟️ Chess Prediction Markets</a> - Chess prediction markets</li>
+        </ul>
+      </div>
+
       <h2>Talks</h2>
-      <ol reversed>
+      <ol>
         <li>
           <a href="https://www.teamhuman.fm/episodes/238-jeff-emmett">
             MycoPunk Futures on Team Human with Douglas Rushkoff
@@ -78,7 +106,7 @@ export function Default() {
         </li>
       </ol>
       <h2>Writing</h2>
-      <ol reversed>
+      <ol>
         <li>
           <a href="https://www.mycofi.art">
             Exploring MycoFi: Mycelial Design Patterns for Web3 & Beyond

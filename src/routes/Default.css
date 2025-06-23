@@ -1,0 +1,37 @@
+header {
+  margin-bottom: 2rem;
+}
+
+.header-links {
+  padding: 0.5rem 0;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  font-size: 1.05rem;
+}
+
+.explainer {
+  color: #666;
+  font-size: 1.05rem;
+  margin-right: 0.25rem;
+}
+
+.nav-link {
+  text-decoration: underline;
+  color: #666;
+  font-weight: normal;
+  padding: 0.25rem 0.5rem;
+  transition: color 0.2s ease;
+}
+
+.nav-link:hover {
+  color: #333;
+}
+
+.site-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #222;
+} 
