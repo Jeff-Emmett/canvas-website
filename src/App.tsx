@@ -6,6 +6,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom"
 import { Contact } from "@/routes/Contact"
 import { Board } from "./routes/Board"
 import { Inbox } from "./routes/Inbox"
+import { Presentations } from "./routes/Presentations"
 import { createRoot } from "react-dom/client"
 import { DailyProvider } from "@daily-co/daily-react"
 import Daily from "@daily-co/daily-js"
@@ -23,6 +24,7 @@ function App() {
           <Route path="/contact" element={<Contact />} />
           <Route path="/board/:slug" element={<Board />} />
           <Route path="/inbox" element={<Inbox />} />
+          <Route path="/presentations" element={<Presentations />} />
         </Routes>
       </BrowserRouter>
     </DailyProvider>
