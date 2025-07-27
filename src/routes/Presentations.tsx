@@ -61,7 +61,7 @@ export function Presentations() {
             </div>
           </div>
           <div className="presentation-meta">
-            <span>Greenpill Network with Kevin Owocki</span>
+            <span>Presentation at DevCon 7 in Bangkok</span>
             <a href="https://www.youtube.com/watch?v=0A4jXL5eBaI" target="_blank" rel="noopener noreferrer">
               Watch the full talk →
             </a>
@@ -81,7 +81,7 @@ export function Presentations() {
                 frameBorder="0" 
                 allowTransparency={true}
                 allowFullScreen={true}
-                title="MycoFi CoFi Gathering Presentation"
+                title="MycoFi Presentation at CoFi Gathering"
               />
             </div>
           </div>
@@ -113,14 +113,14 @@ export function Presentations() {
             </div>
           </div>
           <div className="presentation-meta">
-            <span>Presentation with Sara Horowitz</span>
-            <span>TBD: Find video from Sara Horowitz</span>
+            <span>Presentation at the Mutualist Society</span>
+            <span>Video coming soon</span>
           </div>
         </div>
 
         <div className="presentation-card">
           <h3>Psilocybernetics: The Emergence of Institutional Neuroplasticity</h3>
-          <p>Exploring the intersection of psychedelics, cybernetics, and institutional design</p>
+          <p>Exploring the intersection of mycelium and cybernetic institutional design</p>
           <div className="presentation-embed">
             <div style={{position: "relative", paddingTop: "max(60%, 324px)", width: "100%", height: 0}}>
               <iframe 
@@ -136,8 +136,8 @@ export function Presentations() {
             </div>
           </div>
           <div className="presentation-meta">
-            <span>Presentation with Christy PDX</span>
-            <span>TBD: Find video from Christy PDX</span>
+            <span>Presentation at the General Forum for Ethereum Localism</span>
+            <span>Video coming soon</span>
           </div>
         </div>
 
@@ -159,7 +159,7 @@ export function Presentations() {
             </div>
           </div>
           <div className="presentation-meta">
-            <span>ReFi Unconf @ the Commons Hub Austria</span>
+            <span>Presentation at the ReFi Unconf @ the Commons Hub Austria</span>
             <a href="https://www.youtube.com/live/i8qcg7FfpLM?si=onLcl8q5rz7cMViO&t=1362" target="_blank" rel="noopener noreferrer">
               Watch the full talk →
             </a>
@@ -184,7 +184,7 @@ export function Presentations() {
             </div>
           </div>
           <div className="presentation-meta">
-            <span>Token Engineering Global Gathering (TEGG)</span>
+            <span>Presentation at the Token Engineering Global Gathering (TEGG)</span>
             <a href="https://youtu.be/qjdjX2m_p0Q?si=r2AXVnVyzCIxIOSc&t=20" target="_blank" rel="noopener noreferrer">
               Watch the full talk →
             </a>
@@ -210,7 +210,7 @@ export function Presentations() {
           </div>
           <div className="presentation-meta">
             <span>Presentation on Conviction Voting</span>
-            <span>TBD: Add video link when available</span>
+            <span>Video coming soon</span>
           </div>
         </div>
 
@@ -232,7 +232,7 @@ export function Presentations() {
             </div>
           </div>
           <div className="presentation-meta">
-            <span>OpenWeb Hackathon</span>
+            <span>Presentation at the OpenWeb Hackathon</span>
             <a href="https://youtu.be/ZIWskNogafg?si=DmUbOQJaSRE1rdzq" target="_blank" rel="noopener noreferrer">
               Watch the full talk →
             </a>
@@ -257,8 +257,8 @@ export function Presentations() {
             </div>
           </div>
           <div className="presentation-meta">
-            <span>Presentation in Liege</span>
-            <span>TBD: Follow up with Nicholas for video from Liege</span>
+            <span>Presentation at CoFi Gathering in Liege</span>
+            <span>Video coming soon</span>
           </div>
         </div>
       </div>
