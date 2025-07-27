@@ -112,15 +112,15 @@ export class MarkdownShape extends BaseBoxShapeUtil<IMarkdownShape> {
               }}
               preview='live'
               visibleDragbar={true}
+              height={shape.props.h - 2}
               style={{
-                height: 'auto',
-                minHeight: '100%',
+                width: '100%',
                 border: 'none',
                 backgroundColor: 'transparent',
               }}
               previewOptions={{
                 style: {
-                  padding: '12px',
+                  padding: '12px', 
                   backgroundColor: 'transparent',
                 }
               }}
@@ -128,8 +128,6 @@ export class MarkdownShape extends BaseBoxShapeUtil<IMarkdownShape> {
                 style: {
                   padding: '12px',
                   lineHeight: '1.5',
-                  height: 'auto',
-                  minHeight: '100%',
                   resize: 'none',
                   backgroundColor: 'transparent',
                 }
@@ -137,6 +135,8 @@ export class MarkdownShape extends BaseBoxShapeUtil<IMarkdownShape> {
               onPointerDown={(e) => {
                 e.stopPropagation()
               }}
+              hideToolbar={false}
+              enableScroll={true}
             />
           </div>
         </div>

@@ -151,6 +151,15 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("Prompt"),
       },
+      StripePayment: {
+        id: "stripe-payment",
+        icon: "credit-card",
+        label: "Stripe Subscription",
+        type: "stripe-payment",
+        kbd: "alt+shift+p",
+        readonlyOk: true,
+        onSelect: () => editor.setCurrentTool("stripe-payment"),
+      },
       hand: {
         ...tools.hand,
         onDoubleClick: (info: any) => {
@@ -346,6 +355,15 @@ export const overrides: TLUiOverrides = {
               },
             )
           }
+        },
+      },
+      createStripePayment: {
+        id: "create-stripe-payment",
+        label: "Create Stripe Subscription",
+        kbd: "alt+shift+s",
+        readonlyOk: true,
+        onSelect: () => {
+          editor.setCurrentTool("stripe-payment")
         },
       },
       //TODO: FIX PREV & NEXT SLIDE KEYBOARD COMMANDS

@@ -19,6 +19,7 @@ import { MarkdownShape } from "@/shapes/MarkdownShapeUtil"
 import { MycrozineTemplateShape } from "@/shapes/MycrozineTemplateShapeUtil"
 import { SlideShape } from "@/shapes/SlideShapeUtil"
 import { PromptShape } from "@/shapes/PromptShapeUtil"
+import { StripePaymentShapeUtil } from "@/shapes/stripe/StripePaymentShapeUtil"
 
 // add custom shapes and bindings here if needed:
 export const customSchema = createTLSchema({
@@ -51,6 +52,9 @@ export const customSchema = createTLSchema({
     Prompt: {
       props: PromptShape.props,
       migrations: PromptShape.migrations,
+    },
+    'stripe-payment': {
+      props: StripePaymentShapeUtil.props,
     },
   },
   bindings: defaultBindingSchemas,
@@ -166,18 +170,53 @@ export class TldrawDurableObject {
       serverWebSocket.accept()
       const room = await this.getRoom()
 
+      // Add connection state tracking
+      let isConnected = true
+
       // Handle socket connection with proper error boundaries
       room.handleSocketConnect({
         sessionId,
         socket: {
-          send: serverWebSocket.send.bind(serverWebSocket),
-          close: serverWebSocket.close.bind(serverWebSocket),
-          addEventListener:
-            serverWebSocket.addEventListener.bind(serverWebSocket),
-          removeEventListener:
-            serverWebSocket.removeEventListener.bind(serverWebSocket),
+          send: (message) => {
+            if (isConnected && serverWebSocket.readyState === WebSocket.OPEN) {
+              try {
+                serverWebSocket.send(message)
+              } catch (error) {
+                console.error("WebSocket send error:", error)
+                isConnected = false
+              }
+            }
+          },
+          close: (code, reason) => {
+            if (isConnected) {
+              try {
+                serverWebSocket.close(code, reason)
+              } catch (error) {
+                console.error("WebSocket close error:", error)
+              } finally {
+                isConnected = false
+              }
+            }
+          },
+          addEventListener: (event, listener) => {
+            serverWebSocket.addEventListener(event, listener)
+          },
+          removeEventListener: (event, listener) => {
+            serverWebSocket.removeEventListener(event, listener)
+          },
           readyState: serverWebSocket.readyState,
         },
+      })
+
+      // Add WebSocket event listeners for better error handling
+      serverWebSocket.addEventListener("error", (event) => {
+        console.error("WebSocket error:", event)
+        isConnected = false
+      })
+
+      serverWebSocket.addEventListener("close", (event) => {
+        console.log("WebSocket closed:", event.code, event.reason)
+        isConnected = false
       })
 
       return new Response(null, {
@@ -194,7 +233,11 @@ export class TldrawDurableObject {
       })
     } catch (error) {
       console.error("WebSocket connection error:", error)
-      serverWebSocket.close(1011, "Failed to initialize connection")
+      try {
+        serverWebSocket.close(1011, "Failed to initialize connection")
+      } catch (closeError) {
+        console.error("Error closing WebSocket:", closeError)
+      }
       return new Response("Failed to establish WebSocket connection", {
         status: 500,
       })

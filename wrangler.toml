@@ -8,6 +8,9 @@ account_id = "0e7b3338d5278ed1b148e6456b940913"
 # Workers & Pages → jeffemmett-canvas → Settings → Variables
 DAILY_DOMAIN = "mycopunks.daily.co"
 
+# Stripe configuration
+# These should be set as secrets using `wrangler secret put STRIPE_SECRET_KEY` and `wrangler secret put STRIPE_WEBHOOK_SECRET`
+
 [dev]
 port = 5172
 ip = "0.0.0.0"

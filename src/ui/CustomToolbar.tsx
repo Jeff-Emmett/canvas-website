@@ -168,6 +168,14 @@ export function CustomToolbar() {
             isSelected={tools["Prompt"].id === editor.getCurrentToolId()}
           />
         )}
+        {tools["stripe-payment"] && (
+          <TldrawUiMenuItem
+            {...tools["stripe-payment"]}
+            icon="credit-card"
+            label="Stripe Subscription"
+            isSelected={tools["stripe-payment"].id === editor.getCurrentToolId()}
+          />
+        )}
       </DefaultToolbar>
     </div>
   )

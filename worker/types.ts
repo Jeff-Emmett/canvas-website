@@ -8,4 +8,6 @@ export interface Environment {
 	TLDRAW_DURABLE_OBJECT: DurableObjectNamespace
 	DAILY_API_KEY: string;
 	DAILY_DOMAIN: string;
+	STRIPE_SECRET_KEY: string;
+	STRIPE_WEBHOOK_SECRET: string;
 }

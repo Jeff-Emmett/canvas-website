@@ -25,7 +25,8 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       __WORKER_URL__: JSON.stringify(env.VITE_TLDRAW_WORKER_URL),
-      __DAILY_API_KEY__: JSON.stringify(env.VITE_DAILY_API_KEY)
+      __DAILY_API_KEY__: JSON.stringify(env.VITE_DAILY_API_KEY),
+      __STRIPE_PUBLISHABLE_KEY__: JSON.stringify(env.VITE_STRIPE_PUBLISHABLE_KEY)
     }
   }
 })

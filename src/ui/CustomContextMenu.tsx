@@ -100,6 +100,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
         <TldrawUiMenuItem {...customActions.unlockElement} disabled={!hasSelection} />
         <TldrawUiMenuItem {...customActions.saveToPdf} disabled={!hasSelection} />
         <TldrawUiMenuItem {...customActions.llm} disabled={!hasSelection} />
+        <TldrawUiMenuItem {...customActions.createStripePayment} />
       </TldrawUiMenuGroup>
 
       {/* Creation Tools Group */}
@@ -111,6 +112,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
         <TldrawUiMenuItem {...tools.Markdown} disabled={hasSelection} />
         <TldrawUiMenuItem {...tools.MycrozineTemplate} disabled={hasSelection} />
         <TldrawUiMenuItem {...tools.Prompt} disabled={hasSelection} />
+        <TldrawUiMenuItem {...tools.StripePayment} disabled={hasSelection} />
       </TldrawUiMenuGroup>
 
       

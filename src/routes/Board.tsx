@@ -37,6 +37,8 @@ import {
   initLockIndicators,
   watchForLockedShapes,
 } from "@/ui/cameraUtils"
+import { StripePaymentShapeUtil } from "@/shapes/stripe/StripePaymentShapeUtil"
+import { StripePaymentTool } from "@/tools/StripePaymentTool"
 
 // Default to production URL if env var isn't available
 export const WORKER_URL = "https://jeffemmett-canvas.jeffemmett.workers.dev"
@@ -49,6 +51,7 @@ const customShapeUtils = [
   MycrozineTemplateShape,
   MarkdownShape,
   PromptShape,
+  StripePaymentShapeUtil,
 ]
 const customTools = [
   ChatBoxTool,
@@ -58,6 +61,7 @@ const customTools = [
   MycrozineTemplateTool,
   MarkdownTool,
   PromptShapeTool,
+  StripePaymentTool,
 ]
 
 export function Board() {
@@ -96,6 +100,13 @@ export function Board() {
     initLockIndicators(editor)
     watchForLockedShapes(editor)
   }, [editor])
+
+  // Cleanup global editor reference on unmount
+  useEffect(() => {
+    return () => {
+      delete (window as any).__TLDRAW_EDITOR__
+    }
+  }, [])
 
   return (
     <div style={{ position: "fixed", inset: 0 }}>
@@ -136,6 +147,8 @@ export function Board() {
         }}
         onMount={(editor) => {
           setEditor(editor)
+          // Expose editor globally for Stripe component access
+          ;(window as any).__TLDRAW_EDITOR__ = editor
           editor.registerExternalAssetHandler("url", unfurlBookmarkUrl)
           editor.setCurrentTool("hand")
           setInitialCameraFromUrl(editor)
