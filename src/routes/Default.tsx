@@ -2,6 +2,10 @@ export function Default() {
   return (
     <main>
       <header>Jeff Emmett</header>
+      <nav className="main-nav">
+        <a href="/presentations" className="nav-link">Presentations</a>
+        <a href="/contact" className="nav-link">Contact</a>
+      </nav>
       <h2>Hello! 👋🍄</h2>
       <p>
         My research investigates the intersection of mycelium and emancipatory
@@ -38,6 +42,10 @@ export function Default() {
       <span className="dinkus">***</span>
 
       <h2>Talks</h2>
+      <p>
+        You can find my presentations and slides on the{" "}
+        <a href="/presentations">presentations page</a>.
+      </p>
       <ol reversed>
         <li>
           <a href="https://www.teamhuman.fm/episodes/238-jeff-emmett">

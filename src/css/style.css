@@ -46,10 +46,33 @@ h6 {
 }
 
 header {
-  margin-bottom: 2em;
+  margin-bottom: 1em;
   font-size: 1.5rem;
   font-variation-settings: "MONO" 1;
   font-variation-settings: "CASL" 1;
+}
+
+.main-nav {
+  margin-bottom: 2em;
+  display: flex;
+  gap: 2em;
+  align-items: center;
+}
+
+.nav-link {
+  color: #0366d6;
+  text-decoration: none;
+  font-weight: 500;
+  padding: 0.5em 1em;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.nav-link:hover {
+  background-color: #f6f8fa;
+  border-color: #e1e4e8;
+  text-decoration: none;
 }
 
 i {
@@ -396,4 +419,124 @@ p:has(+ ol) {
 .lock-indicator:hover {
   transform: scale(1.1) !important;
   background: #f0f0f0;
+}
+
+/* Presentations Page Styles */
+.presentations-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 3em;
+  margin: 2em 0;
+}
+
+.presentation-card {
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  padding: 1.5em;
+  background-color: #fafbfc;
+  transition: all 0.2s ease;
+}
+
+.presentation-card:hover {
+  border-color: #0366d6;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.presentation-card h3 {
+  margin-top: 0;
+  margin-bottom: 0.5em;
+  color: #24292e;
+  font-size: 1.3rem;
+}
+
+.presentation-card p {
+  margin-bottom: 1em;
+  color: #586069;
+  font-size: 1rem;
+}
+
+.presentation-embed {
+  margin: 1.5em 0;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.presentation-embed iframe {
+  display: block;
+  border: none;
+  background-color: #fff;
+}
+
+.presentation-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1em;
+  padding-top: 1em;
+  border-top: 1px solid #e1e4e8;
+  font-size: 0.9rem;
+}
+
+.presentation-meta span {
+  color: #586069;
+  font-style: italic;
+}
+
+.presentation-meta a {
+  color: #0366d6;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.presentation-meta a:hover {
+  text-decoration: underline;
+}
+
+.presentations-info {
+  margin-top: 3em;
+  padding: 2em;
+  background-color: #f6f8fa;
+  border-radius: 8px;
+  border-left: 4px solid #0366d6;
+}
+
+.presentations-info h3 {
+  margin-top: 0;
+  color: #24292e;
+}
+
+.presentations-info p {
+  margin-bottom: 1em;
+  color: #586069;
+}
+
+.presentations-info a {
+  color: #0366d6;
+  text-decoration: none;
+}
+
+.presentations-info a:hover {
+  text-decoration: underline;
+}
+
+/* Responsive design for presentations */
+@media (max-width: 768px) {
+  .presentations-grid {
+    gap: 2em;
+  }
+  
+  .presentation-card {
+    padding: 1em;
+  }
+  
+  .presentation-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5em;
+  }
+  
+  .presentation-embed iframe {
+    height: 400px;
+  }
 }
