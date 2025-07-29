@@ -1,5 +1,9 @@
 @import url("reset.css");
 
+:root {
+  --border-radius: 10px;
+}
+
 html,
 body {
   padding: 0;
@@ -632,4 +636,164 @@ p:has(+ ol) {
     margin-left: -1rem;
     margin-right: -1rem;
   }
+}
+
+/* Command Palette Styles */
+[cmdk-root] {
+  z-index: 9999 !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+}
+
+[cmdk-dialog] {
+  padding: 0.5em;
+  width: 100%;
+  max-width: 35em;
+  border: 1px solid #c7c7c7;
+  border-radius: var(--border-radius);
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  background-color: white;
+  position: fixed;
+  top: 30%;
+  left: 50%;
+  transform: translate(-50%, 0);
+  z-index: 9999 !important;
+
+  & input {
+    font-size: 1.4em;
+    width: 100%;
+    background-color: transparent;
+    border: none;
+    outline: none;
+    padding: 0.2em;
+    background-color: #f8f8f8;
+    margin-bottom: 0.2em;
+    &:focus {
+      outline: none;
+      border-radius: 3px;
+      background-color: #f0f0f0;
+    }
+  }
+}
+
+[cmdk-group-heading] {
+  font-size: 1.2em;
+  opacity: 0.5;
+  padding: 0.2em;
+}
+
+[cmdk-item] {
+  padding: 0.2em;
+  font-size: 1.2em;
+  & .tlui-kbd {
+    border: 1px solid #c7c7c7;
+    border-radius: 3px;
+    padding: 0.2em;
+    padding-bottom: 0.1em;
+    font-size: 0.8em;
+    opacity: 0.5;
+  }
+}
+
+[cmdk-item]:hover {
+  border-radius: 3px;
+  background-color: #f0f0f0;
+}
+
+[cmdk-empty] {
+  font-size: 1.2em;
+  opacity: 0.5;
+  padding: 0.2em;
+}
+
+[cmdk-overlay] {
+  z-index: 9998 !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background: rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Ensure command palette renders above Tldraw canvas */
+.tldraw__editor [cmdk-root] {
+  position: fixed !important;
+  z-index: 9999 !important;
+}
+
+.tldraw__editor [cmdk-dialog] {
+  position: fixed !important;
+  z-index: 9999 !important;
+}
+
+.tldraw__editor [cmdk-overlay] {
+  position: fixed !important;
+  z-index: 9998 !important;
+}
+
+/* Command Palette Specific Styles */
+.command-palette .duration-300 {
+  transition-duration: 0s; /* Set your desired duration */
+}
+
+.command-palette .duration-200 {
+  transition-duration: 0s; /* Set your desired duration */
+}
+
+.command-palette .bg-opacity-80 {
+  display: none;
+}
+
+.command-palette .llm-response {
+  display: block;
+  height: 100%;
+  width: 100%;
+  opacity: 1;
+}
+
+.llm-response {
+  margin-top: 0 !important;
+}
+
+.references {
+  opacity: 1 !important;
+}
+
+.command-palette .llm-response div {
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
+.command-palette .llm-response span {
+  height: 500px;
+  white-space: pre-line;
+}
+
+.references * {
+  color: white;
+}
+
+.reference {
+  color: #40cf66;
+  margin-left: 0.2em !important;
+  padding-right: 0.1em;
+  padding-left: 0.1em;
+  &:hover {
+    background-color: #40cf664d;
+  }
+  border-radius: 3px;
+}
+
+.reference-missing {
+  margin-left: 0.2em !important;
+  padding-right: 0.1em;
+  padding-left: 0.1em;
+  color: #fc8958;
 }

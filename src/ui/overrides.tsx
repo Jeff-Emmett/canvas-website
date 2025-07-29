@@ -151,6 +151,15 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("Prompt"),
       },
+      gesture: {
+        id: "gesture",
+        icon: "draw",
+        label: "Gesture",
+        kbd: "g",
+        readonlyOk: true,
+        type: "gesture",
+        onSelect: () => editor.setCurrentTool("gesture"),
+      },
       hand: {
         ...tools.hand,
         onDoubleClick: (info: any) => {
@@ -312,7 +321,7 @@ export const overrides: TLUiOverrides = {
       llm: {
         id: "llm",
         label: "Run LLM Prompt",
-        kbd: "g",
+        kbd: "alt+g",
         readonlyOk: true,
         onSelect: () => {
           const selectedShapes = editor.getSelectedShapes()
