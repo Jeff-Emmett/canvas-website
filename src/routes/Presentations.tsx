@@ -261,6 +261,31 @@ export function Presentations() {
             <span>Video coming soon</span>
           </div>
         </div>
+
+        <div className="presentation-card">
+          <h3>Building Community Resilience in an Age of Crisis</h3>
+          <p>Internet outages during crises, such as wars or environmental disasters, can disrupt communication, education, and access to vital information. Preparing for such disruptions is essential for communities and organizations operating in challenging environments.</p>
+          <div className="presentation-embed">
+            <div style={{position: "relative", paddingTop: "max(60%, 324px)", width: "100%", height: 0}}>
+              <iframe 
+                style={{position: "absolute", border: "none", width: "100%", height: "100%", left: 0, top: 0}}
+                src="https://online.fliphtml5.com/phqos/afbp/" 
+                seamless={true}
+                scrolling="no" 
+                frameBorder="0" 
+                allowTransparency={true}
+                allowFullScreen={true}
+                title="Building Community Resilience in an Age of Crisis"
+              />
+            </div>
+          </div>
+          <div className="presentation-meta">
+            <span>Presentation at re:publica conference in May 2025</span>
+            <a href="https://www.youtube.com/watch?v=rTOLk7k9Ad8" target="_blank" rel="noopener noreferrer">
+              Watch the full talk →
+            </a>
+          </div>
+        </div>
       </div>
     </main>
   )

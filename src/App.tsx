@@ -7,6 +7,7 @@ import { Contact } from "@/routes/Contact"
 import { Board } from "./routes/Board"
 import { Inbox } from "./routes/Inbox"
 import { Presentations } from "./routes/Presentations"
+import { Resilience } from "./routes/Resilience"
 import { createRoot } from "react-dom/client"
 import { DailyProvider } from "@daily-co/daily-react"
 import Daily from "@daily-co/daily-js"
@@ -25,6 +26,7 @@ function App() {
           <Route path="/board/:slug" element={<Board />} />
           <Route path="/inbox" element={<Inbox />} />
           <Route path="/presentations" element={<Presentations />} />
+          <Route path="/presentations/resilience" element={<Resilience />} />
         </Routes>
       </BrowserRouter>
     </DailyProvider>

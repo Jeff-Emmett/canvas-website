@@ -23,6 +23,10 @@
     {
       "source": "/presentations",
       "destination": "/"
+    },
+    {
+      "source": "/presentations/resilience",
+      "destination": "/"
     }
   ],
   "headers": [
