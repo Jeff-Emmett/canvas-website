@@ -29,7 +29,6 @@ import { SlideShape } from "@/shapes/SlideShapeUtil"
 import { makeRealSettings, applySettingsMigrations } from "@/lib/settings"
 import { PromptShapeTool } from "@/tools/PromptShapeTool"
 import { PromptShape } from "@/shapes/PromptShapeUtil"
-import { llm } from "@/utils/llmUtils"
 import {
   lockElement,
   unlockElement,
@@ -37,6 +36,10 @@ import {
   initLockIndicators,
   watchForLockedShapes,
 } from "@/ui/cameraUtils"
+import { Collection, initializeGlobalCollections } from "@/collections"
+import { GraphLayoutCollection } from "@/graph/GraphLayoutCollection"
+
+const collections: Collection[] = [GraphLayoutCollection]
 
 // Default to production URL if env var isn't available
 export const WORKER_URL = "https://jeffemmett-canvas.jeffemmett.workers.dev"
@@ -134,18 +137,20 @@ export function Board() {
             64, // Max zoom
           ],
         }}
-        onMount={(editor) => {
-          setEditor(editor)
-          editor.registerExternalAssetHandler("url", unfurlBookmarkUrl)
-          editor.setCurrentTool("hand")
-          setInitialCameraFromUrl(editor)
-          handleInitialPageLoad(editor)
-          registerPropagators(editor, [
-            TickPropagator,
-            ChangePropagator,
-            ClickPropagator,
-          ])
-        }}
+                  onMount={(editor) => {
+            setEditor(editor)
+            editor.registerExternalAssetHandler("url", unfurlBookmarkUrl)
+            editor.setCurrentTool("hand")
+            setInitialCameraFromUrl(editor)
+            handleInitialPageLoad(editor)
+            registerPropagators(editor, [
+              TickPropagator,
+              ChangePropagator,
+              ClickPropagator,
+            ])
+            // Initialize global collections
+            initializeGlobalCollections(editor, collections)
+          }}
       />
     </div>
   )
