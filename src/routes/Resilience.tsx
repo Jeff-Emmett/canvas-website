@@ -13,7 +13,7 @@ export function Resilience() {
           is essential for communities and organizations operating in challenging environments.
         </p>
         <p>
-          This presentation by Jeff Emmett and Fadia ElGharib explores strategies for building resilient communication networks 
+          This presentation by Jeff Emmett and Fadia Elgharib explores strategies for building resilient communication networks 
           and maintaining access to critical information when traditional internet infrastructure fails.
         </p>
       </div>
