@@ -38,6 +38,12 @@ import {
 } from "@/ui/cameraUtils"
 import { Collection, initializeGlobalCollections } from "@/collections"
 import { GraphLayoutCollection } from "@/graph/GraphLayoutCollection"
+import { GestureTool } from "@/GestureTool"
+import { CmdK } from "@/CmdK"
+
+
+import "react-cmdk/dist/cmdk.css"
+import "@/css/style.css"
 
 const collections: Collection[] = [GraphLayoutCollection]
 
@@ -61,6 +67,7 @@ const customTools = [
   MycrozineTemplateTool,
   MarkdownTool,
   PromptShapeTool,
+  GestureTool,
 ]
 
 export function Board() {
@@ -151,7 +158,9 @@ export function Board() {
             // Initialize global collections
             initializeGlobalCollections(editor, collections)
           }}
-      />
+      >
+        <CmdK />
+      </Tldraw>
     </div>
   )
 }
