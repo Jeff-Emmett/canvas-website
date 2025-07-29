@@ -21,6 +21,7 @@ import { llm } from "../utils/llmUtils"
 import { getEdge } from "@/propagators/tlgraph"
 import { getCustomActions } from './overrides'
 import { overrides } from './overrides'
+import { useGlobalCollection } from "@/collections"
 
 const getAllFrames = (editor: Editor) => {
   return editor
@@ -39,6 +40,9 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
   const customActions = getCustomActions(editor)
   const [selectedShapes, setSelectedShapes] = useState<TLShape[]>([])
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+
+  // Collection functionality using the global collection manager
+  const { collection, size } = useGlobalCollection('graph')
 
   // Update selection state more frequently
   useEffect(() => {
@@ -62,6 +66,55 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
 
   const hasSelection = selectedIds.length > 0
   const hasCameraHistory = cameraHistory.length > 0
+
+  // Collection handlers
+  const handleAddToCollection = () => {
+    if (collection) {
+      collection.add(editor.getSelectedShapes())
+      editor.selectNone()
+    }
+  }
+
+  const handleRemoveFromCollection = () => {
+    if (collection) {
+      collection.remove(editor.getSelectedShapes())
+      editor.selectNone()
+    }
+  }
+
+  const handleHighlightCollection = () => {
+    if (collection) {
+      editor.setHintingShapes([...collection.getShapes().values()])
+    }
+  }
+
+
+
+  // Check if selected shapes are already in collection
+  const selectedShapesInCollection = collection ? 
+    selectedShapes.filter(shape => collection.getShapes().has(shape.id)) : []
+  const hasSelectedShapesInCollection = selectedShapesInCollection.length > 0
+  const allSelectedShapesInCollection = selectedShapes.length > 0 && selectedShapesInCollection.length === selectedShapes.length
+
+  // Check if collection functionality is available
+  const hasCollectionContext = collection !== null
+
+  // Keyboard shortcut for adding to collection
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'c' && !event.ctrlKey && !event.altKey && !event.metaKey) {
+        event.preventDefault()
+        if (hasSelection && collection && !allSelectedShapesInCollection) {
+          handleAddToCollection()
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [hasSelection, collection, allSelectedShapesInCollection])
 
   //TO DO: Fix camera history for camera revert
   
@@ -111,6 +164,35 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
         <TldrawUiMenuItem {...tools.Markdown} disabled={hasSelection} />
         <TldrawUiMenuItem {...tools.MycrozineTemplate} disabled={hasSelection} />
         <TldrawUiMenuItem {...tools.Prompt} disabled={hasSelection} />
+      </TldrawUiMenuGroup>
+
+      {/* Collections Group */}
+      <TldrawUiMenuGroup id="collections">
+        <TldrawUiMenuSubmenu id="collections-dropdown" label="Collections">
+          <TldrawUiMenuItem
+            id="add-to-collection"
+            label="Add to Collection"
+            icon="plus"
+            kbd="c"
+            disabled={!hasSelection || !collection}
+            onSelect={handleAddToCollection}
+          />
+          <TldrawUiMenuItem
+            id="remove-from-collection"
+            label="Remove from Collection"
+            icon="minus"
+            disabled={!hasSelection || !collection}
+            onSelect={handleRemoveFromCollection}
+          />
+          <TldrawUiMenuItem
+            id="highlight-collection"
+            label="Highlight Collection"
+            icon="lightbulb"
+            disabled={!collection}
+            onSelect={handleHighlightCollection}
+          />
+
+        </TldrawUiMenuSubmenu>
       </TldrawUiMenuGroup>
 
       
