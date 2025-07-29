@@ -1,5 +1,5 @@
 import { type DocHandle } from "@automerge/automerge-repo"
-import { type TLStoreSnapshot, Tldraw, track, useEditor } from "@tldraw/tldraw"
+import { type TLStoreSnapshot, Tldraw, defaultShapeUtils, track, useEditor } from "@tldraw/tldraw"
 import "@tldraw/tldraw/tldraw.css"
 
 import { useAutomergeStore } from "./useAutomergeStore"
@@ -13,7 +13,7 @@ export function TLDrawAutomergeExample({
   handle,
   userId,
 }: TLDrawAutomergeExampleProps) {
-  const store = useAutomergeStore({ handle, userId })
+  const store = useAutomergeStore({ handle, userId, shapeUtils: [...defaultShapeUtils, ...customShapeUtils] })
 
   return (
     <div className="tldraw__editor">
