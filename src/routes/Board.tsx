@@ -29,6 +29,8 @@ import { SlideShape } from "@/shapes/SlideShapeUtil"
 import { makeRealSettings, applySettingsMigrations } from "@/lib/settings"
 import { PromptShapeTool } from "@/tools/PromptShapeTool"
 import { PromptShape } from "@/shapes/PromptShapeUtil"
+import { HolonShapeTool } from "@/tools/HolonShapeTool"
+import { HolonShape } from "@/shapes/HolonShapeUtil"
 import { llm } from "@/utils/llmUtils"
 import {
   lockElement,
@@ -49,6 +51,7 @@ const customShapeUtils = [
   MycrozineTemplateShape,
   MarkdownShape,
   PromptShape,
+  HolonShape,
 ]
 const customTools = [
   ChatBoxTool,
@@ -58,6 +61,7 @@ const customTools = [
   MycrozineTemplateTool,
   MarkdownTool,
   PromptShapeTool,
+  HolonShapeTool,
 ]
 
 export function Board() {

@@ -168,6 +168,14 @@ export function CustomToolbar() {
             isSelected={tools["Prompt"].id === editor.getCurrentToolId()}
           />
         )}
+        {tools["Holon"] && (
+          <TldrawUiMenuItem
+            {...tools["Holon"]}
+            icon="star"
+            label="Holon"
+            isSelected={tools["Holon"].id === editor.getCurrentToolId()}
+          />
+        )}
       </DefaultToolbar>
     </div>
   )

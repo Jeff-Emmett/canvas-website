@@ -111,6 +111,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
         <TldrawUiMenuItem {...tools.Markdown} disabled={hasSelection} />
         <TldrawUiMenuItem {...tools.MycrozineTemplate} disabled={hasSelection} />
         <TldrawUiMenuItem {...tools.Prompt} disabled={hasSelection} />
+        <TldrawUiMenuItem {...tools.Holon} disabled={hasSelection} />
       </TldrawUiMenuGroup>
 
       

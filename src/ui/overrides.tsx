@@ -151,6 +151,15 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("Prompt"),
       },
+      Holon: {
+        id: "Holon",
+        icon: "star",
+        label: "Holon",
+        type: "Holon",
+        kbd: "alt+h",
+        readonlyOk: true,
+        onSelect: () => editor.setCurrentTool("Holon"),
+      },
       hand: {
         ...tools.hand,
         onDoubleClick: (info: any) => {

@@ -32,6 +32,7 @@
 		"cherry-markdown": "^0.8.57",
 		"cloudflare-workers-unfurl": "^0.0.7",
 		"gray-matter": "^4.0.3",
+		"holosphere": "^1.1.17",
 		"html2canvas": "^1.4.1",
 		"itty-router": "^5.0.17",
 		"jotai": "^2.6.0",
