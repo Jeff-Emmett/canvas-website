@@ -5,8 +5,9 @@ import { useEditor } from "tldraw"
 import { useState, useEffect } from "react"
 import { useDialogs } from "tldraw"
 import { SettingsDialog } from "./SettingsDialog"
-import { AuthDialog } from "./AuthDialog"
-import { useAuth, clearSession } from "../context/AuthContext"
+import { useAuth } from "../context/AuthContext"
+import LoginButton from "../components/auth/LoginButton"
+import StarBoardButton from "../components/StarBoardButton"
 
 export function CustomToolbar() {
   const editor = useEditor()
@@ -14,7 +15,8 @@ export function CustomToolbar() {
   const [isReady, setIsReady] = useState(false)
   const [hasApiKey, setHasApiKey] = useState(false)
   const { addDialog, removeDialog } = useDialogs()
-  const { session, updateSession } = useAuth()
+
+  const { session, setSession, clearSession } = useAuth()
   const [showProfilePopup, setShowProfilePopup] = useState(false)
 
   useEffect(() => {
@@ -59,13 +61,6 @@ export function CustomToolbar() {
     // Clear the session
     clearSession()
     
-    // Update the auth context
-    updateSession({
-      username: '',
-      authed: false,
-      backupCreated: null,
-    })
-    
     // Close the popup
     setShowProfilePopup(false)
   }
@@ -74,18 +69,22 @@ export function CustomToolbar() {
 
   return (
     <div style={{ position: "relative" }}>
-      <div
-        style={{
-          position: "fixed",
-          top: "4px",
-          left: "350px",
-          zIndex: 99999,
-          pointerEvents: "auto",
-          display: "flex",
-          gap: "8px",
-        }}
-      >
-        <button
+              <div
+          className="toolbar-container"
+          style={{
+            position: "fixed",
+            top: "4px",
+            right: "120px",
+            zIndex: 99999,
+            pointerEvents: "auto",
+            display: "flex",
+            gap: "8px",
+            alignItems: "center",
+          }}
+        >
+                    <LoginButton className="toolbar-login-button" />
+          <StarBoardButton className="toolbar-star-button" />
+          <button
           onClick={() => {
             addDialog({
               id: "api-keys",
@@ -127,44 +126,34 @@ export function CustomToolbar() {
           Keys {hasApiKey ? "✅" : "❌"}
         </button>
         
-        <div style={{ position: "relative" }}>
-          <button
-            onClick={() => {
-              if (session.authed) {
-                setShowProfilePopup(!showProfilePopup)
-              } else {
-                addDialog({
-                  id: "auth",
-                  component: ({ onClose }: { onClose: () => void }) => (
-                    <AuthDialog onClose={onClose} autoFocus={true} />
-                  ),
-                })
-              }
-            }}
-            style={{
-              padding: "8px 16px",
-              borderRadius: "4px",
-              background: session.authed ? "#6B7280" : "#2F80ED",
-              color: "white",
-              border: "none",
-              cursor: "pointer",
-              fontWeight: 500,
-              transition: "background 0.2s ease",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-              whiteSpace: "nowrap",
-              userSelect: "none",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = session.authed ? "#4B5563" : "#1366D6"
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = session.authed ? "#6B7280" : "#2F80ED"
-            }}
-          >
-            {session.authed ? `${session.username} ✅` : "Sign In"}
-          </button>
+        {session.authed && (
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => setShowProfilePopup(!showProfilePopup)}
+              style={{
+                padding: "8px 16px",
+                borderRadius: "4px",
+                background: "#6B7280",
+                color: "white",
+                border: "none",
+                cursor: "pointer",
+                fontWeight: 500,
+                transition: "background 0.2s ease",
+                boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+                whiteSpace: "nowrap",
+                userSelect: "none",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#4B5563"
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#6B7280"
+              }}
+            >
+              {session.username} ✅
+            </button>
           
-          {showProfilePopup && session.authed && (
+                      {showProfilePopup && (
             <div 
               style={{
                 position: "absolute",
@@ -181,6 +170,35 @@ export function CustomToolbar() {
               <div style={{ marginBottom: "12px", fontWeight: "bold" }}>
                 Hello, {session.username}!
               </div>
+              
+              <a
+                href="/dashboard"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  padding: "8px 12px",
+                  backgroundColor: "#3B82F6",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                  textDecoration: "none",
+                  textAlign: "center",
+                  marginBottom: "8px",
+                  transition: "background 0.2s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#2563EB"
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "#3B82F6"
+                }}
+              >
+                My Dashboard
+              </a>
               
               {!session.backupCreated && (
                 <div style={{ 
@@ -220,6 +238,7 @@ export function CustomToolbar() {
             </div>
           )}
         </div>
+        )}
       </div>
       <DefaultToolbar>
         <DefaultToolbarContent />

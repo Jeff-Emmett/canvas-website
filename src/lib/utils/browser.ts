@@ -185,3 +185,58 @@ export const removeLocalStorageItem = (key: string): boolean => {
     return false;
   }
 };
+
+// Crypto-related functions (re-exported from crypto module)
+export const generateKeyPair = async (): Promise<CryptoKeyPair | null> => {
+  const { generateKeyPair } = await import('../auth/crypto');
+  return generateKeyPair();
+};
+
+export const exportPublicKey = async (publicKey: CryptoKey): Promise<string | null> => {
+  const { exportPublicKey } = await import('../auth/crypto');
+  return exportPublicKey(publicKey);
+};
+
+export const importPublicKey = async (base64Key: string): Promise<CryptoKey | null> => {
+  const { importPublicKey } = await import('../auth/crypto');
+  return importPublicKey(base64Key);
+};
+
+export const signData = async (privateKey: CryptoKey, data: string): Promise<string | null> => {
+  const { signData } = await import('../auth/crypto');
+  return signData(privateKey, data);
+};
+
+export const verifySignature = async (
+  publicKey: CryptoKey,
+  signature: string,
+  data: string
+): Promise<boolean> => {
+  const { verifySignature } = await import('../auth/crypto');
+  return verifySignature(publicKey, signature, data);
+};
+
+export const isUsernameAvailable = async (username: string): Promise<boolean> => {
+  const { isUsernameAvailable } = await import('../auth/crypto');
+  return isUsernameAvailable(username);
+};
+
+export const addRegisteredUser = (username: string): void => {
+  const { addRegisteredUser } = require('../auth/crypto');
+  return addRegisteredUser(username);
+};
+
+export const storePublicKey = (username: string, publicKey: string): void => {
+  const { storePublicKey } = require('../auth/crypto');
+  return storePublicKey(username, publicKey);
+};
+
+export const getPublicKey = (username: string): string | null => {
+  const { getPublicKey } = require('../auth/crypto');
+  return getPublicKey(username);
+};
+
+export const getRegisteredUsers = (): string[] => {
+  const { getRegisteredUsers } = require('../auth/crypto');
+  return getRegisteredUsers();
+};

@@ -2,10 +2,12 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import type FileSystem from '@oddjs/odd/fs/index';
 import { Session, SessionError } from '../lib/auth/types';
 import { AuthService } from '../lib/auth/authService';
+import { saveSession, clearStoredSession } from '../lib/auth/sessionPersistence';
 
 interface AuthContextType {
   session: Session;
   setSession: (updatedSession: Partial<Session>) => void;
+  clearSession: () => void;
   fileSystem: FileSystem | null;
   setFileSystem: (fs: FileSystem | null) => void;
   initialize: () => Promise<void>;
@@ -29,7 +31,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Update session with partial data
   const setSession = (updatedSession: Partial<Session>) => {
-    setSessionState(prev => ({ ...prev, ...updatedSession }));
+    setSessionState(prev => {
+      const newSession = { ...prev, ...updatedSession };
+      
+      // Save session to localStorage if authenticated
+      if (newSession.authed && newSession.username) {
+        saveSession(newSession);
+      }
+      
+      return newSession;
+    });
   };
 
   // Set file system
@@ -99,18 +110,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   /**
+   * Clear the current session
+   */
+  const clearSession = (): void => {
+    clearStoredSession();
+    setSession({
+      username: '',
+      authed: false,
+      loading: false,
+      backupCreated: null
+    });
+    setFileSystem(null);
+  };
+
+  /**
    * Logout the current user
    */
   const logout = async (): Promise<void> => {
     try {
       await AuthService.logout();
-      setSession({
-        username: '',
-        authed: false,
-        loading: false,
-        backupCreated: null
-      });
-      setFileSystem(null);
+      clearSession();
     } catch (error) {
       console.error('Logout error:', error);
       throw error;
@@ -125,6 +144,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const contextValue: AuthContextType = {
     session,
     setSession,
+    clearSession,
     fileSystem,
     setFileSystem,
     initialize,

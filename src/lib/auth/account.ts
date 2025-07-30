@@ -25,8 +25,16 @@ export const AREAS = {
 export const isUsernameValid = async (username: string): Promise<boolean> => {
   console.log('Checking if username is valid:', username);
   try {
-    const isValid = await odd.account.isUsernameValid(username);
-    console.log('Username validity check result:', isValid);
+    // Fallback if ODD account functions are not available
+    if (odd.account && odd.account.isUsernameValid) {
+      const isValid = await odd.account.isUsernameValid(username);
+      console.log('Username validity check result:', isValid);
+      return Boolean(isValid);
+    }
+    // Default validation if ODD is not available
+    const usernameRegex = /^[a-zA-Z0-9_-]{3,20}$/;
+    const isValid = usernameRegex.test(username);
+    console.log('Username validity check result (fallback):', isValid);
     return isValid;
   } catch (error) {
     console.error('Error checking username validity:', error);
@@ -38,7 +46,14 @@ export const isUsernameValid = async (username: string): Promise<boolean> => {
  * Debounced function to check if a username is available
  */
 const debouncedIsUsernameAvailable = asyncDebounce(
-  odd.account.isUsernameAvailable,
+  (username: string) => {
+    // Fallback if ODD account functions are not available
+    if (odd.account && odd.account.isUsernameAvailable) {
+      return odd.account.isUsernameAvailable(username);
+    }
+    // Default to true if ODD is not available
+    return Promise.resolve(true);
+  },
   300
 );
 
@@ -55,14 +70,14 @@ export const isUsernameAvailable = async (
     // In a local development environment, simulate the availability check
     // by checking if the username exists in localStorage
     if (browser.isBrowser()) {
-      const isAvailable = browser.isUsernameAvailable(username);
+      const isAvailable = await browser.isUsernameAvailable(username);
       console.log('Username availability check result:', isAvailable);
       return isAvailable;
     } else {
       // If not in a browser (SSR), use the ODD API
       const isAvailable = await debouncedIsUsernameAvailable(username);
       console.log('Username availability check result:', isAvailable);
-      return isAvailable;
+      return Boolean(isAvailable);
     }
   } catch (error) {
     console.error('Error checking username availability:', error);
@@ -78,6 +93,12 @@ export const initializeFilesystem = async (fs: FileSystem): Promise<void> => {
   try {
     // Create required directories
     console.log('Creating required directories...');
+    
+    // Fallback if ODD path is not available
+    if (!odd.path || !odd.path.directory) {
+      console.log('ODD path not available, skipping filesystem initialization');
+      return;
+    }
     
     // Public directories
     await fs.mkdir(odd.path.directory(...DIRECTORIES.PUBLIC.ROOT));
@@ -103,6 +124,13 @@ export const initializeFilesystem = async (fs: FileSystem): Promise<void> => {
  */
 export const checkDataRoot = async (username: string): Promise<void> => {
   console.log('Looking up data root for username:', username);
+  
+  // Fallback if ODD dataRoot is not available
+  if (!odd.dataRoot || !odd.dataRoot.lookup) {
+    console.log('ODD dataRoot not available, skipping data root lookup');
+    return;
+  }
+  
   let dataRoot = await odd.dataRoot.lookup(username);
   console.log('Initial data root lookup result:', dataRoot ? 'found' : 'not found');
 
@@ -185,7 +213,7 @@ export const validateStoredCredentials = (username: string): boolean => {
     const users = browser.getRegisteredUsers();
     const publicKey = browser.getPublicKey(username);
     
-    return users.includes(username) && !!publicKey;
+    return users.includes(username) && Boolean(publicKey);
   } catch (error) {
     console.error('Error validating stored credentials:', error);
     return false;

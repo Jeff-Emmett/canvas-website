@@ -1,8 +1,7 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Login } from '../components/auth/Login';
+import CryptoLogin from '../components/auth/CryptoLogin';
 import { useAuth } from '../context/AuthContext';
-import { errorToMessage } from '../lib/auth/types';
 
 export const Auth: React.FC = () => {
   const { session } = useAuth();
@@ -30,7 +29,7 @@ export const Auth: React.FC = () => {
       <div className="auth-page">
         <div className="auth-container error">
           <h2>Authentication Error</h2>
-          <p>{errorToMessage(session.error)}</p>
+          <p>{session.error}</p>
         </div>
       </div>
     );
@@ -38,7 +37,7 @@ export const Auth: React.FC = () => {
 
   return (
     <div className="auth-page">
-      <Login onSuccess={() => navigate('/')} />
+      <CryptoLogin onSuccess={() => navigate('/')} />
     </div>
   );
 };
