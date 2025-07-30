@@ -373,7 +373,6 @@ export class Drawing extends StateNode {
 
 		const {
 			id,
-			props: { size },
 		} = initialShape
 
 		const shape = this.editor.getShape<DrawableShape>(id)!
@@ -430,7 +429,7 @@ export class Drawing extends StateNode {
 
 		if (this.canClose()) {
 			; (shapePartial as TLShapePartial<TLDrawShape>).props!.isClosed =
-				this.getIsClosed(newSegments, size)
+				this.getIsClosed(newSegments, shape.props.size)
 		}
 
 		this.editor.updateShapes([shapePartial])
