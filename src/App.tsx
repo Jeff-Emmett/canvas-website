@@ -1,12 +1,15 @@
 import { inject } from "@vercel/analytics";
 import "tldraw/tldraw.css";
 import "@/css/style.css";
-import "@/styles/auth.css"; // Import auth styles
+import "@/css/auth.css"; // Import auth styles
+import "@/css/crypto-auth.css"; // Import crypto auth styles
+import "@/css/starred-boards.css"; // Import starred boards styles
 import { Default } from "@/routes/Default";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Contact } from "@/routes/Contact";
 import { Board } from "./routes/Board";
 import { Inbox } from "./routes/Inbox";
+import { Dashboard } from "./routes/Dashboard";
 import { createRoot } from "react-dom/client";
 import { DailyProvider } from "@daily-co/daily-react";
 import Daily from "@daily-co/daily-js";
@@ -19,63 +22,59 @@ import { NotificationProvider } from './context/NotificationContext';
 import NotificationsDisplay from './components/NotificationsDisplay';
 
 // Import auth components
-import Login from './components/auth/Login';
+import CryptoLogin from './components/auth/CryptoLogin';
+import CryptoDebug from './components/auth/CryptoDebug';
 
 inject();
 
 const callObject = Daily.createCallObject();
 
 /**
- * Protected Route component
- * Redirects to login if user is not authenticated
- */
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { session } = useAuth();
-  const [isInitialized, setIsInitialized] = useState(false);
-
-  // Wait for authentication to initialize before rendering
-  useEffect(() => {
-    if (!session.loading) {
-      setIsInitialized(true);
-    }
-  }, [session.loading]);
-
-  if (!isInitialized) {
-    return <div className="loading">Loading...</div>;
-  }
-
-  // Redirect to login if not authenticated
-  if (!session.authed) {
-    return <Navigate to="/login" />;
-  }
-
-  // Render the protected content
-  return <>{children}</>;
-};
-
-/**
- * Auth page - renders login/register component
- */
-const AuthPage = () => {
-  const { session } = useAuth();
-
-  // Redirect to home if already authenticated
-  if (session.authed) {
-    return <Navigate to="/" />;
-  }
-
-  return (
-    <div className="auth-page">
-      <Login onSuccess={() => window.location.href = '/'} />
-    </div>
-  );
-};
-
-/**
  * Main App with context providers
  */
 const AppWithProviders = () => {
-  return (
+  /**
+   * Optional Auth Route component
+   * Allows guests to browse, but provides login option
+   */
+  const OptionalAuthRoute = ({ children }: { children: React.ReactNode }) => {
+    const { session } = useAuth();
+    const [isInitialized, setIsInitialized] = useState(false);
+
+    // Wait for authentication to initialize before rendering
+    useEffect(() => {
+      if (!session.loading) {
+        setIsInitialized(true);
+      }
+    }, [session.loading]);
+
+    if (!isInitialized) {
+      return <div className="loading">Loading...</div>;
+    }
+
+    // Always render the content, authentication is optional
+    return <>{children}</>;
+  };
+
+  /**
+   * Auth page - renders login/register component (kept for direct access)
+   */
+  const AuthPage = () => {
+    const { session } = useAuth();
+
+    // Redirect to home if already authenticated
+    if (session.authed) {
+      return <Navigate to="/" />;
+    }
+
+    return (
+      <div className="auth-page">
+        <CryptoLogin onSuccess={() => window.location.href = '/'} />
+      </div>
+    );
+  };
+
+    return (
     <AuthProvider>
       <FileSystemProvider>
         <NotificationProvider>
@@ -88,26 +87,36 @@ const AppWithProviders = () => {
                 {/* Auth routes */}
                 <Route path="/login" element={<AuthPage />} />
                 
-                {/* Protected routes */}
+                {/* Optional auth routes */}
                 <Route path="/" element={
-                  <ProtectedRoute>
+                  <OptionalAuthRoute>
                     <Default />
-                  </ProtectedRoute>
+                  </OptionalAuthRoute>
                 } />
                 <Route path="/contact" element={
-                  <ProtectedRoute>
+                  <OptionalAuthRoute>
                     <Contact />
-                  </ProtectedRoute>
+                  </OptionalAuthRoute>
                 } />
                 <Route path="/board/:slug" element={
-                  <ProtectedRoute>
+                  <OptionalAuthRoute>
                     <Board />
-                  </ProtectedRoute>
+                  </OptionalAuthRoute>
                 } />
                 <Route path="/inbox" element={
-                  <ProtectedRoute>
+                  <OptionalAuthRoute>
                     <Inbox />
-                  </ProtectedRoute>
+                  </OptionalAuthRoute>
+                } />
+                <Route path="/debug" element={
+                  <OptionalAuthRoute>
+                    <CryptoDebug />
+                  </OptionalAuthRoute>
+                } />
+                <Route path="/dashboard" element={
+                  <OptionalAuthRoute>
+                    <Dashboard />
+                  </OptionalAuthRoute>
                 } />
               </Routes>
             </BrowserRouter>

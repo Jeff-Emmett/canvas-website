@@ -1,0 +1,670 @@
+/* Cryptographic Authentication Styles */
+
+.crypto-login-container {
+  max-width: 400px;
+  margin: 0 auto;
+  padding: 2rem;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e1e5e9;
+}
+
+.crypto-login-container h2 {
+  margin: 0 0 1.5rem 0;
+  color: #1a1a1a;
+  font-size: 1.5rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.crypto-info {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #007bff;
+}
+
+.crypto-info p {
+  margin: 0 0 1rem 0;
+  color: #6c757d;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.crypto-features {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.crypto-features .feature {
+  font-size: 0.8rem;
+  color: #28a745;
+  font-weight: 500;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #495057;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid #e9ecef;
+  border-radius: 6px;
+  font-size: 1rem;
+  transition: border-color 0.2s ease;
+  box-sizing: border-box;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.form-group input:disabled {
+  background-color: #f8f9fa;
+  color: #6c757d;
+  cursor: not-allowed;
+}
+
+/* Existing Users Styles */
+.existing-users {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.existing-users h3 {
+  margin: 0 0 0.75rem 0;
+  color: #495057;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.user-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.user-option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: white;
+  border: 2px solid #e9ecef;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+  width: 100%;
+}
+
+.user-option:hover:not(:disabled) {
+  border-color: #007bff;
+  background: #f8f9ff;
+}
+
+.user-option.selected {
+  border-color: #007bff;
+  background: #e7f3ff;
+}
+
+.user-option:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.user-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.user-name {
+  font-weight: 500;
+  color: #495057;
+  flex-grow: 1;
+}
+
+.user-status {
+  font-size: 0.8rem;
+  color: #6c757d;
+  font-style: italic;
+}
+
+.error-message {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.crypto-auth-button {
+  width: 100%;
+  padding: 0.875rem;
+  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 1rem;
+}
+
+.crypto-auth-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+}
+
+.crypto-auth-button:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.auth-toggle {
+  text-align: center;
+  margin-top: 1rem;
+}
+
+.toggle-button {
+  background: none;
+  border: none;
+  color: #007bff;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-decoration: underline;
+  transition: color 0.2s ease;
+}
+
+.toggle-button:hover:not(:disabled) {
+  color: #0056b3;
+}
+
+.toggle-button:disabled {
+  color: #6c757d;
+  cursor: not-allowed;
+}
+
+.cancel-button {
+  width: 100%;
+  padding: 0.75rem;
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  margin-top: 1rem;
+}
+
+.cancel-button:hover {
+  background: #5a6268;
+}
+
+/* Loading state */
+.crypto-auth-button:disabled {
+  position: relative;
+}
+
+.crypto-auth-button:disabled::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 16px;
+  height: 16px;
+  margin: -8px 0 0 -8px;
+  border: 2px solid transparent;
+  border-top: 2px solid #ffffff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Responsive design */
+@media (max-width: 480px) {
+  .crypto-login-container {
+    margin: 1rem;
+    padding: 1.5rem;
+  }
+  
+  .crypto-login-container h2 {
+    font-size: 1.25rem;
+  }
+  
+  .crypto-features {
+    font-size: 0.75rem;
+  }
+  
+  .login-button {
+    padding: 4px 8px;
+    font-size: 0.7rem;
+  }
+}
+
+/* Responsive positioning for toolbar buttons */
+@media (max-width: 768px) {
+  .toolbar-login-button {
+    margin-right: 4px;
+  }
+  
+  /* Adjust toolbar container position on mobile */
+  .toolbar-container {
+    right: 80px !important;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .crypto-login-container {
+    background: #2d3748;
+    border-color: #4a5568;
+  }
+  
+  .crypto-login-container h2 {
+    color: #f7fafc;
+  }
+  
+  .crypto-info {
+    background: #4a5568;
+    border-left-color: #63b3ed;
+  }
+  
+  .crypto-info p {
+    color: #e2e8f0;
+  }
+  
+  .form-group label {
+    color: #e2e8f0;
+  }
+  
+  .form-group input {
+    background: #4a5568;
+    border-color: #718096;
+    color: #f7fafc;
+  }
+  
+  .form-group input:focus {
+    border-color: #63b3ed;
+    box-shadow: 0 0 0 3px rgba(99, 179, 237, 0.1);
+  }
+  
+  .form-group input:disabled {
+    background-color: #2d3748;
+    color: #a0aec0;
+  }
+  
+  .existing-users {
+    background: #4a5568;
+    border-color: #718096;
+  }
+  
+  .existing-users h3 {
+    color: #e2e8f0;
+  }
+  
+  .user-option {
+    background: #2d3748;
+    border-color: #718096;
+  }
+  
+  .user-option:hover:not(:disabled) {
+    border-color: #63b3ed;
+    background: #2c5282;
+  }
+  
+  .user-option.selected {
+    border-color: #63b3ed;
+    background: #2c5282;
+  }
+  
+  .user-name {
+    color: #e2e8f0;
+  }
+  
+  .user-status {
+    color: #a0aec0;
+  }
+}
+
+/* Test Component Styles */
+.crypto-test-container {
+  max-width: 800px;
+  margin: 2rem auto;
+  padding: 2rem;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e1e5e9;
+}
+
+.crypto-test-container h2 {
+  margin: 0 0 1.5rem 0;
+  color: #1a1a1a;
+  font-size: 1.5rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.test-controls {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  justify-content: center;
+}
+
+.test-button, .clear-button {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.test-button {
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+  color: white;
+}
+
+.test-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #218838 0%, #1ea085 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+.clear-button {
+  background: #6c757d;
+  color: white;
+}
+
+.clear-button:hover:not(:disabled) {
+  background: #5a6268;
+}
+
+.test-button:disabled, .clear-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.test-results {
+  margin-bottom: 2rem;
+}
+
+.test-results h3 {
+  margin: 0 0 1rem 0;
+  color: #495057;
+  font-size: 1.1rem;
+}
+
+.results-list {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 1rem;
+  background: #f8f9fa;
+}
+
+.result-item {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #e9ecef;
+  font-family: 'Courier New', monospace;
+  font-size: 0.85rem;
+  color: #495057;
+}
+
+.result-item:last-child {
+  border-bottom: none;
+}
+
+.test-info {
+  background: #e3f2fd;
+  padding: 1rem;
+  border-radius: 6px;
+  border-left: 4px solid #2196f3;
+}
+
+.test-info h3 {
+  margin: 0 0 1rem 0;
+  color: #1976d2;
+  font-size: 1.1rem;
+}
+
+.test-info ul {
+  margin: 0;
+  padding-left: 1.5rem;
+  color: #424242;
+}
+
+.test-info li {
+  margin-bottom: 0.5rem;
+}
+
+/* Login Button Styles */
+.login-button {
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  letter-spacing: 0.5px;
+}
+
+.login-button:hover {
+  background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+}
+
+.toolbar-login-button {
+  margin-right: 8px;
+}
+
+/* Login Modal Overlay */
+.login-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  backdrop-filter: blur(4px);
+}
+
+.login-modal {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow: auto;
+  animation: modalSlideIn 0.3s ease-out;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Dark mode for login button */
+@media (prefers-color-scheme: dark) {
+  .login-button {
+    background: linear-gradient(135deg, #63b3ed 0%, #3182ce 100%);
+  }
+  
+  .login-button:hover {
+    background: linear-gradient(135deg, #3182ce 0%, #2c5282 100%);
+  }
+  
+  .login-modal {
+    background: #2d3748;
+    border: 1px solid #4a5568;
+  }
+}
+
+/* Debug Component Styles */
+.crypto-debug-container {
+  max-width: 600px;
+  margin: 1rem auto;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.crypto-debug-container h2 {
+  margin: 0 0 1rem 0;
+  color: #495057;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.debug-controls {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.debug-input {
+  padding: 0.5rem;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  min-width: 150px;
+}
+
+.debug-button {
+  padding: 0.5rem 1rem;
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.debug-button:hover:not(:disabled) {
+  background: #5a6268;
+}
+
+.debug-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.debug-results {
+  margin-top: 1rem;
+}
+
+.debug-results h3 {
+  margin: 0 0 0.5rem 0;
+  color: #495057;
+  font-size: 1rem;
+}
+
+/* Dark mode for test component */
+@media (prefers-color-scheme: dark) {
+  .crypto-test-container {
+    background: #2d3748;
+    border-color: #4a5568;
+  }
+  
+  .crypto-test-container h2 {
+    color: #f7fafc;
+  }
+  
+  .test-results h3 {
+    color: #e2e8f0;
+  }
+  
+  .results-list {
+    background: #4a5568;
+    border-color: #718096;
+  }
+  
+  .result-item {
+    color: #e2e8f0;
+    border-bottom-color: #718096;
+  }
+  
+  .test-info {
+    background: #2c5282;
+    border-left-color: #63b3ed;
+  }
+  
+  .test-info h3 {
+    color: #90cdf4;
+  }
+  
+  .test-info ul {
+    color: #e2e8f0;
+  }
+  
+  .crypto-debug-container {
+    background: #4a5568;
+    border-color: #718096;
+  }
+  
+  .crypto-debug-container h2 {
+    color: #e2e8f0;
+  }
+  
+  .debug-input {
+    background: #2d3748;
+    border-color: #718096;
+    color: #f7fafc;
+  }
+  
+  .debug-results h3 {
+    color: #e2e8f0;
+  }
+} 

@@ -37,6 +37,9 @@ import {
   initLockIndicators,
   watchForLockedShapes,
 } from "@/ui/cameraUtils"
+import { useAuth } from "../context/AuthContext"
+import { updateLastVisited } from "../lib/starredBoards"
+import { captureBoardScreenshot } from "../lib/screenshotService"
 
 // Default to production URL if env var isn't available
 export const WORKER_URL = "https://jeffemmett-canvas.jeffemmett.workers.dev"
@@ -63,6 +66,7 @@ const customTools = [
 export function Board() {
   const { slug } = useParams<{ slug: string }>()
   const roomId = slug || "default-room"
+  const { session } = useAuth()
 
   const storeConfig = useMemo(
     () => ({
@@ -70,8 +74,13 @@ export function Board() {
       assets: multiplayerAssetStore,
       shapeUtils: [...defaultShapeUtils, ...customShapeUtils],
       bindingUtils: [...defaultBindingUtils],
+      // Add user information to the presence system
+      user: session.authed ? {
+        id: session.username,
+        name: session.username,
+      } : undefined,
     }),
-    [roomId],
+    [roomId, session.authed, session.username],
   )
 
   const store = useSync(storeConfig)
@@ -96,6 +105,55 @@ export function Board() {
     initLockIndicators(editor)
     watchForLockedShapes(editor)
   }, [editor])
+
+  // Update presence when session changes
+  useEffect(() => {
+    if (!editor || !session.authed || !session.username) return
+    
+    // The presence should automatically update through the useSync configuration
+    // when the session changes, but we can also try to force an update
+    console.log('User authenticated, presence should show:', session.username)
+  }, [editor, session.authed, session.username])
+
+  // Track board visit for starred boards
+  useEffect(() => {
+    if (session.authed && session.username && roomId) {
+      updateLastVisited(session.username, roomId);
+    }
+  }, [session.authed, session.username, roomId]);
+
+  // Capture screenshots when board content changes
+  useEffect(() => {
+    if (!editor || !roomId || !store.store) return;
+
+    // Get current shapes to detect changes
+    const currentShapes = editor.getCurrentPageShapes();
+    const currentShapeCount = currentShapes.length;
+    
+    // Create a simple hash of the content for change detection
+    const currentContentHash = currentShapes.length > 0 
+      ? currentShapes.map(shape => `${shape.id}-${shape.type}`).sort().join('|')
+      : '';
+
+    // Debounced screenshot capture only when content actually changes
+    const timeoutId = setTimeout(async () => {
+      const newShapes = editor.getCurrentPageShapes();
+      const newShapeCount = newShapes.length;
+      const newContentHash = newShapes.length > 0 
+        ? newShapes.map(shape => `${shape.id}-${shape.type}`).sort().join('|')
+        : '';
+
+      // Only capture if content actually changed
+      if (newShapeCount !== currentShapeCount || newContentHash !== currentContentHash) {
+        console.log('Content changed, capturing screenshot');
+        await captureBoardScreenshot(editor, roomId);
+      } else {
+        console.log('No content changes detected, skipping screenshot');
+      }
+    }, 3000); // Wait 3 seconds to ensure changes are complete
+
+    return () => clearTimeout(timeoutId);
+  }, [editor, roomId, store.store?.getSnapshot()]); // Still trigger on store changes to detect them
 
   return (
     <div style={{ position: "fixed", inset: 0 }}>
@@ -145,6 +203,9 @@ export function Board() {
             ChangePropagator,
             ClickPropagator,
           ])
+          
+          // Note: User presence is configured through the useSync hook above
+          // The authenticated username should appear in the people section
         }}
       />
     </div>

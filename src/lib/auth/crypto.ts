@@ -3,6 +3,15 @@
 // Check if we're in a browser environment
 export const isBrowser = (): boolean => typeof window !== 'undefined';
 
+// Use the polyfill if available, otherwise fall back to native WebCrypto
+const getCrypto = (): Crypto => {
+  if (typeof window !== 'undefined' && window.crypto) {
+    return window.crypto;
+  }
+  // Fallback to native WebCrypto if polyfill is not available
+  return window.crypto;
+};
+
 // Get registered users from localStorage
 export const getRegisteredUsers = (): string[] => {
   if (!isBrowser()) return [];
@@ -78,7 +87,8 @@ export const getPublicKey = (username: string): string | null => {
 export const generateKeyPair = async (): Promise<CryptoKeyPair | null> => {
   if (!isBrowser()) return null;
   try {
-    return await window.crypto.subtle.generateKey(
+    const crypto = getCrypto();
+    return await crypto.subtle.generateKey(
       {
         name: 'ECDSA',
         namedCurve: 'P-256',
@@ -96,7 +106,8 @@ export const generateKeyPair = async (): Promise<CryptoKeyPair | null> => {
 export const exportPublicKey = async (publicKey: CryptoKey): Promise<string | null> => {
   if (!isBrowser()) return null;
   try {
-    const publicKeyBuffer = await window.crypto.subtle.exportKey(
+    const crypto = getCrypto();
+    const publicKeyBuffer = await crypto.subtle.exportKey(
       'raw',
       publicKey
     );
@@ -114,6 +125,7 @@ export const exportPublicKey = async (publicKey: CryptoKey): Promise<string | nu
 export const importPublicKey = async (base64Key: string): Promise<CryptoKey | null> => {
   if (!isBrowser()) return null;
   try {
+    const crypto = getCrypto();
     const binaryString = atob(base64Key);
     const len = binaryString.length;
     const bytes = new Uint8Array(len);
@@ -122,7 +134,7 @@ export const importPublicKey = async (base64Key: string): Promise<CryptoKey | nu
       bytes[i] = binaryString.charCodeAt(i);
     }
 
-    return await window.crypto.subtle.importKey(
+    return await crypto.subtle.importKey(
       'raw',
       bytes,
       {
@@ -142,10 +154,11 @@ export const importPublicKey = async (base64Key: string): Promise<CryptoKey | nu
 export const signData = async (privateKey: CryptoKey, data: string): Promise<string | null> => {
   if (!isBrowser()) return null;
   try {
+    const crypto = getCrypto();
     const encoder = new TextEncoder();
     const encodedData = encoder.encode(data);
 
-    const signature = await window.crypto.subtle.sign(
+    const signature = await crypto.subtle.sign(
       {
         name: 'ECDSA',
         hash: { name: 'SHA-256' },
@@ -171,6 +184,7 @@ export const verifySignature = async (
 ): Promise<boolean> => {
   if (!isBrowser()) return false;
   try {
+    const crypto = getCrypto();
     const encoder = new TextEncoder();
     const encodedData = encoder.encode(data);
 
@@ -181,7 +195,7 @@ export const verifySignature = async (
       signatureBytes[i] = binarySignature.charCodeAt(i);
     }
 
-    return await window.crypto.subtle.verify(
+    return await crypto.subtle.verify(
       {
         name: 'ECDSA',
         hash: { name: 'SHA-256' },

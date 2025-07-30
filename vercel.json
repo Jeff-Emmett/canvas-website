@@ -15,6 +15,10 @@
     {
       "source": "/inbox",
       "destination": "/"
+    },
+    {
+      "source": "/dashboard",
+      "destination": "/"
     }
   ],
   "headers": [
