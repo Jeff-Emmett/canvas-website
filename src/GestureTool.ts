@@ -308,7 +308,7 @@ export class Drawing extends StateNode {
 		return this.shapeType !== "highlight"
 	}
 
-	getIsClosed(segments: TLDrawShapeSegment[], size: TLDefaultSizeStyle) {
+	getIsClosed(segments: TLDrawShapeSegment[]) {
 		if (!this.canClose()) return false
 
 		const strokeWidth = STROKE_WIDTH
@@ -429,7 +429,7 @@ export class Drawing extends StateNode {
 
 		if (this.canClose()) {
 			; (shapePartial as TLShapePartial<TLDrawShape>).props!.isClosed =
-				this.getIsClosed(newSegments, shape.props.size)
+				this.getIsClosed(newSegments)
 		}
 
 		this.editor.updateShapes([shapePartial])
