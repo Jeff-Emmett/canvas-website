@@ -19,6 +19,7 @@ import { MarkdownShape } from "@/shapes/MarkdownShapeUtil"
 import { MycrozineTemplateShape } from "@/shapes/MycrozineTemplateShapeUtil"
 import { SlideShape } from "@/shapes/SlideShapeUtil"
 import { PromptShape } from "@/shapes/PromptShapeUtil"
+import { SharedPianoShape } from "@/shapes/SharedPianoShapeUtil"
 
 // add custom shapes and bindings here if needed:
 export const customSchema = createTLSchema({
@@ -51,6 +52,10 @@ export const customSchema = createTLSchema({
     Prompt: {
       props: PromptShape.props,
       migrations: PromptShape.migrations,
+    },
+    SharedPiano: {
+      props: SharedPianoShape.props,
+      migrations: SharedPianoShape.migrations,
     },
   },
   bindings: defaultBindingSchemas,

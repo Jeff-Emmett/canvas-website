@@ -17,6 +17,7 @@
 	"license": "ISC",
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.33.1",
+		"@automerge/automerge-repo-react-hooks": "^2.2.0",
 		"@daily-co/daily-js": "^0.60.0",
 		"@daily-co/daily-react": "^0.20.0",
 		"@tldraw/assets": "^3.6.0",

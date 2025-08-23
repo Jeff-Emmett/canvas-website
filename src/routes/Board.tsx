@@ -29,6 +29,8 @@ import { SlideShape } from "@/shapes/SlideShapeUtil"
 import { makeRealSettings, applySettingsMigrations } from "@/lib/settings"
 import { PromptShapeTool } from "@/tools/PromptShapeTool"
 import { PromptShape } from "@/shapes/PromptShapeUtil"
+import { SharedPianoTool } from "@/tools/SharedPianoTool"
+import { SharedPianoShape } from "@/shapes/SharedPianoShapeUtil"
 import {
   lockElement,
   unlockElement,
@@ -58,6 +60,7 @@ const customShapeUtils = [
   MycrozineTemplateShape,
   MarkdownShape,
   PromptShape,
+  SharedPianoShape,
 ]
 const customTools = [
   ChatBoxTool,
@@ -67,6 +70,7 @@ const customTools = [
   MycrozineTemplateTool,
   MarkdownTool,
   PromptShapeTool,
+  SharedPianoTool,
   GestureTool,
 ]
 

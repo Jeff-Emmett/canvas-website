@@ -162,6 +162,50 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     }
   })
 
+  .post("/daily/tokens", async (req) => {
+    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+    
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: 'No API key provided' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      const body = await req.json()
+      const response = await fetch('https://api.daily.co/v1/meeting-tokens', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          room_name: body.room_name,
+          properties: body.properties
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        return new Response(JSON.stringify(error), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      const data = await response.json()
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
   // Add new transcription endpoints
   .post("/daily/rooms/:roomName/start-transcription", async (req) => {
     const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
@@ -302,6 +346,88 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
         headers: {
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        return new Response(JSON.stringify(error), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      const data = await response.json()
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
+  // Recording endpoints
+  .post("/daily/recordings/start", async (req) => {
+    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+    
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: 'No API key provided' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      const body = await req.json()
+      const response = await fetch('https://api.daily.co/v1/recordings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(body)
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        return new Response(JSON.stringify(error), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      const data = await response.json()
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
+  .post("/daily/recordings/:recordingId/stop", async (req) => {
+    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+    const { recordingId } = req.params
+    
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: 'No API key provided' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      const response = await fetch(`https://api.daily.co/v1/recordings/${recordingId}/stop`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
         }
       })
 

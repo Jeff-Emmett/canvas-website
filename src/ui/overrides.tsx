@@ -151,6 +151,15 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("Prompt"),
       },
+      SharedPiano: {
+        id: "SharedPiano",
+        icon: "music",
+        label: "Shared Piano",
+        type: "SharedPiano",
+        kbd: "alt+p",
+        readonlyOk: true,
+        onSelect: () => editor.setCurrentTool("SharedPiano"),
+      },
       gesture: {
         id: "gesture",
         icon: "draw",
