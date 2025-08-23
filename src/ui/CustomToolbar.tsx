@@ -168,6 +168,14 @@ export function CustomToolbar() {
             isSelected={tools["Prompt"].id === editor.getCurrentToolId()}
           />
         )}
+        {tools["SharedPiano"] && (
+          <TldrawUiMenuItem
+            {...tools["SharedPiano"]}
+            icon="music"
+            label="Shared Piano"
+            isSelected={tools["SharedPiano"].id === editor.getCurrentToolId()}
+          />
+        )}
       </DefaultToolbar>
     </div>
   )
