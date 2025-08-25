@@ -14,16 +14,12 @@ export class AuthService {
     session: Session;
     fileSystem: FileSystem | null;
   }> {
-    console.log('Initializing authentication...');
-    
     // First try to load stored session
     const storedSession = loadSession();
     let session: Session;
     let fileSystem: FileSystem | null = null;
 
     if (storedSession && storedSession.authed && storedSession.username) {
-      console.log('Found stored session for:', storedSession.username);
-      
       // Try to restore ODD session with stored username
       try {
         const program = await odd.program({
@@ -41,7 +37,6 @@ export class AuthService {
             loading: false,
             backupCreated: backupStatus.created
           };
-          console.log('ODD session restored successfully');
         } else {
           // ODD session not available, but we have crypto auth
           session = {
@@ -50,10 +45,9 @@ export class AuthService {
             loading: false,
             backupCreated: storedSession.backupCreated
           };
-          console.log('Using stored session without ODD');
         }
       } catch (oddError) {
-        console.warn('ODD session restoration failed, using stored session:', oddError);
+        // ODD session restoration failed, using stored session
         session = {
           username: storedSession.username,
           authed: true,
@@ -86,7 +80,6 @@ export class AuthService {
           };
         }
       } catch (error) {
-        console.error('Authentication initialization error:', error);
         session = {
           username: '',
           authed: false,
@@ -137,7 +130,7 @@ export class AuthService {
             };
           }
         } catch (oddError) {
-          console.warn('ODD session not available, using crypto auth only:', oddError);
+          // ODD session not available, using crypto auth only
         }
         
         // Return crypto auth result if ODD is not available
@@ -182,7 +175,6 @@ export class AuthService {
         };
       }
     } catch (error) {
-      console.error('Login error:', error);
       return {
         success: false,
         error: String(error)
@@ -241,7 +233,7 @@ export class AuthService {
             };
           }
         } catch (oddError) {
-          console.warn('ODD session creation failed, using crypto auth only:', oddError);
+          // ODD session creation failed, using crypto auth only
         }
         
         // Return crypto registration result if ODD is not available
@@ -290,7 +282,6 @@ export class AuthService {
         };
       }
     } catch (error) {
-      console.error('Registration error:', error);
       return {
         success: false,
         error: String(error)
@@ -310,12 +301,11 @@ export class AuthService {
       try {
         await odd.session.destroy();
       } catch (oddError) {
-        console.warn('ODD session destroy failed:', oddError);
+        // ODD session destroy failed
       }
       
       return true;
     } catch (error) {
-      console.error('Logout error:', error);
       return false;
     }
   }

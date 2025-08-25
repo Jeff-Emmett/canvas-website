@@ -7,6 +7,7 @@ import { saveSession, clearStoredSession } from '../lib/auth/sessionPersistence'
 interface AuthContextType {
   session: Session;
   setSession: (updatedSession: Partial<Session>) => void;
+  updateSession: (updatedSession: Partial<Session>) => void;
   clearSession: () => void;
   fileSystem: FileSystem | null;
   setFileSystem: (fs: FileSystem | null) => void;
@@ -144,6 +145,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const contextValue: AuthContextType = {
     session,
     setSession,
+    updateSession: setSession,
     clearSession,
     fileSystem,
     setFileSystem,

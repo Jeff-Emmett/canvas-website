@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import type * as webnative from 'webnative';
+import * as webnative from 'webnative';
 import type FileSystem from 'webnative/fs/index';
 
 /**
@@ -77,10 +77,14 @@ export const createFileSystemUtils = (fs: FileSystem) => {
      * @param path Array of path segments
      */
     ensureDirectory: async (path: string[]): Promise<void> => {
-      const dirPath = webnative.path.directory(...path);
-      const exists = await fs.exists(dirPath);
-      if (!exists) {
-        await fs.mkdir(dirPath);
+      try {
+        const dirPath = webnative.path.directory(...path);
+        const exists = await fs.exists(dirPath as any);
+        if (!exists) {
+          await fs.mkdir(dirPath as any);
+        }
+      } catch (error) {
+        console.error('Error ensuring directory:', error);
       }
     },
     
@@ -92,9 +96,15 @@ export const createFileSystemUtils = (fs: FileSystem) => {
      * @param content The content to write
      */
     writeFile: async (path: string[], fileName: string, content: Blob | string): Promise<void> => {
-      const filePath = webnative.path.file(...path, fileName);
-      await fs.write(filePath, content);
-      await fs.publish();
+      try {
+        const filePath = webnative.path.file(...path, fileName);
+        // Convert content to appropriate format for webnative
+        const contentToWrite = typeof content === 'string' ? new TextEncoder().encode(content) : content;
+        await fs.write(filePath as any, contentToWrite as any);
+        await fs.publish();
+      } catch (error) {
+        console.error('Error writing file:', error);
+      }
     },
     
     /**
@@ -105,12 +115,17 @@ export const createFileSystemUtils = (fs: FileSystem) => {
      * @returns The file content
      */
     readFile: async (path: string[], fileName: string): Promise<any> => {
-      const filePath = webnative.path.file(...path, fileName);
-      const exists = await fs.exists(filePath);
-      if (!exists) {
-        throw new Error(`File doesn't exist: ${filePath}`);
+      try {
+        const filePath = webnative.path.file(...path, fileName);
+        const exists = await fs.exists(filePath as any);
+        if (!exists) {
+          throw new Error(`File doesn't exist: ${fileName}`);
+        }
+        return await fs.read(filePath as any);
+      } catch (error) {
+        console.error('Error reading file:', error);
+        throw error;
       }
-      return await fs.read(filePath);
     },
     
     /**
@@ -121,8 +136,13 @@ export const createFileSystemUtils = (fs: FileSystem) => {
      * @returns Boolean indicating if the file exists
      */
     fileExists: async (path: string[], fileName: string): Promise<boolean> => {
-      const filePath = webnative.path.file(...path, fileName);
-      return await fs.exists(filePath);
+      try {
+        const filePath = webnative.path.file(...path, fileName);
+        return await fs.exists(filePath as any);
+      } catch (error) {
+        console.error('Error checking file existence:', error);
+        return false;
+      }
     },
     
     /**
@@ -132,12 +152,17 @@ export const createFileSystemUtils = (fs: FileSystem) => {
      * @returns Object with file names as keys
      */
     listDirectory: async (path: string[]): Promise<Record<string, any>> => {
-      const dirPath = webnative.path.directory(...path);
-      const exists = await fs.exists(dirPath);
-      if (!exists) {
+      try {
+        const dirPath = webnative.path.directory(...path);
+        const exists = await fs.exists(dirPath as any);
+        if (!exists) {
+          return {};
+        }
+        return await fs.ls(dirPath as any);
+      } catch (error) {
+        console.error('Error listing directory:', error);
         return {};
       }
-      return await fs.ls(dirPath);
     }
   };
 };

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createAccountLinkingConsumer } from '../../lib/auth/linking'
-import * as account from '@oddjs/odd/account'
 import { useAuth } from '../../context/AuthContext'
 import { useNotifications } from '../../context/NotificationContext'
 
@@ -9,7 +8,7 @@ const LinkDevice: React.FC = () => {
   const [username, setUsername] = useState('')
   const [displayPin, setDisplayPin] = useState('')
   const [view, setView] = useState<'enter-username' | 'show-pin' | 'load-filesystem'>('enter-username')
-  const [accountLinkingConsumer, setAccountLinkingConsumer] = useState<account.AccountLinkingConsumer | null>(null)
+  const [accountLinkingConsumer, setAccountLinkingConsumer] = useState<any>(null)
   const navigate = useNavigate()
   const { login } = useAuth()
   const { addNotification } = useNotifications()
