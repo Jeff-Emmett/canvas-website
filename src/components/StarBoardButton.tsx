@@ -14,6 +14,9 @@ const StarBoardButton: React.FC<StarBoardButtonProps> = ({ className = '' }) => 
   const { addNotification } = useNotifications();
   const [isStarred, setIsStarred] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showPopup, setShowPopup] = useState(false);
+  const [popupMessage, setPopupMessage] = useState('');
+  const [popupType, setPopupType] = useState<'success' | 'error' | 'info'>('success');
 
   // Check if board is starred on mount and when session changes
   useEffect(() => {
@@ -24,6 +27,17 @@ const StarBoardButton: React.FC<StarBoardButtonProps> = ({ className = '' }) => 
       setIsStarred(false);
     }
   }, [session.authed, session.username, slug]);
+
+  const showPopupMessage = (message: string, type: 'success' | 'error' | 'info') => {
+    setPopupMessage(message);
+    setPopupType(type);
+    setShowPopup(true);
+    
+    // Auto-hide after 2 seconds
+    setTimeout(() => {
+      setShowPopup(false);
+    }, 2000);
+  };
 
   const handleStarToggle = async () => {
     if (!session.authed || !session.username || !slug) {
@@ -39,23 +53,23 @@ const StarBoardButton: React.FC<StarBoardButtonProps> = ({ className = '' }) => 
         const success = unstarBoard(session.username, slug);
         if (success) {
           setIsStarred(false);
-          addNotification('Board removed from starred boards', 'success');
+          showPopupMessage('Board removed from starred boards', 'success');
         } else {
-          addNotification('Failed to remove board from starred boards', 'error');
+          showPopupMessage('Failed to remove board from starred boards', 'error');
         }
       } else {
         // Star the board
         const success = starBoard(session.username, slug, slug);
         if (success) {
           setIsStarred(true);
-          addNotification('Board added to starred boards', 'success');
+          showPopupMessage('Board added to starred boards', 'success');
         } else {
-          addNotification('Board is already starred', 'info');
+          showPopupMessage('Board is already starred', 'info');
         }
       }
     } catch (error) {
       console.error('Error toggling star:', error);
-      addNotification('Failed to update starred boards', 'error');
+      showPopupMessage('Failed to update starred boards', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -67,23 +81,40 @@ const StarBoardButton: React.FC<StarBoardButtonProps> = ({ className = '' }) => 
   }
 
   return (
-    <button
-      onClick={handleStarToggle}
-      disabled={isLoading}
-      className={`star-board-button ${className} ${isStarred ? 'starred' : ''}`}
-      title={isStarred ? 'Remove from starred boards' : 'Add to starred boards'}
-    >
-      {isLoading ? (
-        <span className="loading-spinner">⏳</span>
-      ) : isStarred ? (
-        <span className="star-icon starred">⭐</span>
-      ) : (
-        <span className="star-icon">☆</span>
+    <div style={{ position: 'relative' }}>
+      <button
+        onClick={handleStarToggle}
+        disabled={isLoading}
+        className={`star-board-button ${className} ${isStarred ? 'starred' : ''}`}
+        title={isStarred ? 'Remove from starred boards' : 'Add to starred boards'}
+      >
+        {isLoading ? (
+          <span className="loading-spinner">⏳</span>
+        ) : isStarred ? (
+          <span className="star-icon starred">⭐</span>
+        ) : (
+          <span className="star-icon">☆</span>
+        )}
+      </button>
+      
+      {/* Custom popup notification */}
+      {showPopup && (
+        <div 
+          className={`star-popup star-popup-${popupType}`}
+          style={{
+            position: 'absolute',
+            bottom: '40px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 100001,
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none',
+          }}
+        >
+          {popupMessage}
+        </div>
       )}
-      <span className="star-text">
-        {isStarred ? 'Starred' : 'Star'}
-      </span>
-    </button>
+    </div>
   );
 };
 

@@ -2,34 +2,110 @@
 .star-board-button {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  background: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 6px;
+  justify-content: center;
+  padding: 4px 8px;
+  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+  color: white;
+  border: none;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  color: #495057;
+  font-size: 0.75rem;
+  font-weight: 600;
   transition: all 0.2s ease;
+  letter-spacing: 0.5px;
   white-space: nowrap;
+  box-sizing: border-box;
+  line-height: 1.1;
+  margin: 0;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+}
+
+/* Custom popup notification styles */
+.star-popup {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: popupSlideIn 0.3s ease-out;
+  max-width: 200px;
+  text-align: center;
+}
+
+.star-popup-success {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.star-popup-error {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.star-popup-info {
+  background: #d1ecf1;
+  color: #0c5460;
+  border: 1px solid #bee5eb;
+}
+
+@keyframes popupSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Toolbar-specific star button styling to match login button exactly */
+.toolbar-star-button {
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+  color: white;
+  border: none;
+  transition: all 0.2s ease;
+  letter-spacing: 0.5px;
+  box-sizing: border-box;
+  line-height: 1.1;
+  margin: 0;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  flex-shrink: 0;
 }
 
 .star-board-button:hover {
-  background: #e9ecef;
-  border-color: #dee2e6;
-  color: #212529;
+  background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+}
+
+.toolbar-star-button:hover {
+  background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
 }
 
 .star-board-button.starred {
-  background: #fff3cd;
-  border-color: #ffeaa7;
-  color: #856404;
+  background: #6B7280;
+  color: white;
 }
 
 .star-board-button.starred:hover {
-  background: #ffeaa7;
-  border-color: #fdcb6e;
+  background: #4B5563;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
 .star-board-button:disabled {
@@ -38,8 +114,16 @@
 }
 
 .star-icon {
-  font-size: 16px;
+  font-size: 0.8rem;
   transition: transform 0.2s ease;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  width: 16px;
+  height: 16px;
+  text-align: center;
 }
 
 .star-icon.starred {
@@ -48,6 +132,13 @@
 
 .loading-spinner {
   animation: spin 1s linear infinite;
+  font-size: 12px;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 @keyframes spin {
@@ -206,7 +297,7 @@
   padding: 4px;
   border-radius: 4px;
   transition: all 0.2s ease;
-  color: #ffc107;
+  color: #6B7280;
 }
 
 .unstar-button:hover {
@@ -438,26 +529,48 @@
   }
   
   .star-board-button {
-    background: #3a3a3a;
-    border-color: #495057;
-    color: #e9ecef;
+    background: linear-gradient(135deg, #63b3ed 0%, #3182ce 100%);
+    color: white;
+    border: none;
   }
   
   .star-board-button:hover {
-    background: #495057;
-    border-color: #6c757d;
-    color: #f8f9fa;
+    background: linear-gradient(135deg, #3182ce 0%, #2c5282 100%);
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(99, 179, 237, 0.3);
   }
   
   .star-board-button.starred {
-    background: #664d03;
-    border-color: #ffc107;
-    color: #ffc107;
+    background: #6B7280;
+    color: white;
+    border: none;
   }
   
   .star-board-button.starred:hover {
-    background: #856404;
-    border-color: #ffca2c;
+    background: #4B5563;
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  
+  /* Dark mode popup styles */
+  .star-popup-success {
+    background: #1e4d2b;
+    color: #d4edda;
+    border: 1px solid #2d5a3d;
+  }
+  
+  .star-popup-error {
+    background: #4a1e1e;
+    color: #f8d7da;
+    border: 1px solid #5a2d2d;
+  }
+  
+  .star-popup-info {
+    background: #1e4a4a;
+    color: #d1ecf1;
+    border: 1px solid #2d5a5a;
   }
   
   .board-screenshot {
@@ -495,6 +608,15 @@
   .star-board-button {
     padding: 6px 10px;
     font-size: 12px;
+  }
+  
+  .toolbar-star-button {
+    padding: 4px 8px;
+    font-size: 0.7rem;
+    width: 28px;
+    height: 24px;
+    min-width: 28px;
+    min-height: 24px;
   }
   
   .star-text {

@@ -19,7 +19,7 @@ import { EmbedShape, IEmbedShape } from "@/shapes/EmbedShapeUtil"
 import { moveToSlide } from "@/slides/useSlides"
 import { ISlideShape } from "@/shapes/SlideShapeUtil"
 import { getEdge } from "@/propagators/tlgraph"
-import { llm } from "@/utils/llmUtils"
+import { llm, getApiKey } from "@/utils/llmUtils"
 
 export const overrides: TLUiOverrides = {
   tools(editor, tools) {
@@ -312,17 +312,26 @@ export const overrides: TLUiOverrides = {
       llm: {
         id: "llm",
         label: "Run LLM Prompt",
-        kbd: "g",
+        kbd: "alt+g",
         readonlyOk: true,
         onSelect: () => {
+
           const selectedShapes = editor.getSelectedShapes()
+
+          
           if (selectedShapes.length > 0) {
             const selectedShape = selectedShapes[0] as TLArrowShape
+
+            
             if (selectedShape.type !== "arrow") {
+
               return
             }
             const edge = getEdge(selectedShape, editor)
+
+            
             if (!edge) {
+
               return
             }
             const sourceShape = editor.getShape(edge.from)
@@ -330,11 +339,15 @@ export const overrides: TLUiOverrides = {
               sourceShape && sourceShape.type === "geo"
                 ? (sourceShape as TLGeoShape).props.text
                 : ""
-            llm(
-              `Instruction: ${edge.text}
-              ${sourceText ? `Context: ${sourceText}` : ""}`,
-              localStorage.getItem("openai_api_key") || "",
-              (partialResponse: string) => {
+
+            
+            const prompt = `Instruction: ${edge.text}
+              ${sourceText ? `Context: ${sourceText}` : ""}`;
+
+            
+            try {
+              llm(prompt, (partialResponse: string) => {
+
                 editor.updateShape({
                   id: edge.to,
                   type: "geo",
@@ -343,8 +356,13 @@ export const overrides: TLUiOverrides = {
                     text: partialResponse,
                   },
                 })
-              },
-            )
+
+              })
+            } catch (error) {
+              console.error("Error calling LLM:", error);
+            }
+          } else {
+            
           }
         },
       },
