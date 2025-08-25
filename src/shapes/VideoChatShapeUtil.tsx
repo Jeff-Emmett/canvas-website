@@ -57,7 +57,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     return props;
   }
 
-  async generateMeetingToken(roomName: string, isOwner: boolean = false) {
+  async generateMeetingToken(roomName: string) {
     const workerUrl = import.meta.env.VITE_TLDRAW_WORKER_URL;
     const apiKey = import.meta.env.VITE_DAILY_API_KEY;
 
@@ -167,7 +167,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 
         // Generate meeting token for the owner
         // First ensure the room exists, then generate token
-        const meetingToken = await this.generateMeetingToken(roomName, true);
+        const meetingToken = await this.generateMeetingToken(roomName);
 
         // Store the room URL and token in localStorage
         localStorage.setItem(storageKey, url);

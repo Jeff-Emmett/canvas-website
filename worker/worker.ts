@@ -173,7 +173,7 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     }
 
     try {
-      const body = await req.json()
+      const body = await req.json() as { room_name: string; properties: any };
       const response = await fetch('https://api.daily.co/v1/meeting-tokens', {
         method: 'POST',
         headers: {
@@ -381,7 +381,7 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     }
 
     try {
-      const body = await req.json()
+      const body = await req.json() as any;
       const response = await fetch('https://api.daily.co/v1/recordings', {
         method: 'POST',
         headers: {
