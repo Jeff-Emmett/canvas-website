@@ -171,7 +171,7 @@ export function asyncDebounce<A extends unknown[], R>(
     timeout: number,
     timeoutResult: R
   ): Promise<T | R> {
-    let timeoutId: ReturnType<typeof setTimeout>;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     
     const timeoutPromise = new Promise<R>((resolve) => {
       timeoutId = setTimeout(() => resolve(timeoutResult), timeout);
@@ -179,10 +179,10 @@ export function asyncDebounce<A extends unknown[], R>(
     
     try {
       const result = await Promise.race([fn(), timeoutPromise]);
-      clearTimeout(timeoutId);
+      if (timeoutId) clearTimeout(timeoutId);
       return result;
     } catch (error) {
-      clearTimeout(timeoutId);
+      if (timeoutId) clearTimeout(timeoutId);
       throw error;
     }
   }

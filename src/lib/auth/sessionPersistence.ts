@@ -26,10 +26,8 @@ export const saveSession = (session: Session): boolean => {
     };
     
     localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(storedSession));
-    console.log('Session saved to localStorage:', storedSession);
     return true;
   } catch (error) {
-    console.error('Error saving session:', error);
     return false;
   }
 };
@@ -50,14 +48,11 @@ export const loadSession = (): StoredSession | null => {
     const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
     if (Date.now() - parsed.timestamp > maxAge) {
       localStorage.removeItem(SESSION_STORAGE_KEY);
-      console.log('Session expired, removed from localStorage');
       return null;
     }
     
-    console.log('Session loaded from localStorage:', parsed);
     return parsed;
   } catch (error) {
-    console.error('Error loading session:', error);
     return null;
   }
 };
@@ -72,7 +67,6 @@ export const clearStoredSession = (): boolean => {
     localStorage.removeItem(SESSION_STORAGE_KEY);
     return true;
   } catch (error) {
-    console.error('Error clearing session:', error);
     return false;
   }
 };

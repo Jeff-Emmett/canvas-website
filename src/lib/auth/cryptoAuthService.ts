@@ -229,7 +229,7 @@ export class CryptoAuthService {
   /**
    * Sign data with user's private key (if available)
    */
-  static async signData(username: string, data: string): Promise<string | null> {
+  static async signData(username: string): Promise<string | null> {
     try {
       if (!isBrowser()) return null;
 

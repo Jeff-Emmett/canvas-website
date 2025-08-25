@@ -83,11 +83,6 @@ export function SettingsDialog({ onClose }: TLUiDialogProps) {
                 value={apiKeys[provider.id] || ''}
                 placeholder={`Enter your ${provider.name} API key`}
                 onValueChange={(value) => handleKeyChange(provider.id, value)}
-                style={{
-                  border: validateKey(provider.id, apiKeys[provider.id] || '') 
-                    ? undefined 
-                    : '1px solid #ef4444'
-                }}
               />
               {apiKeys[provider.id] && !validateKey(provider.id, apiKeys[provider.id]) && (
                 <div style={{ 

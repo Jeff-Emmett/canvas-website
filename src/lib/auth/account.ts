@@ -219,3 +219,41 @@ export const validateStoredCredentials = (username: string): boolean => {
     return false;
   }
 };
+
+/**
+ * Register a new user with the specified username
+ * @param username The username to register
+ * @returns A boolean indicating if registration was successful
+ */
+export const register = async (username: string): Promise<boolean> => {
+  try {
+    console.log('Registering user:', username);
+    
+    // Check if username is valid
+    const isValid = await isUsernameValid(username);
+    if (!isValid) {
+      console.error('Invalid username format');
+      return false;
+    }
+    
+    // Check if username is available
+    const isAvailable = await isUsernameAvailable(username);
+    if (!isAvailable) {
+      console.error('Username is not available');
+      return false;
+    }
+    
+    // Generate user credentials
+    const credentialsGenerated = await generateUserCredentials(username);
+    if (!credentialsGenerated) {
+      console.error('Failed to generate user credentials');
+      return false;
+    }
+    
+    console.log('User registration successful');
+    return true;
+  } catch (error) {
+    console.error('Error during user registration:', error);
+    return false;
+  }
+};

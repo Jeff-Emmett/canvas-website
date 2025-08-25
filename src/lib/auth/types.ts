@@ -15,11 +15,20 @@ export enum SessionError {
 
 export const errorToMessage = (error: SessionError): string | undefined => {
   switch (error) {
-    case 'Insecure Context':
-      return `This application requires a secure context (HTTPS)`;
+    case SessionError.PROGRAM_FAILURE:
+      return `Program failure occurred`;
 
-    case 'Unsupported Browser':
-      return `Your browser does not support the required features`;
+    case SessionError.FILESYSTEM_INIT_FAILURE:
+      return `Failed to initialize filesystem`;
+
+    case SessionError.DATAROOT_NOT_FOUND:
+      return `Data root not found`;
+
+    case SessionError.UNKNOWN:
+      return `An unknown error occurred`;
+
+    default:
+      return undefined;
   }
 };
   
