@@ -48,6 +48,9 @@ import "react-cmdk/dist/cmdk.css"
 import "@/css/style.css"
 
 const collections: Collection[] = [GraphLayoutCollection]
+import { useAuth } from "../context/AuthContext"
+import { updateLastVisited } from "../lib/starredBoards"
+import { captureBoardScreenshot } from "../lib/screenshotService"
 
 // Default to production URL if env var isn't available
 export const WORKER_URL = "https://jeffemmett-canvas.jeffemmett.workers.dev"
@@ -77,6 +80,7 @@ const customTools = [
 export function Board() {
   const { slug } = useParams<{ slug: string }>()
   const roomId = slug || "default-room"
+  const { session } = useAuth()
 
   const storeConfig = useMemo(
     () => ({
@@ -84,8 +88,13 @@ export function Board() {
       assets: multiplayerAssetStore,
       shapeUtils: [...defaultShapeUtils, ...customShapeUtils],
       bindingUtils: [...defaultBindingUtils],
+      // Add user information to the presence system
+      user: session.authed ? {
+        id: session.username,
+        name: session.username,
+      } : undefined,
     }),
-    [roomId],
+    [roomId, session.authed, session.username],
   )
 
   const store = useSync(storeConfig)
@@ -110,6 +119,88 @@ export function Board() {
     initLockIndicators(editor)
     watchForLockedShapes(editor)
   }, [editor])
+
+  // Update presence when session changes
+  useEffect(() => {
+    if (!editor || !session.authed || !session.username) return
+    
+    // The presence should automatically update through the useSync configuration
+    // when the session changes, but we can also try to force an update
+  }, [editor, session.authed, session.username])
+
+  // Update TLDraw user preferences when editor is available and user is authenticated
+  useEffect(() => {
+    if (!editor) return
+    
+    try {
+      if (session.authed && session.username) {
+        // Update the user preferences in TLDraw
+        editor.user.updateUserPreferences({
+          id: session.username,
+          name: session.username,
+        });
+      } else {
+        // Set default user preferences when not authenticated
+        editor.user.updateUserPreferences({
+          id: 'user-1',
+          name: 'User 1',
+        });
+      }
+    } catch (error) {
+      console.error('Error updating TLDraw user preferences from Board component:', error);
+    }
+
+    // Cleanup function to reset preferences when user logs out
+    return () => {
+      if (editor) {
+        try {
+          editor.user.updateUserPreferences({
+            id: 'user-1',
+            name: 'User 1',
+          });
+        } catch (error) {
+          console.error('Error resetting TLDraw user preferences:', error);
+        }
+      }
+    };
+  }, [editor, session.authed, session.username]);
+
+  // Track board visit for starred boards
+  useEffect(() => {
+    if (session.authed && session.username && roomId) {
+      updateLastVisited(session.username, roomId);
+    }
+  }, [session.authed, session.username, roomId]);
+
+  // Capture screenshots when board content changes
+  useEffect(() => {
+    if (!editor || !roomId || !store.store) return;
+
+    // Get current shapes to detect changes
+    const currentShapes = editor.getCurrentPageShapes();
+    const currentShapeCount = currentShapes.length;
+    
+    // Create a simple hash of the content for change detection
+    const currentContentHash = currentShapes.length > 0 
+      ? currentShapes.map(shape => `${shape.id}-${shape.type}`).sort().join('|')
+      : '';
+
+    // Debounced screenshot capture only when content actually changes
+    const timeoutId = setTimeout(async () => {
+      const newShapes = editor.getCurrentPageShapes();
+      const newShapeCount = newShapes.length;
+      const newContentHash = newShapes.length > 0 
+        ? newShapes.map(shape => `${shape.id}-${shape.type}`).sort().join('|')
+        : '';
+
+      // Only capture if content actually changed
+      if (newShapeCount !== currentShapeCount || newContentHash !== currentContentHash) {
+        await captureBoardScreenshot(editor, roomId);
+      }
+    }, 3000); // Wait 3 seconds to ensure changes are complete
+
+    return () => clearTimeout(timeoutId);
+  }, [editor, roomId, store.store?.getSnapshot()]); // Still trigger on store changes to detect them
 
   return (
     <div style={{ position: "fixed", inset: 0 }}>
@@ -148,20 +239,43 @@ export function Board() {
             64, // Max zoom
           ],
         }}
-                  onMount={(editor) => {
-            setEditor(editor)
-            editor.registerExternalAssetHandler("url", unfurlBookmarkUrl)
-            editor.setCurrentTool("hand")
-            setInitialCameraFromUrl(editor)
-            handleInitialPageLoad(editor)
-            registerPropagators(editor, [
-              TickPropagator,
-              ChangePropagator,
-              ClickPropagator,
-            ])
-            // Initialize global collections
-            initializeGlobalCollections(editor, collections)
-          }}
+ onMount={(editor) => {
+          setEditor(editor)
+          editor.registerExternalAssetHandler("url", unfurlBookmarkUrl)
+          editor.setCurrentTool("hand")
+          setInitialCameraFromUrl(editor)
+          handleInitialPageLoad(editor)
+          registerPropagators(editor, [
+            TickPropagator,
+            ChangePropagator,
+            ClickPropagator,
+          ])
+          
+          // Set user preferences immediately if user is authenticated
+          if (session.authed && session.username) {
+            try {
+              editor.user.updateUserPreferences({
+                id: session.username,
+                name: session.username,
+              });
+            } catch (error) {
+              console.error('Error setting initial TLDraw user preferences:', error);
+            }
+          } else {
+            // Set default user preferences when not authenticated
+            try {
+              editor.user.updateUserPreferences({
+                id: 'user-1',
+                name: 'User 1',
+              });
+            } catch (error) {
+              console.error('Error setting default TLDraw user preferences:', error);
+            }
+          }
+          initializeGlobalCollections(editor, collections)
+          // Note: User presence is configured through the useSync hook above
+          // The authenticated username should appear in the people section
+        }}
       >
         <CmdK />
       </Tldraw>
