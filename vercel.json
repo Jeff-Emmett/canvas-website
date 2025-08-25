@@ -25,7 +25,11 @@
       "destination": "/"
     },
     {
-      "source": "/presentations/resilience",
+      "source": "/presentations",
+      "destination": "/resilience"
+    },
+    {
+      "source": "/dashboard",
       "destination": "/"
     }
   ],

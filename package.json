@@ -20,6 +20,7 @@
 		"@automerge/automerge-repo-react-hooks": "^2.2.0",
 		"@daily-co/daily-js": "^0.60.0",
 		"@daily-co/daily-react": "^0.20.0",
+		"@oddjs/odd": "^0.37.2",
 		"@tldraw/assets": "^3.6.0",
 		"@tldraw/sync": "^3.6.0",
 		"@tldraw/sync-core": "^3.6.0",
@@ -39,6 +40,7 @@
 		"jspdf": "^2.5.2",
 		"lodash.throttle": "^4.1.1",
 		"marked": "^15.0.4",
+		"one-webcrypto": "^1.0.3",
 		"openai": "^4.79.3",
 		"rbush": "^4.0.1",
 		"react": "^18.2.0",
@@ -49,7 +51,8 @@
 		"recoil": "^0.7.7",
 		"tldraw": "^3.6.0",
 		"vercel": "^39.1.1",
-		"webcola": "^3.4.0"
+		"webcola": "^3.4.0",
+		"webnative": "^0.36.3"
 	},
 	"devDependencies": {
 		"@cloudflare/types": "^6.0.0",
