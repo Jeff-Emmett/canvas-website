@@ -4,6 +4,7 @@ import "@/css/style.css";
 import "@/css/auth.css"; // Import auth styles
 import "@/css/crypto-auth.css"; // Import crypto auth styles
 import "@/css/starred-boards.css"; // Import starred boards styles
+import "@/css/user-profile.css"; // Import user profile styles
 import { Default } from "@/routes/Default";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Contact } from "@/routes/Contact";

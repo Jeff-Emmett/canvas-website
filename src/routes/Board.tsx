@@ -112,8 +112,44 @@ export function Board() {
     
     // The presence should automatically update through the useSync configuration
     // when the session changes, but we can also try to force an update
-    console.log('User authenticated, presence should show:', session.username)
   }, [editor, session.authed, session.username])
+
+  // Update TLDraw user preferences when editor is available and user is authenticated
+  useEffect(() => {
+    if (!editor) return
+    
+    try {
+      if (session.authed && session.username) {
+        // Update the user preferences in TLDraw
+        editor.user.updateUserPreferences({
+          id: session.username,
+          name: session.username,
+        });
+      } else {
+        // Set default user preferences when not authenticated
+        editor.user.updateUserPreferences({
+          id: 'user-1',
+          name: 'User 1',
+        });
+      }
+    } catch (error) {
+      console.error('Error updating TLDraw user preferences from Board component:', error);
+    }
+
+    // Cleanup function to reset preferences when user logs out
+    return () => {
+      if (editor) {
+        try {
+          editor.user.updateUserPreferences({
+            id: 'user-1',
+            name: 'User 1',
+          });
+        } catch (error) {
+          console.error('Error resetting TLDraw user preferences:', error);
+        }
+      }
+    };
+  }, [editor, session.authed, session.username]);
 
   // Track board visit for starred boards
   useEffect(() => {
@@ -145,10 +181,7 @@ export function Board() {
 
       // Only capture if content actually changed
       if (newShapeCount !== currentShapeCount || newContentHash !== currentContentHash) {
-        console.log('Content changed, capturing screenshot');
         await captureBoardScreenshot(editor, roomId);
-      } else {
-        console.log('No content changes detected, skipping screenshot');
       }
     }, 3000); // Wait 3 seconds to ensure changes are complete
 
@@ -203,6 +236,28 @@ export function Board() {
             ChangePropagator,
             ClickPropagator,
           ])
+          
+          // Set user preferences immediately if user is authenticated
+          if (session.authed && session.username) {
+            try {
+              editor.user.updateUserPreferences({
+                id: session.username,
+                name: session.username,
+              });
+            } catch (error) {
+              console.error('Error setting initial TLDraw user preferences:', error);
+            }
+          } else {
+            // Set default user preferences when not authenticated
+            try {
+              editor.user.updateUserPreferences({
+                id: 'user-1',
+                name: 'User 1',
+              });
+            } catch (error) {
+              console.error('Error setting default TLDraw user preferences:', error);
+            }
+          }
           
           // Note: User presence is configured through the useSync hook above
           // The authenticated username should appear in the people section
