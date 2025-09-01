@@ -81,9 +81,9 @@ export const zoomToSelection = (editor: Editor) => {
   const newCamera = editor.getCamera()
   const url = new URL(window.location.href)
   url.searchParams.set("shapeId", selectedIds[0].toString())
-  url.searchParams.set("x", Math.round(newCamera.x).toString())
-  url.searchParams.set("y", Math.round(newCamera.y).toString())
-  url.searchParams.set("zoom", Math.round(newCamera.z).toString())
+  url.searchParams.set("x", newCamera.x.toFixed(2))
+  url.searchParams.set("y", newCamera.y.toFixed(2))
+  url.searchParams.set("zoom", newCamera.z.toFixed(2))
   window.history.replaceState(null, "", url.toString())
 }
 
@@ -130,10 +130,10 @@ export const copyLinkToCurrentView = async (editor: Editor) => {
     const url = new URL(baseUrl)
     const camera = editor.getCamera()
 
-    // Round camera values to integers
-    url.searchParams.set("x", Math.round(camera.x).toString())
-    url.searchParams.set("y", Math.round(camera.y).toString())
-    url.searchParams.set("zoom", Math.round(camera.z).toString())
+    // Preserve two decimal points for camera values
+    url.searchParams.set("x", camera.x.toFixed(2))
+    url.searchParams.set("y", camera.y.toFixed(2))
+    url.searchParams.set("zoom", camera.z.toFixed(2))
 
     const selectedIds = editor.getSelectedShapeIds()
     if (selectedIds.length > 0) {
@@ -295,9 +295,9 @@ export const setInitialCameraFromUrl = (editor: Editor) => {
     editor.stopCameraAnimation()
     editor.setCamera(
       {
-        x: Math.round(parseFloat(x)),
-        y: Math.round(parseFloat(y)),
-        z: Math.round(parseFloat(zoom))
+        x: parseFloat(x),
+        y: parseFloat(y),
+        z: parseFloat(zoom)
       },
       { animation: { duration: 0 } }
     )
