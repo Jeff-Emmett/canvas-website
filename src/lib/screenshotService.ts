@@ -38,7 +38,7 @@ export const generateCanvasScreenshot = async (editor: Editor): Promise<string |
         scale: 0.5, // Reduced scale to make image smaller
         background: true,
         padding: 20, // Increased padding to show full canvas
-        preserveAspectRatio: "true",
+        preserveAspectRatio: "xMidYMid meet",
         bounds: bounds, // Export the entire canvas bounds
       },
     });

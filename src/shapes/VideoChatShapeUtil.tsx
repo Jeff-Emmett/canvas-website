@@ -121,7 +121,14 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         }
 
         // Create room name based on board ID and timestamp
-        const roomName = `board_${boardId}_${Date.now()}`;
+        // Sanitize boardId to only use valid Daily.co characters (A-Z, a-z, 0-9, '-', '_')
+        const sanitizedBoardId = boardId.replace(/[^A-Za-z0-9\-_]/g, '_');
+        const roomName = `board_${sanitizedBoardId}_${Date.now()}`;
+        
+        console.log('🔧 Room name generation:');
+        console.log('Original boardId:', boardId);
+        console.log('Sanitized boardId:', sanitizedBoardId);
+        console.log('Final roomName:', roomName);
 
         const response = await fetch(`${workerUrl}/daily/rooms`, {
           method: 'POST',
@@ -135,22 +142,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
               enable_chat: true,
               enable_screenshare: true,
               start_video_off: true,
-              start_audio_off: true,
-              enable_recording: "cloud",
-              start_cloud_recording: true,
-              start_cloud_recording_opts: {
-                layout: {
-                  preset: "active-speaker"
-                },
-                format: "mp4",
-                mode: "audio-only"
-              },
-              // Transcription settings
-              transcription: {
-                enabled: true,
-                auto_start: false
-              },
-              recordings_template: "{room_name}/audio-{epoch_time}.mp4"
+              start_audio_off: true
             }
           })
         });
@@ -205,6 +197,12 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     const apiKey = import.meta.env.VITE_DAILY_API_KEY;
 
     try {
+      // Extract room name from URL (same as transcription methods)
+      const roomName = shape.props.roomUrl.split('/').pop();
+      if (!roomName) {
+        throw new Error('Could not extract room name from URL');
+      }
+
       const response = await fetch(`${workerUrl}/daily/recordings/start`, {
         method: 'POST',
         headers: {
@@ -212,7 +210,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          room_name: shape.id,
+          room_name: roomName,
           layout: {
             preset: "active-speaker"
           }

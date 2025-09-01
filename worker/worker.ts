@@ -1,10 +1,20 @@
-import { handleUnfurlRequest } from "cloudflare-workers-unfurl"
 import { AutoRouter, cors, error, IRequest } from "itty-router"
 import { handleAssetDownload, handleAssetUpload } from "./assetUploads"
 import { Environment } from "./types"
 
 // make sure our sync durable object is made available to cloudflare
 export { TldrawDurableObject } from "./TldrawDurableObject"
+
+// Lazy load heavy dependencies to avoid startup timeouts
+let handleUnfurlRequest: any = null
+
+async function getUnfurlHandler() {
+  if (!handleUnfurlRequest) {
+    const unfurl = await import("cloudflare-workers-unfurl")
+    handleUnfurlRequest = unfurl.handleUnfurlRequest
+  }
+  return handleUnfurlRequest
+}
 
 // Define security headers
 const securityHeaders = {
@@ -27,6 +37,8 @@ const { preflight, corsify } = cors({
       "https://www.jeffemmett.com",
       "https://jeffemmett-canvas.jeffemmett.workers.dev",
       "https://jeffemmett.com/board/*",
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
     ]
 
     // Always allow if no origin (like from a local file)
@@ -94,6 +106,19 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
 })
   // requests to /connect are routed to the Durable Object, and handle realtime websocket syncing
   .get("/connect/:roomId", (request, env) => {
+    // Check if this is a WebSocket upgrade request
+    const upgradeHeader = request.headers.get("Upgrade")
+    if (upgradeHeader === "websocket") {
+      const id = env.TLDRAW_DURABLE_OBJECT.idFromName(request.params.roomId)
+      const room = env.TLDRAW_DURABLE_OBJECT.get(id)
+      return room.fetch(request.url, {
+        headers: request.headers,
+        body: request.body,
+        method: request.method,
+      })
+    }
+    
+    // Handle regular GET requests
     const id = env.TLDRAW_DURABLE_OBJECT.idFromName(request.params.roomId)
     const room = env.TLDRAW_DURABLE_OBJECT.get(id)
     return room.fetch(request.url, {
@@ -110,7 +135,10 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
   .get("/uploads/:uploadId", handleAssetDownload)
 
   // bookmarks need to extract metadata from pasted URLs:
-  .get("/unfurl", handleUnfurlRequest)
+  .get("/unfurl", async (request, env) => {
+    const handler = await getUnfurlHandler()
+    return handler(request, env)
+  })
 
   .get("/room/:roomId", (request, env) => {
     const id = env.TLDRAW_DURABLE_OBJECT.idFromName(request.params.roomId)
@@ -142,13 +170,25 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     }
 
     try {
+      // Get the request body from the client
+      const body = await req.json()
+      
       const response = await fetch('https://api.daily.co/v1/rooms', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`
-        }
+        },
+        body: JSON.stringify(body)
       })
+
+      if (!response.ok) {
+        const error = await response.json()
+        return new Response(JSON.stringify(error), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
 
       const data = await response.json()
       return new Response(JSON.stringify(data), {
