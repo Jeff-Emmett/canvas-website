@@ -1,14 +1,5 @@
 /// <reference types="@cloudflare/workers-types" />
 
-import { RoomSnapshot, TLSocketRoom } from "@tldraw/sync-core"
-import {
-  TLRecord,
-  TLShape,
-  createTLSchema,
-  defaultBindingSchemas,
-  defaultShapeSchemas,
-  shapeIdValidator,
-} from "@tldraw/tlschema"
 import { AutoRouter, IRequest, error } from "itty-router"
 import throttle from "lodash.throttle"
 import { Environment } from "./types"
@@ -21,45 +12,61 @@ import { SlideShape } from "@/shapes/SlideShapeUtil"
 import { PromptShape } from "@/shapes/PromptShapeUtil"
 import { SharedPianoShape } from "@/shapes/SharedPianoShapeUtil"
 
-// add custom shapes and bindings here if needed:
-export const customSchema = createTLSchema({
-  shapes: {
-    ...defaultShapeSchemas,
-    ChatBox: {
-      props: ChatBoxShape.props,
-      migrations: ChatBoxShape.migrations,
-    },
-    VideoChat: {
-      props: VideoChatShape.props,
-      migrations: VideoChatShape.migrations,
-    },
-    Embed: {
-      props: EmbedShape.props,
-      migrations: EmbedShape.migrations,
-    },
-    Markdown: {
-      props: MarkdownShape.props,
-      migrations: MarkdownShape.migrations,
-    },
-    MycrozineTemplate: {
-      props: MycrozineTemplateShape.props,
-      migrations: MycrozineTemplateShape.migrations,
-    },
-    Slide: {
-      props: SlideShape.props,
-      migrations: SlideShape.migrations,
-    },
-    Prompt: {
-      props: PromptShape.props,
-      migrations: PromptShape.migrations,
-    },
-    SharedPiano: {
-      props: SharedPianoShape.props,
-      migrations: SharedPianoShape.migrations,
-    },
-  },
-  bindings: defaultBindingSchemas,
-})
+// Lazy load TLDraw dependencies to avoid startup timeouts
+let customSchema: any = null
+let TLSocketRoom: any = null
+
+async function getTldrawDependencies() {
+  if (!customSchema) {
+    const { createTLSchema, defaultBindingSchemas, defaultShapeSchemas } = await import("@tldraw/tlschema")
+    
+    customSchema = createTLSchema({
+      shapes: {
+        ...defaultShapeSchemas,
+        ChatBox: {
+          props: ChatBoxShape.props,
+          migrations: ChatBoxShape.migrations,
+        },
+        VideoChat: {
+          props: VideoChatShape.props,
+          migrations: VideoChatShape.migrations,
+        },
+        Embed: {
+          props: EmbedShape.props,
+          migrations: EmbedShape.migrations,
+        },
+        Markdown: {
+          props: MarkdownShape.props,
+          migrations: MarkdownShape.migrations,
+        },
+        MycrozineTemplate: {
+          props: MycrozineTemplateShape.props,
+          migrations: MycrozineTemplateShape.migrations,
+        },
+        Slide: {
+          props: SlideShape.props,
+          migrations: SlideShape.migrations,
+        },
+        Prompt: {
+          props: PromptShape.props,
+          migrations: PromptShape.migrations,
+        },
+        SharedPiano: {
+          props: SharedPianoShape.props,
+          migrations: SharedPianoShape.migrations,
+        },
+      },
+      bindings: defaultBindingSchemas,
+    })
+  }
+  
+  if (!TLSocketRoom) {
+    const syncCore = await import("@tldraw/sync-core")
+    TLSocketRoom = syncCore.TLSocketRoom
+  }
+  
+  return { customSchema, TLSocketRoom }
+}
 
 // each whiteboard room is hosted in a DurableObject:
 // https://developers.cloudflare.com/durable-objects/
@@ -72,7 +79,7 @@ export class TldrawDurableObject {
   private roomId: string | null = null
   // when we load the room from the R2 bucket, we keep it here. it's a promise so we only ever
   // load it once.
-  private roomPromise: Promise<TLSocketRoom<TLRecord, void>> | null = null
+  private roomPromise: Promise<any> | null = null
 
   constructor(private readonly ctx: DurableObjectState, env: Environment) {
     this.r2 = env.TLDRAW_BUCKET
@@ -114,7 +121,7 @@ export class TldrawDurableObject {
       })
     })
     .post("/room/:roomId", async (request) => {
-      const records = (await request.json()) as TLRecord[]
+      const records = (await request.json()) as any[]
 
       return new Response(JSON.stringify(Array.from(records)), {
         headers: {
@@ -206,29 +213,32 @@ export class TldrawDurableObject {
     }
   }
 
-  getRoom() {
+  async getRoom() {
     const roomId = this.roomId
     if (!roomId) throw new Error("Missing roomId")
 
     if (!this.roomPromise) {
       this.roomPromise = (async () => {
+        // Lazy load dependencies
+        const { customSchema, TLSocketRoom } = await getTldrawDependencies()
+        
         // fetch the room from R2
         const roomFromBucket = await this.r2.get(`rooms/${roomId}`)
         // if it doesn't exist, we'll just create a new empty room
         const initialSnapshot = roomFromBucket
-          ? ((await roomFromBucket.json()) as RoomSnapshot)
+          ? ((await roomFromBucket.json()) as any)
           : undefined
         if (initialSnapshot) {
           initialSnapshot.documents = initialSnapshot.documents.filter(
-            (record) => {
-              const shape = record.state as TLShape
+            (record: any) => {
+              const shape = record.state as any
               return shape.type !== "ChatBox"
             },
           )
         }
         // create a new TLSocketRoom. This handles all the sync protocol & websocket connections.
         // it's up to us to persist the room state to R2 when needed though.
-        return new TLSocketRoom<TLRecord, void>({
+        return new TLSocketRoom({
           schema: customSchema,
           initialSnapshot,
           onDataChange: () => {

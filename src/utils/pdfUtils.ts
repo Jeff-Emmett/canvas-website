@@ -20,7 +20,7 @@ export const saveToPdf = async (editor: Editor) => {
         scale: 2,
         background: true,
         padding: 0,
-        preserveAspectRatio: "true",
+        preserveAspectRatio: "xMidYMid meet",
       },
     })
 
