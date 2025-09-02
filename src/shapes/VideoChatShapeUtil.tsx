@@ -1,5 +1,6 @@
 import { BaseBoxShapeUtil, TLBaseShape } from "tldraw"
 import { useEffect, useState } from "react"
+import { WORKER_URL } from "../routes/Board"
 
 interface DailyApiResponse {
   url: string;
@@ -58,7 +59,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
   }
 
   async generateMeetingToken(roomName: string) {
-    const workerUrl = import.meta.env.VITE_TLDRAW_WORKER_URL;
+    const workerUrl = WORKER_URL;
     const apiKey = import.meta.env.VITE_DAILY_API_KEY;
 
     if (!apiKey) {
@@ -109,12 +110,12 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     }
 
     try {
-        const workerUrl = import.meta.env.VITE_TLDRAW_WORKER_URL;
+        const workerUrl = WORKER_URL;
         const apiKey = import.meta.env.VITE_DAILY_API_KEY;
 
         // Debug logging
         console.log('🔧 VideoChat Debug:');
-        console.log('import.meta.env.VITE_TLDRAW_WORKER_URL:', import.meta.env.VITE_TLDRAW_WORKER_URL);
+        console.log('WORKER_URL:', WORKER_URL);
         console.log('workerUrl:', workerUrl);
         console.log('apiKey exists:', !!apiKey);
 
@@ -199,8 +200,8 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
   async startRecording(shape: IVideoChatShape) {
     if (!shape.props.roomUrl) return;
     
-    const workerUrl = import.meta.env.VITE_TLDRAW_WORKER_URL;
-    const apiKey = import.meta.env.VITE_DAILY_API_KEY;
+          const workerUrl = WORKER_URL;
+      const apiKey = import.meta.env.VITE_DAILY_API_KEY;
 
     try {
       // Extract room name from URL (same as transcription methods)
@@ -245,7 +246,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
   async stopRecording(shape: IVideoChatShape) {
     if (!shape.props.recordingId) return;
 
-    const workerUrl = import.meta.env.VITE_TLDRAW_WORKER_URL;
+    const workerUrl = WORKER_URL;
     const apiKey = import.meta.env.VITE_DAILY_API_KEY;
 
     try {
@@ -285,7 +286,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     }
     
     try {
-      const workerUrl = import.meta.env.VITE_TLDRAW_WORKER_URL;
+      const workerUrl = WORKER_URL;
       const apiKey = import.meta.env.VITE_DAILY_API_KEY;
       
       console.log('🔧 Environment variables:');
@@ -346,7 +347,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     }
     
     try {
-      const workerUrl = import.meta.env.VITE_TLDRAW_WORKER_URL;
+      const workerUrl = WORKER_URL;
       const apiKey = import.meta.env.VITE_DAILY_API_KEY;
       
       // Extract room name from URL
