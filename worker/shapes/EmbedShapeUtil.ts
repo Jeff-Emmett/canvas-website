@@ -26,11 +26,11 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
     }
   }
 
-  indicator(shape: IEmbedShape) {
+  indicator(_shape: IEmbedShape) {
     return null // Simplified for worker
   }
 
-  component(shape: IEmbedShape) {
+  component(_shape: IEmbedShape) {
     return null // No React components in worker
   }
 }
