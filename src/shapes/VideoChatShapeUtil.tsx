@@ -112,6 +112,12 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         const workerUrl = import.meta.env.VITE_TLDRAW_WORKER_URL;
         const apiKey = import.meta.env.VITE_DAILY_API_KEY;
 
+        // Debug logging
+        console.log('🔧 VideoChat Debug:');
+        console.log('import.meta.env.VITE_TLDRAW_WORKER_URL:', import.meta.env.VITE_TLDRAW_WORKER_URL);
+        console.log('workerUrl:', workerUrl);
+        console.log('apiKey exists:', !!apiKey);
+
         if (!apiKey) {
             throw new Error('Daily.co API key not configured');
         }
