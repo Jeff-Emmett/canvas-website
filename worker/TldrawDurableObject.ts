@@ -3,14 +3,15 @@
 import { AutoRouter, IRequest, error } from "itty-router"
 import throttle from "lodash.throttle"
 import { Environment } from "./types"
-import { ChatBoxShape } from "@/shapes/ChatBoxShapeUtil"
-import { VideoChatShape } from "@/shapes/VideoChatShapeUtil"
-import { EmbedShape } from "@/shapes/EmbedShapeUtil"
-import { MarkdownShape } from "@/shapes/MarkdownShapeUtil"
-import { MycrozineTemplateShape } from "@/shapes/MycrozineTemplateShapeUtil"
-import { SlideShape } from "@/shapes/SlideShapeUtil"
-import { PromptShape } from "@/shapes/PromptShapeUtil"
-import { SharedPianoShape } from "@/shapes/SharedPianoShapeUtil"
+// Import worker-compatible shape utilities (without React components)
+import { ChatBoxShape } from "./shapes/ChatBoxShapeUtil"
+import { VideoChatShape } from "./shapes/VideoChatShapeUtil"
+import { EmbedShape } from "./shapes/EmbedShapeUtil"
+import { MarkdownShape } from "./shapes/MarkdownShapeUtil"
+import { MycrozineTemplateShape } from "./shapes/MycrozineTemplateShapeUtil"
+import { SlideShape } from "./shapes/SlideShapeUtil"
+import { PromptShape } from "./shapes/PromptShapeUtil"
+import { SharedPianoShape } from "./shapes/SharedPianoShapeUtil"
 
 // Lazy load TLDraw dependencies to avoid startup timeouts
 let customSchema: any = null

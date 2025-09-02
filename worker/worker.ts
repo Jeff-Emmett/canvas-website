@@ -19,7 +19,7 @@ async function getUnfurlHandler() {
 // Define security headers
 const securityHeaders = {
   "Content-Security-Policy":
-    "default-src 'self'; connect-src 'self' wss: https:; img-src 'self' data: blob: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';",
+    "default-src 'self'; connect-src 'self' wss: https:; img-src 'self' data: blob: https: https://cdn.tldraw.com; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';",
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
   "X-XSS-Protection": "1; mode=block",
