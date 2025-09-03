@@ -272,56 +272,14 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     }
   }
 
-  async startTranscription(shape: IVideoChatShape) {
-    console.log('🎤 startTranscription method called');
-    console.log('Shape props:', shape.props);
-    console.log('Room URL:', shape.props.roomUrl);
-    console.log('Is owner:', shape.props.isOwner);
-    
-    if (!shape.props.roomUrl || !shape.props.isOwner) {
-      console.log('❌ Early return - missing roomUrl or not owner');
-      console.log('roomUrl exists:', !!shape.props.roomUrl);
-      console.log('isOwner:', shape.props.isOwner);
-      return;
-    }
+  async startTranscription(shape: IVideoChatShape): Promise<boolean> {
+    console.log('🎤 Starting Web Speech API transcription...');
     
     try {
-      const workerUrl = WORKER_URL;
-      const apiKey = import.meta.env.VITE_DAILY_API_KEY;
+      // Request microphone permission for transcription
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
-      console.log('🔧 Environment variables:');
-      console.log('Worker URL:', workerUrl);
-      console.log('API Key exists:', !!apiKey);
-      
-      // Extract room name from URL
-      const roomName = shape.props.roomUrl.split('/').pop();
-      console.log('📝 Extracted room name:', roomName);
-      
-      if (!roomName) {
-        throw new Error('Could not extract room name from URL');
-      }
-
-      console.log('🌐 Making API request to start transcription...');
-      console.log('Request URL:', `${workerUrl}/daily/rooms/${roomName}/start-transcription`);
-
-      const response = await fetch(`${workerUrl}/daily/rooms/${roomName}/start-transcription`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        }
-      });
-
-      console.log('📡 Response status:', response.status);
-      console.log('📡 Response ok:', response.ok);
-
-      if (!response.ok) {
-        const error = await response.json();
-        console.error('❌ API error response:', error);
-        throw new Error(`Failed to start transcription: ${JSON.stringify(error)}`);
-      }
-
-      console.log('✅ API call successful, updating shape...');
+      // Update shape to indicate transcription is active
       await this.editor.updateShape<IVideoChatShape>({
         id: shape.id,
         type: shape.type,
@@ -330,52 +288,20 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
           isTranscribing: true,
         }
       });
-      console.log('✅ Shape updated with isTranscribing: true');
+      
+      console.log('✅ Web Speech API transcription started');
+      return true;
     } catch (error) {
-      console.error('❌ Error starting transcription:', error);
-      throw error;
+      console.error('❌ Error starting Web Speech API transcription:', error);
+      return false;
     }
   }
 
   async stopTranscription(shape: IVideoChatShape) {
-    console.log('🛑 stopTranscription method called');
-    console.log('Shape props:', shape.props);
-    
-    if (!shape.props.roomUrl || !shape.props.isOwner) {
-      console.log('❌ Early return - missing roomUrl or not owner');
-      return;
-    }
+    console.log('🛑 Stopping Web Speech API transcription...');
     
     try {
-      const workerUrl = WORKER_URL;
-      const apiKey = import.meta.env.VITE_DAILY_API_KEY;
-      
-      // Extract room name from URL
-      const roomName = shape.props.roomUrl.split('/').pop();
-      console.log('📝 Extracted room name:', roomName);
-      
-      if (!roomName) {
-        throw new Error('Could not extract room name from URL');
-      }
-
-      console.log('🌐 Making API request to stop transcription...');
-      const response = await fetch(`${workerUrl}/daily/rooms/${roomName}/stop-transcription`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        }
-      });
-
-      console.log('📡 Response status:', response.status);
-
-      if (!response.ok) {
-        const error = await response.json();
-        console.error('❌ API error response:', error);
-        throw new Error(`Failed to stop transcription: ${JSON.stringify(error)}`);
-      }
-
-      console.log('✅ API call successful, updating shape...');
+      // Update shape to indicate transcription is stopped
       await this.editor.updateShape<IVideoChatShape>({
         id: shape.id,
         type: shape.type,
@@ -384,10 +310,10 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
           isTranscribing: false,
         }
       });
-      console.log('✅ Shape updated with isTranscribing: false');
+      
+      console.log('✅ Web Speech API transcription stopped');
     } catch (error) {
-      console.error('❌ Error stopping transcription:', error);
-      throw error;
+      console.error('❌ Error stopping Web Speech API transcription:', error);
     }
   }
 
@@ -415,6 +341,37 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     });
     
     console.log('✅ Transcription message added to shape');
+  }
+
+  createTranscriptionTool(shape: IVideoChatShape) {
+    console.log('🎤 Creating transcription tool element...');
+    
+    // Position the transcribe tool beneath the video chat shape
+    const videoShape = this.editor.getShape(shape.id) as IVideoChatShape;
+    if (!videoShape) return;
+    
+    // Calculate position beneath the video
+    const x = videoShape.x; // Same x position as video
+    const y = videoShape.y + videoShape.props.h + 20; // Below video with 20px gap
+    const width = videoShape.props.w; // Same width as video
+    
+    // Create transcription tool shape
+    this.editor.createShape({
+      type: 'Transcribe',
+      x: x,
+      y: y,
+      props: {
+        w: width,
+        h: 200, // Fixed height for transcript box
+        isRecording: true, // Auto-start recording
+        transcript: "",
+        participants: [],
+        language: "en-US",
+        autoScroll: true,
+      }
+    });
+    
+    console.log('✅ Transcription tool created successfully beneath video');
   }
 
   component(shape: IVideoChatShape) {
@@ -525,176 +482,217 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         style={{
           width: `${shape.props.w}px`,
           height: `${shape.props.h}px`,
-          position: "relative",
+          display: "flex",
+          flexDirection: "column",
           pointerEvents: "all",
           overflow: "hidden",
         }}
       >
-        <iframe
-          src={roomUrlWithParams.toString()}
-          width="100%"
-          height="100%"
-          style={{ 
-            border: "none",
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-          }}
-          allow={`camera ${shape.props.allowCamera ? "self" : ""}; microphone ${
-            shape.props.allowMicrophone ? "self" : ""
-          }`}
-        ></iframe>
-        
-        {/* Recording Button */}
-        {shape.props.enableRecording && (
-          <button
-            onClick={async () => {
-              try {
-                if (shape.props.recordingId) {
-                  await this.stopRecording(shape);
-                } else {
-                  await this.startRecording(shape);
-                }
-              } catch (err) {
-                console.error('Recording error:', err);
-              }
-            }}
-            style={{
-              position: "absolute",
-              top: "8px",
-              right: "8px",
-              padding: "4px 8px",
-              background: shape.props.recordingId ? "#ff4444" : "#ffffff",
-              border: "1px solid #ccc",
-              borderRadius: "4px",
-              cursor: "pointer",
-              zIndex: 1,
-            }}
-          >
-            {shape.props.recordingId ? "Stop Recording" : "Start Recording"}
-          </button>
-        )}
-
-        {/* Test Button - Always visible for debugging */}
+        {/* Transcription Button - Above video */}
         <button
-          onClick={() => {
-            console.log('🧪 Test button clicked!');
+          onClick={async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('🚀 Transcription button clicked!');
+            console.log('Current transcription state:', shape.props.isTranscribing);
             console.log('Shape props:', shape.props);
-            alert('Test button clicked! Check console for details.');
+            
+            try {
+              if (shape.props.isTranscribing) {
+                console.log('🛑 Stopping transcription...');
+                await this.stopTranscription(shape);
+                console.log('✅ Transcription stopped successfully');
+              } else {
+                console.log('🎤 Starting transcription...');
+                const success = await this.startTranscription(shape);
+                if (success) {
+                  // Create the transcription tool for Web Speech API
+                  this.createTranscriptionTool(shape);
+                  console.log('✅ Transcription tool created');
+                } else {
+                  console.log('❌ Failed to start transcription');
+                }
+              }
+            } catch (err) {
+              console.error('❌ Transcription error:', err);
+            }
           }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
           style={{
-            position: "absolute",
-            top: "8px",
-            left: "8px",
-            padding: "4px 8px",
-            background: "#ffff00",
-            border: "1px solid #000",
+            padding: "8px 16px",
+            background: shape.props.isTranscribing ? "#44ff44" : "#ffffff",
+            border: "1px solid #ccc",
             borderRadius: "4px",
             cursor: "pointer",
+            marginBottom: "8px",
+            fontSize: "14px",
+            fontWeight: "500",
+            pointerEvents: "all",
             zIndex: 1000,
-            fontSize: "10px",
+            position: "relative",
           }}
         >
-          TEST
+          {shape.props.isTranscribing ? "Stop Transcription" : "Start Transcription"}
         </button>
 
-        {/* Transcription Button - Only for owners */}
-        {(() => {
-          console.log('🔍 Checking transcription button conditions:');
-          console.log('enableTranscription:', shape.props.enableTranscription);
-          console.log('isOwner:', shape.props.isOwner);
-          console.log('Button should render:', shape.props.enableTranscription && shape.props.isOwner);
-          return shape.props.enableTranscription && shape.props.isOwner;
-        })() && (
+        {/* Video Container */}
+        <div
+          style={{
+            flex: 1,
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
+          <iframe
+            src={roomUrlWithParams.toString()}
+            width="100%"
+            height="100%"
+            style={{ 
+              border: "none",
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+            }}
+            allow={`camera ${shape.props.allowCamera ? "self" : ""}; microphone ${
+              shape.props.allowMicrophone ? "self" : ""
+            }`}
+          ></iframe>
+
+          {/* Test Button - Always visible for debugging */}
           <button
-            onClick={async () => {
-              console.log('🚀 Transcription button clicked!');
-              console.log('Current transcription state:', shape.props.isTranscribing);
+            onClick={() => {
+              console.log('🧪 Test button clicked!');
               console.log('Shape props:', shape.props);
-              
-              try {
-                if (shape.props.isTranscribing) {
-                  console.log('🛑 Stopping transcription...');
-                  await this.stopTranscription(shape);
-                  console.log('✅ Transcription stopped successfully');
-                } else {
-                  console.log('🎤 Starting transcription...');
-                  await this.startTranscription(shape);
-                  console.log('✅ Transcription started successfully');
-                }
-              } catch (err) {
-                console.error('❌ Transcription error:', err);
-              }
+              alert('Test button clicked! Check console for details.');
             }}
             style={{
               position: "absolute",
               top: "8px",
-              right: shape.props.enableRecording ? "120px" : "8px",
+              left: "8px",
               padding: "4px 8px",
-              background: shape.props.isTranscribing ? "#44ff44" : "#ffffff",
-              border: "1px solid #ccc",
+              background: "#ffff00",
+              border: "1px solid #000",
               borderRadius: "4px",
               cursor: "pointer",
-              zIndex: 1,
+              zIndex: 1000,
+              fontSize: "10px",
             }}
           >
-            {shape.props.isTranscribing ? "Stop Transcription" : "Start Transcription"}
+            TEST
           </button>
-        )}
 
-        {/* Transcription History */}
-        {shape.props.transcriptionHistory.length > 0 && (
+          {/* Transcription History */}
+          {shape.props.transcriptionHistory.length > 0 && (
+            <div
+              style={{
+                position: "absolute",
+                bottom: "40px",
+                left: "8px",
+                right: "8px",
+                maxHeight: "200px",
+                overflowY: "auto",
+                background: "rgba(255, 255, 255, 0.95)",
+                borderRadius: "4px",
+                padding: "8px",
+                fontSize: "12px",
+                zIndex: 1,
+                border: "1px solid #ccc",
+              }}
+            >
+              <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
+                Live Transcription:
+              </div>
+              {shape.props.transcriptionHistory.slice(-10).map((msg) => (
+                <div key={msg.id} style={{ marginBottom: "2px" }}>
+                  <span style={{ fontWeight: "bold", color: "#666" }}>
+                    {msg.sender}:
+                  </span>{" "}
+                  <span>{msg.message}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* URL Link - Below video */}
+        <div style={{ position: "relative" }}>
+          <p
+            onClick={async (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (roomUrl) {
+                try {
+                  await navigator.clipboard.writeText(roomUrl);
+                  console.log('✅ Link copied to clipboard:', roomUrl);
+                  
+                  // Show temporary "link copied" message
+                  const messageEl = document.getElementById(`copy-message-${shape.id}`);
+                  if (messageEl) {
+                    messageEl.style.opacity = "1";
+                    setTimeout(() => {
+                      messageEl.style.opacity = "0";
+                    }, 2000);
+                  }
+                } catch (err) {
+                  console.error('❌ Failed to copy link:', err);
+                  // Fallback for older browsers
+                  const textArea = document.createElement('textarea');
+                  textArea.value = roomUrl;
+                  document.body.appendChild(textArea);
+                  textArea.select();
+                  document.execCommand('copy');
+                  document.body.removeChild(textArea);
+                }
+              }
+            }}
+            style={{
+              margin: "8px 0 0 0",
+              padding: "4px 8px",
+              background: "rgba(255, 255, 255, 0.9)",
+              borderRadius: "4px",
+              fontSize: "12px",
+              pointerEvents: "all",
+              cursor: "pointer",
+              userSelect: "none",
+              border: "1px solid #e0e0e0",
+              transition: "background-color 0.2s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "rgba(240, 240, 240, 0.9)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.9)";
+            }}
+          >
+            url: {roomUrl}
+            {shape.props.isOwner && " (Owner)"}
+          </p>
+          
+          {/* "Link Copied" message */}
           <div
+            id={`copy-message-${shape.id}`}
             style={{
               position: "absolute",
-              bottom: "40px",
-              left: "8px",
-              right: "8px",
-              maxHeight: "200px",
-              overflowY: "auto",
-              background: "rgba(255, 255, 255, 0.95)",
+              bottom: "0",
+              right: "0",
+              background: "#4CAF50",
+              color: "white",
+              padding: "4px 8px",
               borderRadius: "4px",
-              padding: "8px",
-              fontSize: "12px",
-              zIndex: 1,
-              border: "1px solid #ccc",
+              fontSize: "11px",
+              fontWeight: "500",
+              opacity: "0",
+              transition: "opacity 0.3s ease",
+              pointerEvents: "none",
+              zIndex: 1001,
             }}
           >
-            <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
-              Live Transcription:
-            </div>
-            {shape.props.transcriptionHistory.slice(-10).map((msg) => (
-              <div key={msg.id} style={{ marginBottom: "2px" }}>
-                <span style={{ fontWeight: "bold", color: "#666" }}>
-                  {msg.sender}:
-                </span>{" "}
-                <span>{msg.message}</span>
-              </div>
-            ))}
+            Link Copied!
           </div>
-        )}
-
-        <p
-          style={{
-            position: "absolute",
-            bottom: 0,
-            left: 0,
-            margin: "8px",
-            padding: "4px 8px",
-            background: "rgba(255, 255, 255, 0.9)",
-            borderRadius: "4px",
-            fontSize: "12px",
-            pointerEvents: "all",
-            cursor: "text",
-            userSelect: "text",
-            zIndex: 1,
-          }}
-        >
-          url: {roomUrl}
-          {shape.props.isOwner && " (Owner)"}
-        </p>
+        </div>
       </div>
     )
   }

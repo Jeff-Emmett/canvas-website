@@ -18,6 +18,28 @@ export function Presentations() {
       </div>
 
       <div className="presentations-grid">
+      <div className="presentation-card">
+          <h3>Psilocybernetics: The Emergence of Institutional Neuroplasticity</h3>
+          <p>Exploring the intersection of mycelium and cybernetic institutional design</p>
+          <div className="presentation-embed">
+            <div style={{position: "relative", paddingTop: "max(60%, 324px)", width: "100%", height: 0}}>
+              <iframe 
+                style={{position: "absolute", border: "none", width: "100%", height: "100%", left: 0, top: 0}}
+                src="https://online.fliphtml5.com/phqos/pnlz/" 
+                seamless={true}
+                scrolling="no" 
+                frameBorder="0" 
+                allowTransparency={true}
+                allowFullScreen={true}
+                title="Psilocybernetics Presentation"
+              />
+            </div>
+          </div>
+          <div className="presentation-meta">
+            <span>Presentation at the Crypto Commons Gathering 5</span>
+            <span>Video coming soon</span>
+          </div>
+        </div>
         <div className="presentation-card">
           <h3>Osmotic Governance</h3>
           <p>Exploring the intersection of mycelium and emancipatory technologies</p>
@@ -118,28 +140,7 @@ export function Presentations() {
           </div>
         </div>
 
-        <div className="presentation-card">
-          <h3>Psilocybernetics: The Emergence of Institutional Neuroplasticity</h3>
-          <p>Exploring the intersection of mycelium and cybernetic institutional design</p>
-          <div className="presentation-embed">
-            <div style={{position: "relative", paddingTop: "max(60%, 324px)", width: "100%", height: 0}}>
-              <iframe 
-                style={{position: "absolute", border: "none", width: "100%", height: "100%", left: 0, top: 0}}
-                src="https://online.fliphtml5.com/phqos/pnlz/" 
-                seamless={true}
-                scrolling="no" 
-                frameBorder="0" 
-                allowTransparency={true}
-                allowFullScreen={true}
-                title="Psilocybernetics Presentation"
-              />
-            </div>
-          </div>
-          <div className="presentation-meta">
-            <span>Presentation at the General Forum for Ethereum Localism</span>
-            <span>Video coming soon</span>
-          </div>
-        </div>
+        
 
         <div className="presentation-card">
           <h3>Move Slow & Fix Things: The Commons Stack Design Pattern</h3>

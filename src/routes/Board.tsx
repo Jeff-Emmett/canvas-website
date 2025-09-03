@@ -6,6 +6,8 @@ import { ChatBoxTool } from "@/tools/ChatBoxTool"
 import { ChatBoxShape } from "@/shapes/ChatBoxShapeUtil"
 import { VideoChatTool } from "@/tools/VideoChatTool"
 import { VideoChatShape } from "@/shapes/VideoChatShapeUtil"
+import { TranscribeTool } from "@/tools/TranscribeTool"
+import { TranscribeShapeUtil } from "@/shapes/TranscribeShapeUtil"
 import { multiplayerAssetStore } from "../utils/multiplayerAssetStore"
 import { EmbedShape } from "@/shapes/EmbedShapeUtil"
 import { EmbedTool } from "@/tools/EmbedTool"
@@ -46,6 +48,7 @@ import { CmdK } from "@/CmdK"
 
 import "react-cmdk/dist/cmdk.css"
 import "@/css/style.css"
+import "@/css/transcribe.css"
 
 const collections: Collection[] = [GraphLayoutCollection]
 import { useAuth } from "../context/AuthContext"
@@ -64,6 +67,7 @@ const customShapeUtils = [
   MarkdownShape,
   PromptShape,
   SharedPianoShape,
+  TranscribeShapeUtil,
 ]
 const customTools = [
   ChatBoxTool,
@@ -75,6 +79,7 @@ const customTools = [
   PromptShapeTool,
   SharedPianoTool,
   GestureTool,
+  TranscribeTool,
 ]
 
 export function Board() {

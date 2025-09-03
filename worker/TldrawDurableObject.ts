@@ -12,6 +12,7 @@ import { MycrozineTemplateShape } from "./shapes/MycrozineTemplateShapeUtil"
 import { SlideShape } from "./shapes/SlideShapeUtil"
 import { PromptShape } from "./shapes/PromptShapeUtil"
 import { SharedPianoShape } from "./shapes/SharedPianoShapeUtil"
+import { TranscribeShape } from "./shapes/TranscribeShapeUtil"
 
 // Lazy load TLDraw dependencies to avoid startup timeouts
 let customSchema: any = null
@@ -55,6 +56,10 @@ async function getTldrawDependencies() {
         SharedPiano: {
           props: SharedPianoShape.props,
           migrations: SharedPianoShape.migrations,
+        },
+        Transcribe: {
+          props: TranscribeShape.props,
+          migrations: TranscribeShape.migrations,
         },
       },
       bindings: defaultBindingSchemas,
