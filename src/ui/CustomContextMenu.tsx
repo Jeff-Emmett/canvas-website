@@ -37,7 +37,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
   const editor = useEditor()
   const helpers = useDefaultHelpers()
   const tools = overrides.tools?.(editor, {}, helpers) ?? {}
-  const customActions = getCustomActions(editor)
+  const customActions = getCustomActions(editor) as any
   const [selectedShapes, setSelectedShapes] = useState<TLShape[]>([])
   const [selectedIds, setSelectedIds] = useState<string[]>([])
 

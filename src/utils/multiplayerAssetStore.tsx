@@ -16,7 +16,7 @@ export const multiplayerAssetStore: TLAssetStore = {
 			throw new Error(`Failed to upload asset: ${response.statusText}`)
 		}
 
-		return url
+		return { src: url }
 	},
 
 	resolve(asset) {

@@ -44,7 +44,7 @@ export function Inbox() {
             text: messageText,
             align: "start",
             verticalAlign: "start",
-          },
+          } as any,
           meta: {
             id: messageId,
           },
