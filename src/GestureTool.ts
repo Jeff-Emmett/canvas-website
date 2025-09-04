@@ -223,7 +223,7 @@ export class Drawing extends StateNode {
 				size: "xl",
 				text: gesture.name,
 				color: score_color,
-			},
+			} as any,
 		}
 		if (SHOW_LABELS) {
 			this.editor.createShape(labelShape)

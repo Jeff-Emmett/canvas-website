@@ -34,7 +34,7 @@ export function CustomMainMenu() {
     };
     const exportJSON = (editor: Editor) => {
         const exportName = `props-${Math.round(+new Date() / 1000).toString().slice(5)}`
-        exportAs(Array.from(editor.getCurrentPageShapeIds()), 'json', exportName)
+        exportAs(Array.from(editor.getCurrentPageShapeIds()), 'json' as any, exportName)
     };
 
     return (

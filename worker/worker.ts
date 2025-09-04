@@ -200,48 +200,48 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     })
   })
 
-  // Automerge routes - these will be used when we switch to Automerge sync
-  .get("/automerge/connect/:roomId", (request, env) => {
-    // Check if this is a WebSocket upgrade request
-    const upgradeHeader = request.headers.get("Upgrade")
-    if (upgradeHeader === "websocket") {
-      const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
-      const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
-      return room.fetch(request.url, {
-        headers: request.headers,
-        body: request.body,
-        method: request.method,
-      })
-    }
-    
-    // Handle regular GET requests
-    const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
-    const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
-    return room.fetch(request.url, {
-      headers: request.headers,
-      body: request.body,
-      method: request.method,
-    })
-  })
+  // Automerge routes - disabled for now
+  // .get("/automerge/connect/:roomId", (request, env) => {
+  //   // Check if this is a WebSocket upgrade request
+  //   const upgradeHeader = request.headers.get("Upgrade")
+  //   if (upgradeHeader === "websocket") {
+  //     const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
+  //     const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
+  //     return room.fetch(request.url, {
+  //       headers: request.headers,
+  //       body: request.body,
+  //       method: request.method,
+  //     })
+  //   }
+  //   
+  //   // Handle regular GET requests
+  //   const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
+  //   const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
+  //   return room.fetch(request.url, {
+  //     headers: request.headers,
+  //     body: request.body,
+  //     method: request.method,
+  //   })
+  // })
 
-  .get("/automerge/room/:roomId", (request, env) => {
-    const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
-    const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
-    return room.fetch(request.url, {
-      headers: request.headers,
-      body: request.body,
-      method: request.method,
-    })
-  })
+  // .get("/automerge/room/:roomId", (request, env) => {
+  //   const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
+  //   const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
+  //   return room.fetch(request.url, {
+  //     headers: request.headers,
+  //     body: request.body,
+  //     method: request.method,
+  //   })
+  // })
 
-  .post("/automerge/room/:roomId", async (request, env) => {
-    const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
-    const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
-    return room.fetch(request.url, {
-      method: "POST",
-      body: request.body,
-    })
-  })
+  // .post("/automerge/room/:roomId", async (request, env) => {
+  //   const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
+  //   const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
+  //   return room.fetch(request.url, {
+  //     method: "POST",
+  //     body: request.body,
+  //   })
+  // })
 
   .post("/daily/rooms", async (req) => {
     const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]

@@ -355,7 +355,7 @@ export const overrides: TLUiOverrides = {
             const sourceShape = editor.getShape(edge.from)
             const sourceText =
               sourceShape && sourceShape.type === "geo"
-                ? (sourceShape as TLGeoShape).props.text
+                ? ((sourceShape as TLGeoShape).props as any).text
                 : ""
 
             
@@ -372,7 +372,7 @@ export const overrides: TLUiOverrides = {
                   props: {
                     ...(editor.getShape(edge.to) as TLGeoShape).props,
                     text: partialResponse,
-                  },
+                  } as any,
                 })
 
               })
