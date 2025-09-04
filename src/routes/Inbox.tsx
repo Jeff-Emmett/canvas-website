@@ -41,12 +41,12 @@ export function Inbox() {
           props: {
             w: shapeWidth,
             h: shapeHeight,
-            text: messageText,
-            align: "start",
-            verticalAlign: "start",
-          } as any,
+            fill: "solid",
+            color: "white",
+          },
           meta: {
             id: messageId,
+            text: messageText, // Store text in meta instead of props
           },
         }
         let found = false

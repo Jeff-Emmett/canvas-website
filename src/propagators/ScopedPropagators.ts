@@ -77,16 +77,20 @@ const unpackShape = (shape: any) => {
   const cast = (prop: any, constructor: (value: any) => any) => {
     return prop !== undefined ? constructor(prop) : undefined;
   };
+  
+  // Only add text property for shapes that support it (like text shapes)
+  const shapeProps = { ...props }
+  if (type === 'text' && props.text !== undefined) {
+    shapeProps.text = cast(props.text, String)
+  }
+  
   return {
     id,
     type,
     x: Number(x),
     y: Number(y),
     rotation: Number(rotation),
-    props: {
-      ...props,
-      text: cast(props.text, String),
-    },
+    props: shapeProps,
     meta: m,
   }
 }

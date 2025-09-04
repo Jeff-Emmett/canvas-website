@@ -182,7 +182,7 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
           if (isShapeOfType<TLGeoShape>(sourceShape, "geo")) {
             processedPrompt = processedPrompt.replace(
               pattern,
-              (sourceShape.props as any).text,
+              (sourceShape.meta as any)?.text || "",
             )
           }
         }

@@ -17,7 +17,9 @@ export const searchText = (editor: Editor) => {
       (shape.props as any).value,          
       (shape.props as any).url,            
       (shape.props as any).description,    
-      (shape.props as any).content,        
+      (shape.props as any).content,
+      // For geo shapes, also check meta.text
+      shape.type === 'geo' ? (shape.meta as any)?.text : undefined,
     ]
 
     const termLower = searchTerm.toLowerCase()
