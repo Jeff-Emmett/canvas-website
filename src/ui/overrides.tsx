@@ -355,7 +355,7 @@ export const overrides: TLUiOverrides = {
             const sourceShape = editor.getShape(edge.from)
             const sourceText =
               sourceShape && sourceShape.type === "geo"
-                ? ((sourceShape as TLGeoShape).props as any).text
+                ? (sourceShape.meta as any)?.text || ""
                 : ""
 
             
@@ -366,13 +366,17 @@ export const overrides: TLUiOverrides = {
             try {
               llm(prompt, (partialResponse: string) => {
 
+                const targetShape = editor.getShape(edge.to) as TLGeoShape
                 editor.updateShape({
                   id: edge.to,
                   type: "geo",
                   props: {
-                    ...(editor.getShape(edge.to) as TLGeoShape).props,
-                    text: partialResponse,
-                  } as any,
+                    ...targetShape.props,
+                  },
+                  meta: {
+                    ...targetShape.meta,
+                    text: partialResponse, // Store text in meta instead of props
+                  },
                 })
 
               })
