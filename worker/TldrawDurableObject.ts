@@ -270,7 +270,11 @@ export class TldrawDurableObject {
     
     // convert the room to JSON and upload it to R2
     const snapshot = JSON.stringify(room.getCurrentSnapshot())
-    await this.r2.put(`rooms/${this.roomId}`, snapshot)
+    await this.r2.put(`rooms/${this.roomId}`, snapshot, {
+      httpMetadata: {
+        contentType: 'application/json'
+      }
+    })
     console.log(`Board persisted to R2: ${this.roomId}`)
   }, 30_000)
 
