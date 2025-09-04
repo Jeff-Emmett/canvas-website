@@ -53,7 +53,7 @@ export class SharedPianoShape extends BaseBoxShapeUtil<ISharedPianoShape> {
 
     const handleIframeError = useCallback(() => {
       setIsLoading(false)
-      setError("Failed to load Shared Piano")
+      setError("Failed to load Shared Piano. Please check your browser permissions for MIDI and audio access.")
     }, [])
 
     const handleToggleMinimize = (e: React.MouseEvent) => {
@@ -74,9 +74,10 @@ export class SharedPianoShape extends BaseBoxShapeUtil<ISharedPianoShape> {
           position: "absolute",
           top: 8,
           right: 8,
-          zIndex: 1000,
+          zIndex: 10,
           display: "flex",
           gap: 4,
+          pointerEvents: "auto",
         }}
       >
         <button
@@ -108,6 +109,8 @@ export class SharedPianoShape extends BaseBoxShapeUtil<ISharedPianoShape> {
           borderRadius: "8px",
           border: "1px solid var(--color-panel)",
           backgroundColor: "var(--color-background)",
+          zIndex: 1,
+          pointerEvents: "auto",
         }}
       >
         {controls}
@@ -129,7 +132,7 @@ export class SharedPianoShape extends BaseBoxShapeUtil<ISharedPianoShape> {
             🎹 Shared Piano
           </div>
         ) : (
-          <>
+          <div style={{ position: "relative", width: "100%", height: "100%", zIndex: 1 }}>
             {isLoading && (
               <div
                 style={{
@@ -142,7 +145,8 @@ export class SharedPianoShape extends BaseBoxShapeUtil<ISharedPianoShape> {
                   alignItems: "center",
                   justifyContent: "center",
                   background: "var(--color-background)",
-                  zIndex: 1,
+                  zIndex: 3,
+                  pointerEvents: "auto",
                 }}
               >
                 <div style={{ textAlign: "center" }}>
@@ -164,7 +168,8 @@ export class SharedPianoShape extends BaseBoxShapeUtil<ISharedPianoShape> {
                   alignItems: "center",
                   justifyContent: "center",
                   background: "var(--color-background)",
-                  zIndex: 1,
+                  zIndex: 3,
+                  pointerEvents: "auto",
                 }}
               >
                 <div style={{ textAlign: "center", color: "var(--color-text)" }}>
@@ -206,14 +211,19 @@ export class SharedPianoShape extends BaseBoxShapeUtil<ISharedPianoShape> {
                 borderRadius: "8px",
                 opacity: isLoading ? 0 : 1,
                 transition: "opacity 0.3s ease",
+                position: "absolute",
+                top: 0,
+                left: 0,
+                zIndex: 2,
+                pointerEvents: "auto",
               }}
               onLoad={handleIframeLoad}
               onError={handleIframeError}
               title="Chrome Music Lab Shared Piano"
-              allow="microphone; camera"
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+              allow="microphone; camera; midi; autoplay; encrypted-media; fullscreen"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals"
             />
-          </>
+          </div>
         )}
       </div>
     )
