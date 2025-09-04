@@ -1,0 +1,60 @@
+main = "worker/worker.ts"
+compatibility_date = "2024-07-01"
+name = "jeffemmett-canvas-dev"
+account_id = "0e7b3338d5278ed1b148e6456b940913"
+
+[vars]
+# Development environment variables
+DAILY_DOMAIN = "mycopunks.daily.co"
+
+[dev]
+port = 5172
+ip = "0.0.0.0"
+local_protocol = "http"
+upstream_protocol = "https"
+
+[durable_objects]
+bindings = [
+    { name = "TLDRAW_DURABLE_OBJECT", class_name = "TldrawDurableObject" },
+    # { name = "AUTOMERGE_DURABLE_OBJECT", class_name = "AutomergeDurableObject" }, # Disabled - not currently used
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["TldrawDurableObject"]
+
+[[migrations]]
+tag = "v2"
+new_classes = ["AutomergeDurableObject"]
+
+[[migrations]]
+tag = "v3"
+deleted_classes = ["AutomergeDurableObject"]
+
+[[r2_buckets]]
+binding = 'TLDRAW_BUCKET'
+bucket_name = 'jeffemmett-canvas-preview'
+preview_bucket_name = 'jeffemmett-canvas-preview'
+
+[[r2_buckets]]
+binding = 'BOARD_BACKUPS_BUCKET'
+bucket_name = 'board-backups-preview'
+preview_bucket_name = 'board-backups-preview'
+
+[miniflare]
+kv_persist = true
+r2_persist = true
+durable_objects_persist = true
+
+[observability]
+enabled = true
+head_sampling_rate = 1  
+
+[triggers]
+crons = ["0 0 * * *"] # Run at midnight UTC every day 
+
+# Secrets should be set using `wrangler secret put` command for dev environment
+# DO NOT put these directly in wrangler.toml:
+# - DAILY_API_KEY
+# - CLOUDFLARE_API_TOKEN
+# etc.

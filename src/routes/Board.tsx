@@ -52,8 +52,10 @@ import { useAuth } from "../context/AuthContext"
 import { updateLastVisited } from "../lib/starredBoards"
 import { captureBoardScreenshot } from "../lib/screenshotService"
 
-// Default to production URL if env var isn't available
-export const WORKER_URL = "https://jeffemmett-canvas.jeffemmett.workers.dev"
+// Automatically switch between production and local dev based on environment
+export const WORKER_URL = import.meta.env.DEV 
+  ? "http://localhost:5172" 
+  : "https://jeffemmett-canvas.jeffemmett.workers.dev"
 
 const customShapeUtils = [
   ChatBoxShape,
@@ -97,6 +99,7 @@ export function Board() {
     [roomId, session.authed, session.username],
   )
 
+  // Using TLdraw sync - fixed version compatibility issue
   const store = useSync(storeConfig)
   const [editor, setEditor] = useState<Editor | null>(null)
 
@@ -176,31 +179,36 @@ export function Board() {
   useEffect(() => {
     if (!editor || !roomId || !store.store) return;
 
-    // Get current shapes to detect changes
-    const currentShapes = editor.getCurrentPageShapes();
-    const currentShapeCount = currentShapes.length;
-    
-    // Create a simple hash of the content for change detection
-    const currentContentHash = currentShapes.length > 0 
-      ? currentShapes.map(shape => `${shape.id}-${shape.type}`).sort().join('|')
-      : '';
+    let lastContentHash = '';
+    let timeoutId: NodeJS.Timeout;
 
-    // Debounced screenshot capture only when content actually changes
-    const timeoutId = setTimeout(async () => {
-      const newShapes = editor.getCurrentPageShapes();
-      const newShapeCount = newShapes.length;
-      const newContentHash = newShapes.length > 0 
-        ? newShapes.map(shape => `${shape.id}-${shape.type}`).sort().join('|')
+    const captureScreenshot = async () => {
+      const currentShapes = editor.getCurrentPageShapes();
+      const currentContentHash = currentShapes.length > 0 
+        ? currentShapes.map(shape => `${shape.id}-${shape.type}`).sort().join('|')
         : '';
 
       // Only capture if content actually changed
-      if (newShapeCount !== currentShapeCount || newContentHash !== currentContentHash) {
+      if (currentContentHash !== lastContentHash) {
+        lastContentHash = currentContentHash;
         await captureBoardScreenshot(editor, roomId);
       }
-    }, 3000); // Wait 3 seconds to ensure changes are complete
+    };
 
-    return () => clearTimeout(timeoutId);
-  }, [editor, roomId, store.store?.getSnapshot()]); // Still trigger on store changes to detect them
+    // Listen to store changes instead of using getSnapshot() in dependencies
+    const unsubscribe = store.store.listen(() => {
+      // Clear existing timeout
+      if (timeoutId) clearTimeout(timeoutId);
+      
+      // Set new timeout for debounced screenshot capture
+      timeoutId = setTimeout(captureScreenshot, 3000);
+    }, { source: "user", scope: "document" });
+
+    return () => {
+      unsubscribe();
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [editor, roomId, store.store]);
 
   return (
     <div style={{ position: "fixed", inset: 0 }}>

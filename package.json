@@ -6,10 +6,13 @@
 	"scripts": {
 		"dev": "concurrently --kill-others --names client,worker --prefix-colors blue,red \"npm run dev:client\" \"npm run dev:worker\"",
 		"dev:client": "vite --host --port 5173",
-		"dev:worker": "wrangler dev --remote --port 5172 --ip 0.0.0.0",
+		"dev:worker": "wrangler dev --config wrangler.dev.toml --remote --port 5172",
+		"dev:worker:local": "wrangler dev --config wrangler.dev.toml --port 5172 --ip 0.0.0.0",
 		"build": "tsc && vite build",
 		"preview": "vite preview",
 		"deploy": "tsc && vite build && vercel deploy --prod && wrangler deploy",
+		"deploy:worker": "wrangler deploy",
+		"deploy:worker:dev": "wrangler deploy --config wrangler.dev.toml",
 		"types": "tsc --noEmit"
 	},
 	"keywords": [],
@@ -17,15 +20,17 @@
 	"license": "ISC",
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.33.1",
+		"@automerge/automerge": "^3.1.1",
+		"@automerge/automerge-repo": "^2.2.0",
 		"@automerge/automerge-repo-react-hooks": "^2.2.0",
 		"@daily-co/daily-js": "^0.60.0",
 		"@daily-co/daily-react": "^0.20.0",
 		"@oddjs/odd": "^0.37.2",
-		"@tldraw/assets": "^3.6.0",
-		"@tldraw/sync": "^3.6.0",
-		"@tldraw/sync-core": "^3.6.0",
-		"@tldraw/tldraw": "^3.6.0",
-		"@tldraw/tlschema": "^3.6.0",
+		"@tldraw/assets": "^3.15.4",
+		"@tldraw/sync": "^3.15.4",
+		"@tldraw/sync-core": "^3.15.4",
+		"@tldraw/tldraw": "^3.15.4",
+		"@tldraw/tlschema": "^3.15.4",
 		"@types/markdown-it": "^14.1.1",
 		"@types/marked": "^5.0.2",
 		"@uiw/react-md-editor": "^4.0.5",
@@ -49,7 +54,7 @@
 		"react-markdown": "^10.1.0",
 		"react-router-dom": "^7.0.2",
 		"recoil": "^0.7.7",
-		"tldraw": "^3.6.0",
+		"tldraw": "^3.15.4",
 		"vercel": "^39.1.1",
 		"webcola": "^3.4.0",
 		"webnative": "^0.36.3"
@@ -65,7 +70,9 @@
 		"concurrently": "^9.1.0",
 		"typescript": "^5.6.3",
 		"vite": "^6.0.3",
-		"wrangler": "^3.107.3"
+		"vite-plugin-top-level-await": "^1.6.0",
+		"vite-plugin-wasm": "^3.5.0",
+		"wrangler": "^4.33.2"
 	},
 	"engines": {
 		"node": ">=18.0.0"

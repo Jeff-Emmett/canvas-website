@@ -100,6 +100,8 @@ export class TldrawDurableObject {
   })
     // when we get a connection request, we stash the room id if needed and handle the connection
     .get("/connect/:roomId", async (request) => {
+      // Connect request received
+      
       if (!this.roomId) {
         await this.ctx.blockConcurrencyWhile(async () => {
           await this.ctx.storage.put("roomId", request.params.roomId)
@@ -164,11 +166,19 @@ export class TldrawDurableObject {
 
   // what happens when someone tries to connect to this room?
   async handleConnect(request: IRequest): Promise<Response> {
+    // Check if this is a WebSocket upgrade request
+    const upgradeHeader = request.headers.get("Upgrade")
+    
+    if (!upgradeHeader || upgradeHeader !== "websocket") {
+      return new Response("WebSocket upgrade required", { status: 426 })
+    }
+    
     if (!this.roomId) {
       return new Response("Room not initialized", { status: 400 })
     }
 
     const sessionId = request.query.sessionId as string
+    // Session ID received
     if (!sessionId) {
       return new Response("Missing sessionId", { status: 400 })
     }
@@ -245,7 +255,6 @@ export class TldrawDurableObject {
           onDataChange: () => {
             // and persist whenever the data in the room changes
             this.schedulePersistToR2()
-            console.log("Persisting", this.roomId, "to R2")
           },
         })
       })()
@@ -254,7 +263,7 @@ export class TldrawDurableObject {
     return this.roomPromise
   }
 
-  // we throttle persistance so it only happens every 10 seconds
+  // we throttle persistence so it only happens every 30 seconds, batching all updates
   schedulePersistToR2 = throttle(async () => {
     if (!this.roomPromise || !this.roomId) return
     const room = await this.getRoom()
@@ -262,7 +271,8 @@ export class TldrawDurableObject {
     // convert the room to JSON and upload it to R2
     const snapshot = JSON.stringify(room.getCurrentSnapshot())
     await this.r2.put(`rooms/${this.roomId}`, snapshot)
-  }, 10_000)
+    console.log(`Board persisted to R2: ${this.roomId}`)
+  }, 30_000)
 
   // Add CORS headers for WebSocket upgrade
   handleWebSocket(request: Request) {
@@ -283,10 +293,8 @@ export class TldrawDurableObject {
 
     server.addEventListener("close", () => {
       if (this.roomPromise) {
-        this.getRoom().then((room) => {
-          // Update store to ensure all changes are persisted
-          room.updateStore(() => {})
-        })
+        // Force a final persistence when WebSocket closes
+        this.schedulePersistToR2()
       }
     })
 
