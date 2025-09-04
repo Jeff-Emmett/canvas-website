@@ -595,8 +595,12 @@ async function backupAllBoards(env: Environment) {
         // Create backup key with date only
         const backupKey = `${date}/${room.key}`
         
-        // Store in backup bucket as JSON
-        await env.BOARD_BACKUPS_BUCKET.put(backupKey, jsonData)
+        // Store in backup bucket as JSON with proper content-type
+        await env.BOARD_BACKUPS_BUCKET.put(backupKey, jsonData, {
+          httpMetadata: {
+            contentType: 'application/json'
+          }
+        })
         
         // Backed up successfully
       } catch (error) {
@@ -624,6 +628,48 @@ async function backupAllBoards(env: Environment) {
 }
 
 router
+  .get("/export/:roomId", async (request, env) => {
+    try {
+      const roomId = request.params.roomId
+      if (!roomId) {
+        return new Response(JSON.stringify({ error: 'Room ID is required' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      // Get the room data from R2
+      const roomData = await env.TLDRAW_BUCKET.get(`rooms/${roomId}`)
+      if (!roomData) {
+        return new Response(JSON.stringify({ error: 'Room not found' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      // Get the JSON data
+      const jsonData = await roomData.text()
+      
+      // Return as downloadable JSON file
+      return new Response(jsonData, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Disposition': `attachment; filename="${roomId}-board.json"`,
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': '*',
+        }
+      })
+    } catch (error) {
+      console.error('Export failed:', error)
+      return new Response(JSON.stringify({ 
+        error: 'Export failed', 
+        message: (error as Error).message 
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
   .get("/backup", async (_, env) => {
     const result = await backupAllBoards(env)
     return new Response(JSON.stringify(result), {
