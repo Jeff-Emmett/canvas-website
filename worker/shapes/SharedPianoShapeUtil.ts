@@ -5,7 +5,10 @@ export type ISharedPianoShape = TLBaseShape<
   {
     w: number
     h: number
-    isPlaying: boolean
+    isMinimized?: boolean
+    interactionState?: {
+      scrollPosition?: { x: number; y: number }
+    }
   }
 >
 
@@ -14,9 +17,9 @@ export class SharedPianoShape extends BaseBoxShapeUtil<ISharedPianoShape> {
 
   getDefaultProps(): ISharedPianoShape["props"] {
     return {
-      w: 400,
-      h: 200,
-      isPlaying: false,
+      w: 800,
+      h: 600,
+      isMinimized: false,
     }
   }
 

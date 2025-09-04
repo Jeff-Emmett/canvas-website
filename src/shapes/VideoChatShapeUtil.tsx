@@ -395,7 +395,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     console.log('📝 addTranscriptionMessage called');
     console.log('Sender:', sender);
     console.log('Message:', message);
-    console.log('Current transcription history length:', shape.props.transcriptionHistory.length);
+    console.log('Current transcription history length:', shape.props.transcriptionHistory?.length || 0);
     
     const newMessage = {
       sender,
@@ -410,7 +410,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
       type: shape.type,
       props: {
         ...shape.props,
-        transcriptionHistory: [...shape.props.transcriptionHistory, newMessage]
+        transcriptionHistory: [...(shape.props.transcriptionHistory || []), newMessage]
       }
     });
     
@@ -645,7 +645,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         )}
 
         {/* Transcription History */}
-        {shape.props.transcriptionHistory.length > 0 && (
+        {shape.props.transcriptionHistory && shape.props.transcriptionHistory.length > 0 && (
           <div
             style={{
               position: "absolute",
