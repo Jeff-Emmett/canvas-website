@@ -2,8 +2,9 @@ import { AutoRouter, cors, error, IRequest } from "itty-router"
 import { handleAssetDownload, handleAssetUpload } from "./assetUploads"
 import { Environment } from "./types"
 
-// make sure our sync durable object is made available to cloudflare
+// make sure our sync durable objects are made available to cloudflare
 export { TldrawDurableObject } from "./TldrawDurableObject"
+// export { AutomergeDurableObject } from "./AutomergeDurableObject" // Disabled - not currently used
 
 // Lazy load heavy dependencies to avoid startup timeouts
 let handleUnfurlRequest: any = null
@@ -82,40 +83,80 @@ const { preflight, corsify } = cors({
   credentials: true,
 })
 const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
-  before: [preflight],
+  before: [
+    // Handle WebSocket upgrades before CORS processing
+    (request) => {
+      const upgradeHeader = request.headers.get("Upgrade")
+      if (upgradeHeader === "websocket") {
+        // WebSocket upgrade detected, bypassing CORS
+        return // Don't process CORS for WebSocket upgrades
+      }
+      return preflight(request)
+    }
+  ],
   finally: [
     (response) => {
       // Add security headers to all responses except WebSocket upgrades
       if (response.status !== 101) {
+        // Create new headers to avoid modifying immutable headers
+        const newHeaders = new Headers(response.headers)
         Object.entries(securityHeaders).forEach(([key, value]) => {
-          response.headers.set(key, value)
+          newHeaders.set(key, value)
+        })
+        
+        // Create a new response with the updated headers
+        return new Response(response.body, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: newHeaders
         })
       }
       return corsify(response)
     },
   ],
   catch: (e: Error) => {
-    // Silently handle WebSocket errors, but log other errors
+    // Log all errors for debugging
+    console.error("Worker error:", e)
+    console.error("Error stack:", e.stack)
+    
+    // Handle WebSocket errors more gracefully
     if (e.message?.includes("WebSocket")) {
-      console.debug("WebSocket error:", e)
-      return new Response(null, { status: 400 })
+      console.error("WebSocket error:", e)
+      return new Response(JSON.stringify({ error: "WebSocket connection failed", message: e.message }), { 
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      })
     }
-    console.error(e)
     return error(e)
   },
 })
   // requests to /connect are routed to the Durable Object, and handle realtime websocket syncing
   .get("/connect/:roomId", (request, env) => {
+    console.log("Connect request for room:", request.params.roomId)
+    console.log("Request headers:", Object.fromEntries(request.headers.entries()))
+    
     // Check if this is a WebSocket upgrade request
     const upgradeHeader = request.headers.get("Upgrade")
+    console.log("Upgrade header:", upgradeHeader)
+    
     if (upgradeHeader === "websocket") {
+      console.log("WebSocket upgrade requested for room:", request.params.roomId)
+      console.log("Request URL:", request.url)
+      console.log("Request method:", request.method)
+      console.log("All headers:", Object.fromEntries(request.headers.entries()))
+      
       const id = env.TLDRAW_DURABLE_OBJECT.idFromName(request.params.roomId)
       const room = env.TLDRAW_DURABLE_OBJECT.get(id)
-      return room.fetch(request.url, {
+      
+      console.log("Calling Durable Object fetch...")
+      const result = room.fetch(request.url, {
         headers: request.headers,
         body: request.body,
         method: request.method,
       })
+      
+      console.log("Durable Object fetch result:", result)
+      return result
     }
     
     // Handle regular GET requests
@@ -153,6 +194,49 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
   .post("/room/:roomId", async (request, env) => {
     const id = env.TLDRAW_DURABLE_OBJECT.idFromName(request.params.roomId)
     const room = env.TLDRAW_DURABLE_OBJECT.get(id)
+    return room.fetch(request.url, {
+      method: "POST",
+      body: request.body,
+    })
+  })
+
+  // Automerge routes - these will be used when we switch to Automerge sync
+  .get("/automerge/connect/:roomId", (request, env) => {
+    // Check if this is a WebSocket upgrade request
+    const upgradeHeader = request.headers.get("Upgrade")
+    if (upgradeHeader === "websocket") {
+      const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
+      const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
+      return room.fetch(request.url, {
+        headers: request.headers,
+        body: request.body,
+        method: request.method,
+      })
+    }
+    
+    // Handle regular GET requests
+    const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
+    const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
+    return room.fetch(request.url, {
+      headers: request.headers,
+      body: request.body,
+      method: request.method,
+    })
+  })
+
+  .get("/automerge/room/:roomId", (request, env) => {
+    const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
+    const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
+    return room.fetch(request.url, {
+      headers: request.headers,
+      body: request.body,
+      method: request.method,
+    })
+  })
+
+  .post("/automerge/room/:roomId", async (request, env) => {
+    const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
+    const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
     return room.fetch(request.url, {
       method: "POST",
       body: request.body,
@@ -514,18 +598,18 @@ async function backupAllBoards(env: Environment) {
         // Store in backup bucket as JSON
         await env.BOARD_BACKUPS_BUCKET.put(backupKey, jsonData)
         
-        console.log(`Backed up ${room.key} to ${backupKey}`)
+        // Backed up successfully
       } catch (error) {
         console.error(`Failed to backup room ${room.key}:`, error)
       }
     }
     
-    // Clean up old backups (keep last 30 days)
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    // Clean up old backups (keep last 90 days)
+    const ninetyDaysAgo = new Date()
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
     
     const oldBackups = await env.BOARD_BACKUPS_BUCKET.list({
-      prefix: thirtyDaysAgo.toISOString().split('T')[0]
+      prefix: ninetyDaysAgo.toISOString().split('T')[0]
     })
     
     for (const backup of oldBackups.objects) {
@@ -546,6 +630,67 @@ router
       headers: { 'Content-Type': 'application/json' }
     })
   })
+  .get("/backup/test", async (_, env) => {
+    try {
+      // Simple test to check R2 access
+      const testResult = await env.TLDRAW_BUCKET.list({ prefix: 'rooms/', limit: 1 })
+      
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'R2 access test successful',
+        roomCount: testResult.objects?.length || 0,
+        hasMore: testResult.truncated || false
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('R2 test failed:', error)
+      return new Response(JSON.stringify({
+        success: false,
+        message: 'R2 access test failed',
+        error: (error as Error).message
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
 
-// export our router for cloudflare
-export default router
+// Handle scheduled events (cron jobs)
+export async function scheduled(_event: ScheduledEvent, env: Environment, _ctx: ExecutionContext) {
+  // Cron job triggered
+   
+
+  try {
+    // Run the backup function
+    const result = await backupAllBoards(env)
+    
+    // Scheduled backup completed
+    
+    // You can add additional logging or notifications here
+    if (!result.success) {
+      console.error('Scheduled backup failed:', result.message)
+      // In a real scenario, you might want to send alerts here
+    }
+    
+    return result
+   } catch (error) {
+    console.error('Scheduled backup error:', error)
+    throw error
+  }
+}
+
+// export our router for cloudflare with CORS enabled
+export default {
+  fetch: (request: Request, env: Environment, ctx: ExecutionContext) => {
+    // Handle WebSocket upgrades directly without CORS processing
+    const upgradeHeader = request.headers.get("Upgrade")
+    if (upgradeHeader === "websocket") {
+      // WebSocket upgrade detected, bypassing router CORS
+      return router.fetch(request, env, ctx)
+    }
+    
+    // For regular requests, apply CORS
+    return router.fetch(request, env, ctx).then(response => corsify(response))
+  },
+  scheduled
+}

@@ -26,6 +26,7 @@ jobs:
       - name: Deploy to Cloudflare Workers
         run: |
           npm install -g wrangler@3.107.3
+          # Uses default wrangler.toml (production config)
           wrangler deploy
         working-directory: ./worker
         env:
