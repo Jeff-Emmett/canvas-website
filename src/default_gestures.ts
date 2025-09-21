@@ -158,10 +158,22 @@ export const DEFAULT_GESTURES: Gesture[] = [
 				type: "geo",
 				x: center?.x! - w / 2,
 				y: center?.y! - h / 2,
+				isLocked: false,
 				props: {
 					fill: "solid",
 					w: w,
 					h: h,
+					geo: "rectangle",
+					dash: "draw",
+					size: "m",
+					font: "draw",
+					align: "middle",
+					verticalAlign: "middle",
+					growY: 0,
+					url: "",
+					scale: 1,
+					labelColor: "black",
+					richText: [] as any
 				},
 			})
 		},

@@ -1,0 +1,68 @@
+/* Obsidian Toolbar Button Styles */
+
+.obsidian-toolbar-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: #333;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.obsidian-toolbar-button:hover {
+  background: #f8f9fa;
+  border-color: #007acc;
+  color: #007acc;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.obsidian-toolbar-button:active {
+  background: #e3f2fd;
+  border-color: #005a9e;
+  color: #005a9e;
+  transform: translateY(1px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.obsidian-toolbar-button svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.obsidian-toolbar-button span {
+  white-space: nowrap;
+}
+
+/* Integration with TLDraw toolbar */
+.tlui-toolbar .obsidian-toolbar-button {
+  margin: 0 2px;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .obsidian-toolbar-button {
+    background: #2d2d2d;
+    border-color: #404040;
+    color: #e0e0e0;
+  }
+
+  .obsidian-toolbar-button:hover {
+    background: #3d3d3d;
+    border-color: #007acc;
+    color: #007acc;
+  }
+
+  .obsidian-toolbar-button:active {
+    background: #1a3a5c;
+    border-color: #005a9e;
+    color: #005a9e;
+  }
+}

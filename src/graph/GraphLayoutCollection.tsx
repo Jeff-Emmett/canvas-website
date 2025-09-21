@@ -120,6 +120,10 @@ export class GraphLayoutCollection extends BaseCollection {
         type: "geo",
         x: node.x - x,
         y: node.y - y,
+        props: {
+          ...shape.props,
+          richText: (shape.props as any)?.richText || [] as any, // Ensure richText exists
+        },
       });
     }
   };

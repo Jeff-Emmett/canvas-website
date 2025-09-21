@@ -219,6 +219,7 @@ export class Drawing extends StateNode {
 			type: "text",
 			x: this.editor.inputs.currentPagePoint.x + 20,
 			y: this.editor.inputs.currentPagePoint.y,
+			isLocked: false,
 			props: {
 				size: "xl",
 				text: gesture.name,
@@ -344,6 +345,7 @@ export class Drawing extends StateNode {
 				x: originPagePoint.x,
 				y: originPagePoint.y,
 				opacity: 0.5,
+				isLocked: false,
 				props: {
 					isPen: this.isPenOrStylus,
 					segments: [

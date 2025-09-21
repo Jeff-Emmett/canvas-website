@@ -66,6 +66,322 @@
   }
 }
 
+/* Profile Container Styles */
+.profile-container {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.profile-header h3 {
+  margin: 0 0 20px 0;
+  color: #333;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.profile-settings {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.profile-settings h4 {
+  margin: 0 0 16px 0;
+  color: #495057;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* Current Vault Section */
+.current-vault-section {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: white;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+}
+
+.vault-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vault-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vault-label {
+  font-weight: 600;
+  color: #495057;
+  font-size: 14px;
+}
+
+.vault-name-text {
+  font-weight: 700;
+  color: #007acc;
+  font-size: 16px;
+  background: #e3f2fd;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.vault-path-info {
+  font-size: 12px;
+  color: #6c757d;
+  font-family: monospace;
+  word-break: break-all;
+  background: #f8f9fa;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid #e9ecef;
+}
+
+.no-vault-info {
+  text-align: center;
+  padding: 20px;
+}
+
+.no-vault-text {
+  color: #6c757d;
+  font-style: italic;
+  font-size: 14px;
+}
+
+/* Vault Actions Section */
+.vault-actions-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.change-vault-button {
+  background: #007acc;
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 122, 204, 0.2);
+}
+
+.change-vault-button:hover {
+  background: #005a9e;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 122, 204, 0.3);
+}
+
+.clear-vault-button {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clear-vault-button:hover {
+  background: #c82333;
+  transform: translateY(-1px);
+}
+
+/* Advanced Settings */
+.advanced-vault-settings {
+  margin-top: 16px;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  background: #f8f9fa;
+}
+
+.advanced-vault-settings summary {
+  padding: 12px 16px;
+  cursor: pointer;
+  font-weight: 500;
+  color: #495057;
+  background: #e9ecef;
+  border-radius: 6px 6px 0 0;
+  user-select: none;
+}
+
+.advanced-vault-settings summary:hover {
+  background: #dee2e6;
+}
+
+.advanced-vault-settings[open] summary {
+  border-radius: 6px 6px 0 0;
+}
+
+.advanced-vault-settings .vault-settings {
+  padding: 16px;
+  background: white;
+  border-radius: 0 0 6px 6px;
+}
+
+.vault-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.vault-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vault-path-input {
+  padding: 8px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 14px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.vault-path-input:focus {
+  outline: none;
+  border-color: #007acc;
+  box-shadow: 0 0 0 2px rgba(0, 122, 204, 0.2);
+}
+
+.vault-edit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.vault-display {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vault-path-display {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+.vault-path-text {
+  color: #495057;
+  font-size: 14px;
+  word-break: break-all;
+  background: white;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid #e9ecef;
+  flex: 1;
+}
+
+.no-vault-text {
+  color: #6c757d;
+  font-style: italic;
+  font-size: 14px;
+}
+
+.vault-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.edit-button, .save-button, .cancel-button, .clear-button {
+  padding: 6px 12px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  background: white;
+  color: #495057;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.edit-button:hover, .save-button:hover {
+  background: #007acc;
+  color: white;
+  border-color: #007acc;
+}
+
+.save-button {
+  background: #28a745;
+  color: white;
+  border-color: #28a745;
+}
+
+.save-button:hover {
+  background: #218838;
+  border-color: #218838;
+}
+
+.cancel-button {
+  background: #6c757d;
+  color: white;
+  border-color: #6c757d;
+}
+
+.cancel-button:hover {
+  background: #5a6268;
+  border-color: #5a6268;
+}
+
+.clear-button {
+  background: #dc3545;
+  color: white;
+  border-color: #dc3545;
+}
+
+.clear-button:hover {
+  background: #c82333;
+  border-color: #c82333;
+}
+
+.profile-actions {
+  margin-bottom: 16px;
+}
+
+.logout-button {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.logout-button:hover {
+  background: #c82333;
+}
+
+.backup-reminder {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 4px;
+  padding: 12px;
+  color: #856404;
+  font-size: 14px;
+}
+
+.backup-reminder p {
+  margin: 0;
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
   .custom-user-profile {
@@ -73,5 +389,14 @@
     right: 4px;
     padding: 6px 10px;
     font-size: 12px;
+  }
+  
+  .profile-container {
+    padding: 16px;
+    margin: 0 16px;
+  }
+  
+  .vault-edit-actions, .vault-actions {
+    flex-direction: column;
   }
 } 

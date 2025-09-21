@@ -3,6 +3,8 @@ export interface Session {
   authed: boolean;
   loading: boolean;
   backupCreated: boolean | null;
+  obsidianVaultPath?: string;
+  obsidianVaultName?: string;
   error?: string;
 }
 
