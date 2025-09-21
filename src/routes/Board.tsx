@@ -1,4 +1,4 @@
-import { useSync } from "@tldraw/sync"
+import { useAutomergeSync } from "@/automerge/useAutomergeSync"
 import { useMemo, useEffect, useState } from "react"
 import { Tldraw, Editor, TLShapeId } from "tldraw"
 import { useParams } from "react-router-dom"
@@ -31,6 +31,10 @@ import { PromptShapeTool } from "@/tools/PromptShapeTool"
 import { PromptShape } from "@/shapes/PromptShapeUtil"
 import { SharedPianoTool } from "@/tools/SharedPianoTool"
 import { SharedPianoShape } from "@/shapes/SharedPianoShapeUtil"
+import { ObsNoteTool } from "@/tools/ObsNoteTool"
+import { ObsNoteShape } from "@/shapes/ObsNoteShapeUtil"
+import { TranscriptionTool } from "@/tools/TranscriptionTool"
+import { TranscriptionShape } from "@/shapes/TranscriptionShapeUtil"
 import {
   lockElement,
   unlockElement,
@@ -46,6 +50,7 @@ import { CmdK } from "@/CmdK"
 
 import "react-cmdk/dist/cmdk.css"
 import "@/css/style.css"
+import "@/css/obsidian-browser.css"
 
 const collections: Collection[] = [GraphLayoutCollection]
 import { useAuth } from "../context/AuthContext"
@@ -53,8 +58,9 @@ import { updateLastVisited } from "../lib/starredBoards"
 import { captureBoardScreenshot } from "../lib/screenshotService"
 
 // Automatically switch between production and local dev based on environment
+// In development, use the same host as the client to support network access
 export const WORKER_URL = import.meta.env.DEV 
-  ? "http://localhost:5172" 
+  ? `http://${window.location.hostname}:5172` 
   : "https://jeffemmett-canvas.jeffemmett.workers.dev"
 
 const customShapeUtils = [
@@ -66,6 +72,8 @@ const customShapeUtils = [
   MarkdownShape,
   PromptShape,
   SharedPianoShape,
+  ObsNoteShape,
+  TranscriptionShape,
 ]
 const customTools = [
   ChatBoxTool,
@@ -77,12 +85,34 @@ const customTools = [
   PromptShapeTool,
   SharedPianoTool,
   GestureTool,
+  ObsNoteTool,
+  TranscriptionTool,
 ]
 
 export function Board() {
   const { slug } = useParams<{ slug: string }>()
-  const roomId = slug || "default-room"
+  const roomId = slug || "mycofi33"
   const { session } = useAuth()
+
+  // Store roomId in localStorage for VideoChatShapeUtil to access
+  useEffect(() => {
+    localStorage.setItem('currentRoomId', roomId)
+    
+    // One-time migration: clear old video chat storage entries
+    const oldStorageKeys = [
+      'videoChat_room_page_page',
+      'videoChat_room_page:page', 
+      'videoChat_room_board_page_page'
+    ];
+    
+    oldStorageKeys.forEach(key => {
+      if (localStorage.getItem(key)) {
+        console.log(`Migrating: clearing old video chat storage entry: ${key}`);
+        localStorage.removeItem(key);
+        localStorage.removeItem(`${key}_token`);
+      }
+    });
+  }, [roomId])
 
   const storeConfig = useMemo(
     () => ({
@@ -90,7 +120,6 @@ export function Board() {
       assets: multiplayerAssetStore,
       shapeUtils: [...defaultShapeUtils, ...customShapeUtils],
       bindingUtils: [...defaultBindingUtils],
-      // Add user information to the presence system
       user: session.authed ? {
         id: session.username,
         name: session.username,
@@ -99,8 +128,8 @@ export function Board() {
     [roomId, session.authed, session.username],
   )
 
-  // Using TLdraw sync - fixed version compatibility issue
-  const store = useSync(storeConfig)
+  // Use Automerge sync for all environments
+  const store = useAutomergeSync(storeConfig)
   const [editor, setEditor] = useState<Editor | null>(null)
 
   useEffect(() => {
@@ -121,13 +150,91 @@ export function Board() {
     if (!editor) return
     initLockIndicators(editor)
     watchForLockedShapes(editor)
+    
+    
+    
+    // Debug: Check what shapes the editor can see
+    // Temporarily commented out to fix linting errors
+    /*
+    if (editor) {
+      const editorShapes = editor.getRenderingShapes()
+      console.log(`📊 Board: Editor can see ${editorShapes.length} shapes for rendering`)
+      
+      // Debug: Check all shapes in the store vs what editor can see
+      const storeShapes = store.store?.allRecords().filter(r => r.typeName === 'shape') || []
+      console.log(`📊 Board: Store has ${storeShapes.length} shapes, editor sees ${editorShapes.length}`)
+      
+      if (editorShapes.length > 0 && editor) {
+        const shape = editor.getShape(editorShapes[0].id)
+        console.log("📊 Board: Sample editor shape:", {
+          id: editorShapes[0].id,
+          type: shape?.type,
+          x: shape?.x,
+          y: shape?.y
+        })
+      }
+    }
+    */
+    
+    // Debug: Check if there are shapes in store that editor can't see
+    // Temporarily commented out to fix linting errors
+    /*
+    if (storeShapes.length > editorShapes.length) {
+      const editorShapeIds = new Set(editorShapes.map(s => s.id))
+      const missingShapes = storeShapes.filter(s => !editorShapeIds.has(s.id))
+      console.warn(`📊 Board: ${missingShapes.length} shapes in store but not visible to editor:`, missingShapes.map(s => ({
+        id: s.id,
+        type: s.type,
+        x: s.x,
+        y: s.y,
+        parentId: s.parentId
+      })))
+      
+      // Debug: Check current page and page IDs
+      const currentPageId = editor.getCurrentPageId()
+      console.log(`📊 Board: Current page ID: ${currentPageId}`)
+      
+      const pageRecords = store.store?.allRecords().filter(r => r.typeName === 'page') || []
+      console.log(`📊 Board: Available pages:`, pageRecords.map(p => ({
+        id: p.id,
+        name: (p as any).name
+      })))
+      
+      // Check if missing shapes are on a different page
+      const shapesOnCurrentPage = missingShapes.filter(s => s.parentId === currentPageId)
+      const shapesOnOtherPages = missingShapes.filter(s => s.parentId !== currentPageId)
+      console.log(`📊 Board: Missing shapes on current page: ${shapesOnCurrentPage.length}, on other pages: ${shapesOnOtherPages.length}`)
+      
+      if (shapesOnOtherPages.length > 0) {
+        console.log(`📊 Board: Shapes on other pages:`, shapesOnOtherPages.map(s => ({
+          id: s.id,
+          parentId: s.parentId
+        })))
+        
+        // Fix: Move shapes to the current page
+        console.log(`📊 Board: Moving ${shapesOnOtherPages.length} shapes to current page ${currentPageId}`)
+        const shapesToMove = shapesOnOtherPages.map(s => ({
+          id: s.id,
+          type: s.type,
+          parentId: currentPageId
+        }))
+        
+        try {
+          editor.updateShapes(shapesToMove)
+          console.log(`📊 Board: Successfully moved ${shapesToMove.length} shapes to current page`)
+        } catch (error) {
+          console.error(`📊 Board: Error moving shapes to current page:`, error)
+        }
+      }
+    }
+    */
   }, [editor])
 
   // Update presence when session changes
   useEffect(() => {
     if (!editor || !session.authed || !session.username) return
     
-    // The presence should automatically update through the useSync configuration
+    // The presence should automatically update through the useAutomergeSync configuration
     // when the session changes, but we can also try to force an update
   }, [editor, session.authed, session.username])
 
@@ -214,7 +321,7 @@ export function Board() {
     <div style={{ position: "fixed", inset: 0 }}>
       <Tldraw
         store={store.store}
-        shapeUtils={customShapeUtils}
+        shapeUtils={[...defaultShapeUtils, ...customShapeUtils]}
         tools={customTools}
         components={components}
         overrides={{
@@ -281,7 +388,7 @@ export function Board() {
             }
           }
           initializeGlobalCollections(editor, collections)
-          // Note: User presence is configured through the useSync hook above
+          // Note: User presence is configured through the useAutomergeSync hook above
           // The authenticated username should appear in the people section
         }}
       >

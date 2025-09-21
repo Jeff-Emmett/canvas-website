@@ -1,0 +1,54 @@
+name: Quartz Sync
+
+on:
+  push:
+    paths:
+      - 'content/**'
+      - 'src/lib/quartzSync.ts'
+  workflow_dispatch:
+    inputs:
+      note_id:
+        description: 'Specific note ID to sync'
+        required: false
+        type: string
+
+jobs:
+  sync-quartz:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Quartz
+        run: |
+          npx quartz build
+        env:
+          QUARTZ_PUBLISH: true
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        if: github.ref == 'refs/heads/main'
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          cname: ${{ secrets.QUARTZ_DOMAIN }}
+
+      - name: Notify sync completion
+        if: always()
+        run: |
+          echo "Quartz sync completed at $(date)"
+          echo "Triggered by: ${{ github.event_name }}"
+          echo "Commit: ${{ github.sha }}"

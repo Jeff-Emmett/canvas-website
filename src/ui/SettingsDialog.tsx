@@ -11,10 +11,29 @@ import {
 } from "tldraw"
 import React from "react"
 import { PROVIDERS } from "../lib/settings"
+import { useAuth } from "../context/AuthContext"
 
 export function SettingsDialog({ onClose }: TLUiDialogProps) {
+  const { session } = useAuth()
+  
   const [apiKeys, setApiKeys] = React.useState(() => {
     try {
+      // First try to get user-specific API keys if logged in
+      if (session.authed && session.username) {
+        const userApiKeys = localStorage.getItem(`${session.username}_api_keys`)
+        if (userApiKeys) {
+          try {
+            const parsed = JSON.parse(userApiKeys)
+            if (parsed.keys) {
+              return parsed.keys
+            }
+          } catch (e) {
+            // Continue to fallback
+          }
+        }
+      }
+      
+      // Fallback to global API keys
       const stored = localStorage.getItem("openai_api_key")
       if (stored) {
         try {
@@ -43,8 +62,18 @@ export function SettingsDialog({ onClose }: TLUiDialogProps) {
       provider: provider === 'openai' ? 'openai' : provider, // Use the actual provider
       models: Object.fromEntries(PROVIDERS.map((provider) => [provider.id, provider.models[0]])),
     }
-    console.log("💾 Saving settings to localStorage:", settings);
-    localStorage.setItem("openai_api_key", JSON.stringify(settings))
+    
+    // If user is logged in, save to user-specific storage
+    if (session.authed && session.username) {
+      console.log(`💾 Saving user-specific API keys for ${session.username}:`, settings);
+      localStorage.setItem(`${session.username}_api_keys`, JSON.stringify(settings))
+      
+      // Also save to global storage as fallback
+      localStorage.setItem("openai_api_key", JSON.stringify(settings))
+    } else {
+      console.log("💾 Saving global API keys to localStorage:", settings);
+      localStorage.setItem("openai_api_key", JSON.stringify(settings))
+    }
   }
 
   const validateKey = (provider: string, key: string) => {

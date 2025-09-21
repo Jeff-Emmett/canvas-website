@@ -102,7 +102,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
   // Keyboard shortcut for adding to collection
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'c' && !event.ctrlKey && !event.altKey && !event.metaKey) {
+      if (event.key === 'c' && event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey) {
         event.preventDefault()
         if (hasSelection && collection && !allSelectedShapesInCollection) {
           handleAddToCollection()
@@ -153,6 +153,21 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
         <TldrawUiMenuItem {...customActions.unlockElement} disabled={!hasSelection} />
         <TldrawUiMenuItem {...customActions.saveToPdf} disabled={!hasSelection} />
         <TldrawUiMenuItem {...customActions.llm} disabled={!hasSelection} />
+        <TldrawUiMenuItem {...customActions.openObsidianBrowser} />
+      </TldrawUiMenuGroup>
+
+      {/* Edit Actions Group */}
+      <TldrawUiMenuGroup id="edit-actions">
+        <TldrawUiMenuItem
+          id="paste"
+          label="Paste"
+          icon="clipboard"
+          kbd="ctrl+v"
+          onSelect={() => {
+            // Trigger paste using the browser's native paste functionality
+            document.execCommand('paste')
+          }}
+        />
       </TldrawUiMenuGroup>
 
       {/* Creation Tools Group */}
@@ -164,6 +179,8 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
         <TldrawUiMenuItem {...tools.Markdown} disabled={hasSelection} />
         <TldrawUiMenuItem {...tools.MycrozineTemplate} disabled={hasSelection} />
         <TldrawUiMenuItem {...tools.Prompt} disabled={hasSelection} />
+        <TldrawUiMenuItem {...tools.ObsidianNote} disabled={hasSelection} />
+        <TldrawUiMenuItem {...tools.Transcription} disabled={hasSelection} />
       </TldrawUiMenuGroup>
 
       {/* Collections Group */}
@@ -173,7 +190,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
             id="add-to-collection"
             label="Add to Collection"
             icon="plus"
-            kbd="c"
+            kbd="alt+shift+c"
             disabled={!hasSelection || !collection}
             onSelect={handleAddToCollection}
           />

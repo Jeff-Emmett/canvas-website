@@ -169,6 +169,24 @@ export const overrides: TLUiOverrides = {
         type: "gesture",
         onSelect: () => editor.setCurrentTool("gesture"),
       },
+      ObsidianNote: {
+        id: "obs_note",
+        icon: "file-text",
+        label: "Obsidian Note",
+        kbd: "alt+o",
+        readonlyOk: true,
+        type: "ObsNote",
+        onSelect: () => editor.setCurrentTool("obs_note"),
+      },
+      Transcription: {
+        id: "transcription",
+        icon: "microphone",
+        label: "Transcription",
+        kbd: "alt+t",
+        readonlyOk: true,
+        type: "Transcription",
+        onSelect: () => editor.setCurrentTool("transcription"),
+      },
       hand: {
         ...tools.hand,
         onDoubleClick: (info: any) => {
@@ -372,6 +390,7 @@ export const overrides: TLUiOverrides = {
                   type: "geo",
                   props: {
                     ...targetShape.props,
+                    richText: (targetShape.props as any)?.richText || [] as any, // Ensure richText exists
                   },
                   meta: {
                     ...targetShape.meta,
@@ -386,6 +405,18 @@ export const overrides: TLUiOverrides = {
           } else {
             
           }
+        },
+      },
+      openObsidianBrowser: {
+        id: "open-obsidian-browser",
+        label: "Open Obsidian Browser",
+        kbd: "alt+o",
+        readonlyOk: true,
+        onSelect: () => {
+          // Trigger the Obsidian browser to open
+          // This will be handled by the ObsidianToolbarButton component
+          const event = new CustomEvent('open-obsidian-browser')
+          window.dispatchEvent(event)
         },
       },
       //TODO: FIX PREV & NEXT SLIDE KEYBOARD COMMANDS

@@ -3,8 +3,7 @@ import { handleAssetDownload, handleAssetUpload } from "./assetUploads"
 import { Environment } from "./types"
 
 // make sure our sync durable objects are made available to cloudflare
-export { TldrawDurableObject } from "./TldrawDurableObject"
-// export { AutomergeDurableObject } from "./AutomergeDurableObject" // Disabled - not currently used
+export { AutomergeDurableObject } from "./AutomergeDurableObject"
 
 // Lazy load heavy dependencies to avoid startup timeouts
 let handleUnfurlRequest: any = null
@@ -40,6 +39,7 @@ const { preflight, corsify } = cors({
       "https://jeffemmett.com/board/*",
       "http://localhost:5173",
       "http://127.0.0.1:5173",
+      "http://172.22.168.84:5173",
     ]
 
     // Always allow if no origin (like from a local file)
@@ -130,44 +130,6 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     return error(e)
   },
 })
-  // requests to /connect are routed to the Durable Object, and handle realtime websocket syncing
-  .get("/connect/:roomId", (request, env) => {
-    console.log("Connect request for room:", request.params.roomId)
-    console.log("Request headers:", Object.fromEntries(request.headers.entries()))
-    
-    // Check if this is a WebSocket upgrade request
-    const upgradeHeader = request.headers.get("Upgrade")
-    console.log("Upgrade header:", upgradeHeader)
-    
-    if (upgradeHeader === "websocket") {
-      console.log("WebSocket upgrade requested for room:", request.params.roomId)
-      console.log("Request URL:", request.url)
-      console.log("Request method:", request.method)
-      console.log("All headers:", Object.fromEntries(request.headers.entries()))
-      
-      const id = env.TLDRAW_DURABLE_OBJECT.idFromName(request.params.roomId)
-      const room = env.TLDRAW_DURABLE_OBJECT.get(id)
-      
-      console.log("Calling Durable Object fetch...")
-      const result = room.fetch(request.url, {
-        headers: request.headers,
-        body: request.body,
-        method: request.method,
-      })
-      
-      console.log("Durable Object fetch result:", result)
-      return result
-    }
-    
-    // Handle regular GET requests
-    const id = env.TLDRAW_DURABLE_OBJECT.idFromName(request.params.roomId)
-    const room = env.TLDRAW_DURABLE_OBJECT.get(id)
-    return room.fetch(request.url, {
-      headers: request.headers,
-      body: request.body,
-      method: request.method,
-    })
-  })
 
   // assets can be uploaded to the bucket under /uploads:
   .post("/uploads/:uploadId", handleAssetUpload)
@@ -181,9 +143,34 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     return handler(request, env)
   })
 
+
+  // Automerge routes
+  .get("/connect/:roomId", (request, env) => {
+    // Check if this is a WebSocket upgrade request
+    const upgradeHeader = request.headers.get("Upgrade")
+    if (upgradeHeader === "websocket") {
+      const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
+      const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
+      return room.fetch(request.url, {
+        headers: request.headers,
+        body: request.body,
+        method: request.method,
+      })
+    }
+    
+    // Handle regular GET requests
+    const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
+    const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
+    return room.fetch(request.url, {
+      headers: request.headers,
+      body: request.body,
+      method: request.method,
+    })
+  })
+
   .get("/room/:roomId", (request, env) => {
-    const id = env.TLDRAW_DURABLE_OBJECT.idFromName(request.params.roomId)
-    const room = env.TLDRAW_DURABLE_OBJECT.get(id)
+    const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
+    const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
     return room.fetch(request.url, {
       headers: request.headers,
       body: request.body,
@@ -192,56 +179,13 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
   })
 
   .post("/room/:roomId", async (request, env) => {
-    const id = env.TLDRAW_DURABLE_OBJECT.idFromName(request.params.roomId)
-    const room = env.TLDRAW_DURABLE_OBJECT.get(id)
+    const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
+    const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
     return room.fetch(request.url, {
       method: "POST",
       body: request.body,
     })
   })
-
-  // Automerge routes - disabled for now
-  // .get("/automerge/connect/:roomId", (request, env) => {
-  //   // Check if this is a WebSocket upgrade request
-  //   const upgradeHeader = request.headers.get("Upgrade")
-  //   if (upgradeHeader === "websocket") {
-  //     const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
-  //     const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
-  //     return room.fetch(request.url, {
-  //       headers: request.headers,
-  //       body: request.body,
-  //       method: request.method,
-  //     })
-  //   }
-  //   
-  //   // Handle regular GET requests
-  //   const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
-  //   const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
-  //   return room.fetch(request.url, {
-  //     headers: request.headers,
-  //     body: request.body,
-  //     method: request.method,
-  //   })
-  // })
-
-  // .get("/automerge/room/:roomId", (request, env) => {
-  //   const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
-  //   const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
-  //   return room.fetch(request.url, {
-  //     headers: request.headers,
-  //     body: request.body,
-  //     method: request.method,
-  //   })
-  // })
-
-  // .post("/automerge/room/:roomId", async (request, env) => {
-  //   const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
-  //   const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
-  //   return room.fetch(request.url, {
-  //     method: "POST",
-  //     body: request.body,
-  //   })
-  // })
 
   .post("/daily/rooms", async (req) => {
     const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]

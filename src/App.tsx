@@ -25,6 +25,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { FileSystemProvider } from './context/FileSystemContext';
 import { NotificationProvider } from './context/NotificationContext';
 import NotificationsDisplay from './components/NotificationsDisplay';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Import auth components
 import CryptoLogin from './components/auth/CryptoLogin';
@@ -32,34 +33,47 @@ import CryptoDebug from './components/auth/CryptoDebug';
 
 inject();
 
-const callObject = Daily.createCallObject();
+// Initialize Daily.co call object with error handling
+let callObject: any = null;
+try {
+  // Only create call object if we're in a secure context and mediaDevices is available
+  if (typeof window !== 'undefined' && 
+      window.location.protocol === 'https:' && 
+      navigator.mediaDevices) {
+    callObject = Daily.createCallObject();
+  }
+} catch (error) {
+  console.warn('Daily.co call object initialization failed:', error);
+  // Continue without video chat functionality
+}
+
+/**
+ * Optional Auth Route component
+ * Allows guests to browse, but provides login option
+ */
+const OptionalAuthRoute = ({ children }: { children: React.ReactNode }) => {
+  const { session } = useAuth();
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Wait for authentication to initialize before rendering
+  useEffect(() => {
+    if (!session.loading) {
+      setIsInitialized(true);
+    }
+  }, [session.loading]);
+
+  if (!isInitialized) {
+    return <div className="loading">Loading...</div>;
+  }
+
+  // Always render the content, authentication is optional
+  return <>{children}</>;
+};
 
 /**
  * Main App with context providers
  */
 const AppWithProviders = () => {
-  /**
-   * Optional Auth Route component
-   * Allows guests to browse, but provides login option
-   */
-  const OptionalAuthRoute = ({ children }: { children: React.ReactNode }) => {
-    const { session } = useAuth();
-    const [isInitialized, setIsInitialized] = useState(false);
-
-    // Wait for authentication to initialize before rendering
-    useEffect(() => {
-      if (!session.loading) {
-        setIsInitialized(true);
-      }
-    }, [session.loading]);
-
-    if (!isInitialized) {
-      return <div className="loading">Loading...</div>;
-    }
-
-    // Always render the content, authentication is optional
-    return <>{children}</>;
-  };
 
   /**
    * Auth page - renders login/register component (kept for direct access)
@@ -80,65 +94,67 @@ const AppWithProviders = () => {
   };
 
     return (
-    <AuthProvider>
-      <FileSystemProvider>
-        <NotificationProvider>
-          <DailyProvider callObject={callObject}>
-            <BrowserRouter>
-              {/* Display notifications */}
-              <NotificationsDisplay />
-              
-              <Routes>
-                {/* Auth routes */}
-                <Route path="/login" element={<AuthPage />} />
+    <ErrorBoundary>
+      <AuthProvider>
+        <FileSystemProvider>
+          <NotificationProvider>
+            <DailyProvider callObject={callObject}>
+              <BrowserRouter>
+                {/* Display notifications */}
+                <NotificationsDisplay />
                 
-                {/* Optional auth routes */}
-                <Route path="/" element={
-                  <OptionalAuthRoute>
-                    <Default />
-                  </OptionalAuthRoute>
-                } />
-                <Route path="/contact" element={
-                  <OptionalAuthRoute>
-                    <Contact />
-                  </OptionalAuthRoute>
-                } />
-                <Route path="/board/:slug" element={
-                  <OptionalAuthRoute>
-                    <Board />
-                  </OptionalAuthRoute>
-                } />
-                <Route path="/inbox" element={
-                  <OptionalAuthRoute>
-                    <Inbox />
-                  </OptionalAuthRoute>
-                } />
-                <Route path="/debug" element={
-                  <OptionalAuthRoute>
-                    <CryptoDebug />
-                  </OptionalAuthRoute>
-                } />
-                <Route path="/dashboard" element={
-                  <OptionalAuthRoute>
-                    <Dashboard />
-                  </OptionalAuthRoute>
-                } />
-                <Route path="/presentations" element={
-                  <OptionalAuthRoute>
-                    <Presentations />
-                  </OptionalAuthRoute>
-                } />
-                <Route path="/presentations/resilience" element={
-                  <OptionalAuthRoute>
-                    <Resilience />
-                  </OptionalAuthRoute>
-                } />
-              </Routes>
-            </BrowserRouter>
-          </DailyProvider>
-        </NotificationProvider>
-      </FileSystemProvider>
-    </AuthProvider>
+                <Routes>
+                  {/* Auth routes */}
+                  <Route path="/login" element={<AuthPage />} />
+                  
+                  {/* Optional auth routes */}
+                  <Route path="/" element={
+                    <OptionalAuthRoute>
+                      <Default />
+                    </OptionalAuthRoute>
+                  } />
+                  <Route path="/contact" element={
+                    <OptionalAuthRoute>
+                      <Contact />
+                    </OptionalAuthRoute>
+                  } />
+                  <Route path="/board/:slug" element={
+                    <OptionalAuthRoute>
+                      <Board />
+                    </OptionalAuthRoute>
+                  } />
+                  <Route path="/inbox" element={
+                    <OptionalAuthRoute>
+                      <Inbox />
+                    </OptionalAuthRoute>
+                  } />
+                  <Route path="/debug" element={
+                    <OptionalAuthRoute>
+                      <CryptoDebug />
+                    </OptionalAuthRoute>
+                  } />
+                  <Route path="/dashboard" element={
+                    <OptionalAuthRoute>
+                      <Dashboard />
+                    </OptionalAuthRoute>
+                  } />
+                  <Route path="/presentations" element={
+                    <OptionalAuthRoute>
+                      <Presentations />
+                    </OptionalAuthRoute>
+                  } />
+                  <Route path="/presentations/resilience" element={
+                    <OptionalAuthRoute>
+                      <Resilience />
+                    </OptionalAuthRoute>
+                  } />
+                </Routes>
+              </BrowserRouter>
+            </DailyProvider>
+          </NotificationProvider>
+        </FileSystemProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 };
 

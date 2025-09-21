@@ -20,13 +20,6 @@ export type IVideoChatShape = TLBaseShape<
     allowMicrophone: boolean
     enableRecording: boolean
     recordingId: string | null // Track active recording
-    enableTranscription: boolean
-    isTranscribing: boolean
-    transcriptionHistory: Array<{
-      sender: string
-      message: string
-      id: string
-    }>
     meetingToken: string | null
     isOwner: boolean
   }
@@ -35,8 +28,9 @@ export type IVideoChatShape = TLBaseShape<
 export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
   static override type = "VideoChat"
 
-  indicator(_shape: IVideoChatShape) {
-    return null
+
+  indicator(shape: IVideoChatShape) {
+    return <rect x={0} y={0} width={shape.props.w} height={shape.props.h} />
   }
 
   getDefaultProps(): IVideoChatShape["props"] {
@@ -48,9 +42,6 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
       allowMicrophone: false,
       enableRecording: true,
       recordingId: null,
-      enableTranscription: true,
-      isTranscribing: false,
-      transcriptionHistory: [],
       meetingToken: null,
       isOwner: false
     };
@@ -77,36 +68,74 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
   }
 
   async ensureRoomExists(shape: IVideoChatShape) {
-    const boardId = this.editor.getCurrentPageId();
-    if (!boardId) {
-        throw new Error('Board ID is undefined');
+    // Try to get the actual room ID from the URL or use a fallback
+    let roomId = 'default-room';
+    
+    // Try to extract room ID from the current URL
+    const currentUrl = window.location.pathname;
+    const roomMatch = currentUrl.match(/\/board\/([^\/]+)/);
+    if (roomMatch) {
+      roomId = roomMatch[1];
+    } else {
+      // Fallback: try to get from localStorage or use a default
+      roomId = localStorage.getItem('currentRoomId') || 'default-room';
     }
 
+    console.log('🔧 Using room ID:', roomId);
+
+    // Clear old storage entries that use the old boardId format
+    // This ensures we don't load old rooms with the wrong naming convention
+    const oldStorageKeys = [
+      'videoChat_room_page_page',
+      'videoChat_room_page:page',
+      'videoChat_room_board_page_page'
+    ];
+    
+    oldStorageKeys.forEach(key => {
+      if (localStorage.getItem(key)) {
+        console.log(`Clearing old storage entry: ${key}`);
+        localStorage.removeItem(key);
+        localStorage.removeItem(`${key}_token`);
+      }
+    });
+
     // Try to get existing room URL from localStorage first
-    const storageKey = `videoChat_room_${boardId}`;
+    const storageKey = `videoChat_room_${roomId}`;
     const existingRoomUrl = localStorage.getItem(storageKey);
     const existingToken = localStorage.getItem(`${storageKey}_token`);
 
     if (existingRoomUrl && existingRoomUrl !== 'undefined' && existingToken) {
-        console.log("Using existing room from storage:", existingRoomUrl);
-        await this.editor.updateShape<IVideoChatShape>({
-            id: shape.id,
-            type: shape.type,
-            props: {
-                ...shape.props,
-                roomUrl: existingRoomUrl,
-                meetingToken: existingToken,
-                isOwner: true, // Assume the creator is the owner
-            },
-        });
-        return;
+        // Check if the existing room URL uses the old naming pattern
+        if (existingRoomUrl.includes('board_page_page_') || existingRoomUrl.includes('page_page')) {
+            console.log("Found old room URL format, clearing and creating new room:", existingRoomUrl);
+            localStorage.removeItem(storageKey);
+            localStorage.removeItem(`${storageKey}_token`);
+        } else {
+            console.log("Using existing room from storage:", existingRoomUrl);
+            await this.editor.updateShape<IVideoChatShape>({
+                id: shape.id,
+                type: shape.type,
+                props: {
+                    ...shape.props,
+                    roomUrl: existingRoomUrl,
+                    meetingToken: existingToken,
+                    isOwner: true, // Assume the creator is the owner
+                },
+            });
+            return;
+        }
     }
 
     if (shape.props.roomUrl !== null && shape.props.roomUrl !== 'undefined' && shape.props.meetingToken) {
-        console.log("Room already exists:", shape.props.roomUrl);
-        localStorage.setItem(storageKey, shape.props.roomUrl);
-        localStorage.setItem(`${storageKey}_token`, shape.props.meetingToken);
-        return;
+        // Check if the shape's room URL uses the old naming pattern
+        if (shape.props.roomUrl.includes('board_page_page_') || shape.props.roomUrl.includes('page_page')) {
+            console.log("Shape has old room URL format, will create new room:", shape.props.roomUrl);
+        } else {
+            console.log("Room already exists:", shape.props.roomUrl);
+            localStorage.setItem(storageKey, shape.props.roomUrl);
+            localStorage.setItem(`${storageKey}_token`, shape.props.meetingToken);
+            return;
+        }
     }
 
     try {
@@ -127,15 +156,27 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
             throw new Error('Worker URL is not configured');
         }
 
-        // Create room name based on board ID and timestamp
-        // Sanitize boardId to only use valid Daily.co characters (A-Z, a-z, 0-9, '-', '_')
-        const sanitizedBoardId = boardId.replace(/[^A-Za-z0-9\-_]/g, '_');
-        const roomName = `board_${sanitizedBoardId}_${Date.now()}`;
+        // Create a simple, clean room name
+        // Use a short hash of the room ID to keep URLs readable
+        const shortId = roomId.length > 8 ? roomId.substring(0, 8) : roomId;
+        const cleanId = shortId.replace(/[^A-Za-z0-9]/g, '');
+        const roomName = `canvas-${cleanId}`;
         
         console.log('🔧 Room name generation:');
-        console.log('Original boardId:', boardId);
-        console.log('Sanitized boardId:', sanitizedBoardId);
+        console.log('Original roomId:', roomId);
+        console.log('Short ID:', shortId);
+        console.log('Clean ID:', cleanId);
         console.log('Final roomName:', roomName);
+
+        console.log('🔧 Creating Daily.co room with:', {
+          name: roomName,
+          properties: {
+            enable_chat: true,
+            enable_screenshare: true,
+            start_video_off: true,
+            start_audio_off: true
+          }
+        });
 
         const response = await fetch(`${workerUrl}/daily/rooms`, {
           method: 'POST',
@@ -154,15 +195,25 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
           })
         });
 
+        console.log('🔧 Daily.co API response status:', response.status);
+        console.log('🔧 Daily.co API response ok:', response.ok);
+
         if (!response.ok) {
           const error = await response.json()
+          console.error('🔧 Daily.co API error:', error);
           throw new Error(`Failed to create room (${response.status}): ${JSON.stringify(error)}`)
         }
 
         const data = (await response.json()) as DailyApiResponse;
+        console.log('🔧 Daily.co API response data:', data);
         const url = data.url;
 
-        if (!url) throw new Error("Room URL is missing")
+        if (!url) {
+          console.error('🔧 Room URL is missing from API response:', data);
+          throw new Error("Room URL is missing")
+        }
+
+        console.log('🔧 Room URL from API:', url);
 
         // Generate meeting token for the owner
         // First ensure the room exists, then generate token
@@ -272,156 +323,22 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     }
   }
 
-  async startTranscription(shape: IVideoChatShape) {
-    console.log('🎤 startTranscription method called');
-    console.log('Shape props:', shape.props);
-    console.log('Room URL:', shape.props.roomUrl);
-    console.log('Is owner:', shape.props.isOwner);
-    
-    if (!shape.props.roomUrl || !shape.props.isOwner) {
-      console.log('❌ Early return - missing roomUrl or not owner');
-      console.log('roomUrl exists:', !!shape.props.roomUrl);
-      console.log('isOwner:', shape.props.isOwner);
-      return;
-    }
-    
-    try {
-      const workerUrl = WORKER_URL;
-      const apiKey = import.meta.env.VITE_DAILY_API_KEY;
-      
-      console.log('🔧 Environment variables:');
-      console.log('Worker URL:', workerUrl);
-      console.log('API Key exists:', !!apiKey);
-      
-      // Extract room name from URL
-      const roomName = shape.props.roomUrl.split('/').pop();
-      console.log('📝 Extracted room name:', roomName);
-      
-      if (!roomName) {
-        throw new Error('Could not extract room name from URL');
-      }
-
-      console.log('🌐 Making API request to start transcription...');
-      console.log('Request URL:', `${workerUrl}/daily/rooms/${roomName}/start-transcription`);
-
-      const response = await fetch(`${workerUrl}/daily/rooms/${roomName}/start-transcription`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        }
-      });
-
-      console.log('📡 Response status:', response.status);
-      console.log('📡 Response ok:', response.ok);
-
-      if (!response.ok) {
-        const error = await response.json();
-        console.error('❌ API error response:', error);
-        throw new Error(`Failed to start transcription: ${JSON.stringify(error)}`);
-      }
-
-      console.log('✅ API call successful, updating shape...');
-      await this.editor.updateShape<IVideoChatShape>({
-        id: shape.id,
-        type: shape.type,
-        props: {
-          ...shape.props,
-          isTranscribing: true,
-        }
-      });
-      console.log('✅ Shape updated with isTranscribing: true');
-    } catch (error) {
-      console.error('❌ Error starting transcription:', error);
-      throw error;
-    }
-  }
-
-  async stopTranscription(shape: IVideoChatShape) {
-    console.log('🛑 stopTranscription method called');
-    console.log('Shape props:', shape.props);
-    
-    if (!shape.props.roomUrl || !shape.props.isOwner) {
-      console.log('❌ Early return - missing roomUrl or not owner');
-      return;
-    }
-    
-    try {
-      const workerUrl = WORKER_URL;
-      const apiKey = import.meta.env.VITE_DAILY_API_KEY;
-      
-      // Extract room name from URL
-      const roomName = shape.props.roomUrl.split('/').pop();
-      console.log('📝 Extracted room name:', roomName);
-      
-      if (!roomName) {
-        throw new Error('Could not extract room name from URL');
-      }
-
-      console.log('🌐 Making API request to stop transcription...');
-      const response = await fetch(`${workerUrl}/daily/rooms/${roomName}/stop-transcription`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        }
-      });
-
-      console.log('📡 Response status:', response.status);
-
-      if (!response.ok) {
-        const error = await response.json();
-        console.error('❌ API error response:', error);
-        throw new Error(`Failed to stop transcription: ${JSON.stringify(error)}`);
-      }
-
-      console.log('✅ API call successful, updating shape...');
-      await this.editor.updateShape<IVideoChatShape>({
-        id: shape.id,
-        type: shape.type,
-        props: {
-          ...shape.props,
-          isTranscribing: false,
-        }
-      });
-      console.log('✅ Shape updated with isTranscribing: false');
-    } catch (error) {
-      console.error('❌ Error stopping transcription:', error);
-      throw error;
-    }
-  }
-
-  addTranscriptionMessage(shape: IVideoChatShape, sender: string, message: string) {
-    console.log('📝 addTranscriptionMessage called');
-    console.log('Sender:', sender);
-    console.log('Message:', message);
-    console.log('Current transcription history length:', shape.props.transcriptionHistory?.length || 0);
-    
-    const newMessage = {
-      sender,
-      message,
-      id: `${Date.now()}_${Math.random()}`
-    };
-
-    console.log('📝 Adding new message:', newMessage);
-
-    this.editor.updateShape<IVideoChatShape>({
-      id: shape.id,
-      type: shape.type,
-      props: {
-        ...shape.props,
-        transcriptionHistory: [...(shape.props.transcriptionHistory || []), newMessage]
-      }
-    });
-    
-    console.log('✅ Transcription message added to shape');
-  }
 
   component(shape: IVideoChatShape) {
     const [hasPermissions, setHasPermissions] = useState(false)
+    const [forceRender, setForceRender] = useState(0)
+    
+    // Force re-render function
+    const forceComponentUpdate = () => {
+      setForceRender(prev => prev + 1)
+    }
+
     const [error, setError] = useState<Error | null>(null)
     const [isLoading, setIsLoading] = useState(true)
     const [roomUrl, setRoomUrl] = useState<string | null>(shape.props.roomUrl)
+    const [iframeError, setIframeError] = useState(false)
+    const [retryCount, setRetryCount] = useState(0)
+    const [useFallback, setUseFallback] = useState(false)
 
     useEffect(() => {
         let mounted = true;
@@ -507,180 +424,243 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         )
     }
 
-    // Construct URL with permission parameters
-    const roomUrlWithParams = new URL(roomUrl)
-    roomUrlWithParams.searchParams.set(
-      "allow_camera",
-      String(shape.props.allowCamera),
-    )
-    roomUrlWithParams.searchParams.set(
-      "allow_mic",
-      String(shape.props.allowMicrophone),
-    )
+    // Validate room URL format
+    if (!roomUrl || !roomUrl.startsWith('http')) {
+      console.error('Invalid room URL format:', roomUrl);
+      return <div>Error: Invalid room URL format</div>;
+    }
 
-    console.log(roomUrl)
+    // Check if we're running on a network IP (which can cause WebRTC/CORS issues)
+    const isNonLocalhost = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+    const isNetworkIP = window.location.hostname.startsWith('172.') || window.location.hostname.startsWith('192.168.') || window.location.hostname.startsWith('10.');
+
+    // Try the original URL first, then add parameters if needed
+    let roomUrlWithParams;
+    try {
+      roomUrlWithParams = new URL(roomUrl)
+      roomUrlWithParams.searchParams.set(
+        "allow_camera",
+        String(shape.props.allowCamera),
+      )
+      roomUrlWithParams.searchParams.set(
+        "allow_mic",
+        String(shape.props.allowMicrophone),
+      )
+      
+      // Add parameters for better network access
+      if (isNetworkIP) {
+        roomUrlWithParams.searchParams.set("embed", "true")
+        roomUrlWithParams.searchParams.set("iframe", "true")
+        roomUrlWithParams.searchParams.set("show_leave_button", "false")
+        roomUrlWithParams.searchParams.set("show_fullscreen_button", "false")
+        roomUrlWithParams.searchParams.set("show_participants_bar", "true")
+        roomUrlWithParams.searchParams.set("show_local_video", "true")
+        roomUrlWithParams.searchParams.set("show_remote_video", "true")
+      }
+      
+      // Only add embed parameters if the original URL doesn't work
+      if (retryCount > 0) {
+        roomUrlWithParams.searchParams.set("embed", "true")
+        roomUrlWithParams.searchParams.set("iframe", "true")
+      }
+    } catch (e) {
+      console.error('Error constructing URL:', e);
+      roomUrlWithParams = new URL(roomUrl);
+    }
+
+    // Note: Removed HEAD request test due to CORS issues with non-localhost IPs
 
     return (
       <div
         style={{
           width: `${shape.props.w}px`,
-          height: `${shape.props.h}px`,
+          height: `${shape.props.h + 40}px`, // Add extra height for URL bubble below
           position: "relative",
           pointerEvents: "all",
-          overflow: "hidden",
         }}
       >
-        <iframe
-          src={roomUrlWithParams.toString()}
-          width="100%"
-          height="100%"
-          style={{ 
-            border: "none",
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-          }}
-          allow={`camera ${shape.props.allowCamera ? "self" : ""}; microphone ${
-            shape.props.allowMicrophone ? "self" : ""
-          }`}
-        ></iframe>
-        
-        {/* Recording Button */}
-        {shape.props.enableRecording && (
-          <button
-            onClick={async () => {
-              try {
-                if (shape.props.recordingId) {
-                  await this.stopRecording(shape);
-                } else {
-                  await this.startRecording(shape);
-                }
-              } catch (err) {
-                console.error('Recording error:', err);
-              }
-            }}
-            style={{
-              position: "absolute",
-              top: "8px",
-              right: "8px",
-              padding: "4px 8px",
-              background: shape.props.recordingId ? "#ff4444" : "#ffffff",
-              border: "1px solid #ccc",
-              borderRadius: "4px",
-              cursor: "pointer",
-              zIndex: 1,
-            }}
-          >
-            {shape.props.recordingId ? "Stop Recording" : "Start Recording"}
-          </button>
-        )}
 
-        {/* Test Button - Always visible for debugging */}
-        <button
-          onClick={() => {
-            console.log('🧪 Test button clicked!');
-            console.log('Shape props:', shape.props);
-            alert('Test button clicked! Check console for details.');
-          }}
+        {/* Video Container */}
+        <div
           style={{
-            position: "absolute",
-            top: "8px",
-            left: "8px",
-            padding: "4px 8px",
-            background: "#ffff00",
-            border: "1px solid #000",
-            borderRadius: "4px",
-            cursor: "pointer",
-            zIndex: 1000,
-            fontSize: "10px",
+            width: `${shape.props.w}px`,
+            height: `${shape.props.h}px`,
+            position: "relative",
+            top: "0px", // No offset needed since button is positioned above
+            overflow: "hidden",
           }}
         >
-          TEST
-        </button>
-
-        {/* Transcription Button - Only for owners */}
-        {(() => {
-          console.log('🔍 Checking transcription button conditions:');
-          console.log('enableTranscription:', shape.props.enableTranscription);
-          console.log('isOwner:', shape.props.isOwner);
-          console.log('Button should render:', shape.props.enableTranscription && shape.props.isOwner);
-          return shape.props.enableTranscription && shape.props.isOwner;
-        })() && (
-          <button
-            onClick={async () => {
-              console.log('🚀 Transcription button clicked!');
-              console.log('Current transcription state:', shape.props.isTranscribing);
-              console.log('Shape props:', shape.props);
-              
-              try {
-                if (shape.props.isTranscribing) {
-                  console.log('🛑 Stopping transcription...');
-                  await this.stopTranscription(shape);
-                  console.log('✅ Transcription stopped successfully');
-                } else {
-                  console.log('🎤 Starting transcription...');
-                  await this.startTranscription(shape);
-                  console.log('✅ Transcription started successfully');
-                }
-              } catch (err) {
-                console.error('❌ Transcription error:', err);
+        {!useFallback ? (
+          <iframe
+            key={`iframe-${retryCount}`}
+            src={roomUrlWithParams.toString()}
+            width="100%"
+            height="100%"
+            style={{ 
+              border: "none",
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+            }}
+            allow={isNetworkIP ? "*" : "camera; microphone; fullscreen; display-capture; autoplay; encrypted-media; geolocation; web-share"}
+            referrerPolicy={isNetworkIP ? "unsafe-url" : "no-referrer-when-downgrade"}
+            sandbox={isNetworkIP ? "allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation" : undefined}
+            title="Daily.co Video Chat"
+            loading="lazy"
+            onError={(e) => {
+              console.error('Iframe loading error:', e);
+              setIframeError(true);
+              if (retryCount < 2) {
+                console.log(`Retrying iframe load (attempt ${retryCount + 1})`);
+                setTimeout(() => {
+                  setRetryCount(prev => prev + 1);
+                  setIframeError(false);
+                }, 2000);
+              } else {
+                console.log('Switching to fallback iframe configuration');
+                setUseFallback(true);
+                setIframeError(false);
+                setRetryCount(0);
               }
             }}
-            style={{
-              position: "absolute",
-              top: "8px",
-              right: shape.props.enableRecording ? "120px" : "8px",
-              padding: "4px 8px",
-              background: shape.props.isTranscribing ? "#44ff44" : "#ffffff",
-              border: "1px solid #ccc",
-              borderRadius: "4px",
-              cursor: "pointer",
-              zIndex: 1,
+            onLoad={() => {
+              console.log('Iframe loaded successfully');
+              setIframeError(false);
+              setRetryCount(0);
             }}
-          >
-            {shape.props.isTranscribing ? "Stop Transcription" : "Start Transcription"}
-          </button>
+          ></iframe>
+        ) : (
+          <iframe
+            key={`fallback-iframe-${retryCount}`}
+            src={roomUrl}
+            width="100%"
+            height="100%"
+            style={{ 
+              border: "none",
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+            }}
+            allow="*"
+            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation"
+            title="Daily.co Video Chat (Fallback)"
+            onError={(e) => {
+              console.error('Fallback iframe loading error:', e);
+              setIframeError(true);
+              if (retryCount < 3) {
+                console.log(`Retrying fallback iframe load (attempt ${retryCount + 1})`);
+                setTimeout(() => {
+                  setRetryCount(prev => prev + 1);
+                  setIframeError(false);
+                }, 2000);
+              } else {
+                setError(new Error('Failed to load video chat room after multiple attempts'));
+              }
+            }}
+            onLoad={() => {
+              console.log('Fallback iframe loaded successfully');
+              setIframeError(false);
+              setRetryCount(0);
+            }}
+          ></iframe>
         )}
-
-        {/* Transcription History */}
-        {shape.props.transcriptionHistory && shape.props.transcriptionHistory.length > 0 && (
-          <div
-            style={{
-              position: "absolute",
-              bottom: "40px",
-              left: "8px",
-              right: "8px",
-              maxHeight: "200px",
-              overflowY: "auto",
-              background: "rgba(255, 255, 255, 0.95)",
-              borderRadius: "4px",
-              padding: "8px",
-              fontSize: "12px",
-              zIndex: 1,
-              border: "1px solid #ccc",
-            }}
-          >
-            <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
-              Live Transcription:
-            </div>
-            {shape.props.transcriptionHistory.slice(-10).map((msg) => (
-              <div key={msg.id} style={{ marginBottom: "2px" }}>
-                <span style={{ fontWeight: "bold", color: "#666" }}>
-                  {msg.sender}:
-                </span>{" "}
-                <span>{msg.message}</span>
-              </div>
-            ))}
+        
+        {/* Loading indicator */}
+        {iframeError && retryCount < 3 && (
+          <div style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: 'rgba(0, 0, 0, 0.8)',
+            color: 'white',
+            padding: '10px 20px',
+            borderRadius: '5px',
+            zIndex: 10
+          }}>
+            Retrying connection... (Attempt {retryCount + 1}/3)
           </div>
         )}
+        
+        
+        {/* Fallback button if iframe fails */}
+        {iframeError && retryCount >= 3 && (
+          <div style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: 'rgba(0, 0, 0, 0.9)',
+            color: 'white',
+            padding: '20px',
+            borderRadius: '10px',
+            textAlign: 'center',
+            zIndex: 10
+          }}>
+            <p>Video chat failed to load in iframe</p>
+            {isNetworkIP && (
+              <p style={{fontSize: '12px', margin: '10px 0', color: '#ffc107'}}>
+                ⚠️ Network access issue detected: Video chat may not work on {window.location.hostname}:5173 due to WebRTC/CORS restrictions. Try accessing via localhost:5173 or use the "Open in New Tab" button below.
+              </p>
+            )}
+            {isNonLocalhost && !isNetworkIP && (
+              <p style={{fontSize: '12px', margin: '10px 0', color: '#ffc107'}}>
+                ⚠️ CORS issue detected: Try accessing via localhost:5173 instead of {window.location.hostname}:5173
+              </p>
+            )}
+            <p style={{fontSize: '12px', margin: '10px 0'}}>
+              URL: {roomUrlWithParams.toString()}
+            </p>
+            <button
+              onClick={() => window.open(roomUrlWithParams.toString(), '_blank')}
+              style={{
+                background: '#007bff',
+                color: 'white',
+                border: 'none',
+                padding: '10px 20px',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                marginTop: '10px'
+              }}
+            >
+              Open in New Tab
+            </button>
+            <button
+              onClick={() => {
+                setUseFallback(!useFallback);
+                setRetryCount(0);
+                setIframeError(false);
+              }}
+              style={{
+                background: '#28a745',
+                color: 'white',
+                border: 'none',
+                padding: '10px 20px',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                marginTop: '10px',
+                marginLeft: '10px'
+              }}
+            >
+              Try {useFallback ? 'Normal' : 'Fallback'} Mode
+            </button>
+          </div>
+        )}
+        
 
+
+        </div>
+
+        {/* URL Bubble - Below the video iframe */}
         <p
           style={{
             position: "absolute",
-            bottom: 0,
-            left: 0,
+            bottom: "8px",
+            left: "8px",
             margin: "8px",
             padding: "4px 8px",
             background: "rgba(255, 255, 255, 0.9)",
@@ -690,6 +670,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
             cursor: "text",
             userSelect: "text",
             zIndex: 1,
+            top: `${shape.props.h + 50}px`, // Position it below the iframe with proper spacing
           }}
         >
           url: {roomUrl}
