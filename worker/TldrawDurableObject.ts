@@ -13,59 +13,51 @@ import { SlideShape } from "./shapes/SlideShapeUtil"
 import { PromptShape } from "./shapes/PromptShapeUtil"
 import { SharedPianoShape } from "./shapes/SharedPianoShapeUtil"
 
-// Lazy load TLDraw dependencies to avoid startup timeouts
-let customSchema: any = null
-let TLSocketRoom: any = null
+// Import TLDraw dependencies
+import { createTLSchema, defaultBindingSchemas, defaultShapeSchemas } from "@tldraw/tlschema"
+import { TLSocketRoom } from "@tldraw/sync-core"
+
+// Create custom schema
+const customSchema = createTLSchema({
+  shapes: {
+    ...defaultShapeSchemas,
+    ChatBox: {
+      props: ChatBoxShape.props,
+      migrations: ChatBoxShape.migrations,
+    },
+    VideoChat: {
+      props: VideoChatShape.props,
+      migrations: VideoChatShape.migrations,
+    },
+    Embed: {
+      props: EmbedShape.props,
+      migrations: EmbedShape.migrations,
+    },
+    Markdown: {
+      props: MarkdownShape.props,
+      migrations: MarkdownShape.migrations,
+    },
+    MycrozineTemplate: {
+      props: MycrozineTemplateShape.props,
+      migrations: MycrozineTemplateShape.migrations,
+    },
+    Slide: {
+      props: SlideShape.props,
+      migrations: SlideShape.migrations,
+    },
+    Prompt: {
+      props: PromptShape.props,
+      migrations: PromptShape.migrations,
+    },
+    SharedPiano: {
+      props: SharedPianoShape.props,
+      migrations: SharedPianoShape.migrations,
+    },
+  },
+  bindings: defaultBindingSchemas,
+})
 
 async function getTldrawDependencies() {
-  if (!customSchema) {
-    const { createTLSchema, defaultBindingSchemas, defaultShapeSchemas } = await import("@tldraw/tlschema")
-    
-    customSchema = createTLSchema({
-      shapes: {
-        ...defaultShapeSchemas,
-        ChatBox: {
-          props: ChatBoxShape.props,
-          migrations: ChatBoxShape.migrations,
-        },
-        VideoChat: {
-          props: VideoChatShape.props,
-          migrations: VideoChatShape.migrations,
-        },
-        Embed: {
-          props: EmbedShape.props,
-          migrations: EmbedShape.migrations,
-        },
-        Markdown: {
-          props: MarkdownShape.props,
-          migrations: MarkdownShape.migrations,
-        },
-        MycrozineTemplate: {
-          props: MycrozineTemplateShape.props,
-          migrations: MycrozineTemplateShape.migrations,
-        },
-        Slide: {
-          props: SlideShape.props,
-          migrations: SlideShape.migrations,
-        },
-        Prompt: {
-          props: PromptShape.props,
-          migrations: PromptShape.migrations,
-        },
-        SharedPiano: {
-          props: SharedPianoShape.props,
-          migrations: SharedPianoShape.migrations,
-        },
-      },
-      bindings: defaultBindingSchemas,
-    })
-  }
-  
-  if (!TLSocketRoom) {
-    const syncCore = await import("@tldraw/sync-core")
-    TLSocketRoom = syncCore.TLSocketRoom
-  }
-  
   return { customSchema, TLSocketRoom }
 }
 

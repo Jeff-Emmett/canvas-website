@@ -1,4 +1,4 @@
-import { Editor, useDefaultHelpers } from "tldraw"
+import { Editor, useDefaultHelpers, createShapeId } from "tldraw"
 import {
   shapeIdValidator,
   TLArrowShape,
@@ -20,8 +20,9 @@ import { moveToSlide } from "@/slides/useSlides"
 import { ISlideShape } from "@/shapes/SlideShapeUtil"
 import { getEdge } from "@/propagators/tlgraph"
 import { llm, getApiKey } from "@/utils/llmUtils"
+import type FileSystem from "@oddjs/odd/fs/index"
 
-export const overrides: TLUiOverrides = {
+export const createOverrides = (fileSystem?: FileSystem | null): TLUiOverrides => ({
   tools(editor, tools) {
     return {
       ...tools,
@@ -160,15 +161,6 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("SharedPiano"),
       },
-      gesture: {
-        id: "gesture",
-        icon: "draw",
-        label: "Gesture",
-        kbd: "g",
-        readonlyOk: true,
-        type: "gesture",
-        onSelect: () => editor.setCurrentTool("gesture"),
-      },
       hand: {
         ...tools.hand,
         onDoubleClick: (info: any) => {
@@ -190,7 +182,7 @@ export const overrides: TLUiOverrides = {
       zoomToSelection: {
         id: "zoom-to-selection",
         label: "Zoom to Selection",
-        kbd: "z",
+        kbd: "alt+z",
         onSelect: () => {
           if (editor.getSelectedShapeIds().length > 0) {
             zoomToSelection(editor)
@@ -251,7 +243,6 @@ export const overrides: TLUiOverrides = {
       moveSelectedLeft: {
         id: "move-selected-left",
         label: "Move Left",
-        kbd: "ArrowLeft",
         onSelect: () => {
           const selectedShapes = editor.getSelectedShapes()
           if (selectedShapes.length > 0) {
@@ -269,7 +260,6 @@ export const overrides: TLUiOverrides = {
       moveSelectedRight: {
         id: "move-selected-right",
         label: "Move Right",
-        kbd: "ArrowRight",
         onSelect: () => {
           const selectedShapes = editor.getSelectedShapes()
           if (selectedShapes.length > 0) {
@@ -287,7 +277,6 @@ export const overrides: TLUiOverrides = {
       moveSelectedUp: {
         id: "move-selected-up",
         label: "Move Up",
-        kbd: "ArrowUp",
         onSelect: () => {
           const selectedShapes = editor.getSelectedShapes()
           if (selectedShapes.length > 0) {
@@ -305,7 +294,6 @@ export const overrides: TLUiOverrides = {
       moveSelectedDown: {
         id: "move-selected-down",
         label: "Move Down",
-        kbd: "ArrowDown",
         onSelect: () => {
           const selectedShapes = editor.getSelectedShapes()
           if (selectedShapes.length > 0) {
@@ -323,7 +311,7 @@ export const overrides: TLUiOverrides = {
       searchShapes: {
         id: "search-shapes",
         label: "Search Shapes",
-        kbd: "s",
+        kbd: "alt+s",
         readonlyOk: true,
         onSelect: () => searchText(editor),
       },
@@ -333,58 +321,104 @@ export const overrides: TLUiOverrides = {
         kbd: "alt+g",
         readonlyOk: true,
         onSelect: () => {
+          console.log("🎯 LLM action triggered")
 
           const selectedShapes = editor.getSelectedShapes()
+          console.log("Selected shapes:", selectedShapes.length, selectedShapes.map(s => s.type))
 
           
           if (selectedShapes.length > 0) {
             const selectedShape = selectedShapes[0] as TLArrowShape
+            console.log("First selected shape type:", selectedShape.type)
 
             
             if (selectedShape.type !== "arrow") {
-
+              console.log("❌ Selected shape is not an arrow, returning")
               return
             }
             const edge = getEdge(selectedShape, editor)
+            console.log("Edge found:", edge)
 
             
             if (!edge) {
-
+              console.log("❌ No edge found, returning")
               return
             }
+            
             const sourceShape = editor.getShape(edge.from)
+            const targetShape = editor.getShape(edge.to)
+            console.log("Arrow direction: FROM", sourceShape?.type, "TO", targetShape?.type)
+            
             const sourceText =
               sourceShape && sourceShape.type === "geo"
                 ? (sourceShape.meta as any)?.text || ""
                 : ""
+            console.log("Source shape:", sourceShape?.type, "Source text:", sourceText)
+            console.log("Target shape:", targetShape?.type, "Will generate content here")
 
             
             const prompt = `Instruction: ${edge.text}
               ${sourceText ? `Context: ${sourceText}` : ""}`;
+            console.log("Generated prompt:", prompt)
 
             
             try {
+              console.log("🚀 Calling LLM with prompt...")
               llm(prompt, (partialResponse: string) => {
+                console.log("📝 LLM callback received:", partialResponse.substring(0, 100) + "...")
+                const targetShape = editor.getShape(edge.to)
+                console.log("Target shape for content generation:", targetShape?.type, "ID:", edge.to)
+                if (!targetShape) {
+                  console.log("❌ No target shape found")
+                  return
+                }
 
-                const targetShape = editor.getShape(edge.to) as TLGeoShape
-                editor.updateShape({
-                  id: edge.to,
-                  type: "geo",
-                  props: {
-                    ...targetShape.props,
-                  },
-                  meta: {
-                    ...targetShape.meta,
-                    text: partialResponse, // Store text in meta instead of props
-                  },
-                })
-
+                // Check if the target shape is a geo shape
+                if (targetShape.type === "geo") {
+                  console.log("✅ Updating existing geo shape with LLM response")
+                  editor.updateShape({
+                    id: edge.to,
+                    type: "geo",
+                    meta: {
+                      ...targetShape.meta,
+                      text: partialResponse,
+                    },
+                  })
+                  console.log("✅ Content updated in target geo shape")
+                } else {
+                  console.log("🆕 Target is not a geo shape, creating new geo shape at target location")
+                  // If it's not a geo shape, create a new geo shape at the target location
+                  const bounds = editor.getShapePageBounds(edge.to)
+                  console.log("Target bounds:", bounds)
+                  if (bounds) {
+                    console.log("✅ Creating new geo shape with LLM response at target location")
+                    editor.createShape({
+                      id: createShapeId(),
+                      type: "geo",
+                      x: bounds.x,
+                      y: bounds.y,
+                      props: {
+                        w: Math.max(200, partialResponse.length * 8),
+                        h: 100,
+                        geo: "rectangle",
+                        color: "black",
+                        fill: "none",
+                        dash: "draw",
+                        size: "m",
+                      },
+                      meta: {
+                        text: partialResponse,
+                      },
+                    })
+                    console.log("✅ New geo shape created with LLM response")
+                  }
+                }
               })
             } catch (error) {
               console.error("Error calling LLM:", error);
             }
           } else {
-            
+            console.log("❌ No shapes selected")
           }
         },
       },

@@ -9,81 +9,16 @@ import {
 	TLDrawShape,
 	TLShapePartial,
 } from "tldraw"
-import { DollarRecognizer } from "@/gestures"
-import { DEFAULT_GESTURES } from "@/default_gestures"
 
 export const overrides: TLUiOverrides = {
 	tools(editor, tools) {
 		return {
 			...tools,
-			gesture: {
-				id: "gesture",
-				name: "Gesture",
-				icon: "👆",
-				kbd: "g",
-				label: "Gesture",
-				onSelect: () => {
-					editor.setCurrentTool("gesture")
-				},
-			},
 		}
 	},
 	actions(editor, actions): TLUiActionsContextType {
-		const R = new DollarRecognizer(DEFAULT_GESTURES)
 		return {
 			...actions,
-			recognize: {
-				id: "recognize",
-				kbd: "c",
-				onSelect: () => {
-					const onlySelectedShape = editor.getOnlySelectedShape()
-					if (!onlySelectedShape || onlySelectedShape.type !== "draw") return
-					console.log("recognizing")
-					const verts = editor.getShapeGeometry(onlySelectedShape).vertices
-					const result = R.recognize(verts)
-					console.log(result)
-				},
-			},
-			addGesture: {
-				id: "addGesture",
-				kbd: "x",
-				onSelect: () => {
-					const onlySelectedShape = editor.getOnlySelectedShape()
-					if (!onlySelectedShape || onlySelectedShape.type !== "draw") return
-					const name = onlySelectedShape.meta.name
-					if (!name) return
-					console.log("adding gesture:", name)
-					const points = editor.getShapeGeometry(onlySelectedShape).vertices
-					R.addGesture(name as string, points)
-				},
-			},
-			recognizeAndSnap: {
-				id: "recognizeAndSnap",
-				kbd: "z",
-				onSelect: () => {
-					const onlySelectedShape = editor.getOnlySelectedShape()
-					if (!onlySelectedShape || onlySelectedShape.type !== "draw") return
-					const points = editor.getShapeGeometry(onlySelectedShape).vertices
-					const result = R.recognize(points)
-					console.log("morphing to closest:", result.name)
-					const newShape: TLShapePartial<TLDrawShape> = {
-						...onlySelectedShape,
-						type: "draw",
-						props: {
-							...onlySelectedShape.props,
-							segments: [
-								{
-									points: R.unistrokes
-										.find((u) => u.name === result.name)
-										?.originalPoints() || [],
-									type: "free",
-								},
-							],
-						},
-					}
-					editor.animateShape(newShape)
-				},
-			},
 		}
 	},
 }

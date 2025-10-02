@@ -40,7 +40,6 @@ import {
 } from "@/ui/cameraUtils"
 import { Collection, initializeGlobalCollections } from "@/collections"
 import { GraphLayoutCollection } from "@/graph/GraphLayoutCollection"
-import { GestureTool } from "@/GestureTool"
 import { CmdK } from "@/CmdK"
 
 
@@ -76,7 +75,6 @@ const customTools = [
   MarkdownTool,
   PromptShapeTool,
   SharedPianoTool,
-  GestureTool,
 ]
 
 export function Board() {

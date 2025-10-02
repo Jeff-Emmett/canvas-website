@@ -102,7 +102,14 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
   // Keyboard shortcut for adding to collection
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'c' && !event.ctrlKey && !event.altKey && !event.metaKey) {
+      // Only trigger if not typing in a text input, textarea, or contenteditable element
+      const target = event.target as HTMLElement
+      const isTextInput = target.tagName === 'INPUT' || 
+                         target.tagName === 'TEXTAREA' || 
+                         target.contentEditable === 'true' ||
+                         target.closest('[contenteditable="true"]')
+      
+      if (event.key === 'c' && !event.ctrlKey && !event.altKey && !event.metaKey && !isTextInput) {
         event.preventDefault()
         if (hasSelection && collection && !allSelectedShapesInCollection) {
           handleAddToCollection()
@@ -173,7 +180,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
             id="add-to-collection"
             label="Add to Collection"
             icon="plus"
-            kbd="c"
+            kbd="alt+a"
             disabled={!hasSelection || !collection}
             onSelect={handleAddToCollection}
           />
@@ -232,7 +239,6 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           id="search-text"
           label="Search Text"
           icon="search"
-          kbd="s"
           onSelect={() => searchText(editor)}
         />
       </TldrawUiMenuGroup>

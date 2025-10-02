@@ -78,10 +78,20 @@ const unpackShape = (shape: any) => {
     return prop !== undefined ? constructor(prop) : undefined;
   };
   
-  // Only add text property for shapes that support it (like text shapes)
+  // Handle text shapes properly - convert text property to richText if needed
   const shapeProps = { ...props }
-  if (type === 'text' && props.text !== undefined) {
-    shapeProps.text = cast(props.text, String)
+  if (type === 'text') {
+    // Remove any text property as it's not valid for TLDraw text shapes
+    if ('text' in shapeProps) {
+      delete shapeProps.text
+    }
+    // Ensure richText exists for text shapes
+    if (!shapeProps.richText) {
+      shapeProps.richText = {
+        content: [],
+        type: 'doc'
+      }
+    }
   }
   
   return {
