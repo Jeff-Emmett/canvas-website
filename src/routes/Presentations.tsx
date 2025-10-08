@@ -18,7 +18,7 @@ export function Presentations() {
       </div>
 
       <div className="presentations-grid">
-        <div className="presentation-card">
+        <div id="osmotic-governance" className="presentation-card">
           <h3>Osmotic Governance</h3>
           <p>Exploring the intersection of mycelium and emancipatory technologies</p>
           <div className="presentation-embed">
@@ -43,7 +43,7 @@ export function Presentations() {
           </div>
         </div>
 
-        <div className="presentation-card">
+        <div id="exploring-mycofi" className="presentation-card">
           <h3>Exploring MycoFi</h3>
           <p>Mycelial design patterns for Web3 and beyond</p>
           <div className="presentation-embed">
@@ -68,7 +68,7 @@ export function Presentations() {
           </div>
         </div>
 
-        <div className="presentation-card">
+        <div id="mycofi-cofi-gathering" className="presentation-card">
           <h3>MycoFi talk at CoFi gathering</h3>
           <p>Mycelial design patterns for Web3 and beyond</p>
           <div className="presentation-embed">
@@ -95,7 +95,7 @@ export function Presentations() {
 
 
 
-        <div className="presentation-card">
+        <div id="myco-mutualism" className="presentation-card">
           <h3>Myco-Mutualism</h3>
           <p>Exploring mutualistic relationships in mycelial networks and their applications to human systems</p>
           <div className="presentation-embed">
@@ -118,7 +118,7 @@ export function Presentations() {
           </div>
         </div>
 
-        <div className="presentation-card">
+        <div id="psilocybernetics" className="presentation-card">
           <h3>Psilocybernetics: The Emergence of Institutional Neuroplasticity</h3>
           <p>Exploring the intersection of mycelium and cybernetic institutional design</p>
           <div className="presentation-embed">
@@ -141,7 +141,7 @@ export function Presentations() {
           </div>
         </div>
 
-        <div className="presentation-card">
+        <div id="move-slow-fix-things" className="presentation-card">
           <h3>Move Slow & Fix Things: The Commons Stack Design Pattern</h3>
           <p>Design patterns for sustainable commons infrastructure</p>
           <div className="presentation-embed">
@@ -166,7 +166,7 @@ export function Presentations() {
           </div>
         </div>
 
-        <div className="presentation-card">
+        <div id="commons-stack-launch" className="presentation-card">
           <h3>Commons Stack Launch & Open Sourcing cadCAD</h3>
           <p>The launch of Commons Stack and the open sourcing of cadCAD for token engineering</p>
           <div className="presentation-embed">
@@ -191,7 +191,7 @@ export function Presentations() {
           </div>
         </div>
 
-        <div className="presentation-card">
+        <div id="conviction-voting" className="presentation-card">
           <h3>New Tools for Dynamic Collective Intelligence: Conviction Voting & Variations</h3>
           <p>Exploring innovative voting mechanisms for collective decision-making in decentralized systems</p>
           <div className="presentation-embed">
@@ -214,7 +214,7 @@ export function Presentations() {
           </div>
         </div>
 
-        <div className="presentation-card">
+        <div id="polycentric-governance" className="presentation-card">
           <h3>Exploring Polycentric Governance in Web3 Ecosystems</h3>
           <p>Understanding multi-level governance structures in decentralized networks</p>
           <div className="presentation-embed">
@@ -239,7 +239,7 @@ export function Presentations() {
           </div>
         </div>
 
-        <div className="presentation-card">
+        <div id="mycofi-myco-munnities" className="presentation-card">
           <h3>MycoFi for Myco-munnities</h3>
           <p>Exploring mycelial financial systems for community-based organizations</p>
           <div className="presentation-embed">
@@ -262,7 +262,7 @@ export function Presentations() {
           </div>
         </div>
 
-        <div className="presentation-card">
+        <div id="community-resilience" className="presentation-card">
           <h3>Building Community Resilience in an Age of Crisis</h3>
           <p>Internet outages during crises, such as wars or environmental disasters, can disrupt communication, education, and access to vital information. Preparing for such disruptions is essential for communities and organizations operating in challenging environments.</p>
           <div className="presentation-embed">
