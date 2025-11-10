@@ -219,19 +219,19 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
             // We need to handle both binary and text messages
             if (event.data instanceof ArrayBuffer) {
               console.log('🔌 CloudflareAdapter: Received binary message (Automerge protocol)')
-              // Handle binary Automerge sync messages - pass directly to Repo
-              // Automerge Repo expects binary sync messages as ArrayBuffer
+              // Handle binary Automerge sync messages - convert ArrayBuffer to Uint8Array
+              // Automerge Repo expects binary sync messages as Uint8Array
               this.emit('message', {
                 type: 'sync',
-                data: event.data
+                data: new Uint8Array(event.data)
               })
             } else if (event.data instanceof Blob) {
-              // Handle Blob messages (convert to ArrayBuffer)
+              // Handle Blob messages (convert to Uint8Array)
               event.data.arrayBuffer().then((buffer) => {
-                console.log('🔌 CloudflareAdapter: Received Blob message, converted to ArrayBuffer')
+                console.log('🔌 CloudflareAdapter: Received Blob message, converted to Uint8Array')
                 this.emit('message', {
                   type: 'sync',
-                  data: buffer
+                  data: new Uint8Array(buffer)
                 })
               })
             } else {

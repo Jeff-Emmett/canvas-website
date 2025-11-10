@@ -79,8 +79,8 @@ interface Message {
 // Update the ChatBox component to accept userName
 export const ChatBox: React.FC<IChatBoxShape["props"]> = ({
   roomId,
-  w,
-  h,
+  w: _w,
+  h: _h,
   userName,
 }) => {
   const [messages, setMessages] = useState<Message[]>([])

@@ -981,7 +981,7 @@ export class ObsNoteShape extends BaseBoxShapeUtil<IObsNoteShape> {
   /**
    * Sanitize props to ensure all values are JSON serializable
    */
-  private static sanitizeProps(props: Partial<IObsNoteShape['props']>): IObsNoteShape['props'] {
+  public static sanitizeProps(props: Partial<IObsNoteShape['props']>): IObsNoteShape['props'] {
     // Ensure tags is a proper string array
     const tags = Array.isArray(props.tags)
       ? props.tags.filter(tag => typeof tag === 'string').map(tag => String(tag))

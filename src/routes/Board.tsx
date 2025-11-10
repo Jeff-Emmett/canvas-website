@@ -206,7 +206,7 @@ export function Board() {
   const store = { 
     store: storeWithHandle.store, 
     status: storeWithHandle.status,
-    connectionStatus: storeWithHandle.connectionStatus,
+    ...('connectionStatus' in storeWithHandle ? { connectionStatus: storeWithHandle.connectionStatus } : {}),
     error: storeWithHandle.error
   }
   const automergeHandle = storeWithHandle.handle
@@ -405,11 +405,11 @@ export function Board() {
         const isInputFocused = (target && (
           target.tagName === 'INPUT' ||
           target.tagName === 'TEXTAREA' ||
-          target.isContentEditable
+          (target instanceof HTMLElement && target.isContentEditable)
         )) || (activeElement && (
           activeElement.tagName === 'INPUT' ||
           activeElement.tagName === 'TEXTAREA' ||
-          activeElement.isContentEditable
+          (activeElement instanceof HTMLElement && activeElement.isContentEditable)
         ));
 
         // If an input is focused, let it handle Escape (don't prevent default)

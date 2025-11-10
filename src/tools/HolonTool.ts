@@ -125,6 +125,10 @@ export class HolonIdle extends StateNode {
   
   override onExit = () => {
     this.cleanupTooltip()
+    // Clean up event listeners
+    if ((this as any).cleanup) {
+      ;(this as any).cleanup()
+    }
   }
   
   private cleanupTooltip = () => {
@@ -278,123 +282,6 @@ export class HolonIdle extends StateNode {
     }
   }
 
-  private createHolonShape(clickX?: number, clickY?: number) {
-    try {
-      // Store current camera position to prevent it from changing
-      const currentCamera = this.editor.getCamera()
-      this.editor.stopCameraAnimation()
-      
-      // Standardized size: 700x400 (matches default props to fit ID and button)
-      const shapeWidth = 700
-      const shapeHeight = 400
-      
-      // Use click position if available, otherwise fall back to viewport center
-      let baseX: number
-      let baseY: number
-      
-      if (clickX !== undefined && clickY !== undefined) {
-        // Position new Holon shape at click location (centered on click)
-        baseX = clickX - shapeWidth / 2 // Center the shape on click
-        baseY = clickY - shapeHeight / 2 // Center the shape on click
-        console.log('📍 HolonTool: Calculated base position from click:', { clickX, clickY, baseX, baseY, shapeWidth, shapeHeight })
-      } else {
-        // Fallback to viewport center if no click coordinates
-        const viewport = this.editor.getViewportPageBounds()
-        const centerX = viewport.x + viewport.w / 2
-        const centerY = viewport.y + viewport.h / 2
-        baseX = centerX - shapeWidth / 2 // Center the shape
-        baseY = centerY - shapeHeight / 2 // Center the shape
-      }
-      
-      // Find existing Holon shapes for naming
-      const allShapes = this.editor.getCurrentPageShapes()
-      const existingHolonShapes = allShapes.filter(s => s.type === 'Holon')
-      
-      // ALWAYS use click position directly when provided - user clicked where they want it
-      // Skip collision detection entirely for user clicks to ensure it appears exactly where clicked
-      let finalX = baseX
-      let finalY = baseY
-      
-      if (clickX !== undefined && clickY !== undefined) {
-        // User clicked - ALWAYS use that exact position, no collision detection
-        // This ensures the shape appears exactly where the user clicked
-        finalX = baseX
-        finalY = baseY
-        console.log('📍 Using click position directly (no collision check):', { 
-          clickPosition: { x: clickX, y: clickY }, 
-          shapePosition: { x: finalX, y: finalY },
-          shapeSize: { w: shapeWidth, h: shapeHeight }
-        })
-      } else {
-        // For fallback (no click), use collision detection
-        const position = findNonOverlappingPosition(
-          this.editor,
-          baseX,
-          baseY,
-          shapeWidth,
-          shapeHeight
-        )
-        finalX = position.x
-        finalY = position.y
-        console.log('📍 No click position - using collision detection:', { finalX, finalY })
-      }
-      
-      // Default coordinates (can be changed by user)
-      const defaultLat = 40.7128 // NYC
-      const defaultLng = -74.0060
-      const defaultResolution = 7 // City level
-      
-      console.log('📍 HolonTool: Final position for shape:', { finalX, finalY, wasOverlap: clickX !== undefined && clickY !== undefined && (finalX !== baseX || finalY !== baseY) })
-      
-      const holonShape = this.editor.createShape({
-        type: 'Holon',
-        x: finalX,
-        y: finalY,
-        props: {
-          w: shapeWidth,
-          h: shapeHeight,
-          name: `Holon ${existingHolonShapes.length + 1}`,
-          description: '',
-          latitude: defaultLat,
-          longitude: defaultLng,
-          resolution: defaultResolution,
-          holonId: '',
-          isConnected: false,
-          isEditing: true,
-          selectedLens: 'general',
-          data: {},
-          connections: [],
-          lastUpdated: Date.now()
-        }
-      })
-      
-      console.log('✅ Created Holon shape:', holonShape.id)
-      
-      // Restore camera position if it changed
-      const newCamera = this.editor.getCamera()
-      if (currentCamera.x !== newCamera.x || currentCamera.y !== newCamera.y || currentCamera.z !== newCamera.z) {
-        this.editor.setCamera(currentCamera, { animation: { duration: 0 } })
-      }
-      
-      // Select the new shape
-      setTimeout(() => {
-        // Preserve camera position when selecting
-        const cameraBeforeSelect = this.editor.getCamera()
-        this.editor.stopCameraAnimation()
-        this.editor.setSelectedShapes([`shape:${holonShape.id}`] as any)
-        this.editor.setCurrentTool('select')
-        // Restore camera if it changed during selection
-        const cameraAfterSelect = this.editor.getCamera()
-        if (cameraBeforeSelect.x !== cameraAfterSelect.x || cameraBeforeSelect.y !== cameraAfterSelect.y || cameraBeforeSelect.z !== cameraAfterSelect.z) {
-          this.editor.setCamera(cameraBeforeSelect, { animation: { duration: 0 } })
-        }
-      }, 100)
-      
-    } catch (error) {
-      console.error('❌ Error creating Holon shape:', error)
-    }
-  }
-
   private addRefreshAllListener() {
     // Listen for refresh-all-holons event
     const handleRefreshAll = async () => {
@@ -438,12 +325,5 @@ export class HolonIdle extends StateNode {
     
     // Store cleanup function for later use
     ;(this as any).cleanup = cleanup
-  }
-
-  onExit() {
-    // Clean up event listeners
-    if ((this as any).cleanup) {
-      ;(this as any).cleanup()
-    }
   }
 }
