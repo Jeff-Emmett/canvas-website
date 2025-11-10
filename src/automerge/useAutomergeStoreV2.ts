@@ -439,11 +439,29 @@ export function useAutomergeStoreV2({
               if (!processedRecord.meta || typeof processedRecord.meta !== 'object') processedRecord.meta = {}
               if (!processedRecord.index) processedRecord.index = 'a1'
               if (!processedRecord.parentId) {
-                const pageRecord = records.find((r: any) => r.typeName === 'page') as any
+                // Find all page records
+                const pageRecords = records.filter((r: any) => r.typeName === 'page') as any[]
+                // Prefer 'page:page' if it exists, otherwise use the first page found
+                const pageRecord = pageRecords.find((p: any) => p.id === 'page:page') || pageRecords[0]
                 if (pageRecord && pageRecord.id) {
                   processedRecord.parentId = pageRecord.id
                 } else {
+                  // Default to 'page:page' - TLDraw will create it if needed
                   processedRecord.parentId = 'page:page'
+                }
+              } else {
+                // Validate that the parentId points to an existing page
+                const parentPage = records.find((r: any) => r.typeName === 'page' && r.id === processedRecord.parentId)
+                if (!parentPage) {
+                  // Parent page doesn't exist, assign to first available page or default
+                  const pageRecords = records.filter((r: any) => r.typeName === 'page') as any[]
+                  const pageRecord = pageRecords.find((p: any) => p.id === 'page:page') || pageRecords[0]
+                  if (pageRecord && pageRecord.id) {
+                    console.log(`🔧 Shape ${processedRecord.id} has invalid parentId ${processedRecord.parentId}, reassigning to ${pageRecord.id}`)
+                    processedRecord.parentId = pageRecord.id
+                  } else {
+                    processedRecord.parentId = 'page:page'
+                  }
                 }
               }
               if (!processedRecord.props || typeof processedRecord.props !== 'object') processedRecord.props = {}

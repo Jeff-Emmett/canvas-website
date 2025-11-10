@@ -131,17 +131,19 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
                         if (!recordToSave.id && recordAny.id) {
                           recordToSave.id = recordAny.id
                         }
-                        if (!recordToSave.type && recordAny.type) {
-                          recordToSave.type = recordAny.type
+                        // Use bracket notation to avoid TypeScript errors on union types
+                        if (!recordToSave.type && (recordAny as any).type) {
+                          recordToSave.type = (recordAny as any).type
                         }
-                        if (!recordToSave.props && recordAny.props) {
-                          recordToSave.props = recordAny.props
+                        if (!recordToSave.props && (recordAny as any).props) {
+                          recordToSave.props = (recordAny as any).props
                         }
                         // Copy all enumerable properties that might have been lost
                         for (const prop in recordAny) {
                           if (!(prop in recordToSave)) {
                             try {
-                              recordToSave[prop] = recordAny[prop]
+                              // Use bracket notation with explicit any cast to avoid indexing errors
+                              (recordToSave as any)[prop] = (recordAny as any)[prop]
                             } catch (e) {
                               // Skip properties that can't be accessed
                             }
@@ -153,7 +155,8 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
                         recordToSave = {}
                         for (const prop in recordAny) {
                           try {
-                            recordToSave[prop] = recordAny[prop]
+                            // Use bracket notation with explicit any cast to avoid indexing errors
+                            (recordToSave as any)[prop] = (recordAny as any)[prop]
                           } catch (e) {
                             // Skip properties that can't be accessed
                           }
