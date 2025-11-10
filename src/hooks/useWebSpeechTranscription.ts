@@ -83,7 +83,7 @@ export const useWebSpeechTranscription = ({
   const speakerChangeThreshold = 0.3 // Threshold for detecting speaker changes
 
   // Function to add line breaks after pauses and improve punctuation
-  const processTranscript = useCallback((text: string, isFinal: boolean = false, confidence?: number) => {
+  const processTranscript = useCallback((text: string, isFinal: boolean = false, _confidence?: number) => {
     if (!text.trim()) return text
 
     let processedText = text.trim()

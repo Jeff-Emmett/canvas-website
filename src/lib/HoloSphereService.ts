@@ -185,14 +185,14 @@ export class HoloSphereService {
             })
             // Handle Promise if subscribe returns one
             if (subscribeResult instanceof Promise) {
-              subscribeResult.then((result) => {
+              subscribeResult.then((result: any) => {
                 unsubscribe = result?.unsubscribe || undefined
                 console.log(`✅ Subscribe called successfully for ${lens}`)
               }).catch((err) => {
                 console.error(`❌ Error in subscribe promise for ${lens}:`, err)
               })
             } else {
-              unsubscribe = subscribeResult?.unsubscribe || undefined
+              unsubscribe = (subscribeResult as any)?.unsubscribe || undefined
               console.log(`✅ Subscribe called successfully for ${lens}`)
             }
           } catch (subError) {

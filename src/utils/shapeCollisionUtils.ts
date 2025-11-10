@@ -36,7 +36,7 @@ export function resolveOverlaps(editor: Editor, shapeId: string): void {
     'Embed', 'Slide', 'Markdown', 'SharedPiano', 'MycrozineTemplate', 'ChatBox'
   ]
   
-  const shape = editor.getShape(shapeId)
+  const shape = editor.getShape(shapeId as TLShapeId)
   if (!shape || !customShapeTypes.includes(shape.type)) return
   
   const shapeBounds = getShapeBounds(editor, shape)
