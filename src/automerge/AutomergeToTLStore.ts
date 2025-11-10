@@ -119,7 +119,7 @@ export function applyAutomergePatchesToTLStore(
       
       // Create new object with correct typeName if it changed
       if (correctTypeName !== record.typeName) {
-        record = { ...record, typeName: correctTypeName }
+        record = { ...record, typeName: correctTypeName } as TLRecord
       }
     }
 

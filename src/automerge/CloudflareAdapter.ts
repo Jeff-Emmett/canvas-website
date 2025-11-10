@@ -157,6 +157,7 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
   private workerUrl: string
   private websocket: WebSocket | null = null
   private roomId: string | null = null
+  private peerId: PeerId | null = null
   private readyPromise: Promise<void>
   private readyResolve: (() => void) | null = null
   private keepAliveInterval: NodeJS.Timeout | null = null
@@ -188,6 +189,9 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
       console.log('🔌 CloudflareAdapter: Connection already in progress, skipping')
       return
     }
+
+    // Store peerId
+    this.peerId = peerId
 
     // Clean up existing connection
     this.cleanup()
@@ -223,16 +227,20 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
               // Automerge Repo expects binary sync messages as Uint8Array
               this.emit('message', {
                 type: 'sync',
-                data: new Uint8Array(event.data)
-              })
+                data: new Uint8Array(event.data),
+                senderId: this.peerId || 'unknown' as PeerId,
+                targetId: this.peerId || 'unknown' as PeerId
+              } as Message)
             } else if (event.data instanceof Blob) {
               // Handle Blob messages (convert to Uint8Array)
               event.data.arrayBuffer().then((buffer) => {
                 console.log('🔌 CloudflareAdapter: Received Blob message, converted to Uint8Array')
                 this.emit('message', {
                   type: 'sync',
-                  data: new Uint8Array(buffer)
-                })
+                  data: new Uint8Array(buffer),
+                  senderId: this.peerId || 'unknown' as PeerId,
+                  targetId: this.peerId || 'unknown' as PeerId
+                } as Message)
               })
             } else {
               // Handle text messages (our custom protocol for backward compatibility)

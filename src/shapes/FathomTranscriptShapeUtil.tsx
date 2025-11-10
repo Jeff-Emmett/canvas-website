@@ -201,18 +201,6 @@ export class FathomTranscriptShape extends BaseBoxShapeUtil<IFathomTranscript> {
       gap: '12px',
     }
 
-    const buttonStyle: React.CSSProperties = {
-      padding: '4px 8px',
-      fontSize: '10px',
-      border: '1px solid #ccc',
-      borderRadius: '4px',
-      backgroundColor: 'white',
-      cursor: 'pointer',
-      zIndex: 1000,
-      position: 'relative',
-      pointerEvents: 'auto',
-    }
-
     const transcriptEntryStyle: React.CSSProperties = {
       marginBottom: '8px',
       padding: '8px',
