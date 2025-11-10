@@ -11,7 +11,8 @@
 		"build": "tsc && vite build",
 		"build:worker": "wrangler build --config wrangler.dev.toml",
 		"preview": "vite preview",
-		"deploy": "tsc && vite build && vercel deploy --prod && wrangler deploy",
+		"deploy": "tsc && vite build && wrangler deploy",
+		"deploy:pages": "tsc && vite build",
 		"deploy:worker": "wrangler deploy",
 		"deploy:worker:dev": "wrangler deploy --config wrangler.dev.toml",
 		"types": "tsc --noEmit"
