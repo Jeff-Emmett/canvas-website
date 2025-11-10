@@ -6,7 +6,7 @@
 // - 'dev': Use Cloudflare dev environment (jeffemmett-canvas-automerge-dev)
 // - 'production': Use production environment (jeffemmett-canvas)
 
-const WORKER_ENV = import.meta.env.VITE_WORKER_ENV || 'dev' // Default to dev for testing
+const WORKER_ENV = import.meta.env.VITE_WORKER_ENV || 'production' // Default to production
 
 const WORKER_URLS = {
   local: `http://${window.location.hostname}:5172`,

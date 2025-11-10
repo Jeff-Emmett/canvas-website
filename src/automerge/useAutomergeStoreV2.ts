@@ -383,7 +383,50 @@ export function useAutomergeStoreV2({
           // Note: obsidian_vault records are filtered out above - they're not TLDraw records
           const processedRecords = records.map((record: any) => {
             // Create a deep copy to avoid modifying immutable Automerge objects
-            const processedRecord = JSON.parse(JSON.stringify(record))
+            // Use a more robust serialization that handles Automerge proxies
+            let processedRecord: any
+            try {
+              // First try JSON serialization (works for most cases)
+              processedRecord = JSON.parse(JSON.stringify(record))
+              // Verify the record has essential properties
+              if (!processedRecord.typeName || !processedRecord.id) {
+                // If serialization lost properties, try accessing them directly
+                processedRecord = {
+                  ...record,
+                  typeName: record.typeName,
+                  id: record.id,
+                  type: record.type,
+                  props: record.props ? { ...record.props } : {},
+                }
+                // Copy all enumerable properties
+                for (const key in record) {
+                  if (!(key in processedRecord)) {
+                    try {
+                      processedRecord[key] = record[key]
+                    } catch (e) {
+                      // Skip properties that can't be accessed
+                    }
+                  }
+                }
+              }
+            } catch (e) {
+              // Fallback: manual copy if JSON serialization fails
+              console.warn(`⚠️ JSON serialization failed for record ${record?.id}, using manual copy:`, e)
+              processedRecord = {
+                typeName: record.typeName,
+                id: record.id,
+                type: record.type,
+                props: record.props ? { ...record.props } : {},
+              }
+              // Copy all enumerable properties
+              for (const key in record) {
+                try {
+                  processedRecord[key] = record[key]
+                } catch (err) {
+                  // Skip properties that can't be accessed
+                }
+              }
+            }
             
             // CRITICAL FIXES ONLY - preserve all other properties
             if (processedRecord.typeName === 'shape') {
