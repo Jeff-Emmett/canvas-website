@@ -197,7 +197,7 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
         onPointerDown={handleHeaderPointerDown}
         onMouseEnter={() => setIsHoveringHeader(true)}
         onMouseLeave={() => setIsHoveringHeader(false)}
-        onMouseDown={(e) => {
+        onMouseDown={(_e) => {
           // Ensure selection happens on mouse down for immediate visual feedback
           if (editor && shapeId && !isSelected) {
             editor.setSelectedShapes([shapeId])

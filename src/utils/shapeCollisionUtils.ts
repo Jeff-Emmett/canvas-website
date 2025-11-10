@@ -1,4 +1,4 @@
-import { Editor, TLShape, Box } from "@tldraw/tldraw"
+import { Editor, TLShape, Box, TLShapeId } from "@tldraw/tldraw"
 
 /**
  * Check if two boxes overlap
@@ -20,8 +20,9 @@ function boxesOverlap(
  * Get the bounding box of a shape
  */
 function getShapeBounds(editor: Editor, shape: TLShape | string): Box | null {
-  const shapeId = typeof shape === 'string' ? shape : shape.id
-  return editor.getShapePageBounds(shapeId)
+  const shapeId = typeof shape === 'string' ? (shape as TLShapeId) : shape.id
+  const bounds = editor.getShapePageBounds(shapeId)
+  return bounds ?? null
 }
 
 /**
@@ -70,7 +71,7 @@ export function resolveOverlaps(editor: Editor, shapeId: string): void {
       const newY = shapeBox.y // Keep same Y position
       
       editor.updateShape({
-        id: shapeId,
+        id: shapeId as TLShapeId,
         type: shape.type,
         x: newX,
         y: newY,
@@ -90,7 +91,7 @@ export function resolveOverlaps(editor: Editor, shapeId: string): void {
         if (boxesOverlap(newShapeBox, otherBox, 20)) {
           const newY2 = otherBox.y + otherBox.h + 20
           editor.updateShape({
-            id: shapeId,
+            id: shapeId as TLShapeId,
             type: shape.type,
             x: shapeBox.x, // Keep original X
             y: newY2,

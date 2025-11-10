@@ -66,9 +66,10 @@ export class LocationStorageService {
   private async ensureDirectory(path: string[]): Promise<void> {
     try {
       const dirPath = odd.path.directory(...path);
-      const exists = await this.fs.exists(dirPath as any);
+      const fs = this.fs as any;
+      const exists = await fs.exists(dirPath);
       if (!exists) {
-        await this.fs.mkdir(dirPath as any);
+        await fs.mkdir(dirPath);
       }
     } catch (error) {
       console.error('Error ensuring directory:', error);
@@ -81,10 +82,11 @@ export class LocationStorageService {
    */
   async saveLocation(location: LocationData): Promise<void> {
     try {
-      const filePath = odd.path.file(...this.locationsPath, `${location.id}.json`);
+      const filePath = (odd.path as any).file(...this.locationsPath, `${location.id}.json`);
       const content = new TextEncoder().encode(JSON.stringify(location, null, 2));
-      await this.fs.write(filePath as any, content as any);
-      await this.fs.publish();
+      const fs = this.fs as any;
+      await fs.write(filePath, content);
+      await fs.publish();
     } catch (error) {
       console.error('Error saving location:', error);
       throw error;
@@ -96,12 +98,13 @@ export class LocationStorageService {
    */
   async getLocation(locationId: string): Promise<LocationData | null> {
     try {
-      const filePath = odd.path.file(...this.locationsPath, `${locationId}.json`);
-      const exists = await this.fs.exists(filePath as any);
+      const filePath = (odd.path as any).file(...this.locationsPath, `${locationId}.json`);
+      const fs = this.fs as any;
+      const exists = await fs.exists(filePath);
       if (!exists) {
         return null;
       }
-      const content = await this.fs.read(filePath as any);
+      const content = await fs.read(filePath);
       const text = new TextDecoder().decode(content as Uint8Array);
       return JSON.parse(text) as LocationData;
     } catch (error) {
@@ -116,12 +119,13 @@ export class LocationStorageService {
   async createShare(share: LocationShare): Promise<void> {
     try {
       // Save share metadata in private directory
-      const sharePath = odd.path.file(...this.sharesPath, `${share.id}.json`);
+      const sharePath = (odd.path as any).file(...this.sharesPath, `${share.id}.json`);
       const shareContent = new TextEncoder().encode(JSON.stringify(share, null, 2));
-      await this.fs.write(sharePath as any, shareContent as any);
+      const fs = this.fs as any;
+      await fs.write(sharePath, shareContent);
 
       // Create public reference file for share validation (only token, not full data)
-      const publicSharePath = odd.path.file(...this.publicSharesPath, `${share.shareToken}.json`);
+      const publicSharePath = (odd.path as any).file(...this.publicSharesPath, `${share.shareToken}.json`);
       const publicShareRef = {
         shareToken: share.shareToken,
         shareId: share.id,
@@ -129,9 +133,9 @@ export class LocationStorageService {
         expiresAt: share.expiresAt,
       };
       const publicContent = new TextEncoder().encode(JSON.stringify(publicShareRef, null, 2));
-      await this.fs.write(publicSharePath as any, publicContent as any);
+      await fs.write(publicSharePath, publicContent);
 
-      await this.fs.publish();
+      await fs.publish();
     } catch (error) {
       console.error('Error creating share:', error);
       throw error;
@@ -144,24 +148,25 @@ export class LocationStorageService {
   async getShareByToken(shareToken: string): Promise<LocationShare | null> {
     try {
       // First check public reference
-      const publicSharePath = odd.path.file(...this.publicSharesPath, `${shareToken}.json`);
-      const publicExists = await this.fs.exists(publicSharePath as any);
+      const publicSharePath = (odd.path as any).file(...this.publicSharesPath, `${shareToken}.json`);
+      const fs = this.fs as any;
+      const publicExists = await fs.exists(publicSharePath);
       if (!publicExists) {
         return null;
       }
 
-      const publicContent = await this.fs.read(publicSharePath as any);
+      const publicContent = await fs.read(publicSharePath);
       const publicText = new TextDecoder().decode(publicContent as Uint8Array);
       const publicRef = JSON.parse(publicText);
 
       // Now get full share from private directory
-      const sharePath = odd.path.file(...this.sharesPath, `${publicRef.shareId}.json`);
-      const shareExists = await this.fs.exists(sharePath as any);
+      const sharePath = (odd.path as any).file(...this.sharesPath, `${publicRef.shareId}.json`);
+      const shareExists = await fs.exists(sharePath);
       if (!shareExists) {
         return null;
       }
 
-      const shareContent = await this.fs.read(sharePath as any);
+      const shareContent = await fs.read(sharePath);
       const shareText = new TextDecoder().decode(shareContent as Uint8Array);
       return JSON.parse(shareText) as LocationShare;
     } catch (error) {
@@ -176,12 +181,13 @@ export class LocationStorageService {
   async getAllShares(): Promise<LocationShare[]> {
     try {
       const dirPath = odd.path.directory(...this.sharesPath);
-      const exists = await this.fs.exists(dirPath as any);
+      const fs = this.fs as any;
+      const exists = await fs.exists(dirPath);
       if (!exists) {
         return [];
       }
 
-      const files = await this.fs.ls(dirPath as any);
+      const files = await fs.ls(dirPath);
       const shares: LocationShare[] = [];
 
       for (const fileName of Object.keys(files)) {
@@ -206,12 +212,13 @@ export class LocationStorageService {
    */
   private async getShareById(shareId: string): Promise<LocationShare | null> {
     try {
-      const sharePath = odd.path.file(...this.sharesPath, `${shareId}.json`);
-      const exists = await this.fs.exists(sharePath as any);
+      const sharePath = (odd.path as any).file(...this.sharesPath, `${shareId}.json`);
+      const fs = this.fs as any;
+      const exists = await fs.exists(sharePath);
       if (!exists) {
         return null;
       }
-      const content = await this.fs.read(sharePath as any);
+      const content = await fs.read(sharePath);
       const text = new TextDecoder().decode(content as Uint8Array);
       return JSON.parse(text) as LocationShare;
     } catch (error) {

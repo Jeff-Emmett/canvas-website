@@ -562,7 +562,7 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
         })
       }
 
-      const data = await response.json()
+      const data = await response.json() as { data?: any[] }
       console.log('Fathom API success, data length:', data?.data?.length || 0)
       return new Response(JSON.stringify(data), {
         headers: { 'Content-Type': 'application/json' }

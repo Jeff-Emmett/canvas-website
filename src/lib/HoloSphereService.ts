@@ -155,7 +155,7 @@ export class HoloSphereService {
         let unsubscribe: (() => void) | undefined = undefined
         if (this.sphere.subscribe) {
           try {
-            unsubscribe = this.sphere.subscribe(holon, lens, (data: any, key?: string) => {
+            const subscribeResult = this.sphere.subscribe(holon, lens, (data: any, key?: string) => {
               subscriptionActive = true
               console.log(`📥 Subscription callback fired for ${lens}:`, { data, key, dataType: typeof data, isObject: typeof data === 'object', isArray: Array.isArray(data) })
               
@@ -183,7 +183,18 @@ export class HoloSphereService {
                 console.log(`📥 Current collected data for ${lens}:`, Object.keys(collectedData).length, 'keys')
               }
             })
-            console.log(`✅ Subscribe called successfully for ${lens}`)
+            // Handle Promise if subscribe returns one
+            if (subscribeResult instanceof Promise) {
+              subscribeResult.then((result) => {
+                unsubscribe = result?.unsubscribe || undefined
+                console.log(`✅ Subscribe called successfully for ${lens}`)
+              }).catch((err) => {
+                console.error(`❌ Error in subscribe promise for ${lens}:`, err)
+              })
+            } else {
+              unsubscribe = subscribeResult?.unsubscribe || undefined
+              console.log(`✅ Subscribe called successfully for ${lens}`)
+            }
           } catch (subError) {
             console.error(`❌ Error calling subscribe for ${lens}:`, subError)
           }

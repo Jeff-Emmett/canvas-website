@@ -8,7 +8,7 @@ import {
 import React from "react"
 import { ShareLocation } from "./ShareLocation"
 
-export function LocationShareDialog({ onClose }: TLUiDialogProps) {
+export function LocationShareDialog({ onClose: _onClose }: TLUiDialogProps) {
   return (
     <>
       <TldrawUiDialogHeader>

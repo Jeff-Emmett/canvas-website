@@ -113,6 +113,15 @@ export class FathomTranscriptShape extends BaseBoxShapeUtil<IFathomTranscript> {
       return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
     }
 
+    const buttonStyle: React.CSSProperties = {
+      padding: '4px 8px',
+      fontSize: '10px',
+      border: '1px solid #ccc',
+      borderRadius: '4px',
+      backgroundColor: 'white',
+      cursor: 'pointer',
+    }
+
     // Custom header content with meeting info and toggle buttons
     const headerContent = (
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: '8px' }}>

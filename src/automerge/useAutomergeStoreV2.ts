@@ -1488,7 +1488,7 @@ export function useAutomergeStoreV2({
                 for (const record of failedRecords) {
                   try {
                     // Additional cleanup for failed records - create deep copy
-                    const fixedRecord = JSON.parse(JSON.stringify(record))
+                    let fixedRecord = JSON.parse(JSON.stringify(record))
                     
                     // Fix instance records specifically
                     if (fixedRecord.typeName === 'instance') {

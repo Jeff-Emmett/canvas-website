@@ -21,6 +21,38 @@ export class ObsNoteTool extends StateNode {
       this.addRefreshAllListener()
     }
   }
+
+  private addRefreshAllListener() {
+    // Listen for refresh-all-obsnotes event
+    const handleRefreshAll = async () => {
+      const shapeUtil = new ObsNoteShape(this.editor)
+      shapeUtil.editor = this.editor
+      
+      const result = await shapeUtil.refreshAllFromVault()
+      if (result.success > 0) {
+        alert(`✅ Refreshed ${result.success} notes from vault!${result.failed > 0 ? ` (${result.failed} failed)` : ''}`)
+      } else {
+        alert('❌ Failed to refresh any notes. Check console for details.')
+      }
+    }
+
+    window.addEventListener('refresh-all-obsnotes', handleRefreshAll)
+    
+    // Clean up listener when tool is deselected
+    const cleanup = () => {
+      window.removeEventListener('refresh-all-obsnotes', handleRefreshAll)
+    }
+    
+    // Store cleanup function for later use
+    ;(this as any).cleanup = cleanup
+  }
+
+  onExit() {
+    // Clean up event listeners
+    if ((this as any).cleanup) {
+      ;(this as any).cleanup()
+    }
+  }
 }
 
 export class ObsNoteIdle extends StateNode {
@@ -101,6 +133,10 @@ export class ObsNoteIdle extends StateNode {
   
   override onExit = () => {
     this.cleanupTooltip()
+    // Clean up event listeners
+    if ((this as any).cleanup) {
+      ;(this as any).cleanup()
+    }
   }
   
   private cleanupTooltip = () => {
@@ -180,38 +216,6 @@ export class ObsNoteIdle extends StateNode {
 
     } catch (error) {
       console.error('❌ Error creating ObsidianBrowser shape:', error)
-    }
-  }
-
-  private addRefreshAllListener() {
-    // Listen for refresh-all-obsnotes event
-    const handleRefreshAll = async () => {
-      const shapeUtil = new ObsNoteShape(this.editor)
-      shapeUtil.editor = this.editor
-      
-      const result = await shapeUtil.refreshAllFromVault()
-      if (result.success > 0) {
-        alert(`✅ Refreshed ${result.success} notes from vault!${result.failed > 0 ? ` (${result.failed} failed)` : ''}`)
-      } else {
-        alert('❌ Failed to refresh any notes. Check console for details.')
-      }
-    }
-
-    window.addEventListener('refresh-all-obsnotes', handleRefreshAll)
-    
-    // Clean up listener when tool is deselected
-    const cleanup = () => {
-      window.removeEventListener('refresh-all-obsnotes', handleRefreshAll)
-    }
-    
-    // Store cleanup function for later use
-    ;(this as any).cleanup = cleanup
-  }
-
-  onExit() {
-    // Clean up event listeners
-    if ((this as any).cleanup) {
-      ;(this as any).cleanup()
     }
   }
 }

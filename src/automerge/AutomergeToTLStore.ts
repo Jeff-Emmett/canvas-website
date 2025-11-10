@@ -97,23 +97,29 @@ export function applyAutomergePatchesToTLStore(
       }
     }
     
-    const record = updatedObjects[id] || (existingRecord ? JSON.parse(JSON.stringify(existingRecord)) : defaultRecord)
+    let record = updatedObjects[id] || (existingRecord ? JSON.parse(JSON.stringify(existingRecord)) : defaultRecord)
     
     // CRITICAL: Ensure typeName matches ID pattern (fixes misclassification)
     // Note: obsidian_vault records are skipped above, so we don't need to handle them here
     if (typeof id === 'string') {
+      let correctTypeName = record.typeName
       if (id.startsWith('shape:') && record.typeName !== 'shape') {
-        record.typeName = 'shape'
+        correctTypeName = 'shape'
       } else if (id.startsWith('page:') && record.typeName !== 'page') {
-        record.typeName = 'page'
+        correctTypeName = 'page'
       } else if (id.startsWith('camera:') && record.typeName !== 'camera') {
-        record.typeName = 'camera'
+        correctTypeName = 'camera'
       } else if (id.startsWith('instance:') && record.typeName !== 'instance') {
-        record.typeName = 'instance'
+        correctTypeName = 'instance'
       } else if (id.startsWith('pointer:') && record.typeName !== 'pointer') {
-        record.typeName = 'pointer'
+        correctTypeName = 'pointer'
       } else if (id.startsWith('document:') && record.typeName !== 'document') {
-        record.typeName = 'document'
+        correctTypeName = 'document'
+      }
+      
+      // Create new object with correct typeName if it changed
+      if (correctTypeName !== record.typeName) {
+        record = { ...record, typeName: correctTypeName }
       }
     }
 

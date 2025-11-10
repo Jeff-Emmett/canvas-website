@@ -143,13 +143,13 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
       return {
         status: isLoading ? 'loading' : 'not-synced',
         connectionStatus: 'offline',
-        store: null
+        store: undefined
       }
     }
 
     return {
-      status: 'synced',
-      connectionStatus: 'online',
+      status: 'synced-remote' as const,
+      connectionStatus: 'online' as const,
       store
     }
   }, [store, isLoading])
@@ -164,5 +164,5 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
   return {
     ...storeWithStatus,
     presence
-  }
+  } as TLStoreWithStatus & { presence: typeof presence }
 }
