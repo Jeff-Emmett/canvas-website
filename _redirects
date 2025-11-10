@@ -1,0 +1,14 @@
+# Cloudflare Pages redirects and rewrites
+# This file handles SPA routing and URL rewrites (replaces vercel.json rewrites)
+
+# SPA fallback - all routes should serve index.html
+/*    /index.html   200
+
+# Specific route rewrites (matching vercel.json)
+/board/*    /index.html   200
+/board    /index.html   200
+/inbox    /index.html   200
+/contact    /index.html   200
+/presentations    /index.html   200
+/dashboard    /index.html   200
+

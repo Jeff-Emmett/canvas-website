@@ -1,3 +1,7 @@
+# DISABLED: This workflow is preserved for future use in another repository
+# To re-enable: Remove the `if: false` condition below
+# This workflow syncs notes to a Quartz static site (separate from the canvas website)
+
 name: Quartz Sync
 
 on:
@@ -14,6 +18,8 @@ on:
 
 jobs:
   sync-quartz:
+    # DISABLED: Set to false to prevent this workflow from running
+    if: false
     runs-on: ubuntu-latest
     
     steps:
