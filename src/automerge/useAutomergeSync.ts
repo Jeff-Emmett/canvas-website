@@ -68,10 +68,66 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
               if (r2StoreKeys > 0) {
                 console.log("Loading R2 data into Automerge document")
                 if (existingDoc.store) {
-                  doc.store = existingDoc.store
+                  // Debug: Log what we're about to load
+                  const storeEntries = Object.entries(existingDoc.store)
+                  const shapeCount = storeEntries.filter(([_, v]: [string, any]) => v?.typeName === 'shape').length
+                  console.log("📊 R2 data to load:", {
+                    totalRecords: storeEntries.length,
+                    shapeCount,
+                    recordTypes: storeEntries.reduce((acc: any, [_, v]: [string, any]) => {
+                      const type = v?.typeName || 'unknown'
+                      acc[type] = (acc[type] || 0) + 1
+                      return acc
+                    }, {}),
+                    sampleRecords: storeEntries.slice(0, 5).map(([k, v]: [string, any]) => ({
+                      key: k,
+                      id: v?.id,
+                      typeName: v?.typeName,
+                      type: v?.type
+                    }))
+                  })
+                  
+                  // Initialize store if it doesn't exist
+                  if (!doc.store) {
+                    doc.store = {}
+                  }
+                  
+                  // Assign each record individually with deep copy to ensure Automerge properly handles nested objects
+                  // This matches how records are saved in TLStoreToAutomerge.ts
+                  // Cast to any to allow string indexing (Automerge handles the typing internally)
+                  const store = doc.store as any
+                  let assignedCount = 0
+                  for (const [key, record] of Object.entries(existingDoc.store)) {
+                    try {
+                      // Create a deep copy to ensure Automerge properly handles nested objects
+                      // This is critical for preserving nested structures like props, richText, etc.
+                      const recordToSave = JSON.parse(JSON.stringify(record))
+                      store[key] = recordToSave
+                      assignedCount++
+                    } catch (e) {
+                      console.error(`❌ Error deep copying record ${key}:`, e)
+                      // Fallback: assign directly (might not work for nested objects)
+                      store[key] = record
+                    }
+                  }
+                  
                   console.log("Loaded store data into Automerge document:", {
                     loadedStoreKeys: Object.keys(doc.store).length,
+                    assignedCount,
                     sampleLoadedKeys: Object.keys(doc.store).slice(0, 5)
+                  })
+                  
+                  // Verify what was actually loaded
+                  const loadedValues = Object.values(doc.store)
+                  const loadedShapeCount = loadedValues.filter((v: any) => v?.typeName === 'shape').length
+                  console.log("📊 Verification after loading:", {
+                    totalLoaded: loadedValues.length,
+                    loadedShapeCount,
+                    loadedRecordTypes: loadedValues.reduce((acc: any, v: any) => {
+                      const type = v?.typeName || 'unknown'
+                      acc[type] = (acc[type] || 0) + 1
+                      return acc
+                    }, {})
                   })
                 }
                 if (existingDoc.schema) {
