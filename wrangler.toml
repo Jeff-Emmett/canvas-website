@@ -14,6 +14,11 @@ ip = "0.0.0.0"
 local_protocol = "http"
 upstream_protocol = "https"
 
+[dev.miniflare]
+kv_persist = true
+r2_persist = true
+durable_objects_persist = true
+
 [durable_objects]
 bindings = [
     { name = "AUTOMERGE_DURABLE_OBJECT", class_name = "AutomergeDurableObject" },
@@ -23,12 +28,6 @@ bindings = [
 tag = "v1"
 new_classes = ["AutomergeDurableObject"]
 
-[[migrations]]
-tag = "v2"
-renamed_classes = [
-  { from = "TldrawDurableObject", to = "AutomergeDurableObject" }
-]
-
 [[r2_buckets]]
 binding = 'TLDRAW_BUCKET'
 bucket_name = 'jeffemmett-canvas'
@@ -36,11 +35,6 @@ bucket_name = 'jeffemmett-canvas'
 [[r2_buckets]]
 binding = 'BOARD_BACKUPS_BUCKET'
 bucket_name = 'board-backups'
-
-[miniflare]
-kv_persist = true
-r2_persist = true
-durable_objects_persist = true
 
 [observability]
 enabled = true
@@ -66,12 +60,6 @@ bindings = [
 [[env.dev.migrations]]
 tag = "v1"
 new_classes = ["AutomergeDurableObject"]
-
-[[env.dev.migrations]]
-tag = "v2"
-renamed_classes = [
-  { from = "TldrawDurableObject", to = "AutomergeDurableObject" }
-]
 
 [[env.dev.r2_buckets]]
 binding = 'TLDRAW_BUCKET'
