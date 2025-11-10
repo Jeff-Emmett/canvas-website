@@ -10,7 +10,7 @@ const WORKER_ENV = import.meta.env.VITE_WORKER_ENV || 'production' // Default to
 
 const WORKER_URLS = {
   local: `http://${window.location.hostname}:5172`,
-  dev: "https://jeffemmett-canvas-automerge-dev.jeffemmett.workers.dev",
+  dev: `http://${window.location.hostname}:5172`,
   production: "https://jeffemmett-canvas.jeffemmett.workers.dev"
 }
 

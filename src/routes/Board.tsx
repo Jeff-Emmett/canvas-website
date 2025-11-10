@@ -239,7 +239,7 @@ export function Board() {
       console.log(`📊 Board: Editor can see ${editorShapes.length} shapes for rendering`)
       
       // Debug: Check all shapes in the store vs what editor can see
-      const storeShapes = store.store?.allRecords().filter(r => r.typeName === 'shape') || []
+      const storeShapes = store.store?.allRecords().filter((r: any) => r.typeName === 'shape') || []
       console.log(`📊 Board: Store has ${storeShapes.length} shapes, editor sees ${editorShapes.length}`)
       
       if (editorShapes.length > 0 && editor) {
@@ -256,8 +256,8 @@ export function Board() {
       const currentPageId = editor.getCurrentPageId()
       console.log(`📊 Board: Current page ID: ${currentPageId}`)
       
-      const pageRecords = store.store?.allRecords().filter(r => r.typeName === 'page') || []
-      console.log(`📊 Board: Available pages:`, pageRecords.map(p => ({
+      const pageRecords = store.store?.allRecords().filter((r: any) => r.typeName === 'page') || []
+      console.log(`📊 Board: Available pages:`, pageRecords.map((p: any) => ({
         id: p.id,
         name: (p as any).name
       })))
@@ -265,8 +265,8 @@ export function Board() {
       // Check if there are shapes in store that editor can't see
       if (storeShapes.length > editorShapes.length) {
         const editorShapeIds = new Set(editorShapes.map(s => s.id))
-        const missingShapes = storeShapes.filter(s => !editorShapeIds.has(s.id))
-        console.warn(`📊 Board: ${missingShapes.length} shapes in store but not visible to editor:`, missingShapes.map(s => ({
+        const missingShapes = storeShapes.filter((s: any) => !editorShapeIds.has(s.id))
+        console.warn(`📊 Board: ${missingShapes.length} shapes in store but not visible to editor:`, missingShapes.map((s: any) => ({
           id: s.id,
           type: s.type,
           x: s.x,
@@ -275,19 +275,19 @@ export function Board() {
         })))
         
         // Check if missing shapes are on a different page
-        const shapesOnCurrentPage = missingShapes.filter(s => s.parentId === currentPageId)
-        const shapesOnOtherPages = missingShapes.filter(s => s.parentId !== currentPageId)
+        const shapesOnCurrentPage = missingShapes.filter((s: any) => s.parentId === currentPageId)
+        const shapesOnOtherPages = missingShapes.filter((s: any) => s.parentId !== currentPageId)
         console.log(`📊 Board: Missing shapes on current page: ${shapesOnCurrentPage.length}, on other pages: ${shapesOnOtherPages.length}`)
         
         if (shapesOnOtherPages.length > 0) {
-          console.log(`📊 Board: Shapes on other pages:`, shapesOnOtherPages.map(s => ({
+          console.log(`📊 Board: Shapes on other pages:`, shapesOnOtherPages.map((s: any) => ({
             id: s.id,
             parentId: s.parentId
           })))
           
           // Fix: Move shapes to the current page
           console.log(`📊 Board: Moving ${shapesOnOtherPages.length} shapes to current page ${currentPageId}`)
-          const shapesToMove = shapesOnOtherPages.map(s => ({
+          const shapesToMove = shapesOnOtherPages.map((s: any) => ({
             id: s.id,
             type: s.type,
             parentId: currentPageId

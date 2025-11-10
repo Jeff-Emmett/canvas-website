@@ -166,11 +166,13 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
   private maxReconnectAttempts: number = 5
   private reconnectDelay: number = 1000
   private isConnecting: boolean = false
+  private onJsonSyncData?: (data: any) => void
 
-  constructor(workerUrl: string, roomId?: string) {
+  constructor(workerUrl: string, roomId?: string, onJsonSyncData?: (data: any) => void) {
     super()
     this.workerUrl = workerUrl
     this.roomId = roomId || 'default-room'
+    this.onJsonSyncData = onJsonSyncData
     this.readyPromise = new Promise((resolve) => {
       this.readyResolve = resolve
     })
@@ -199,7 +201,10 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
     // Use the room ID from constructor or default
     // Add sessionId as a query parameter as required by AutomergeDurableObject
     const sessionId = peerId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-    const wsUrl = `${this.workerUrl.replace('http', 'ws')}/connect/${this.roomId}?sessionId=${sessionId}`
+    // Convert https:// to wss:// or http:// to ws://
+    const protocol = this.workerUrl.startsWith('https://') ? 'wss://' : 'ws://'
+    const baseUrl = this.workerUrl.replace(/^https?:\/\//, '')
+    const wsUrl = `${protocol}${baseUrl}/connect/${this.roomId}?sessionId=${sessionId}`
     
     this.isConnecting = true
     
@@ -265,15 +270,45 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
               if (message.type === 'sync' && message.data) {
                 console.log('🔌 CloudflareAdapter: Received sync message with data:', {
                   hasStore: !!message.data.store,
-                  storeKeys: message.data.store ? Object.keys(message.data.store).length : 0
+                  storeKeys: message.data.store ? Object.keys(message.data.store).length : 0,
+                  documentId: message.documentId,
+                  documentIdType: typeof message.documentId
                 })
-                // For backward compatibility, handle JSON sync data
+                
+                // Check if this is a JSON sync message with full document data
+                // These should NOT go through Automerge's sync protocol (which expects binary messages)
+                // Instead, apply the data directly to the handle via callback
+                const isJsonDocumentData = message.data && typeof message.data === 'object' && message.data.store
+                
+                if (isJsonDocumentData && this.onJsonSyncData) {
+                  console.log('🔌 CloudflareAdapter: Applying JSON document data directly to handle (bypassing sync protocol)')
+                  this.onJsonSyncData(message.data)
+                  return // Don't emit as sync message
+                }
+                
+                // Validate documentId - Automerge requires a valid Automerge URL format
+                // Valid formats: "automerge:xxxxx" or other valid URL formats
+                // Invalid: plain strings like "default", "default-room", etc.
+                const isValidDocumentId = message.documentId && 
+                  (typeof message.documentId === 'string' && 
+                   (message.documentId.startsWith('automerge:') || 
+                    message.documentId.includes(':') || 
+                    /^[a-f0-9-]{36,}$/i.test(message.documentId))) // UUID-like format
+                
+                // For binary sync messages, use Automerge's sync protocol
+                // Only include documentId if it's a valid Automerge document ID format
                 const syncMessage: Message = {
                   type: 'sync',
                   senderId: message.senderId || this.peerId || ('unknown' as PeerId),
                   targetId: message.targetId || this.peerId || ('unknown' as PeerId),
-                  data: message.data
+                  data: message.data,
+                  ...(isValidDocumentId && { documentId: message.documentId })
                 }
+                
+                if (message.documentId && !isValidDocumentId) {
+                  console.warn('⚠️ CloudflareAdapter: Ignoring invalid documentId from server:', message.documentId)
+                }
+                
                 this.emit('message', syncMessage)
               } else if (message.senderId && message.targetId) {
                 this.emit('message', message as Message)
