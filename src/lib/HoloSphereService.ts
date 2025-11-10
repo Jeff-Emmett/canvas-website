@@ -191,8 +191,9 @@ export class HoloSphereService {
               }).catch((err) => {
                 console.error(`❌ Error in subscribe promise for ${lens}:`, err)
               })
-            } else {
-              unsubscribe = (subscribeResult as any)?.unsubscribe || undefined
+            } else if (subscribeResult && typeof subscribeResult === 'object' && subscribeResult !== null) {
+              const result = subscribeResult as { unsubscribe?: () => void }
+              unsubscribe = result?.unsubscribe || undefined
               console.log(`✅ Subscribe called successfully for ${lens}`)
             }
           } catch (subError) {

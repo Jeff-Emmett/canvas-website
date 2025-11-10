@@ -37,7 +37,7 @@ export function resolveOverlaps(editor: Editor, shapeId: string): void {
   ]
   
   const shape = editor.getShape(shapeId as TLShapeId)
-  if (!shape || !customShapeTypes.includes(shape.type)) return
+  if (!shape || !customShapeTypes.includes(shape.type as string)) return
   
   const shapeBounds = getShapeBounds(editor, shape)
   if (!shapeBounds) return
