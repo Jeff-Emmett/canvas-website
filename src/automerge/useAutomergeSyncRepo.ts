@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState, useCallback } from "react"
+import { useMemo, useEffect, useState, useCallback, useRef } from "react"
 import { TLStoreSnapshot } from "@tldraw/tldraw"
 import { CloudflareNetworkAdapter } from "./CloudflareAdapter"
 import { useAutomergeStoreV2, useAutomergePresence } from "./useAutomergeStoreV2"
@@ -30,11 +30,59 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
     return uri.replace(/\/connect\/.*$/, '')
   }, [uri])
 
-  const [repo] = useState(() => new Repo({
-    network: [new CloudflareNetworkAdapter(workerUrl, roomId)]
-  }))
   const [handle, setHandle] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const handleRef = useRef<any>(null)
+  
+  // Update ref when handle changes
+  useEffect(() => {
+    handleRef.current = handle
+  }, [handle])
+  
+  // Callback to apply JSON sync data directly to handle (bypassing Automerge sync protocol)
+  const applyJsonSyncData = useCallback((data: TLStoreSnapshot) => {
+    const currentHandle = handleRef.current
+    if (!currentHandle) {
+      console.warn('⚠️ Cannot apply JSON sync data: handle not ready yet')
+      return
+    }
+    
+    try {
+      console.log('🔌 Applying JSON sync data directly to handle:', {
+        hasStore: !!data.store,
+        storeKeys: data.store ? Object.keys(data.store).length : 0
+      })
+      
+      // Apply the data directly to the handle
+      currentHandle.change((doc: any) => {
+        // Merge the store data into the document
+        if (data.store) {
+          if (!doc.store) {
+            doc.store = {}
+          }
+          // Merge all records from the sync data
+          Object.entries(data.store).forEach(([id, record]) => {
+            doc.store[id] = record
+          })
+        }
+        // Preserve schema if provided
+        if (data.schema) {
+          doc.schema = data.schema
+        }
+      })
+      
+      console.log('✅ Successfully applied JSON sync data to handle')
+    } catch (error) {
+      console.error('❌ Error applying JSON sync data to handle:', error)
+    }
+  }, [])
+  
+  const [repo] = useState(() => {
+    const adapter = new CloudflareNetworkAdapter(workerUrl, roomId, applyJsonSyncData)
+    return new Repo({
+      network: [adapter]
+    })
+  })
 
   // Initialize Automerge document handle
   useEffect(() => {
@@ -123,36 +171,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
     }
   }, [handle])
 
-  // Get the store from the Automerge document
-  const store = useMemo(() => {
-    if (!handle?.doc()) {
-      return null
-    }
-
-    const doc = handle.doc()
-    if (!doc.store) {
-      return null
-    }
-
-    return doc.store
-  }, [handle])
-
-  // Get the store with status
-  const storeWithStatus = useMemo((): TLStoreWithStatus => {
-    if (!store) {
-      return {
-        status: 'loading' as const
-      }
-    }
-
-    return {
-      status: 'synced-remote' as const,
-      connectionStatus: 'online' as const,
-      store
-    }
-  }, [store, isLoading])
-
-  // Get presence data (only when handle is ready)
+  // Get user metadata for presence
   const userMetadata: { userId: string; name: string; color: string } = (() => {
     if (user && 'userId' in user) {
       return {
@@ -168,14 +187,22 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
     }
   })()
   
+  // Use useAutomergeStoreV2 to create a proper TLStore instance that syncs with Automerge
+  const storeWithStatus = useAutomergeStoreV2({
+    handle: handle || null as any,
+    userId: userMetadata.userId
+  })
+  
+  // Get presence data (only when handle is ready)
   const presence = useAutomergePresence({
     handle: handle || null,
-    store: store || null,
+    store: storeWithStatus.store || null,
     userMetadata
   })
 
   return {
     ...storeWithStatus,
+    handle,
     presence
-  } as TLStoreWithStatus & { presence: typeof presence }
+  } as TLStoreWithStatus & { presence: typeof presence; handle: typeof handle }
 }
