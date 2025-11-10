@@ -14,7 +14,6 @@ export const generateCanvasScreenshot = async (editor: Editor): Promise<string |
   try {
     // Get all shapes on the current page
     const shapes = editor.getCurrentPageShapes();
-    console.log('Found shapes:', shapes.length);
 
     if (shapes.length === 0) {
       console.log('No shapes found, no screenshot generated');
@@ -23,11 +22,9 @@ export const generateCanvasScreenshot = async (editor: Editor): Promise<string |
 
     // Get all shape IDs for export
     const allShapeIds = shapes.map(shape => shape.id);
-    console.log('Exporting all shapes:', allShapeIds.length);
 
     // Calculate bounds of all shapes to fit everything in view
     const bounds = editor.getCurrentPageBounds();
-    console.log('Canvas bounds:', bounds);
 
     // Use Tldraw's export functionality to get a blob with all content
     const blob = await exportToBlob({
@@ -78,8 +75,6 @@ export const generateCanvasScreenshot = async (editor: Editor): Promise<string |
       reader.readAsDataURL(blob);
     });
 
-    console.log('Successfully exported board to data URL');
-    console.log('Screenshot data URL:', dataUrl);
     return dataUrl;
   } catch (error) {
     console.error('Error generating screenshot:', error);
@@ -144,12 +139,9 @@ export const hasBoardScreenshot = (slug: string): boolean => {
  * This should be called when the board content changes significantly
  */
 export const captureBoardScreenshot = async (editor: Editor, slug: string): Promise<void> => {
-  console.log('Starting screenshot capture for:', slug);
   const dataUrl = await generateCanvasScreenshot(editor);
   if (dataUrl) {
-    console.log('Screenshot generated successfully for:', slug);
     storeBoardScreenshot(slug, dataUrl);
-    console.log('Screenshot stored for:', slug);
   } else {
     console.warn('Failed to generate screenshot for:', slug);
   }

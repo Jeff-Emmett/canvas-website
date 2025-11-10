@@ -391,6 +391,19 @@ p:has(+ ol) {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Ensure scrollable elements handle wheel events on the element being hovered */
+[style*="overflow-y: auto"],
+[style*="overflow-y: scroll"],
+[style*="overflow-x: auto"],
+[style*="overflow-x: scroll"],
+[style*="overflow: auto"],
+[style*="overflow: scroll"],
+.overflow-y-auto,
+.overflow-x-auto,
+.overflow-auto {
+  overscroll-behavior: contain;
+}
+
 .tl-background {
   background-color: transparent;
 }

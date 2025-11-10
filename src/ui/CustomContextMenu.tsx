@@ -6,6 +6,7 @@ import {
   TLGeoShape,
   TLShape,
   useDefaultHelpers,
+  useActions,
 } from "tldraw"
 import { TldrawUiMenuGroup } from "tldraw"
 import { DefaultContextMenu, DefaultContextMenuContent } from "tldraw"
@@ -36,6 +37,7 @@ const getAllFrames = (editor: Editor) => {
 export function CustomContextMenu(props: TLUiContextMenuProps) {
   const editor = useEditor()
   const helpers = useDefaultHelpers()
+  const actions = useActions()
   const tools = overrides.tools?.(editor, {}, helpers) ?? {}
   const customActions = getCustomActions(editor) as any
   const [selectedShapes, setSelectedShapes] = useState<TLShape[]>([])
@@ -102,7 +104,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
   // Keyboard shortcut for adding to collection
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'c' && !event.ctrlKey && !event.altKey && !event.metaKey) {
+      if (event.key === 'c' && event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey) {
         event.preventDefault()
         if (hasSelection && collection && !allSelectedShapesInCollection) {
           handleAddToCollection()
@@ -120,7 +122,30 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
   
   return (
     <DefaultContextMenu {...props}>
-      <DefaultContextMenuContent />
+      {/* Essential non-edit commands from default context menu */}
+      <TldrawUiMenuGroup id="default-actions">
+        <TldrawUiMenuItem
+          id="select-all"
+          label="Select All"
+          icon="select-all"
+          kbd="ctrl+a"
+          onSelect={() => actions['select-all'].onSelect("context-menu")}
+        />
+        <TldrawUiMenuItem
+          id="undo"
+          label="Undo"
+          icon="undo"
+          kbd="ctrl+z"
+          onSelect={() => actions.undo.onSelect("context-menu")}
+        />
+        <TldrawUiMenuItem
+          id="redo"
+          label="Redo"
+          icon="redo"
+          kbd="ctrl+y"
+          onSelect={() => actions.redo.onSelect("context-menu")}
+        />
+      </TldrawUiMenuGroup>
       
       {/* Frames List - Moved to top */}
       <TldrawUiMenuGroup id="frames-list">
@@ -155,6 +180,51 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
         <TldrawUiMenuItem {...customActions.llm} disabled={!hasSelection} />
       </TldrawUiMenuGroup>
 
+      {/* Edit Actions Group */}
+      <TldrawUiMenuGroup id="edit-actions">
+        <TldrawUiMenuSubmenu id="edit-dropdown" label="Edit">
+          <TldrawUiMenuItem
+            id="cut"
+            label="Cut"
+            icon="scissors"
+            kbd="ctrl+x"
+            disabled={!hasSelection}
+            onSelect={() => actions.cut.onSelect("context-menu")}
+          />
+          <TldrawUiMenuItem
+            id="copy"
+            label="Copy"
+            icon="copy"
+            kbd="ctrl+c"
+            disabled={!hasSelection}
+            onSelect={() => actions.copy.onSelect("context-menu")}
+          />
+          <TldrawUiMenuItem
+            id="paste"
+            label="Paste"
+            icon="clipboard"
+            kbd="ctrl+v"
+            onSelect={() => actions.paste.onSelect("context-menu")}
+          />
+          <TldrawUiMenuItem
+            id="duplicate"
+            label="Duplicate"
+            icon="duplicate"
+            kbd="ctrl+d"
+            disabled={!hasSelection}
+            onSelect={() => actions.duplicate.onSelect("context-menu")}
+          />
+          <TldrawUiMenuItem
+            id="delete"
+            label="Delete"
+            icon="trash"
+            kbd="⌫"
+            disabled={!hasSelection}
+            onSelect={() => actions.delete.onSelect("context-menu")}
+          />
+        </TldrawUiMenuSubmenu>
+      </TldrawUiMenuGroup>
+
       {/* Creation Tools Group */}
       <TldrawUiMenuGroup id="creation-tools">
         <TldrawUiMenuItem {...tools.VideoChat} disabled={hasSelection} />
@@ -164,6 +234,11 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
         <TldrawUiMenuItem {...tools.Markdown} disabled={hasSelection} />
         <TldrawUiMenuItem {...tools.MycrozineTemplate} disabled={hasSelection} />
         <TldrawUiMenuItem {...tools.Prompt} disabled={hasSelection} />
+        <TldrawUiMenuItem {...tools.SharedPiano} disabled={hasSelection} />
+        <TldrawUiMenuItem {...tools.ObsidianNote} disabled={hasSelection} />
+        <TldrawUiMenuItem {...tools.Transcription} disabled={hasSelection} />
+        <TldrawUiMenuItem {...tools.FathomMeetings} disabled={hasSelection} />
+        <TldrawUiMenuItem {...tools.Holon} disabled={hasSelection} />
       </TldrawUiMenuGroup>
 
       {/* Collections Group */}
@@ -173,7 +248,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
             id="add-to-collection"
             label="Add to Collection"
             icon="plus"
-            kbd="c"
+            kbd="alt+shift+c"
             disabled={!hasSelection || !collection}
             onSelect={handleAddToCollection}
           />

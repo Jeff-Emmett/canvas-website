@@ -73,7 +73,7 @@ export class SlideShape extends BaseBoxShapeUtil<ISlideShape> {
 
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const slides = useSlides()
-    const index = slides.findIndex((s) => s.id === shape.id)
+    const index = Array.isArray(slides) ? slides.findIndex((s) => s.id === shape.id) : -1
 
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const handleLabelPointerDown = useCallback(

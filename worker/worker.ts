@@ -3,8 +3,7 @@ import { handleAssetDownload, handleAssetUpload } from "./assetUploads"
 import { Environment } from "./types"
 
 // make sure our sync durable objects are made available to cloudflare
-export { TldrawDurableObject } from "./TldrawDurableObject"
-// export { AutomergeDurableObject } from "./AutomergeDurableObject" // Disabled - not currently used
+export { AutomergeDurableObject } from "./AutomergeDurableObject"
 
 // Lazy load heavy dependencies to avoid startup timeouts
 let handleUnfurlRequest: any = null
@@ -40,6 +39,7 @@ const { preflight, corsify } = cors({
       "https://jeffemmett.com/board/*",
       "http://localhost:5173",
       "http://127.0.0.1:5173",
+      "http://172.22.168.84:5173",
     ]
 
     // Always allow if no origin (like from a local file)
@@ -130,44 +130,6 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     return error(e)
   },
 })
-  // requests to /connect are routed to the Durable Object, and handle realtime websocket syncing
-  .get("/connect/:roomId", (request, env) => {
-    console.log("Connect request for room:", request.params.roomId)
-    console.log("Request headers:", Object.fromEntries(request.headers.entries()))
-    
-    // Check if this is a WebSocket upgrade request
-    const upgradeHeader = request.headers.get("Upgrade")
-    console.log("Upgrade header:", upgradeHeader)
-    
-    if (upgradeHeader === "websocket") {
-      console.log("WebSocket upgrade requested for room:", request.params.roomId)
-      console.log("Request URL:", request.url)
-      console.log("Request method:", request.method)
-      console.log("All headers:", Object.fromEntries(request.headers.entries()))
-      
-      const id = env.TLDRAW_DURABLE_OBJECT.idFromName(request.params.roomId)
-      const room = env.TLDRAW_DURABLE_OBJECT.get(id)
-      
-      console.log("Calling Durable Object fetch...")
-      const result = room.fetch(request.url, {
-        headers: request.headers,
-        body: request.body,
-        method: request.method,
-      })
-      
-      console.log("Durable Object fetch result:", result)
-      return result
-    }
-    
-    // Handle regular GET requests
-    const id = env.TLDRAW_DURABLE_OBJECT.idFromName(request.params.roomId)
-    const room = env.TLDRAW_DURABLE_OBJECT.get(id)
-    return room.fetch(request.url, {
-      headers: request.headers,
-      body: request.body,
-      method: request.method,
-    })
-  })
 
   // assets can be uploaded to the bucket under /uploads:
   .post("/uploads/:uploadId", handleAssetUpload)
@@ -181,9 +143,40 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     return handler(request, env)
   })
 
+
+  // Automerge routes
+  .get("/connect/:roomId", (request, env) => {
+    console.log(`🔌 Worker: Received request for room ${request.params.roomId}`)
+    
+    // Check if this is a WebSocket upgrade request
+    const upgradeHeader = request.headers.get("Upgrade")
+    console.log(`🔌 Worker: Upgrade header: ${upgradeHeader}`)
+    
+    if (upgradeHeader === "websocket") {
+      console.log(`🔌 Worker: Handling WebSocket upgrade for room ${request.params.roomId}`)
+      const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
+      const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
+      return room.fetch(request.url, {
+        headers: request.headers,
+        body: request.body,
+        method: request.method,
+      })
+    }
+    
+    // Handle regular GET requests
+    console.log(`🔌 Worker: Handling regular GET request for room ${request.params.roomId}`)
+    const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
+    const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
+    return room.fetch(request.url, {
+      headers: request.headers,
+      body: request.body,
+      method: request.method,
+    })
+  })
+
   .get("/room/:roomId", (request, env) => {
-    const id = env.TLDRAW_DURABLE_OBJECT.idFromName(request.params.roomId)
-    const room = env.TLDRAW_DURABLE_OBJECT.get(id)
+    const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
+    const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
     return room.fetch(request.url, {
       headers: request.headers,
       body: request.body,
@@ -192,56 +185,13 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
   })
 
   .post("/room/:roomId", async (request, env) => {
-    const id = env.TLDRAW_DURABLE_OBJECT.idFromName(request.params.roomId)
-    const room = env.TLDRAW_DURABLE_OBJECT.get(id)
+    const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
+    const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
     return room.fetch(request.url, {
       method: "POST",
       body: request.body,
     })
   })
-
-  // Automerge routes - disabled for now
-  // .get("/automerge/connect/:roomId", (request, env) => {
-  //   // Check if this is a WebSocket upgrade request
-  //   const upgradeHeader = request.headers.get("Upgrade")
-  //   if (upgradeHeader === "websocket") {
-  //     const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
-  //     const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
-  //     return room.fetch(request.url, {
-  //       headers: request.headers,
-  //       body: request.body,
-  //       method: request.method,
-  //     })
-  //   }
-  //   
-  //   // Handle regular GET requests
-  //   const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
-  //   const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
-  //   return room.fetch(request.url, {
-  //     headers: request.headers,
-  //     body: request.body,
-  //     method: request.method,
-  //   })
-  // })
-
-  // .get("/automerge/room/:roomId", (request, env) => {
-  //   const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
-  //   const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
-  //   return room.fetch(request.url, {
-  //     headers: request.headers,
-  //     body: request.body,
-  //     method: request.method,
-  //   })
-  // })
-
-  // .post("/automerge/room/:roomId", async (request, env) => {
-  //   const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
-  //   const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
-  //   return room.fetch(request.url, {
-  //     method: "POST",
-  //     body: request.body,
-  //   })
-  // })
 
   .post("/daily/rooms", async (req) => {
     const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
@@ -568,6 +518,146 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
         headers: { 'Content-Type': 'application/json' }
       })
     } catch (error) {
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
+  // Fathom API endpoints
+  .get("/fathom/meetings", async (req) => {
+    console.log('Fathom meetings endpoint called')
+    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+    console.log('API key present:', !!apiKey)
+    
+    if (!apiKey) {
+      console.log('No API key provided')
+      return new Response(JSON.stringify({ error: 'No API key provided' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      console.log('Making request to Fathom API...')
+      
+      const response = await fetch('https://api.usefathom.com/v1/meetings', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      console.log('Fathom API response status:', response.status)
+      
+      if (!response.ok) {
+        console.log('Fathom API error response')
+        const error = await response.json()
+        console.log('Error details:', error)
+        return new Response(JSON.stringify(error), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      const data = await response.json() as { data?: any[] }
+      console.log('Fathom API success, data length:', data?.data?.length || 0)
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('Fathom API error:', error)
+      return new Response(JSON.stringify({ 
+        error: (error as Error).message,
+        details: 'Failed to fetch meetings from Fathom API'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
+  .get("/fathom/meetings/:meetingId", async (req) => {
+    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+    const { meetingId } = req.params
+    
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: 'No API key provided' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      const response = await fetch(`https://api.usefathom.com/v1/meetings/${meetingId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        return new Response(JSON.stringify(error), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      const data = await response.json()
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('Fathom API error for meeting details:', error)
+      return new Response(JSON.stringify({ 
+        error: (error as Error).message,
+        details: 'Failed to fetch meeting details from Fathom API'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
+  .post("/fathom/webhook", async (req) => {
+    try {
+      const body = await req.json()
+      
+      // Log the webhook for debugging
+      console.log('Fathom webhook received:', JSON.stringify(body, null, 2))
+      
+      // TODO: Verify webhook signature for security
+      // For now, we'll accept all webhooks. In production, you should:
+      // 1. Get the webhook secret from Fathom
+      // 2. Verify the signature using svix or similar library
+      // const signature = req.headers.get('svix-signature')
+      // const webhookSecret = env.FATHOM_WEBHOOK_SECRET
+      // if (!verifyWebhookSignature(body, signature, webhookSecret)) {
+      //   return new Response(JSON.stringify({ error: 'Invalid signature' }), {
+      //     status: 401,
+      //     headers: { 'Content-Type': 'application/json' }
+      //   })
+      // }
+      
+      // Process the meeting data
+      const meetingData = body as any
+      
+      // Store meeting data for later retrieval
+      // This could be stored in R2 or Durable Object storage
+      console.log('Processing meeting:', meetingData.meeting_id)
+      
+      // TODO: Store meeting data in R2 or send to connected clients
+      // For now, just log it
+      
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('Webhook processing error:', error)
       return new Response(JSON.stringify({ error: (error as Error).message }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }

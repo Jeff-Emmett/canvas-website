@@ -38,11 +38,14 @@ export function Inbox() {
           type: "geo",
           x: shapeWidth * (i % 5) + spacing * (i % 5),
           y: shapeHeight * Math.floor(i / 5) + spacing * Math.floor(i / 5),
+          isLocked: false,
           props: {
             w: shapeWidth,
             h: shapeHeight,
             fill: "solid",
             color: "white",
+            geo: "rectangle",
+            richText: [] as any
           },
           meta: {
             id: messageId,

@@ -35,7 +35,9 @@ export class AuthService {
             username: storedSession.username,
             authed: true,
             loading: false,
-            backupCreated: backupStatus.created
+            backupCreated: backupStatus.created,
+            obsidianVaultPath: storedSession.obsidianVaultPath,
+            obsidianVaultName: storedSession.obsidianVaultName
           };
         } else {
           // ODD session not available, but we have crypto auth
@@ -43,7 +45,9 @@ export class AuthService {
             username: storedSession.username,
             authed: true,
             loading: false,
-            backupCreated: storedSession.backupCreated
+            backupCreated: storedSession.backupCreated,
+            obsidianVaultPath: storedSession.obsidianVaultPath,
+            obsidianVaultName: storedSession.obsidianVaultName
           };
         }
       } catch (oddError) {
@@ -52,7 +56,9 @@ export class AuthService {
           username: storedSession.username,
           authed: true,
           loading: false,
-          backupCreated: storedSession.backupCreated
+          backupCreated: storedSession.backupCreated,
+          obsidianVaultPath: storedSession.obsidianVaultPath,
+          obsidianVaultName: storedSession.obsidianVaultName
         };
       }
     } else {
