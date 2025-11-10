@@ -16,21 +16,12 @@ upstream_protocol = "https"
 
 [durable_objects]
 bindings = [
-    { name = "TLDRAW_DURABLE_OBJECT", class_name = "TldrawDurableObject" },
-    # { name = "AUTOMERGE_DURABLE_OBJECT", class_name = "AutomergeDurableObject" }, # Disabled - not currently used
+    { name = "AUTOMERGE_DURABLE_OBJECT", class_name = "AutomergeDurableObject" },
 ]
 
 [[migrations]]
 tag = "v1"
-new_classes = ["TldrawDurableObject"]
-
-[[migrations]]
-tag = "v2"
 new_classes = ["AutomergeDurableObject"]
-
-[[migrations]]
-tag = "v3"
-deleted_classes = ["AutomergeDurableObject"]
 
 [[r2_buckets]]
 binding = 'TLDRAW_BUCKET'
@@ -55,7 +46,7 @@ crons = ["0 0 * * *"] # Run at midnight UTC every day
 
 # Development environment configuration
 [env.dev]
-name = "jeffemmett-canvas-dev"
+name = "jeffemmett-canvas-automerge-dev"
 compatibility_date = "2024-07-01"
 
 [env.dev.vars]
@@ -63,21 +54,12 @@ DAILY_DOMAIN = "mycopunks.daily.co"
 
 [env.dev.durable_objects]
 bindings = [
-    { name = "TLDRAW_DURABLE_OBJECT", class_name = "TldrawDurableObject" },
-    # { name = "AUTOMERGE_DURABLE_OBJECT", class_name = "AutomergeDurableObject" }, # Disabled - not currently used
+    { name = "AUTOMERGE_DURABLE_OBJECT", class_name = "AutomergeDurableObject" },
 ]
 
 [[env.dev.migrations]]
 tag = "v1"
-new_classes = ["TldrawDurableObject"]
-
-[[env.dev.migrations]]
-tag = "v2"
 new_classes = ["AutomergeDurableObject"]
-
-[[env.dev.migrations]]
-tag = "v3"
-deleted_classes = ["AutomergeDurableObject"]
 
 [[env.dev.r2_buckets]]
 binding = 'TLDRAW_BUCKET'

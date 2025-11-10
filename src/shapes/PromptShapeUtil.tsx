@@ -1,13 +1,18 @@
 import {
   BaseBoxShapeUtil,
+  Geometry2d,
   HTMLContainer,
+  Rectangle2d,
   TLBaseShape,
   TLGeoShape,
   TLShape,
+  createShapeId,
 } from "tldraw"
 import { getEdge } from "@/propagators/tlgraph"
 import { llm, getApiKey } from "@/utils/llmUtils"
+import { AI_PERSONALITIES } from "@/lib/settings"
 import { isShapeOfType } from "@/propagators/utils"
+import { findNonOverlappingPosition } from "@/utils/shapeCollisionUtils"
 import React, { useState } from "react"
 
 type IPrompt = TLBaseShape<
@@ -18,6 +23,8 @@ type IPrompt = TLBaseShape<
     prompt: string
     value: string
     agentBinding: string | null
+    personality?: string
+    error?: string | null
   }
 >
 
@@ -44,11 +51,20 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
   getDefaultProps(): IPrompt["props"] {
     return {
       w: 300,
-      h: 50,
+      h: this.FIXED_HEIGHT,
       prompt: "",
       value: "",
       agentBinding: null,
     }
+  }
+
+  // Override getGeometry to ensure the selector box always matches the rendered component height
+  getGeometry(shape: IPrompt): Geometry2d {
+    return new Rectangle2d({
+      width: shape.props.w,
+      height: Math.max(shape.props.h, this.FIXED_HEIGHT),
+      isFilled: false,
+    })
   }
 
   // override onResize: TLResizeHandle<IPrompt> = (
@@ -69,6 +85,12 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
   // }
 
   component(shape: IPrompt) {
+    // Ensure shape props exist with defaults
+    const props = shape.props || {}
+    const prompt = props.prompt || ""
+    const value = props.value || ""
+    const agentBinding = props.agentBinding || ""
+    
     const arrowBindings = this.editor.getBindingsInvolvingShape(
       shape.id,
       "arrow",
@@ -91,6 +113,15 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
     const generateText = async (prompt: string) => {
       console.log("🎯 generateText called with prompt:", prompt);
       
+      // Clear any previous errors
+      this.editor.updateShape<IPrompt>({
+        id: shape.id,
+        type: "Prompt",
+        props: { 
+          error: null
+        },
+      })
+      
       const conversationHistory = shape.props.value ? shape.props.value + '\n' : ''
       const escapedPrompt = prompt.replace(/[\\"]/g, '\\$&').replace(/\n/g, '\\n')
       const userMessage = `{"role": "user", "content": "${escapedPrompt}"}`
@@ -104,7 +135,8 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
         type: "Prompt",
         props: { 
           value: conversationHistory + userMessage,
-          agentBinding: "someone" 
+          agentBinding: "someone",
+          error: null
         },
       })
 
@@ -132,7 +164,8 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
                   type: "Prompt",
                   props: { 
                     value: conversationHistory + userMessage + '\n' + assistantMessage,
-                    agentBinding: done ? null : "someone" 
+                    agentBinding: done ? null : "someone",
+                    error: null
                   },
                 })
               })
@@ -140,10 +173,29 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
               console.error('❌ Invalid JSON message:', error)
             }
           }
-        })
+        }, shape.props.personality)
         console.log("✅ LLM function completed successfully");
       } catch (error) {
-        console.error("❌ Error in LLM function:", error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error("❌ Error in LLM function:", errorMessage);
+        
+        // Display error to user
+        const userFriendlyError = errorMessage.includes('No valid API key') 
+          ? '❌ No valid API key found. Please configure your API keys in settings.'
+          : errorMessage.includes('All AI providers failed')
+          ? '❌ All API keys failed. Please check your API keys in settings.'
+          : errorMessage.includes('401') || errorMessage.includes('403') || errorMessage.includes('Unauthorized')
+          ? '❌ API key authentication failed. Your API key may be expired or invalid. Please check your API keys in settings.'
+          : `❌ Error: ${errorMessage}`;
+        
+        this.editor.updateShape<IPrompt>({
+          id: shape.id,
+          type: "Prompt",
+          props: { 
+            agentBinding: null,
+            error: userFriendlyError
+          },
+        })
       }
 
       // Ensure the final message is saved after streaming is complete
@@ -161,7 +213,8 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
             type: "Prompt",
             props: { 
               value: conversationHistory + userMessage + '\n' + assistantMessage,
-              agentBinding: null 
+              agentBinding: null,
+              error: null // Clear any errors on success
             },
           })
           console.log("✅ Final response saved successfully");
@@ -196,7 +249,7 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
     }
 
     // Add state for copy button text
-    const [copyButtonText, setCopyButtonText] = React.useState("Copy Conversation")
+    const [copyButtonText, setCopyButtonText] = React.useState("Copy Conversation to Knowledge Object")
 
     // In the component function, add state for tracking copy success
     const [isCopied, setIsCopied] = React.useState(false)
@@ -233,24 +286,72 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
           .map(line => {
             try {
               const parsed = JSON.parse(line);
-              return `${parsed.role}: ${parsed.content}`;
+              return `**${parsed.role === 'user' ? 'User' : 'Assistant'}:**\n${parsed.content}`;
             } catch {
               return null;
             }
           })
           .filter(Boolean)
-          .join('\n\n');
+          .join('\n\n---\n\n');
 
-        await navigator.clipboard.writeText(messages);
-        setCopyButtonText("Copied!");
+        // Format the conversation as markdown content
+        const conversationContent = `# Conversation History\n\n${messages}`;
+
+        // Get the prompt shape's position to place the new shape nearby
+        const promptShapeBounds = this.editor.getShapePageBounds(shape.id);
+        const baseX = promptShapeBounds ? promptShapeBounds.x + promptShapeBounds.w + 20 : shape.x + shape.props.w + 20;
+        const baseY = promptShapeBounds ? promptShapeBounds.y : shape.y;
+
+        // Find a non-overlapping position for the new ObsNote shape
+        const shapeWidth = 300;
+        const shapeHeight = 200;
+        const position = findNonOverlappingPosition(
+          this.editor,
+          baseX,
+          baseY,
+          shapeWidth,
+          shapeHeight
+        );
+
+        // Create a new ObsNote shape with the conversation content
+        const obsNoteShape = this.editor.createShape({
+          type: 'ObsNote',
+          x: position.x,
+          y: position.y,
+          props: {
+            w: shapeWidth,
+            h: shapeHeight,
+            color: 'black',
+            size: 'm',
+            font: 'sans',
+            textAlign: 'start',
+            scale: 1,
+            noteId: createShapeId(),
+            title: 'Conversation History',
+            content: conversationContent,
+            tags: ['#conversation', '#llm'],
+            showPreview: true,
+            backgroundColor: '#ffffff',
+            textColor: '#000000',
+            isEditing: false,
+            editingContent: '',
+            isModified: false,
+            originalContent: conversationContent,
+          }
+        });
+
+        // Select the newly created shape
+        this.editor.setSelectedShapes([`shape:${obsNoteShape.id}`] as any);
+
+        setCopyButtonText("Created!");
         setTimeout(() => {
-          setCopyButtonText("Copy Conversation");
+          setCopyButtonText("Copy Conversation to Knowledge Object");
         }, 2000);
       } catch (err) {
-        console.error('Failed to copy text:', err);
-        setCopyButtonText("Failed to copy");
+        console.error('Failed to create knowledge object:', err);
+        setCopyButtonText("Failed to create");
         setTimeout(() => {
-          setCopyButtonText("Copy Conversation");
+          setCopyButtonText("Copy Conversation to Knowledge Object");
         }, 2000);
       }
     };
@@ -304,6 +405,45 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
             pointerEvents: isSelected || isHovering ? "all" : "none",
           }}
         >
+          {shape.props.error && (
+            <div
+              style={{
+                padding: "12px 16px",
+                backgroundColor: "#fee",
+                border: "1px solid #fcc",
+                borderRadius: "8px",
+                color: "#c33",
+                marginBottom: "8px",
+                fontSize: "13px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              <span style={{ fontSize: "18px" }}>⚠️</span>
+              <span>{shape.props.error}</span>
+              <button
+                onClick={() => {
+                  this.editor.updateShape<IPrompt>({
+                    id: shape.id,
+                    type: "Prompt",
+                    props: { error: null },
+                  })
+                }}
+                style={{
+                  marginLeft: "auto",
+                  padding: "4px 8px",
+                  backgroundColor: "#fcc",
+                  border: "1px solid #c99",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  fontSize: "11px",
+                }}
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
           {shape.props.value ? (
             shape.props.value.split('\n').map((message, index) => {
               if (!message.trim()) return null;
@@ -392,9 +532,54 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
           marginTop: "auto",
           pointerEvents: isSelected || isHovering ? "all" : "none",
         }}>
+          {/* AI Personality Selector */}
           <div style={{ 
             display: "flex", 
-            gap: "5px" 
+            flexDirection: "column",
+            gap: "3px",
+            marginBottom: "5px"
+          }}>
+            <label style={{ 
+              fontSize: "12px", 
+              fontWeight: "500", 
+              color: "#666",
+              marginBottom: "2px"
+            }}>
+              AI Personality:
+            </label>
+            <select
+              value={shape.props.personality || 'web-developer'}
+              onChange={(e) => {
+                this.editor.updateShape<IPrompt>({
+                  id: shape.id,
+                  type: "Prompt",
+                  props: { personality: e.target.value },
+                })
+              }}
+              style={{
+                padding: "4px 8px",
+                border: "1px solid rgba(0, 0, 0, 0.1)",
+                borderRadius: "4px",
+                fontSize: "12px",
+                backgroundColor: "rgba(255, 255, 255, 0.9)",
+                cursor: "pointer",
+                height: "28px"
+              }}
+            >
+              {AI_PERSONALITIES.map((personality) => (
+                <option key={personality.id} value={personality.id}>
+                  {personality.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div style={{ 
+            display: "flex", 
+            gap: "5px",
+            position: "relative",
+            zIndex: 1000,
+            pointerEvents: "all",
           }}>
             <input
               style={{
@@ -405,6 +590,10 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
                 border: "1px solid rgba(0, 0, 0, 0.05)",
                 borderRadius: 6 - this.PADDING,
                 fontSize: 16,
+                padding: "0 8px",
+                position: "relative",
+                zIndex: 1000,
+                pointerEvents: "all",
               }}
               type="text"
               placeholder="Enter prompt..."
@@ -417,10 +606,22 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
                 })
               }}
               onKeyDown={(e) => {
+                e.stopPropagation()
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault()
-                  handlePrompt()
+                  if (shape.props.prompt.trim() && !shape.props.agentBinding) {
+                    handlePrompt()
+                  }
                 }
+              }}
+              onPointerDown={(e) => {
+                e.stopPropagation()
+              }}
+              onClick={(e) => {
+                e.stopPropagation()
+              }}
+              onFocus={(e) => {
+                e.stopPropagation()
               }}
             />
             <button
@@ -428,12 +629,31 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
                 width: 100,
                 height: "40px",
                 pointerEvents: "all",
+                cursor: shape.props.prompt.trim() && !shape.props.agentBinding ? "pointer" : "not-allowed",
+                backgroundColor: shape.props.prompt.trim() && !shape.props.agentBinding ? "#007AFF" : "#ccc",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                fontWeight: "500",
+                position: "relative",
+                zIndex: 1000,
+                opacity: shape.props.prompt.trim() && !shape.props.agentBinding ? 1 : 0.6,
               }}
               onPointerDown={(e) => {
                 e.stopPropagation()
+                e.preventDefault()
+                if (shape.props.prompt.trim() && !shape.props.agentBinding) {
+                  handlePrompt()
+                }
+              }}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                if (shape.props.prompt.trim() && !shape.props.agentBinding) {
+                  handlePrompt()
+                }
               }}
               type="button"
-              onClick={handlePrompt}
             >
               Prompt
             </button>
@@ -460,13 +680,14 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
     )
   }
 
-  // Override the default indicator behavior
-  // TODO: FIX SECOND INDICATOR UX GLITCH
+  // Override the default indicator behavior to match the actual rendered size
   override indicator(shape: IPrompt) {
+    // Use Math.max to ensure the indicator covers the full component height
+    // This handles both new shapes (h = FIXED_HEIGHT) and old shapes (h might be smaller)
     return (
       <rect
         width={shape.props.w}
-        height={this.FIXED_HEIGHT}
+        height={Math.max(shape.props.h, this.FIXED_HEIGHT)}
         rx={6}
       />
     )

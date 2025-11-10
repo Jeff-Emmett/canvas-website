@@ -1,5 +1,5 @@
 import { TLBookmarkAsset, AssetRecordType, getHashForString } from "tldraw"
-import { WORKER_URL } from "../routes/Board"
+import { WORKER_URL } from "../constants/workerUrl"
 
 export async function unfurlBookmarkUrl({
   url,

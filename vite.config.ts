@@ -11,9 +11,17 @@ export default defineConfig(({ mode }) => {
   // Debug: Log what we're getting
   console.log('🔧 Vite config - Environment variables:')
   console.log('Mode:', mode)
+  console.log('WSL2_IP from env:', process.env.WSL2_IP)
   console.log('process.env.VITE_TLDRAW_WORKER_URL:', process.env.VITE_TLDRAW_WORKER_URL)
   console.log('env.VITE_TLDRAW_WORKER_URL:', env.VITE_TLDRAW_WORKER_URL)
-  console.log('Final worker URL:', process.env.VITE_TLDRAW_WORKER_URL || env.VITE_TLDRAW_WORKER_URL)
+
+  // Get the WSL2 IP for HMR configuration
+  const wslIp = process.env.WSL2_IP || '172.22.168.84'
+  
+  // Set the worker URL to localhost for local development
+  const workerUrl = 'http://localhost:5172'
+  process.env.VITE_TLDRAW_WORKER_URL = workerUrl
+  console.log('🌐 Setting worker URL to:', workerUrl)
 
   return {
     envPrefix: ["VITE_"],
@@ -21,6 +29,14 @@ export default defineConfig(({ mode }) => {
     server: {
       host: "0.0.0.0",
       port: 5173,
+      strictPort: true,
+      // Force IPv4 to ensure compatibility with WSL2 and remote devices
+      listen: "0.0.0.0",
+      // Configure HMR to use the correct hostname for WebSocket connections
+      hmr: {
+        host: wslIp,
+        port: 5173,
+      },
     },
     build: {
       sourcemap: true,
@@ -33,9 +49,23 @@ export default defineConfig(({ mode }) => {
       },
     },
     define: {
-      // Use process.env for production builds, fallback to .env files for development
-      __WORKER_URL__: JSON.stringify(process.env.VITE_TLDRAW_WORKER_URL || env.VITE_TLDRAW_WORKER_URL),
+      // Worker URL is now handled dynamically in Board.tsx based on window.location.hostname
+      // This ensures remote devices connect to the correct worker IP
       __DAILY_API_KEY__: JSON.stringify(process.env.VITE_DAILY_API_KEY || env.VITE_DAILY_API_KEY)
-    }
+    },
+    optimizeDeps: {
+      include: [
+        '@xenova/transformers'
+      ],
+      exclude: [
+        // Exclude problematic modules from pre-bundling
+      ]
+    },
+    assetsInclude: [
+      // Include WebAssembly files
+      '**/*.wasm',
+      '**/*.onnx',
+      '**/*.bin'
+    ]
   }
 })

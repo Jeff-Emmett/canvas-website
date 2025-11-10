@@ -9,6 +9,8 @@ export interface StoredSession {
   authed: boolean;
   timestamp: number;
   backupCreated: boolean | null;
+  obsidianVaultPath?: string;
+  obsidianVaultName?: string;
 }
 
 /**
@@ -22,12 +24,15 @@ export const saveSession = (session: Session): boolean => {
       username: session.username,
       authed: session.authed,
       timestamp: Date.now(),
-      backupCreated: session.backupCreated
+      backupCreated: session.backupCreated,
+      obsidianVaultPath: session.obsidianVaultPath,
+      obsidianVaultName: session.obsidianVaultName
     };
     
     localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(storedSession));
     return true;
   } catch (error) {
+    console.error('🔧 Error saving session:', error);
     return false;
   }
 };
@@ -40,7 +45,9 @@ export const loadSession = (): StoredSession | null => {
   
   try {
     const stored = localStorage.getItem(SESSION_STORAGE_KEY);
-    if (!stored) return null;
+    if (!stored) {
+      return null;
+    }
     
     const parsed = JSON.parse(stored) as StoredSession;
     
@@ -50,9 +57,9 @@ export const loadSession = (): StoredSession | null => {
       localStorage.removeItem(SESSION_STORAGE_KEY);
       return null;
     }
-    
     return parsed;
   } catch (error) {
+    console.error('🔧 Error loading session:', error);
     return null;
   }
 };

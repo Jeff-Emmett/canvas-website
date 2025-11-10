@@ -15,21 +15,12 @@ upstream_protocol = "https"
 
 [durable_objects]
 bindings = [
-    { name = "TLDRAW_DURABLE_OBJECT", class_name = "TldrawDurableObject" },
-    # { name = "AUTOMERGE_DURABLE_OBJECT", class_name = "AutomergeDurableObject" }, # Disabled - not currently used
+    { name = "AUTOMERGE_DURABLE_OBJECT", class_name = "AutomergeDurableObject" },
 ]
 
 [[migrations]]
 tag = "v1"
-new_classes = ["TldrawDurableObject"]
-
-[[migrations]]
-tag = "v2"
 new_classes = ["AutomergeDurableObject"]
-
-[[migrations]]
-tag = "v3"
-deleted_classes = ["AutomergeDurableObject"]
 
 [[r2_buckets]]
 binding = 'TLDRAW_BUCKET'
@@ -41,10 +32,6 @@ binding = 'BOARD_BACKUPS_BUCKET'
 bucket_name = 'board-backups-preview'
 preview_bucket_name = 'board-backups-preview'
 
-[miniflare]
-kv_persist = true
-r2_persist = true
-durable_objects_persist = true
 
 [observability]
 enabled = true

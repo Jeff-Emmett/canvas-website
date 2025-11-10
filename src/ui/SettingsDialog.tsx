@@ -10,11 +10,30 @@ import {
   TldrawUiInput,
 } from "tldraw"
 import React from "react"
-import { PROVIDERS } from "../lib/settings"
+import { PROVIDERS, AI_PERSONALITIES } from "../lib/settings"
+import { useAuth } from "../context/AuthContext"
 
 export function SettingsDialog({ onClose }: TLUiDialogProps) {
+  const { session } = useAuth()
+  
   const [apiKeys, setApiKeys] = React.useState(() => {
     try {
+      // First try to get user-specific API keys if logged in
+      if (session.authed && session.username) {
+        const userApiKeys = localStorage.getItem(`${session.username}_api_keys`)
+        if (userApiKeys) {
+          try {
+            const parsed = JSON.parse(userApiKeys)
+            if (parsed.keys) {
+              return parsed.keys
+            }
+          } catch (e) {
+            // Continue to fallback
+          }
+        }
+      }
+      
+      // Fallback to global API keys
       const stored = localStorage.getItem("openai_api_key")
       if (stored) {
         try {
@@ -33,18 +52,72 @@ export function SettingsDialog({ onClose }: TLUiDialogProps) {
     }
   })
 
+  const [personality, setPersonality] = React.useState(() => {
+    try {
+      // First try to get user-specific settings if logged in
+      if (session.authed && session.username) {
+        const userApiKeys = localStorage.getItem(`${session.username}_api_keys`)
+        if (userApiKeys) {
+          try {
+            const parsed = JSON.parse(userApiKeys)
+            if (parsed.personality) {
+              return parsed.personality
+            }
+          } catch (e) {
+            // Continue to fallback
+          }
+        }
+      }
+      
+      // Fallback to global settings
+      const stored = localStorage.getItem("openai_api_key")
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored)
+          if (parsed.personality) {
+            return parsed.personality
+          }
+        } catch (e) {
+          // Continue to fallback
+        }
+      }
+      return 'web-developer'
+    } catch (e) {
+      return 'web-developer'
+    }
+  })
+
   const handleKeyChange = (provider: string, value: string) => {
     const newKeys = { ...apiKeys, [provider]: value }
     setApiKeys(newKeys)
-    
+    saveSettings(newKeys, personality)
+  }
+
+  const handlePersonalityChange = (newPersonality: string) => {
+    setPersonality(newPersonality)
+    saveSettings(apiKeys, newPersonality)
+  }
+
+  const saveSettings = (keys: any, personalityValue: string) => {
     // Save to localStorage with the new structure
     const settings = {
-      keys: newKeys,
-      provider: provider === 'openai' ? 'openai' : provider, // Use the actual provider
+      keys: keys,
+      provider: 'openai', // Default provider
       models: Object.fromEntries(PROVIDERS.map((provider) => [provider.id, provider.models[0]])),
+      personality: personalityValue,
     }
-    console.log("💾 Saving settings to localStorage:", settings);
-    localStorage.setItem("openai_api_key", JSON.stringify(settings))
+    
+    // If user is logged in, save to user-specific storage
+    if (session.authed && session.username) {
+      console.log(`💾 Saving user-specific settings for ${session.username}:`, settings);
+      localStorage.setItem(`${session.username}_api_keys`, JSON.stringify(settings))
+      
+      // Also save to global storage as fallback
+      localStorage.setItem("openai_api_key", JSON.stringify(settings))
+    } else {
+      console.log("💾 Saving global settings to localStorage:", settings);
+      localStorage.setItem("openai_api_key", JSON.stringify(settings))
+    }
   }
 
   const validateKey = (provider: string, key: string) => {
@@ -58,11 +131,41 @@ export function SettingsDialog({ onClose }: TLUiDialogProps) {
   return (
     <>
       <TldrawUiDialogHeader>
-        <TldrawUiDialogTitle>AI API Keys</TldrawUiDialogTitle>
+        <TldrawUiDialogTitle>AI Settings</TldrawUiDialogTitle>
         <TldrawUiDialogCloseButton />
       </TldrawUiDialogHeader>
       <TldrawUiDialogBody style={{ maxWidth: 400 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* AI Personality Selector */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <label style={{ fontWeight: "500", fontSize: "14px" }}>
+              AI Personality
+            </label>
+            <select
+              value={personality}
+              onChange={(e) => handlePersonalityChange(e.target.value)}
+              style={{
+                padding: "8px 12px",
+                border: "1px solid #d1d5db",
+                borderRadius: "6px",
+                fontSize: "14px",
+                backgroundColor: "white",
+                cursor: "pointer"
+              }}
+            >
+              {AI_PERSONALITIES.map((personality) => (
+                <option key={personality.id} value={personality.id}>
+                  {personality.name} - {personality.description}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          {/* API Keys Section */}
+          <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: "16px" }}>
+            <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "16px" }}>
+              API Keys
+            </h3>
           {PROVIDERS.map((provider) => (
             <div key={provider.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -111,6 +214,7 @@ export function SettingsDialog({ onClose }: TLUiDialogProps) {
               </div>
             </div>
           ))}
+          </div> {/* Close API Keys Section */}
           
           <div style={{ 
             padding: "12px", 

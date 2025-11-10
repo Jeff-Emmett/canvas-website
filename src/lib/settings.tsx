@@ -1,5 +1,5 @@
 import { atom } from 'tldraw'
-import { SYSTEM_PROMPT } from '@/prompt'
+import { SYSTEM_PROMPT, CONSTANCE_SYSTEM_PROMPT } from '@/prompt'
 
 export const PROVIDERS = [
 	{
@@ -13,8 +13,8 @@ export const PROVIDERS = [
 		id: 'anthropic',
 		name: 'Anthropic',
 		models: [
-			'claude-3-5-sonnet-20241022',
-			'claude-3-5-sonnet-20240620',
+			'claude-sonnet-4-5-20250929',
+			'claude-sonnet-4-20250522',
 			'claude-3-opus-20240229',
 			'claude-3-sonnet-20240229',
 			'claude-3-haiku-20240307',
@@ -25,6 +25,21 @@ export const PROVIDERS = [
 	// { id: 'google', name: 'Google', model: 'Gemeni 1.5 Flash', validate: (key: string) => true },
 ]
 
+export const AI_PERSONALITIES = [
+	{
+		id: 'web-developer',
+		name: 'Web Developer',
+		description: 'Expert web developer for building prototypes from wireframes',
+		systemPrompt: SYSTEM_PROMPT,
+	},
+	{
+		id: 'constance',
+		name: 'Constance',
+		description: 'Avatar of the US Constitution - helps understand constitutional principles',
+		systemPrompt: CONSTANCE_SYSTEM_PROMPT,
+	},
+]
+
 export const makeRealSettings = atom('make real settings', {
 	provider: 'openai' as (typeof PROVIDERS)[number]['id'] | 'all',
 	models: Object.fromEntries(PROVIDERS.map((provider) => [provider.id, provider.models[0]])),
@@ -33,6 +48,7 @@ export const makeRealSettings = atom('make real settings', {
 		anthropic: '',
 		google: '',
 	},
+	personality: 'web-developer' as (typeof AI_PERSONALITIES)[number]['id'],
 	prompts: {
 		system: SYSTEM_PROMPT,
 	},
@@ -50,6 +66,7 @@ export function applySettingsMigrations(settings: any) {
 			google: '',
 			...keys,
 		},
+		personality: 'web-developer' as (typeof AI_PERSONALITIES)[number]['id'],
 		prompts: {
 			system: SYSTEM_PROMPT,
 			...prompts,

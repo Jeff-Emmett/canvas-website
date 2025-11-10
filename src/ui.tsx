@@ -20,7 +20,6 @@ export const overrides: TLUiOverrides = {
 				id: "gesture",
 				name: "Gesture",
 				icon: "👆",
-				kbd: "g",
 				label: "Gesture",
 				onSelect: () => {
 					editor.setCurrentTool("gesture")
