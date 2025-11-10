@@ -4,6 +4,7 @@ import { CloudflareNetworkAdapter } from "./CloudflareAdapter"
 import { useAutomergeStoreV2, useAutomergePresence } from "./useAutomergeStoreV2"
 import { TLStoreWithStatus } from "@tldraw/tldraw"
 import { Repo } from "@automerge/automerge-repo"
+import { DocHandle } from "@automerge/automerge-repo"
 
 interface AutomergeSyncConfig {
   uri: string
@@ -16,7 +17,7 @@ interface AutomergeSyncConfig {
   }
 }
 
-export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus {
+export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus & { handle: DocHandle<any> | null; presence: ReturnType<typeof useAutomergePresence> } {
   const { uri, user } = config
   
   // Extract roomId from URI (e.g., "https://worker.com/connect/room123" -> "room123")
@@ -204,5 +205,5 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
     ...storeWithStatus,
     handle,
     presence
-  } as TLStoreWithStatus & { presence: typeof presence; handle: typeof handle }
+  }
 }
