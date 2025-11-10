@@ -25,7 +25,9 @@ new_classes = ["AutomergeDurableObject"]
 
 [[migrations]]
 tag = "v2"
-deleted_classes = ["TldrawDurableObject"]
+renamed_classes = [
+  { from = "TldrawDurableObject", to = "AutomergeDurableObject" }
+]
 
 [[r2_buckets]]
 binding = 'TLDRAW_BUCKET'
@@ -67,7 +69,9 @@ new_classes = ["AutomergeDurableObject"]
 
 [[env.dev.migrations]]
 tag = "v2"
-deleted_classes = ["TldrawDurableObject"]
+renamed_classes = [
+  { from = "TldrawDurableObject", to = "AutomergeDurableObject" }
+]
 
 [[env.dev.r2_buckets]]
 binding = 'TLDRAW_BUCKET'
