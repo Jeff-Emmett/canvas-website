@@ -3,8 +3,18 @@ name: Deploy Worker
 on:
   push:
     branches:
-      - main # or 'production' depending on your branch name
+      - main # Production deployment
+      - 'automerge/**' # Dev deployment for automerge branches (matches automerge/*, automerge/**/*, etc.)
   workflow_dispatch: # Allows manual triggering from GitHub UI
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - production
 
 jobs:
   deploy:
@@ -22,11 +32,33 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Deploy to Cloudflare Workers
+      - name: Determine Environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy to Cloudflare Workers (Production)
+        if: steps.env.outputs.environment == 'production'
         run: |
           npm install -g wrangler@latest
           # Uses default wrangler.toml (production config) from root directory
           wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy to Cloudflare Workers (Dev)
+        if: steps.env.outputs.environment == 'dev'
+        run: |
+          npm install -g wrangler@latest
+          # Uses wrangler.dev.toml for dev environment
+          wrangler deploy --config wrangler.dev.toml
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

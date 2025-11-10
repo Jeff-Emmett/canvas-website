@@ -5,6 +5,25 @@ import { Environment } from "./types"
 // make sure our sync durable objects are made available to cloudflare
 export { AutomergeDurableObject } from "./AutomergeDurableObject"
 
+// Temporary stub for TldrawDurableObject to allow delete-class migration
+// This extends AutomergeDurableObject so existing instances can be handled during migration
+// 
+// DATA SAFETY: All document data is stored in R2 at `rooms/${roomId}`, not in Durable Object storage.
+// When TldrawDurableObject instances are deleted, only the Durable Object instances are removed.
+// The R2 data remains safe and accessible by AutomergeDurableObject, which uses the same R2 bucket
+// (TLDRAW_BUCKET) and storage path. The roomId can be re-initialized from the URL path if needed.
+//
+// This will be removed after the migration completes
+import { AutomergeDurableObject as BaseAutomergeDurableObject } from "./AutomergeDurableObject"
+
+export class TldrawDurableObject extends BaseAutomergeDurableObject {
+  constructor(ctx: DurableObjectState, env: Environment) {
+    // Extends AutomergeDurableObject, so it uses the same R2 bucket (env.TLDRAW_BUCKET)
+    // and storage path (rooms/${roomId}), ensuring no data loss during migration
+    super(ctx, env)
+  }
+}
+
 // Lazy load heavy dependencies to avoid startup timeouts
 let handleUnfurlRequest: any = null
 
