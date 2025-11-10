@@ -94,18 +94,20 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
                   
                   // Assign each record individually with deep copy to ensure Automerge properly handles nested objects
                   // This matches how records are saved in TLStoreToAutomerge.ts
+                  // Cast to any to allow string indexing (Automerge handles the typing internally)
+                  const store = doc.store as any
                   let assignedCount = 0
                   for (const [key, record] of Object.entries(existingDoc.store)) {
                     try {
                       // Create a deep copy to ensure Automerge properly handles nested objects
                       // This is critical for preserving nested structures like props, richText, etc.
                       const recordToSave = JSON.parse(JSON.stringify(record))
-                      doc.store[key] = recordToSave
+                      store[key] = recordToSave
                       assignedCount++
                     } catch (e) {
                       console.error(`❌ Error deep copying record ${key}:`, e)
                       // Fallback: assign directly (might not work for nested objects)
-                      doc.store[key] = record
+                      store[key] = record
                     }
                   }
                   
