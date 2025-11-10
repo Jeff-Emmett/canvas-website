@@ -157,7 +157,7 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
   private workerUrl: string
   private websocket: WebSocket | null = null
   private roomId: string | null = null
-  private peerId: PeerId | null = null
+  public peerId: PeerId | undefined = undefined
   private readyPromise: Promise<void>
   private readyResolve: (() => void) | null = null
   private keepAliveInterval: NodeJS.Timeout | null = null
@@ -225,22 +225,24 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
               console.log('🔌 CloudflareAdapter: Received binary message (Automerge protocol)')
               // Handle binary Automerge sync messages - convert ArrayBuffer to Uint8Array
               // Automerge Repo expects binary sync messages as Uint8Array
-              this.emit('message', {
+              const message: Message = {
                 type: 'sync',
                 data: new Uint8Array(event.data),
-                senderId: this.peerId || 'unknown' as PeerId,
-                targetId: this.peerId || 'unknown' as PeerId
-              } as Message)
+                senderId: this.peerId || ('unknown' as PeerId),
+                targetId: this.peerId || ('unknown' as PeerId)
+              }
+              this.emit('message', message)
             } else if (event.data instanceof Blob) {
               // Handle Blob messages (convert to Uint8Array)
               event.data.arrayBuffer().then((buffer) => {
                 console.log('🔌 CloudflareAdapter: Received Blob message, converted to Uint8Array')
-                this.emit('message', {
+                const message: Message = {
                   type: 'sync',
                   data: new Uint8Array(buffer),
-                  senderId: this.peerId || 'unknown' as PeerId,
-                  targetId: this.peerId || 'unknown' as PeerId
-                } as Message)
+                  senderId: this.peerId || ('unknown' as PeerId),
+                  targetId: this.peerId || ('unknown' as PeerId)
+                }
+                this.emit('message', message)
               })
             } else {
               // Handle text messages (our custom protocol for backward compatibility)
@@ -266,15 +268,15 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
                   storeKeys: message.data.store ? Object.keys(message.data.store).length : 0
                 })
                 // For backward compatibility, handle JSON sync data
-                this.emit('message', {
+                const syncMessage: Message = {
                   type: 'sync',
-                  senderId: message.senderId,
-                  targetId: message.targetId,
-                  documentId: message.documentId,
+                  senderId: message.senderId || this.peerId || ('unknown' as PeerId),
+                  targetId: message.targetId || this.peerId || ('unknown' as PeerId),
                   data: message.data
-                })
-              } else {
-                this.emit('message', message)
+                }
+                this.emit('message', syncMessage)
+              } else if (message.senderId && message.targetId) {
+                this.emit('message', message as Message)
               }
             }
           } catch (error) {

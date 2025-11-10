@@ -140,18 +140,8 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
   // Get the store with status
   const storeWithStatus = useMemo((): TLStoreWithStatus => {
     if (!store) {
-      if (isLoading) {
-        return {
-          status: 'loading' as const,
-          connectionStatus: 'offline' as const,
-          store: undefined
-        }
-      } else {
-        return {
-          status: 'not-synced' as const,
-          connectionStatus: 'offline' as const,
-          store: undefined
-        }
+      return {
+        status: 'loading' as const
       }
     }
 
@@ -163,10 +153,25 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
   }, [store, isLoading])
 
   // Get presence data (only when handle is ready)
+  const userMetadata: { userId: string; name: string; color: string } = (() => {
+    if (user && 'userId' in user) {
+      return {
+        userId: (user as { userId: string; name: string; color?: string }).userId,
+        name: (user as { userId: string; name: string; color?: string }).name,
+        color: (user as { userId: string; name: string; color?: string }).color || '#000000'
+      }
+    }
+    return {
+      userId: user?.id || 'anonymous',
+      name: user?.name || 'Anonymous',
+      color: '#000000'
+    }
+  })()
+  
   const presence = useAutomergePresence({
     handle: handle || null,
     store: store || null,
-    userMetadata: user && 'userId' in user ? user : { userId: user?.id || 'anonymous', name: user?.name || 'Anonymous', color: '#000000' }
+    userMetadata
   })
 
   return {
