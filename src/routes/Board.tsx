@@ -209,7 +209,7 @@ export function Board() {
     ...('connectionStatus' in storeWithHandle ? { connectionStatus: storeWithHandle.connectionStatus } : {}),
     error: storeWithHandle.error
   }
-  const automergeHandle = storeWithHandle.handle
+  const automergeHandle = (storeWithHandle as any).handle
   const [editor, setEditor] = useState<Editor | null>(null)
 
   useEffect(() => {
@@ -227,82 +227,109 @@ export function Board() {
 
   // Remove the URL-based locking effect and replace with store-based initialization
   useEffect(() => {
-    if (!editor) return
+    if (!editor || !store.store) return
     initLockIndicators(editor)
     watchForLockedShapes(editor)
     
-    
-    
-    // Debug: Check what shapes the editor can see
-    if (editor) {
-      const editorShapes = editor.getRenderingShapes()
-      console.log(`📊 Board: Editor can see ${editorShapes.length} shapes for rendering`)
+    // Function to check and fix missing shapes
+    const checkAndFixMissingShapes = () => {
+      if (!editor || !store.store) return
       
-      // Debug: Check all shapes in the store vs what editor can see
-      const storeShapes = store.store?.allRecords().filter((r: any) => r.typeName === 'shape') || []
-      console.log(`📊 Board: Store has ${storeShapes.length} shapes, editor sees ${editorShapes.length}`)
-      
-      if (editorShapes.length > 0 && editor) {
-        const shape = editor.getShape(editorShapes[0].id)
-        console.log("📊 Board: Sample editor shape:", {
-          id: editorShapes[0].id,
-          type: shape?.type,
-          x: shape?.x,
-          y: shape?.y
-        })
+      // Only check if store is synced
+      if (store.status !== 'synced-remote') {
+        console.log(`📊 Board: Store not synced yet (status: ${store.status}), skipping shape check`)
+        return
       }
       
-      // Debug: Check current page and page IDs
+      const editorShapes = editor.getCurrentPageShapes()
+      const storeShapes = store.store.allRecords().filter((r: any) => r.typeName === 'shape') || []
       const currentPageId = editor.getCurrentPageId()
-      console.log(`📊 Board: Current page ID: ${currentPageId}`)
       
-      const pageRecords = store.store?.allRecords().filter((r: any) => r.typeName === 'page') || []
-      console.log(`📊 Board: Available pages:`, pageRecords.map((p: any) => ({
-        id: p.id,
-        name: (p as any).name
-      })))
+      // Get shapes on current page from store
+      const storeShapesOnCurrentPage = storeShapes.filter((s: any) => s.parentId === currentPageId)
       
-      // Check if there are shapes in store that editor can't see
-      if (storeShapes.length > editorShapes.length) {
+      console.log(`📊 Board: Store has ${storeShapes.length} total shapes, ${storeShapesOnCurrentPage.length} on current page. Editor sees ${editorShapes.length} shapes on current page.`)
+      
+      // Check if there are shapes in store on current page that editor can't see
+      if (storeShapesOnCurrentPage.length > editorShapes.length) {
         const editorShapeIds = new Set(editorShapes.map(s => s.id))
-        const missingShapes = storeShapes.filter((s: any) => !editorShapeIds.has(s.id))
-        console.warn(`📊 Board: ${missingShapes.length} shapes in store but not visible to editor:`, missingShapes.map((s: any) => ({
-          id: s.id,
-          type: s.type,
-          x: s.x,
-          y: s.y,
-          parentId: s.parentId
-        })))
+        const missingShapes = storeShapesOnCurrentPage.filter((s: any) => !editorShapeIds.has(s.id))
         
-        // Check if missing shapes are on a different page
-        const shapesOnCurrentPage = missingShapes.filter((s: any) => s.parentId === currentPageId)
-        const shapesOnOtherPages = missingShapes.filter((s: any) => s.parentId !== currentPageId)
-        console.log(`📊 Board: Missing shapes on current page: ${shapesOnCurrentPage.length}, on other pages: ${shapesOnOtherPages.length}`)
-        
-        if (shapesOnOtherPages.length > 0) {
-          console.log(`📊 Board: Shapes on other pages:`, shapesOnOtherPages.map((s: any) => ({
+        if (missingShapes.length > 0) {
+          console.warn(`📊 Board: ${missingShapes.length} shapes in store on current page but not visible to editor:`, missingShapes.map((s: any) => ({
             id: s.id,
+            type: s.type,
+            x: s.x,
+            y: s.y,
             parentId: s.parentId
           })))
           
-          // Fix: Move shapes to the current page
-          console.log(`📊 Board: Moving ${shapesOnOtherPages.length} shapes to current page ${currentPageId}`)
-          const shapesToMove = shapesOnOtherPages.map((s: any) => ({
-            id: s.id,
-            type: s.type,
-            parentId: currentPageId
-          }))
+          // Try to get the shapes from the editor to see if they exist but aren't being returned
+          const missingShapeIds = missingShapes.map((s: any) => s.id)
+          const shapesFromEditor = missingShapeIds.map(id => editor.getShape(id)).filter(Boolean)
           
-          try {
-            editor.updateShapes(shapesToMove)
-            console.log(`📊 Board: Successfully moved ${shapesToMove.length} shapes to current page`)
-          } catch (error) {
-            console.error(`📊 Board: Error moving shapes to current page:`, error)
+          if (shapesFromEditor.length > 0) {
+            console.log(`📊 Board: ${shapesFromEditor.length} missing shapes actually exist in editor but aren't in getCurrentPageShapes()`)
+            // Try to select them to make them visible
+            editor.setSelectedShapes(shapesFromEditor.map(s => s.id))
+          } else {
+            // Shapes don't exist in editor - might be a sync issue
+            console.error(`📊 Board: ${missingShapes.length} shapes are in store but don't exist in editor - possible sync issue`)
+          }
+          
+          // Check if shapes are outside viewport
+          const viewport = editor.getViewportPageBounds()
+          const shapesOutsideViewport = missingShapes.filter((s: any) => {
+            if (s.x === undefined || s.y === undefined) return true
+            const shapeBounds = {
+              x: s.x,
+              y: s.y,
+              w: (s.props as any)?.w || 100,
+              h: (s.props as any)?.h || 100
+            }
+            return !(
+              shapeBounds.x + shapeBounds.w >= viewport.x &&
+              shapeBounds.x <= viewport.x + viewport.w &&
+              shapeBounds.y + shapeBounds.h >= viewport.y &&
+              shapeBounds.y <= viewport.y + viewport.h
+            )
+          })
+          
+          if (shapesOutsideViewport.length > 0) {
+            console.log(`📊 Board: ${shapesOutsideViewport.length} missing shapes are outside viewport - focusing on them`)
+            // Focus on the first missing shape
+            const firstShape = shapesOutsideViewport[0] as any
+            if (firstShape && firstShape.x !== undefined && firstShape.y !== undefined) {
+              editor.setCamera({
+                x: firstShape.x - viewport.w / 2,
+                y: firstShape.y - viewport.h / 2,
+                z: editor.getCamera().z
+              }, { animation: { duration: 300 } })
+            }
           }
         }
       }
+      
+      // Also check for shapes on other pages
+      const shapesOnOtherPages = storeShapes.filter((s: any) => s.parentId !== currentPageId)
+      if (shapesOnOtherPages.length > 0) {
+        console.log(`📊 Board: ${shapesOnOtherPages.length} shapes exist on other pages (not current page ${currentPageId})`)
+      }
     }
-  }, [editor])
+    
+    // Initial check
+    checkAndFixMissingShapes()
+    
+    // Listen to store changes to continuously monitor for missing shapes
+    const unsubscribe = store.store.listen(() => {
+      // Debounce the check to avoid excessive calls
+      setTimeout(checkAndFixMissingShapes, 500)
+    }, { source: "user", scope: "document" })
+    
+    return () => {
+      unsubscribe()
+    }
+  }, [editor, store.store])
 
   // Update presence when session changes
   useEffect(() => {
