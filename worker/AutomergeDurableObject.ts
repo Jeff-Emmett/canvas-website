@@ -450,6 +450,7 @@ export class AutomergeDurableObject {
     if (!this.roomPromise) {
       this.roomPromise = (async () => {
         let initialDoc: any
+        let wasConverted = false
         
         try {
           // fetch the document from R2
@@ -471,6 +472,7 @@ export class AutomergeDurableObject {
                 // This is the raw Automerge document format - convert to store format
                 console.log(`Converting Automerge document format to store format for room ${this.roomId}`)
                 initialDoc = this.convertAutomergeToStore(rawDoc)
+                wasConverted = true
                 const customRecords = Object.values(initialDoc.store).filter((r: any) => 
                   r.id && typeof r.id === 'string' && r.id.startsWith('obsidian_vault:')
                 )
@@ -496,6 +498,7 @@ export class AutomergeDurableObject {
                 // Migrate old format (documents array) to new format (store object)
                 console.log(`Migrating old documents format to new store format for room ${this.roomId}`)
                 initialDoc = this.migrateDocumentsToStore(rawDoc)
+                wasConverted = true
                 const customRecords = Object.values(initialDoc.store).filter((r: any) => 
                   r.id && typeof r.id === 'string' && r.id.startsWith('obsidian_vault:')
                 )
@@ -535,6 +538,24 @@ export class AutomergeDurableObject {
         
         // Initialize the last persisted hash with the loaded document
         this.lastPersistedHash = this.generateDocHash(initialDoc)
+        
+        // If document was converted/migrated, persist it immediately to save in new format
+        if (wasConverted && initialDoc.store && Object.keys(initialDoc.store).length > 0) {
+          console.log(`📦 Persisting converted document to R2 in new format for room ${this.roomId}`)
+          // Persist immediately without throttling for converted documents
+          try {
+            const docJson = JSON.stringify(initialDoc)
+            await this.r2.put(`rooms/${this.roomId}`, docJson, {
+              httpMetadata: {
+                contentType: 'application/json'
+              }
+            })
+            this.lastPersistedHash = this.generateDocHash(initialDoc)
+            console.log(`✅ Successfully persisted converted document for room ${this.roomId}`)
+          } catch (persistError) {
+            console.error(`❌ Error persisting converted document for room ${this.roomId}:`, persistError)
+          }
+        }
         
         return initialDoc
       })()
