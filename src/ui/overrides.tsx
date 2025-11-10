@@ -164,7 +164,6 @@ export const overrides: TLUiOverrides = {
         id: "gesture",
         icon: "draw",
         label: "Gesture",
-        kbd: "g",
         readonlyOk: true,
         type: "gesture",
         onSelect: () => editor.setCurrentTool("gesture"),
@@ -187,10 +186,70 @@ export const overrides: TLUiOverrides = {
         type: "Transcription",
         onSelect: () => editor.setCurrentTool("transcription"),
       },
+      FathomTranscript: {
+        id: "fathom-transcript",
+        icon: "file-text",
+        label: "Fathom Transcript",
+        kbd: "alt+f",
+        readonlyOk: true,
+        type: "FathomTranscript",
+        onSelect: () => {
+          // Dispatch custom event to open Fathom meetings panel
+          const event = new CustomEvent('open-fathom-meetings')
+          window.dispatchEvent(event)
+        },
+      },
+      Holon: {
+        id: "holon",
+        icon: "circle",
+        label: "Holon",
+        kbd: "alt+h",
+        readonlyOk: true,
+        type: "Holon",
+        onSelect: () => editor.setCurrentTool("holon"),
+      },
+      FathomMeetings: {
+        id: "fathom-meetings",
+        icon: "calendar",
+        label: "Fathom Meetings",
+        kbd: "alt+f",
+        readonlyOk: true,
+        // Removed type property to prevent automatic shape creation
+        // Shape creation is handled manually in FathomMeetingsTool.onPointerDown
+        onSelect: () => editor.setCurrentTool("fathom-meetings"),
+      },
       hand: {
         ...tools.hand,
         onDoubleClick: (info: any) => {
           editor.zoomIn(info.point, { animation: { duration: 200 } })
+        },
+        onPointerDown: (info: any) => {
+          // Make hand tool drag shapes when clicking on them (without requiring selection)
+          // Since tldraw already detects shapes on hover (cursor changes), getShapeAtPoint should work
+          const shape = editor.getShapeAtPoint(info.point)
+          
+          if (shape) {
+            // Drag the shape directly without selecting it first
+            editor.dispatch({
+              type: "pointer",
+              name: "pointer_down",
+              point: info.point,
+              button: info.button,
+              shiftKey: info.shiftKey,
+              altKey: info.altKey,
+              ctrlKey: info.ctrlKey,
+              metaKey: info.metaKey,
+              pointerId: info.pointerId,
+              target: "shape",
+              shape,
+              isPen: false,
+              accelKey: info.ctrlKey || info.metaKey,
+            })
+            return // Don't let hand tool move camera
+          }
+          
+          // If not clicking on a shape, use default hand tool behavior (move camera)
+          ;(tools.hand as any).onPointerDown?.(info)
         },
       },
     }
@@ -383,18 +442,49 @@ export const overrides: TLUiOverrides = {
             
             try {
               llm(prompt, (partialResponse: string) => {
-
                 const targetShape = editor.getShape(edge.to) as TLGeoShape
+                
+                // Convert plain text to richText format for TLDraw
+                // Split by newlines to create multiple paragraphs
+                const paragraphs = partialResponse.split('\n').filter(line => line.trim() !== '')
+                const richTextContent = paragraphs.length > 0 
+                  ? paragraphs.map(paragraph => ({
+                      type: 'paragraph' as const,
+                      content: [
+                        {
+                          type: 'text' as const,
+                          text: paragraph
+                        }
+                      ]
+                    }))
+                  : [
+                      {
+                        type: 'paragraph' as const,
+                        content: [
+                          {
+                            type: 'text' as const,
+                            text: partialResponse || ''
+                          }
+                        ]
+                      }
+                    ]
+                
+                const richText = {
+                  content: richTextContent,
+                  type: 'doc' as const
+                }
+                
                 editor.updateShape({
                   id: edge.to,
                   type: "geo",
                   props: {
                     ...targetShape.props,
-                    richText: (targetShape.props as any)?.richText || [] as any, // Ensure richText exists
+                    richText: richText, // Store text in richText format for display
                   },
                   meta: {
                     ...targetShape.meta,
-                    text: partialResponse, // Store text in meta instead of props
+                    // Keep text in meta for backwards compatibility if needed
+                    text: partialResponse,
                   },
                 })
 

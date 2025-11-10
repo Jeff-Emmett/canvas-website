@@ -46,7 +46,7 @@ crons = ["0 0 * * *"] # Run at midnight UTC every day
 
 # Development environment configuration
 [env.dev]
-name = "jeffemmett-canvas-dev"
+name = "jeffemmett-canvas-automerge-dev"
 compatibility_date = "2024-07-01"
 
 [env.dev.vars]

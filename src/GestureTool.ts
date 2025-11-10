@@ -200,6 +200,8 @@ export class Drawing extends StateNode {
 
 	onGestureEnd = () => {
 		const shape = this.editor.getShape(this.initialShape?.id!) as TLDrawShape
+		if (!shape) return
+		
 		const ps = shape.props.segments[0].points.map((s) => ({ x: s.x, y: s.y }))
 		const gesture = this.editor.inputs.shiftKey ? GestureTool.recognizerAlt.recognize(ps) : GestureTool.recognizer.recognize(ps)
 		const score_pass = gesture.score > 0.2
@@ -210,52 +212,63 @@ export class Drawing extends StateNode {
 		} else if (!score_confident) {
 			score_color = "yellow"
 		}
+		
+		// Execute the gesture action if recognized
 		if (score_pass) {
 			gesture.onComplete?.(this.editor, shape)
 		}
-		let opacity = 1
-		const labelShape: TLShapePartial<TLTextShape> = {
-			id: createShapeId(),
-			type: "text",
-			x: this.editor.inputs.currentPagePoint.x + 20,
-			y: this.editor.inputs.currentPagePoint.y,
-			isLocked: false,
-			props: {
-				size: "xl",
-				text: gesture.name,
-				color: score_color,
-			} as any,
-		}
+		
+		// Delete the gesture shape immediately - it's just a command, not a persistent shape
+		this.editor.deleteShape(shape.id)
+		
+		// Optionally show a temporary label with fade-out
 		if (SHOW_LABELS) {
+			const labelShape: TLShapePartial<TLTextShape> = {
+				id: createShapeId(),
+				type: "text",
+				x: this.editor.inputs.currentPagePoint.x + 20,
+				y: this.editor.inputs.currentPagePoint.y,
+				isLocked: false,
+				props: {
+					size: "xl",
+					richText: {
+						content: [
+							{
+								type: "paragraph",
+								content: [
+									{
+										type: "text",
+										text: gesture.name,
+									},
+								],
+							},
+						],
+						type: "doc",
+					},
+					color: score_color,
+				},
+			}
 			this.editor.createShape(labelShape)
-		}
-		const intervalId = setInterval(() => {
-			if (opacity > 0) {
-				this.editor.updateShape({
-					...shape,
-					opacity: opacity,
-					props: {
-						...shape.props,
-						color: score_color,
-					},
-				})
-				this.editor.updateShape({
-					...labelShape,
-					opacity: opacity,
-					props: {
-						...labelShape.props,
-						color: score_color,
-					},
-				})
-				opacity = Math.max(0, opacity - 0.025)
-			} else {
-				clearInterval(intervalId)
-				this.editor.deleteShape(shape.id)
-				if (SHOW_LABELS) {
+			
+			// Fade out and delete the label
+			let opacity = 1
+			const intervalId = setInterval(() => {
+				if (opacity > 0) {
+					this.editor.updateShape({
+						...labelShape,
+						opacity: opacity,
+						props: {
+							...labelShape.props,
+							color: score_color,
+						},
+					})
+					opacity = Math.max(0, opacity - 0.025)
+				} else {
+					clearInterval(intervalId)
 					this.editor.deleteShape(labelShape.id)
 				}
-			}
-		}, 20)
+			}, 20)
+		}
 	}
 
 	override onPointerMove: TLEventHandlers["onPointerMove"] = () => {

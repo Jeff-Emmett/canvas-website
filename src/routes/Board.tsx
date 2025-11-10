@@ -1,4 +1,5 @@
 import { useAutomergeSync } from "@/automerge/useAutomergeSync"
+import { AutomergeHandleProvider } from "@/context/AutomergeHandleContext"
 import { useMemo, useEffect, useState } from "react"
 import { Tldraw, Editor, TLShapeId } from "tldraw"
 import { useParams } from "react-router-dom"
@@ -35,6 +36,15 @@ import { ObsNoteTool } from "@/tools/ObsNoteTool"
 import { ObsNoteShape } from "@/shapes/ObsNoteShapeUtil"
 import { TranscriptionTool } from "@/tools/TranscriptionTool"
 import { TranscriptionShape } from "@/shapes/TranscriptionShapeUtil"
+import { FathomTranscriptTool } from "@/tools/FathomTranscriptTool"
+import { FathomTranscriptShape } from "@/shapes/FathomTranscriptShapeUtil"
+import { HolonTool } from "@/tools/HolonTool"
+import { HolonShape } from "@/shapes/HolonShapeUtil"
+import { FathomMeetingsTool } from "@/tools/FathomMeetingsTool"
+import { HolonBrowserShape } from "@/shapes/HolonBrowserShapeUtil"
+import { ObsidianBrowserShape } from "@/shapes/ObsidianBrowserShapeUtil"
+import { FathomMeetingsBrowserShape } from "@/shapes/FathomMeetingsBrowserShapeUtil"
+import { LocationShareShape } from "@/shapes/LocationShareShapeUtil"
 import {
   lockElement,
   unlockElement,
@@ -57,11 +67,7 @@ import { useAuth } from "../context/AuthContext"
 import { updateLastVisited } from "../lib/starredBoards"
 import { captureBoardScreenshot } from "../lib/screenshotService"
 
-// Automatically switch between production and local dev based on environment
-// In development, use the same host as the client to support network access
-export const WORKER_URL = import.meta.env.DEV 
-  ? `http://${window.location.hostname}:5172` 
-  : "https://jeffemmett-canvas.jeffemmett.workers.dev"
+import { WORKER_URL } from "../constants/workerUrl"
 
 const customShapeUtils = [
   ChatBoxShape,
@@ -74,6 +80,12 @@ const customShapeUtils = [
   SharedPianoShape,
   ObsNoteShape,
   TranscriptionShape,
+  FathomTranscriptShape,
+  HolonShape,
+  HolonBrowserShape,
+  ObsidianBrowserShape,
+  FathomMeetingsBrowserShape,
+  LocationShareShape,
 ]
 const customTools = [
   ChatBoxTool,
@@ -87,10 +99,71 @@ const customTools = [
   GestureTool,
   ObsNoteTool,
   TranscriptionTool,
+  FathomTranscriptTool,
+  HolonTool,
+  FathomMeetingsTool,
 ]
 
 export function Board() {
   const { slug } = useParams<{ slug: string }>()
+  
+  // Global wheel event handler to ensure scrolling happens on the hovered scrollable element
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      // Use document.elementFromPoint to find the element under the mouse cursor
+      const elementUnderMouse = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement
+      if (!elementUnderMouse) return
+      
+      // Walk up the DOM tree from the element under the mouse to find a scrollable element
+      let element: HTMLElement | null = elementUnderMouse
+      while (element && element !== document.body && element !== document.documentElement) {
+        const style = window.getComputedStyle(element)
+        const overflowY = style.overflowY
+        const overflowX = style.overflowX
+        const overflow = style.overflow
+        const isScrollable = 
+          (overflowY === 'auto' || overflowY === 'scroll' || 
+           overflowX === 'auto' || overflowX === 'scroll' ||
+           overflow === 'auto' || overflow === 'scroll')
+        
+        if (isScrollable) {
+          // Check if the element can actually scroll in the direction of the wheel event
+          const canScrollDown = e.deltaY > 0 && element.scrollTop < element.scrollHeight - element.clientHeight - 1
+          const canScrollUp = e.deltaY < 0 && element.scrollTop > 0
+          const canScrollRight = e.deltaX > 0 && element.scrollLeft < element.scrollWidth - element.clientWidth - 1
+          const canScrollLeft = e.deltaX < 0 && element.scrollLeft > 0
+          
+          const canScroll = canScrollDown || canScrollUp || canScrollRight || canScrollLeft
+          
+          if (canScroll) {
+            // Verify the mouse is actually over this element
+            const rect = element.getBoundingClientRect()
+            const isOverElement = 
+              e.clientX >= rect.left && 
+              e.clientX <= rect.right && 
+              e.clientY >= rect.top && 
+              e.clientY <= rect.bottom
+            
+            if (isOverElement) {
+              // Stop propagation to prevent the scroll from affecting parent elements
+              // but don't prevent default - let the browser handle the actual scrolling
+              e.stopPropagation()
+              return
+            }
+          }
+        }
+        
+        element = element.parentElement
+      }
+    }
+    
+    // Use capture phase to catch events early, before they bubble
+    document.addEventListener('wheel', handleWheel, { passive: true, capture: true })
+    
+    return () => {
+      document.removeEventListener('wheel', handleWheel, { capture: true })
+    }
+  }, [])
   const roomId = slug || "mycofi33"
   const { session } = useAuth()
 
@@ -129,7 +202,14 @@ export function Board() {
   )
 
   // Use Automerge sync for all environments
-  const store = useAutomergeSync(storeConfig)
+  const storeWithHandle = useAutomergeSync(storeConfig)
+  const store = { 
+    store: storeWithHandle.store, 
+    status: storeWithHandle.status,
+    connectionStatus: storeWithHandle.connectionStatus,
+    error: storeWithHandle.error
+  }
+  const automergeHandle = storeWithHandle.handle
   const [editor, setEditor] = useState<Editor | null>(null)
 
   useEffect(() => {
@@ -154,8 +234,6 @@ export function Board() {
     
     
     // Debug: Check what shapes the editor can see
-    // Temporarily commented out to fix linting errors
-    /*
     if (editor) {
       const editorShapes = editor.getRenderingShapes()
       console.log(`📊 Board: Editor can see ${editorShapes.length} shapes for rendering`)
@@ -173,22 +251,6 @@ export function Board() {
           y: shape?.y
         })
       }
-    }
-    */
-    
-    // Debug: Check if there are shapes in store that editor can't see
-    // Temporarily commented out to fix linting errors
-    /*
-    if (storeShapes.length > editorShapes.length) {
-      const editorShapeIds = new Set(editorShapes.map(s => s.id))
-      const missingShapes = storeShapes.filter(s => !editorShapeIds.has(s.id))
-      console.warn(`📊 Board: ${missingShapes.length} shapes in store but not visible to editor:`, missingShapes.map(s => ({
-        id: s.id,
-        type: s.type,
-        x: s.x,
-        y: s.y,
-        parentId: s.parentId
-      })))
       
       // Debug: Check current page and page IDs
       const currentPageId = editor.getCurrentPageId()
@@ -200,34 +262,46 @@ export function Board() {
         name: (p as any).name
       })))
       
-      // Check if missing shapes are on a different page
-      const shapesOnCurrentPage = missingShapes.filter(s => s.parentId === currentPageId)
-      const shapesOnOtherPages = missingShapes.filter(s => s.parentId !== currentPageId)
-      console.log(`📊 Board: Missing shapes on current page: ${shapesOnCurrentPage.length}, on other pages: ${shapesOnOtherPages.length}`)
-      
-      if (shapesOnOtherPages.length > 0) {
-        console.log(`📊 Board: Shapes on other pages:`, shapesOnOtherPages.map(s => ({
+      // Check if there are shapes in store that editor can't see
+      if (storeShapes.length > editorShapes.length) {
+        const editorShapeIds = new Set(editorShapes.map(s => s.id))
+        const missingShapes = storeShapes.filter(s => !editorShapeIds.has(s.id))
+        console.warn(`📊 Board: ${missingShapes.length} shapes in store but not visible to editor:`, missingShapes.map(s => ({
           id: s.id,
+          type: s.type,
+          x: s.x,
+          y: s.y,
           parentId: s.parentId
         })))
         
-        // Fix: Move shapes to the current page
-        console.log(`📊 Board: Moving ${shapesOnOtherPages.length} shapes to current page ${currentPageId}`)
-        const shapesToMove = shapesOnOtherPages.map(s => ({
-          id: s.id,
-          type: s.type,
-          parentId: currentPageId
-        }))
+        // Check if missing shapes are on a different page
+        const shapesOnCurrentPage = missingShapes.filter(s => s.parentId === currentPageId)
+        const shapesOnOtherPages = missingShapes.filter(s => s.parentId !== currentPageId)
+        console.log(`📊 Board: Missing shapes on current page: ${shapesOnCurrentPage.length}, on other pages: ${shapesOnOtherPages.length}`)
         
-        try {
-          editor.updateShapes(shapesToMove)
-          console.log(`📊 Board: Successfully moved ${shapesToMove.length} shapes to current page`)
-        } catch (error) {
-          console.error(`📊 Board: Error moving shapes to current page:`, error)
+        if (shapesOnOtherPages.length > 0) {
+          console.log(`📊 Board: Shapes on other pages:`, shapesOnOtherPages.map(s => ({
+            id: s.id,
+            parentId: s.parentId
+          })))
+          
+          // Fix: Move shapes to the current page
+          console.log(`📊 Board: Moving ${shapesOnOtherPages.length} shapes to current page ${currentPageId}`)
+          const shapesToMove = shapesOnOtherPages.map(s => ({
+            id: s.id,
+            type: s.type,
+            parentId: currentPageId
+          }))
+          
+          try {
+            editor.updateShapes(shapesToMove)
+            console.log(`📊 Board: Successfully moved ${shapesToMove.length} shapes to current page`)
+          } catch (error) {
+            console.error(`📊 Board: Error moving shapes to current page:`, error)
+          }
         }
       }
     }
-    */
   }, [editor])
 
   // Update presence when session changes
@@ -317,9 +391,57 @@ export function Board() {
     };
   }, [editor, roomId, store.store]);
 
+  // Handle Escape key to cancel active tool and return to hand tool
+  // Also prevent Escape from deleting shapes
+  useEffect(() => {
+    if (!editor) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Only handle Escape key
+      if (event.key === 'Escape') {
+        // Check if the event target or active element is an input field or textarea
+        const target = event.target as HTMLElement;
+        const activeElement = document.activeElement;
+        const isInputFocused = (target && (
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable
+        )) || (activeElement && (
+          activeElement.tagName === 'INPUT' ||
+          activeElement.tagName === 'TEXTAREA' ||
+          activeElement.isContentEditable
+        ));
+
+        // If an input is focused, let it handle Escape (don't prevent default)
+        // This allows components like Obsidian notes to handle Escape for canceling edits
+        if (isInputFocused) {
+          return; // Let the event propagate to the component's handler
+        }
+
+        // Otherwise, prevent default to stop tldraw from deleting shapes
+        // and switch to hand tool
+        event.preventDefault();
+        event.stopPropagation();
+        
+        const currentTool = editor.getCurrentToolId();
+        // Only switch if we're not already on the hand tool
+        if (currentTool !== 'hand') {
+          editor.setCurrentTool('hand');
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown, true); // Use capture phase to intercept early
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown, true);
+    };
+  }, [editor]);
+
   return (
-    <div style={{ position: "fixed", inset: 0 }}>
-      <Tldraw
+    <AutomergeHandleProvider handle={automergeHandle}>
+      <div style={{ position: "fixed", inset: 0 }}>
+        <Tldraw
         store={store.store}
         shapeUtils={[...defaultShapeUtils, ...customShapeUtils]}
         tools={customTools}
@@ -392,8 +514,9 @@ export function Board() {
           // The authenticated username should appear in the people section
         }}
       >
-        <CmdK />
-      </Tldraw>
-    </div>
+          <CmdK />
+        </Tldraw>
+      </div>
+    </AutomergeHandleProvider>
   )
 }

@@ -1,6 +1,7 @@
-import { BaseBoxShapeUtil, TLBaseShape } from "tldraw"
+import { BaseBoxShapeUtil, TLBaseShape, HTMLContainer } from "tldraw"
 import { useEffect, useState } from "react"
-import { WORKER_URL } from "../routes/Board"
+import { WORKER_URL } from "../constants/workerUrl"
+import { StandardizedToolWrapper } from "../components/StandardizedToolWrapper"
 
 interface DailyApiResponse {
   url: string;
@@ -28,6 +29,8 @@ export type IVideoChatShape = TLBaseShape<
 export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
   static override type = "VideoChat"
 
+  // VideoChat theme color: Red (Rainbow)
+  static readonly PRIMARY_COLOR = "#ef4444"
 
   indicator(shape: IVideoChatShape) {
     return <rect x={0} y={0} width={shape.props.w} height={shape.props.h} />
@@ -325,8 +328,14 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 
 
   component(shape: IVideoChatShape) {
+    // Ensure shape props exist with defaults
+    const props = shape.props || {}
+    const roomUrl = props.roomUrl || ""
+    
     const [hasPermissions, setHasPermissions] = useState(false)
     const [forceRender, setForceRender] = useState(0)
+    const [isMinimized, setIsMinimized] = useState(false)
+    const isSelected = this.editor.getSelectedShapeIds().includes(shape.id)
     
     // Force re-render function
     const forceComponentUpdate = () => {
@@ -335,7 +344,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 
     const [error, setError] = useState<Error | null>(null)
     const [isLoading, setIsLoading] = useState(true)
-    const [roomUrl, setRoomUrl] = useState<string | null>(shape.props.roomUrl)
+    const [currentRoomUrl, setCurrentRoomUrl] = useState<string | null>(roomUrl)
     const [iframeError, setIframeError] = useState(false)
     const [retryCount, setRetryCount] = useState(0)
     const [useFallback, setUseFallback] = useState(false)
@@ -351,7 +360,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
                 // Get the updated shape after room creation
                 const updatedShape = this.editor.getShape(shape.id);
                 if (mounted && updatedShape) {
-                    setRoomUrl((updatedShape as IVideoChatShape).props.roomUrl);
+                    setCurrentRoomUrl((updatedShape as IVideoChatShape).props.roomUrl);
                 }
             } catch (err) {
                 if (mounted) {
@@ -406,7 +415,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         return <div>Error creating room: {error.message}</div>
     }
 
-    if (isLoading || !roomUrl || roomUrl === 'undefined') {
+    if (isLoading || !currentRoomUrl || currentRoomUrl === 'undefined') {
         return (
             <div
                 style={{
@@ -425,8 +434,8 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     }
 
     // Validate room URL format
-    if (!roomUrl || !roomUrl.startsWith('http')) {
-      console.error('Invalid room URL format:', roomUrl);
+    if (!currentRoomUrl || !currentRoomUrl.startsWith('http')) {
+      console.error('Invalid room URL format:', currentRoomUrl);
       return <div>Error: Invalid room URL format</div>;
     }
 
@@ -437,7 +446,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     // Try the original URL first, then add parameters if needed
     let roomUrlWithParams;
     try {
-      roomUrlWithParams = new URL(roomUrl)
+      roomUrlWithParams = new URL(currentRoomUrl)
       roomUrlWithParams.searchParams.set(
         "allow_camera",
         String(shape.props.allowCamera),
@@ -465,28 +474,50 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
       }
     } catch (e) {
       console.error('Error constructing URL:', e);
-      roomUrlWithParams = new URL(roomUrl);
+      roomUrlWithParams = new URL(currentRoomUrl);
     }
 
     // Note: Removed HEAD request test due to CORS issues with non-localhost IPs
 
+    const handleClose = () => {
+      this.editor.deleteShape(shape.id)
+    }
+
+    const handleMinimize = () => {
+      setIsMinimized(!isMinimized)
+    }
+
     return (
-      <div
-        style={{
-          width: `${shape.props.w}px`,
-          height: `${shape.props.h + 40}px`, // Add extra height for URL bubble below
-          position: "relative",
-          pointerEvents: "all",
-        }}
-      >
+      <HTMLContainer style={{ width: shape.props.w, height: shape.props.h + 40 }}>
+        <StandardizedToolWrapper
+          title="Video Chat"
+          primaryColor={VideoChatShape.PRIMARY_COLOR}
+          isSelected={isSelected}
+          width={shape.props.w}
+          height={shape.props.h + 40} // Include space for URL bubble
+          onClose={handleClose}
+          onMinimize={handleMinimize}
+          isMinimized={isMinimized}
+          editor={this.editor}
+          shapeId={shape.id}
+        >
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              position: "relative",
+              pointerEvents: "all",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
 
         {/* Video Container */}
         <div
           style={{
-            width: `${shape.props.w}px`,
-            height: `${shape.props.h}px`,
+            width: '100%',
+            flex: 1,
             position: "relative",
-            top: "0px", // No offset needed since button is positioned above
             overflow: "hidden",
           }}
         >
@@ -534,7 +565,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         ) : (
           <iframe
             key={`fallback-iframe-${retryCount}`}
-            src={roomUrl}
+            src={currentRoomUrl}
             width="100%"
             height="100%"
             style={{ 
@@ -673,10 +704,12 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
             top: `${shape.props.h + 50}px`, // Position it below the iframe with proper spacing
           }}
         >
-          url: {roomUrl}
+          url: {currentRoomUrl}
           {shape.props.isOwner && " (Owner)"}
         </p>
       </div>
+        </StandardizedToolWrapper>
+      </HTMLContainer>
     )
   }
 }

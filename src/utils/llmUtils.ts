@@ -1,10 +1,11 @@
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
-import { makeRealSettings } from "@/lib/settings";
+import { makeRealSettings, AI_PERSONALITIES } from "@/lib/settings";
 
 export async function llm(
 	userPrompt: string,
 	onToken: (partialResponse: string, done?: boolean) => void,
+	customPersonality?: string,
 ) {
 	// Validate the callback function
 	if (typeof onToken !== 'function') {
@@ -38,9 +39,15 @@ export async function llm(
 	if (!settings) {
 		settings = {
 			provider: 'openai',
-			models: { openai: 'gpt-4o', anthropic: 'claude-3-5-sonnet-20241022' },
-			keys: { openai: '', anthropic: '', google: '' }
+			models: { openai: 'gpt-4o', anthropic: 'claude-sonnet-4-5-20250929' },
+			keys: { openai: '', anthropic: '', google: '' },
+			personality: 'web-developer'
 		};
+	}
+	
+	// Override personality if custom personality is provided
+	if (customPersonality) {
+		settings.personality = customPersonality;
 	}
 	
 	const availableKeys = settings.keys || {}
@@ -55,33 +62,72 @@ export async function llm(
 		throw new Error("No valid API key found for any provider")
 	}
 	
-	// Try each provider in order until one succeeds
+	// Try each provider/key combination in order until one succeeds
 	let lastError: Error | null = null;
 	const attemptedProviders: string[] = [];
+	
+	// List of fallback models for Anthropic if the primary model fails
+	// Try newest models first (Sonnet 4.5, then Sonnet 4), then fall back to older models
+	const anthropicFallbackModels = [
+		'claude-sonnet-4-5-20250929',
+		'claude-sonnet-4-20250522',
+		'claude-3-opus-20240229',
+		'claude-3-sonnet-20240229',
+		'claude-3-haiku-20240307',
+	];
 	
 	for (const { provider, apiKey, model } of availableProviders) {
 		try {
 			console.log(`🔄 Attempting to use ${provider} API (${model})...`);
-			attemptedProviders.push(provider);
+			attemptedProviders.push(`${provider} (${model})`);
 			
 			// Add retry logic for temporary failures
-			await callProviderAPIWithRetry(provider, apiKey, model, userPrompt, onToken);
-			console.log(`✅ Successfully used ${provider} API`);
+			await callProviderAPIWithRetry(provider, apiKey, model, userPrompt, onToken, settings);
+			console.log(`✅ Successfully used ${provider} API (${model})`);
 			return; // Success, exit the function
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
 			
-			// Check if it's an authentication error (401, 403) - don't retry these
-			if (errorMessage.includes('401') || errorMessage.includes('403') || errorMessage.includes('Unauthorized')) {
-				console.warn(`❌ ${provider} API authentication failed (invalid API key):`, errorMessage);
-				// Mark this API key as invalid for future attempts
+			// Check if it's a model not found error (404) for Anthropic - try fallback models
+			if (provider === 'anthropic' && (errorMessage.includes('404') || errorMessage.includes('not_found_error') || errorMessage.includes('model:'))) {
+				console.warn(`❌ ${provider} model ${model} not found, trying fallback models...`);
+				
+				// Try fallback models
+				let fallbackSucceeded = false;
+				for (const fallbackModel of anthropicFallbackModels) {
+					if (fallbackModel === model) continue; // Skip the one we already tried
+					
+					try {
+						console.log(`🔄 Trying fallback model: ${fallbackModel}...`);
+						attemptedProviders.push(`${provider} (${fallbackModel})`);
+						await callProviderAPIWithRetry(provider, apiKey, fallbackModel, userPrompt, onToken, settings);
+						console.log(`✅ Successfully used ${provider} API with fallback model ${fallbackModel}`);
+						fallbackSucceeded = true;
+						return; // Success, exit the function
+					} catch (fallbackError) {
+						const fallbackErrorMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+						console.warn(`❌ Fallback model ${fallbackModel} also failed:`, fallbackErrorMessage);
+						// Continue to next fallback model
+					}
+				}
+				
+				if (!fallbackSucceeded) {
+					console.warn(`❌ All ${provider} models failed`);
+					lastError = error as Error;
+				}
+			} else if (errorMessage.includes('401') || errorMessage.includes('403') || 
+			    errorMessage.includes('Unauthorized') || errorMessage.includes('Invalid API key') ||
+			    errorMessage.includes('expired') || errorMessage.includes('Expired')) {
+				console.warn(`❌ ${provider} API authentication failed (invalid/expired API key):`, errorMessage);
+				// Mark this specific API key as invalid for future attempts
 				markApiKeyAsInvalid(provider, apiKey);
+				console.log(`🔄 Will try next available API key...`);
+				lastError = error as Error;
 			} else {
-				console.warn(`❌ ${provider} API failed:`, errorMessage);
+				console.warn(`❌ ${provider} API failed (non-auth error):`, errorMessage);
+				lastError = error as Error;
 			}
-			
-			lastError = error as Error;
-			// Continue to next provider
+			// Continue to next provider/key
 		}
 	}
 	
@@ -91,34 +137,51 @@ export async function llm(
 }
 
 // Helper function to get all available providers with their keys and models
+// Now supports multiple keys per provider (stored as comma-separated or array)
 function getAvailableProviders(availableKeys: Record<string, string>, settings: any) {
 	const providers = [];
 	
-	// First, try the preferred provider
-	if (settings.provider && availableKeys[settings.provider] && availableKeys[settings.provider].trim() !== '') {
-		const apiKey = availableKeys[settings.provider];
-		if (isValidApiKey(settings.provider, apiKey) && !isApiKeyInvalid(settings.provider, apiKey)) {
+	// Helper to add a provider key if valid
+	const addProviderKey = (provider: string, apiKey: string, model?: string) => {
+		if (isValidApiKey(provider, apiKey) && !isApiKeyInvalid(provider, apiKey)) {
 			providers.push({
-				provider: settings.provider,
+				provider: provider,
 				apiKey: apiKey,
-				model: settings.models[settings.provider] || getDefaultModel(settings.provider)
+				model: model || settings.models[provider] || getDefaultModel(provider)
 			});
-		} else if (isApiKeyInvalid(settings.provider, apiKey)) {
-			console.log(`⏭️ Skipping ${settings.provider} API key (marked as invalid)`);
+			return true;
+		} else if (isApiKeyInvalid(provider, apiKey)) {
+			console.log(`⏭️ Skipping ${provider} API key (marked as invalid)`);
+		}
+		return false;
+	};
+	
+	// First, try the preferred provider - support multiple keys if stored as comma-separated
+	if (settings.provider && availableKeys[settings.provider]) {
+		const keyValue = availableKeys[settings.provider];
+		// Check if it's a comma-separated list of keys
+		if (keyValue.includes(',') && keyValue.trim() !== '') {
+			const keys = keyValue.split(',').map(k => k.trim()).filter(k => k !== '');
+			for (const apiKey of keys) {
+				addProviderKey(settings.provider, apiKey);
+			}
+		} else if (keyValue.trim() !== '') {
+			addProviderKey(settings.provider, keyValue);
 		}
 	}
 	
 	// Then add all other available providers (excluding the preferred one)
+	// Support multiple keys per provider
 	for (const [key, value] of Object.entries(availableKeys)) {
-		if (typeof value === 'string' && value.trim() !== '' && key !== settings.provider) {
-			if (isValidApiKey(key, value) && !isApiKeyInvalid(key, value)) {
-				providers.push({
-					provider: key,
-					apiKey: value,
-					model: settings.models[key] || getDefaultModel(key)
-				});
-			} else if (isApiKeyInvalid(key, value)) {
-				console.log(`⏭️ Skipping ${key} API key (marked as invalid)`);
+		if (key !== settings.provider && typeof value === 'string' && value.trim() !== '') {
+			// Check if it's a comma-separated list of keys
+			if (value.includes(',')) {
+				const keys = value.split(',').map(k => k.trim()).filter(k => k !== '');
+				for (const apiKey of keys) {
+					addProviderKey(key, apiKey);
+				}
+			} else {
+				addProviderKey(key, value);
 			}
 		}
 	}
@@ -308,13 +371,14 @@ async function callProviderAPIWithRetry(
 	model: string, 
 	userPrompt: string, 
 	onToken: (partialResponse: string, done?: boolean) => void,
+	settings?: any,
 	maxRetries: number = 2
 ) {
 	let lastError: Error | null = null;
 	
 	for (let attempt = 1; attempt <= maxRetries; attempt++) {
 		try {
-			await callProviderAPI(provider, apiKey, model, userPrompt, onToken);
+			await callProviderAPI(provider, apiKey, model, userPrompt, onToken, settings);
 			return; // Success
 		} catch (error) {
 			lastError = error as Error;
@@ -387,15 +451,30 @@ function isApiKeyInvalid(provider: string, apiKey: string): boolean {
 	return false;
 }
 
+// Helper function to get system prompt based on personality
+function getSystemPrompt(settings: any): string {
+	const personality = settings.personality || 'web-developer';
+	const personalityConfig = AI_PERSONALITIES.find(p => p.id === personality);
+	
+	if (personalityConfig) {
+		return personalityConfig.systemPrompt;
+	}
+	
+	// Fallback to custom system prompt or default
+	return settings.prompts?.system || 'You are a helpful assistant.';
+}
+
 // Helper function to call the appropriate provider API
 async function callProviderAPI(
 	provider: string, 
 	apiKey: string, 
 	model: string, 
 	userPrompt: string, 
-	onToken: (partialResponse: string, done?: boolean) => void
+	onToken: (partialResponse: string, done?: boolean) => void,
+	settings?: any
 ) {
 	let partial = "";
+	const systemPrompt = settings ? getSystemPrompt(settings) : 'You are a helpful assistant.';
 	
 	if (provider === 'openai') {
 		const openai = new OpenAI({
@@ -406,7 +485,7 @@ async function callProviderAPI(
 		const stream = await openai.chat.completions.create({
 			model: model,
 			messages: [
-				{ role: "system", content: 'You are a helpful assistant.' },
+				{ role: "system", content: systemPrompt },
 				{ role: "user", content: userPrompt },
 			],
 			stream: true,
@@ -423,22 +502,53 @@ async function callProviderAPI(
 			dangerouslyAllowBrowser: true,
 		});
 		
-		const stream = await anthropic.messages.create({
-			model: model,
-			max_tokens: 4096,
-			messages: [
-				{ role: "user", content: userPrompt }
-			],
-			stream: true,
-		});
-		
-		for await (const chunk of stream) {
-			if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-				const content = chunk.delta.text || "";
-				partial += content;
-				onToken(partial, false);
+		// Anthropic now supports system messages in the API
+		// Try with system message first, fallback to prepending if needed
+		try {
+			const stream = await anthropic.messages.create({
+				model: model,
+				max_tokens: 4096,
+				system: systemPrompt,
+				messages: [
+					{ role: "user", content: userPrompt }
+				],
+				stream: true,
+			});
+			
+			for await (const chunk of stream) {
+				if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+					const content = chunk.delta.text || "";
+					partial += content;
+					onToken(partial, false);
+				}
+			}
+		} catch (systemError: any) {
+			// If system message fails, try without it (for older API versions)
+			if (systemError.message && systemError.message.includes('system')) {
+				const fullPrompt = `${systemPrompt}\n\nUser: ${userPrompt}`;
+				const stream = await anthropic.messages.create({
+					model: model,
+					max_tokens: 4096,
+					messages: [
+						{ role: "user", content: fullPrompt }
+					],
+					stream: true,
+				});
+				
+				for await (const chunk of stream) {
+					if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+						const content = chunk.delta.text || "";
+						partial += content;
+						onToken(partial, false);
+					}
+				}
+			} else {
+				throw systemError;
 			}
 		}
+		// Call onToken with done=true after streaming completes
+		onToken(partial, true);
+		return; // Exit early since we handle streaming above
 	} else {
 		throw new Error(`Unsupported provider: ${provider}`)
 	}
@@ -460,6 +570,20 @@ async function autoMigrateAPIKeys() {
 			try {
 				const parsed = JSON.parse(raw);
 				if (parsed.keys && (parsed.keys.openai || parsed.keys.anthropic)) {
+					// Migrate invalid model names
+					if (parsed.models) {
+						let needsUpdate = false;
+						// Migrate any invalid claude-3-5-sonnet models to claude-3-opus (which works)
+						if (parsed.models.anthropic === 'claude-3-5-sonnet-20241022' || 
+						    parsed.models.anthropic === 'claude-3-5-sonnet-20240620') {
+							parsed.models.anthropic = 'claude-3-opus-20240229';
+							needsUpdate = true;
+						}
+						if (needsUpdate) {
+							localStorage.setItem("openai_api_key", JSON.stringify(parsed));
+							console.log('🔄 Migrated invalid Anthropic model name to claude-3-opus-20240229');
+						}
+					}
 					return; // Already migrated
 				}
 			} catch (e) {
@@ -479,7 +603,7 @@ async function autoMigrateAPIKeys() {
 				provider: provider,
 				models: {
 					openai: 'gpt-4o',
-					anthropic: 'claude-3-5-sonnet-20241022',
+					anthropic: 'claude-sonnet-4-5-20250929',
 					google: 'gemini-1.5-flash'
 				},
 				keys: {
@@ -506,7 +630,8 @@ function getDefaultModel(provider: string): string {
 		case 'openai':
 			return 'gpt-4o'
 		case 'anthropic':
-			return 'claude-3-5-sonnet-20241022'
+			// Use Claude Sonnet 4.5 as default (newest and best model)
+			return 'claude-sonnet-4-5-20250929'
 		default:
 			return 'gpt-4o'
 	}

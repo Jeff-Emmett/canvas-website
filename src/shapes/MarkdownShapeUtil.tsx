@@ -27,29 +27,8 @@ export class MarkdownShape extends BaseBoxShapeUtil<IMarkdownShape> {
     const isSelected = this.editor.getSelectedShapeIds().includes(shape.id)
     const markdownRef = React.useRef<HTMLDivElement>(null)
     
-    // Single useEffect hook that handles checkbox interactivity
-    React.useEffect(() => {
-      if (!isSelected && markdownRef.current) {
-        const checkboxes = markdownRef.current.querySelectorAll('input[type="checkbox"]')
-        checkboxes.forEach((checkbox) => {
-          checkbox.removeAttribute('disabled')
-          checkbox.addEventListener('click', handleCheckboxClick)
-        })
-        
-        // Cleanup function
-        return () => {
-          if (markdownRef.current) {
-            const checkboxes = markdownRef.current.querySelectorAll('input[type="checkbox"]')
-            checkboxes.forEach((checkbox) => {
-              checkbox.removeEventListener('click', handleCheckboxClick)
-            })
-          }
-        }
-      }
-    }, [isSelected, shape.props.text])
-
-    // Handler function defined outside useEffect
-    const handleCheckboxClick = (event: Event) => {
+    // Handler function defined before useEffect
+    const handleCheckboxClick = React.useCallback((event: Event) => {
       event.stopPropagation()
       const target = event.target as HTMLInputElement
       const checked = target.checked
@@ -73,7 +52,28 @@ export class MarkdownShape extends BaseBoxShapeUtil<IMarkdownShape> {
           text: newText,
         },
       })
-    }
+    }, [shape.id, shape.props.text])
+    
+    // Single useEffect hook that handles checkbox interactivity
+    React.useEffect(() => {
+      if (!isSelected && markdownRef.current) {
+        const checkboxes = markdownRef.current.querySelectorAll('input[type="checkbox"]')
+        checkboxes.forEach((checkbox) => {
+          checkbox.removeAttribute('disabled')
+          checkbox.addEventListener('click', handleCheckboxClick)
+        })
+        
+        // Cleanup function
+        return () => {
+          if (markdownRef.current) {
+            const checkboxes = markdownRef.current.querySelectorAll('input[type="checkbox"]')
+            checkboxes.forEach((checkbox) => {
+              checkbox.removeEventListener('click', handleCheckboxClick)
+            })
+          }
+        }
+      }
+    }, [isSelected, shape.props.text, handleCheckboxClick])
 
     const wrapperStyle: React.CSSProperties = {
       width: '100%',

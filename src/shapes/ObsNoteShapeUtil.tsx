@@ -4,6 +4,7 @@ import { ObsidianObsNote } from '@/lib/obsidianImporter'
 import { QuartzSync, createQuartzNoteFromShape, QuartzSyncConfig } from '@/lib/quartzSync'
 import { logGitHubSetupStatus } from '@/lib/githubSetupValidator'
 import { getClientConfig } from '@/lib/clientConfig'
+import { StandardizedToolWrapper } from '../components/StandardizedToolWrapper'
 
 // Auto-resizing textarea component
 const AutoResizeTextarea: React.FC<{
@@ -64,29 +65,30 @@ const ObsNoteComponent: React.FC<{
   const [editingTitle, setEditingTitle] = useState(shape.props.title || 'Untitled')
   const [isSyncing, setIsSyncing] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [isMinimized, setIsMinimized] = useState(false)
+  // Store the content at the start of editing to revert to on cancel
+  const [contentAtEditStart, setContentAtEditStart] = useState<string | null>(null)
+  // Notification state for in-shape notifications
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
-  const wrapperStyle: React.CSSProperties = {
-    width: '100%',
-    height: '100%',
-    backgroundColor: shape.props.backgroundColor,
-    border: shape.props.isModified ? '2px solid #ff6b35' : '2px solid #e0e0e0',
-    borderRadius: '8px',
-    overflow: 'hidden',
-    boxShadow: isSelected ? '0 0 0 2px #007acc' : '0 2px 4px rgba(0,0,0,0.1)',
-    cursor: isSelected ? 'move' : 'pointer',
-    display: 'flex',
-    flexDirection: 'column',
-  }
+  // Sync editingContent with shape content when shape changes (but not when editing)
+  // This ensures the component stays in sync with the shape's content
+  // Note: We don't sync during editing or immediately after cancel (when contentAtEditStart might be set)
+  useEffect(() => {
+    if (!isEditing && contentAtEditStart === null && shape.props.content !== editingContent) {
+      setEditingContent(shape.props.content)
+    }
+  }, [shape.props.content, isEditing, contentAtEditStart, editingContent])
 
-  const headerStyle: React.CSSProperties = {
-    padding: '12px',
-    backgroundColor: '#f8f9fa',
-    borderBottom: '1px solid #e0e0e0',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    minHeight: '20px',
-  }
+  // Auto-hide notification after 3 seconds
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => {
+        setNotification(null)
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [notification])
 
   const titleStyle: React.CSSProperties = {
     fontSize: '14px',
@@ -194,17 +196,26 @@ const ObsNoteComponent: React.FC<{
   }
 
   const handleStartEdit = () => {
-    setIsEditing(true)
-    setEditingContent(shape.props.content)
-    shapeUtil.editor.updateShape<IObsNoteShape>({
-      id: shape.id,
-      type: 'ObsNote',
-      props: {
+    try {
+      // Capture the current content as the baseline for cancel
+      // This is the content that exists BEFORE editing starts
+      const currentContent = shape.props.content || ''
+      setContentAtEditStart(currentContent)
+      setIsEditing(true)
+      setEditingContent(currentContent)
+      const sanitizedProps = ObsNoteShape.sanitizeProps({
         ...shape.props,
         isEditing: true,
-        editingContent: shape.props.content,
-      }
-    })
+        editingContent: currentContent,
+      })
+      shapeUtil.editor.updateShape<IObsNoteShape>({
+        id: shape.id,
+        type: 'ObsNote',
+        props: sanitizedProps
+      })
+    } catch (error) {
+      console.error('❌ Error in handleStartEdit:', error)
+    }
   }
 
   const handleStartTitleEdit = () => {
@@ -214,14 +225,15 @@ const ObsNoteComponent: React.FC<{
 
   const handleSaveTitleEdit = () => {
     if (editingTitle.trim() !== shape.props.title) {
+      const sanitizedProps = ObsNoteShape.sanitizeProps({
+        ...shape.props,
+        title: editingTitle.trim(),
+        isModified: true
+      })
       shapeUtil.editor.updateShape<IObsNoteShape>({
         id: shape.id,
         type: 'ObsNote',
-        props: {
-          ...shape.props,
-          title: editingTitle.trim(),
-          isModified: true
-        }
+        props: sanitizedProps
       })
     }
     setIsEditingTitle(false)
@@ -243,33 +255,64 @@ const ObsNoteComponent: React.FC<{
   }
 
   const handleSaveEdit = () => {
-    const hasChanged = editingContent !== shape.props.originalContent
-    setIsEditing(false)
-    shapeUtil.editor.updateShape<IObsNoteShape>({
-      id: shape.id,
-      type: 'ObsNote',
-      props: {
+    try {
+      const hasChanged = editingContent !== shape.props.originalContent
+      
+      setIsEditing(false)
+      setContentAtEditStart(null) // Clear the stored baseline
+      const sanitizedProps = ObsNoteShape.sanitizeProps({
         ...shape.props,
-        content: editingContent,
+        content: editingContent, // Save the edited content
         isEditing: false,
         editingContent: '',
         isModified: hasChanged,
-      }
-    })
+      })
+      shapeUtil.editor.updateShape<IObsNoteShape>({
+        id: shape.id,
+        type: 'ObsNote',
+        props: sanitizedProps
+      })
+    } catch (error) {
+      console.error('❌ Error in handleSaveEdit:', error)
+    }
   }
 
   const handleCancelEdit = () => {
-    setIsEditing(false)
-    setEditingContent(shape.props.content)
-    shapeUtil.editor.updateShape<IObsNoteShape>({
-      id: shape.id,
-      type: 'ObsNote',
-      props: {
+    try {
+      // Revert to the content that was there when editing started
+      // Priority: contentAtEditStart > originalContent > current content
+      const contentToRevert = contentAtEditStart !== null 
+        ? contentAtEditStart 
+        : (shape.props.originalContent || shape.props.content || '')
+      
+      // Update state first to exit editing mode
+      setIsEditing(false)
+      setEditingContent(contentToRevert)
+      
+      // Update the shape with the reverted content
+      const sanitizedProps = ObsNoteShape.sanitizeProps({
         ...shape.props,
+        content: contentToRevert, // Revert content to what it was when editing started
         isEditing: false,
         editingContent: '',
-      }
-    })
+        // Reset isModified only if we're reverting all the way back to originalContent
+        isModified: contentToRevert === shape.props.originalContent ? false : shape.props.isModified,
+      })
+      
+      shapeUtil.editor.updateShape<IObsNoteShape>({
+        id: shape.id,
+        type: 'ObsNote',
+        props: sanitizedProps
+      })
+      
+      // Clear the stored baseline after reverting
+      setContentAtEditStart(null)
+    } catch (error) {
+      console.error('❌ Error in handleCancelEdit:', error)
+      // Fallback: just exit editing mode
+      setIsEditing(false)
+      setContentAtEditStart(null)
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -286,20 +329,20 @@ const ObsNoteComponent: React.FC<{
     if (isRefreshing) return
     
     setIsRefreshing(true)
-    console.log('🔄 Refreshing ObsNote from vault:', shape.props.title)
     
     try {
       const success = await shapeUtil.refreshFromVault(shape.id)
       if (success) {
-        console.log('✅ Successfully refreshed ObsNote from vault')
-        alert('✅ Note refreshed with latest content from vault!')
+        setNotification({ message: '✅ Note restored from vault', type: 'success' })
       } else {
-        console.log('❌ Failed to refresh ObsNote from vault')
-        alert('❌ Failed to refresh note. Check console for details.')
+        setNotification({ message: '❌ Failed to restore note', type: 'error' })
       }
     } catch (error) {
       console.error('❌ Refresh failed:', error)
-      alert(`Refresh failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      setNotification({ 
+        message: `Refresh failed: ${error instanceof Error ? error.message : 'Unknown error'}`, 
+        type: 'error' 
+      })
     } finally {
       setIsRefreshing(false)
     }
@@ -309,40 +352,79 @@ const ObsNoteComponent: React.FC<{
     if (isSyncing) return
     
     setIsSyncing(true)
-    console.log('🔄 Starting sync process for note:', shape.props.title || 'Untitled')
-    console.log('📝 Current content length:', shape.props.content?.length || 0)
-    console.log('📝 Original content length:', shape.props.originalContent?.length || 0)
-    console.log('🔗 Vault path:', shape.props.vaultPath)
-    console.log('📁 Vault name:', shape.props.vaultName)
     
     try {
-      let vaultPath = shape.props.vaultPath
-      let vaultName = shape.props.vaultName
+      // Capture the content to sync BEFORE any state changes
+      // This ensures we have the absolute latest content
+      const contentToSync = isEditing ? editingContent : (shape.props.content || '')
+      const titleToSync = isEditingTitle ? editingTitle : (shape.props.title || 'Untitled')
+      
+      // If we're editing, save the edit FIRST to ensure the shape has the latest content
+      if (isEditing) {
+        // Save the edit synchronously
+        const hasChanged = editingContent !== shape.props.originalContent
+        const sanitizedProps = ObsNoteShape.sanitizeProps({
+          ...shape.props,
+          content: editingContent, // Save the edited content
+          isEditing: false,
+          editingContent: '',
+          isModified: hasChanged,
+        })
+        shapeUtil.editor.updateShape<IObsNoteShape>({
+          id: shape.id,
+          type: 'ObsNote',
+          props: sanitizedProps
+        })
+        
+        // Update local state
+        setIsEditing(false)
+        setContentAtEditStart(null)
+      }
+      
+      // If we're editing title, save that too
+      if (isEditingTitle) {
+        const sanitizedProps = ObsNoteShape.sanitizeProps({
+          ...shape.props,
+          title: editingTitle,
+        })
+        shapeUtil.editor.updateShape<IObsNoteShape>({
+          id: shape.id,
+          type: 'ObsNote',
+          props: sanitizedProps
+        })
+        setIsEditingTitle(false)
+      }
+      
+      // Get fresh shape reference for vault info and other properties
+      const currentShape = shapeUtil.editor.getShape(shape.id) as IObsNoteShape
+      if (!currentShape) {
+        throw new Error('Shape not found')
+      }
+      
+      // Use the captured contentToSync and titleToSync (which are the latest)
+      
+      let vaultPath = currentShape.props.vaultPath
+      let vaultName = currentShape.props.vaultName
       
       if (!vaultPath || !vaultName) {
-        console.log('⚠️ No vault configured in shape props, trying to get from session...')
-        
         // Try to get vault info from session if not in shape props
         // This is a fallback for existing shapes that don't have vault info
         const sessionData = localStorage.getItem('canvas_auth_session')
         if (sessionData) {
           try {
             const session = JSON.parse(sessionData)
-            console.log('📋 Found session data:', { 
-              vaultPath: session.obsidianVaultPath, 
-              vaultName: session.obsidianVaultName 
-            })
             
             if (session.obsidianVaultPath && session.obsidianVaultName) {
               // Update the shape with vault info for future syncs
+              const sanitizedProps = ObsNoteShape.sanitizeProps({
+                ...currentShape.props,
+                vaultPath: session.obsidianVaultPath,
+                vaultName: session.obsidianVaultName,
+              })
               shapeUtil.editor.updateShape<IObsNoteShape>({
-                id: shape.id,
+                id: currentShape.id,
                 type: 'ObsNote',
-                props: {
-                  ...shape.props,
-                  vaultPath: session.obsidianVaultPath,
-                  vaultName: session.obsidianVaultName,
-                }
+                props: sanitizedProps
               })
               
               // Use the session vault info
@@ -362,28 +444,26 @@ const ObsNoteComponent: React.FC<{
       // Determine if this is a Quartz URL or local vault
       const isQuartzVault = vaultPath.startsWith('http') || vaultPath.includes('quartz') || vaultPath.includes('.xyz') || vaultPath.includes('.com')
       
-      console.log('🌐 Vault type:', isQuartzVault ? 'Quartz' : 'Local')
-      
       if (isQuartzVault) {
         // Use the new Quartz sync system
-        console.log('🌐 Quartz sync: Using advanced sync system')
-        
         try {
           // Validate GitHub setup first
           logGitHubSetupStatus()
           
-          // Create Quartz note from shape
-          const quartzNote = createQuartzNoteFromShape(shape)
-          console.log('📝 Created Quartz note:', quartzNote.title)
+          // Create Quartz note with the latest content
+          // Create a temporary shape object with the latest content for sync
+          const shapeForSync = {
+            ...currentShape,
+            props: {
+              ...currentShape.props,
+              content: contentToSync,
+              title: titleToSync,
+            }
+          }
+          const quartzNote = createQuartzNoteFromShape(shapeForSync)
           
           // Configure Quartz sync
           const config = getClientConfig()
-          console.log('🔧 Client config:', {
-            hasGitHubToken: !!config.githubToken,
-            hasQuartzRepo: !!config.quartzRepo,
-            githubTokenLength: config.githubToken?.length || 0,
-            quartzRepo: config.quartzRepo
-          })
           
           const syncConfig: QuartzSyncConfig = {
             githubToken: config.githubToken,
@@ -393,39 +473,24 @@ const ObsNoteComponent: React.FC<{
             cloudflareAccountId: config.cloudflareAccountId
           }
           
-          console.log('🔧 Sync config:', {
-            hasGitHubToken: !!syncConfig.githubToken,
-            hasGitHubRepo: !!syncConfig.githubRepo,
-            hasCloudflareApiKey: !!syncConfig.cloudflareApiKey,
-            hasCloudflareAccountId: !!syncConfig.cloudflareAccountId,
-            quartzUrl: syncConfig.quartzUrl
-          })
-          
           const quartzSync = new QuartzSync(syncConfig)
           
           // Try smart sync (tries multiple approaches)
           const syncSuccess = await quartzSync.smartSync(quartzNote)
           
           if (syncSuccess) {
-            console.log('✅ Successfully synced to Quartz!')
             alert('✅ Note synced to Quartz successfully! Check your GitHub repository for changes.')
           } else {
             throw new Error('All sync methods failed')
           }
         } catch (error) {
           console.error('❌ Quartz sync failed:', error)
-          console.error('❌ Error details:', {
-            message: error instanceof Error ? error.message : 'Unknown error',
-            stack: error instanceof Error ? error.stack : 'No stack trace',
-            error: error
-          })
           
           // Fallback to local storage
-          console.log('🔄 Falling back to local storage...')
-          const quartzStorageKey = `quartz_vault_${vaultName}_${shape.props.noteId || shape.props.title}`
-          const tags = shape.props.tags || []
-          const title = shape.props.title || 'Untitled'
-          const content = shape.props.content || ''
+          const quartzStorageKey = `quartz_vault_${vaultName}_${currentShape.props.noteId || titleToSync}`
+          const tags = currentShape.props.tags || []
+          const title = titleToSync
+          const content = contentToSync
           const frontmatter = `---
 title: "${title}"
 tags: [${tags.map(tag => `"${tag.replace('#', '')}"`).join(', ')}]
@@ -437,20 +502,30 @@ quartz_url: "${vaultPath}"
 ${content}`
           
           localStorage.setItem(quartzStorageKey, frontmatter)
-          console.log('✅ Stored in localStorage as fallback:', quartzStorageKey)
           alert(`Quartz sync: Stored locally as fallback. Check console for details.`)
         }
       } else {
         // For local vaults, try to write using File System Access API
-        console.log('💾 Local vault sync: Attempting to write to local file system')
-        console.log('📄 Note content to sync:', shape.props.content || '')
-        console.log('📁 Target vault:', vaultName)
-        console.log('📝 File path:', shape.props.noteId || `${shape.props.title || 'Untitled'}.md`)
+        // Use stored filePath if available to maintain filename consistency
+        // Otherwise, generate from title or noteId
+        let fileName: string
+        if (currentShape.props.filePath && currentShape.props.filePath.trim() !== '') {
+          // Extract just the filename from the full path
+          const pathParts = currentShape.props.filePath.split('/')
+          fileName = pathParts[pathParts.length - 1]
+          // Ensure it ends with .md
+          if (!fileName.endsWith('.md')) {
+            fileName = `${fileName}.md`
+          }
+        } else {
+          // Generate from title or noteId
+          fileName = `${titleToSync.replace(/[^a-zA-Z0-9]/g, '_')}.md`
+        }
         
-        // Create the markdown content with frontmatter
-        const tags = shape.props.tags || []
-        const title = shape.props.title || 'Untitled'
-        const content = shape.props.content || ''
+        // Create the markdown content with frontmatter using the latest content
+        const tags = currentShape.props.tags || []
+        const title = titleToSync
+        const content = contentToSync
         const frontmatter = `---
 title: "${title}"
 tags: [${tags.map(tag => `"${tag.replace('#', '')}"`).join(', ')}]
@@ -464,7 +539,6 @@ ${content}`
           
           // Try to write using File System Access API
           if ('showSaveFilePicker' in window) {
-            const fileName = `${title.replace(/[^a-zA-Z0-9]/g, '_')}.md`
             const fileHandle = await (window as any).showSaveFilePicker({
               suggestedName: fileName,
               types: [{
@@ -477,53 +551,46 @@ ${content}`
             await writable.write(frontmatter)
             await writable.close()
             
-            console.log('✅ Successfully wrote file to local file system!')
-            console.log('📁 File saved as:', fileName)
-            
             alert(`Local vault sync: File saved successfully as ${fileName}`)
           } else {
             // Fallback: download the file
-            console.log('⚠️ File System Access API not available, downloading file instead')
-            
             const blob = new Blob([frontmatter], { type: 'text/markdown' })
             const url = URL.createObjectURL(blob)
             const a = document.createElement('a')
             a.href = url
-            a.download = `${title.replace(/[^a-zA-Z0-9]/g, '_')}.md`
+            a.download = fileName // Use the calculated fileName (preserves original filePath if available)
             document.body.appendChild(a)
             a.click()
             document.body.removeChild(a)
             URL.revokeObjectURL(url)
             
-            console.log('📥 File downloaded successfully!')
             alert('Local vault sync: File downloaded! Please save it to your vault folder.')
           }
         } catch (error) {
           console.error('❌ Failed to write local vault file:', error)
           
           // Fallback: store locally and show instructions
-          const localStorageKey = `local_vault_${vaultName}_${shape.props.noteId || shape.props.title}`
+          const localStorageKey = `local_vault_${vaultName}_${currentShape.props.noteId || titleToSync}`
           localStorage.setItem(localStorageKey, frontmatter)
-          
-          console.log('📄 Full markdown content:', frontmatter)
-          console.log('💾 Stored locally with key:', localStorageKey)
           
           alert(`Local vault sync: Failed to write directly. Content stored locally and logged to console. Key: ${localStorageKey}`)
         }
       }
       
-      // Mark as synced regardless of the sync method
-      shapeUtil.editor.updateShape<IObsNoteShape>({
-        id: shape.id,
-        type: 'ObsNote',
-        props: {
-          ...shape.props,
+      // Mark as synced - get fresh shape to ensure we have the latest
+      const finalShape = shapeUtil.editor.getShape(shape.id) as IObsNoteShape
+      if (finalShape) {
+        const sanitizedProps = ObsNoteShape.sanitizeProps({
+          ...finalShape.props,
           isModified: false,
-          originalContent: shape.props.content,
-        }
-      })
-      
-      console.log('✅ Sync process completed successfully')
+          originalContent: finalShape.props.content, // Update originalContent to current content after successful sync
+        })
+        shapeUtil.editor.updateShape<IObsNoteShape>({
+          id: finalShape.id,
+          type: 'ObsNote',
+          props: sanitizedProps
+        })
+      }
       
     } catch (error) {
       console.error('❌ Sync failed:', error)
@@ -533,118 +600,81 @@ ${content}`
     }
   }
 
+  const handleMinimize = () => {
+    setIsMinimized(!isMinimized)
+  }
+
+  const handleClose = () => {
+    shapeUtil.editor.deleteShape(shape.id)
+  }
+
+  // Custom header content with editable title and action buttons
+  const headerContent = (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: '8px' }}>
+      {isEditingTitle ? (
+        <input
+          type="text"
+          value={editingTitle}
+          onChange={(e) => setEditingTitle(e.target.value)}
+          onBlur={handleSaveTitleEdit}
+          onKeyDown={handleTitleKeyDown}
+          onPointerDown={(e) => e.stopPropagation()}
+          style={{
+            ...titleStyle,
+            border: '1px solid #007acc',
+            borderRadius: '4px',
+            padding: '4px 8px',
+            backgroundColor: 'white',
+            outline: 'none',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            color: shape.props.textColor,
+            flex: 1,
+            minWidth: 0,
+          }}
+          autoFocus
+        />
+      ) : (
+        <h3 
+          style={{...titleStyle, margin: 0, padding: 0}} 
+          title={shape.props.title}
+          onClick={(e) => {
+            e.stopPropagation()
+            handleStartTitleEdit()
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseEnter={(e) => {
+            if (!isEditingTitle) {
+              e.currentTarget.style.backgroundColor = '#f0f0f0'
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!isEditingTitle) {
+              e.currentTarget.style.backgroundColor = 'transparent'
+            }
+          }}
+        >
+          {shape.props.title}
+        </h3>
+      )}
+    </div>
+  )
+
   return (
-    <HTMLContainer style={wrapperStyle}>
-      <div style={headerStyle}>
-        {isEditingTitle ? (
-          <input
-            type="text"
-            value={editingTitle}
-            onChange={(e) => setEditingTitle(e.target.value)}
-            onBlur={handleSaveTitleEdit}
-            onKeyDown={handleTitleKeyDown}
-            onPointerDown={(e) => e.stopPropagation()}
-            style={{
-              ...titleStyle,
-              border: '1px solid #007acc',
-              borderRadius: '4px',
-              padding: '4px 8px',
-              backgroundColor: 'white',
-              outline: 'none',
-              fontSize: '14px',
-              fontWeight: 'bold',
-              color: shape.props.textColor,
-              flex: 1,
-              minWidth: 0,
-            }}
-            autoFocus
-          />
-        ) : (
-          <h3 
-            style={titleStyle} 
-            title={shape.props.title}
-            onClick={(e) => {
-              e.stopPropagation()
-              handleStartTitleEdit()
-            }}
-            onPointerDown={(e) => e.stopPropagation()}
-            onMouseEnter={(e) => {
-              if (!isEditingTitle) {
-                e.currentTarget.style.backgroundColor = '#f0f0f0'
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!isEditingTitle) {
-                e.currentTarget.style.backgroundColor = 'transparent'
-              }
-            }}
-          >
-            {shape.props.title}
-          </h3>
-        )}
-        <div style={{ display: 'flex', gap: '4px' }}>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              handleRefresh()
-            }}
-            onPointerDown={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            disabled={isRefreshing}
-            style={{
-              ...buttonStyle,
-              fontSize: '10px',
-              padding: '4px 8px',
-              backgroundColor: isRefreshing ? '#ccc' : '#007acc',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: isRefreshing ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              position: 'relative',
-              zIndex: 1001,
-              pointerEvents: 'auto',
-              opacity: isRefreshing ? 0.7 : 1,
-            }}
-            title={isRefreshing ? "Refreshing..." : "Refresh from vault"}
-          >
-            {isRefreshing ? '⏳ Refreshing...' : '🔄 Refresh'}
-          </button>
-          {shape.props.isModified && !isEditing && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                handleSync()
-              }}
-              onPointerDown={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-              disabled={isSyncing}
-              style={{
-                ...buttonStyle,
-                fontSize: '10px',
-                padding: '4px 8px',
-                backgroundColor: isSyncing ? '#ccc' : '#ff6b35',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: isSyncing ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                position: 'relative',
-                zIndex: 1001,
-                pointerEvents: 'auto',
-                opacity: isSyncing ? 0.7 : 1,
-              }}
-              title={isSyncing ? "Syncing..." : "Sync changes back to source"}
-            >
-              {isSyncing ? '⏳ Syncing...' : '🔄 Sync Updates'}
-            </button>
-          )}
-        </div>
-      </div>
+    <HTMLContainer style={{ width: shape.props.w, height: shape.props.h }}>
+      <StandardizedToolWrapper
+        title="Obsidian Note"
+        primaryColor={ObsNoteShape.PRIMARY_COLOR}
+        isSelected={isSelected}
+        width={shape.props.w}
+        height={shape.props.h}
+        onClose={handleClose}
+        onMinimize={handleMinimize}
+        isMinimized={isMinimized}
+        headerContent={headerContent}
+        editor={shapeUtil.editor}
+        shapeId={shape.id}
+      >
       
       {shape.props.tags.length > 0 && (
         <div style={{ padding: '0 12px', paddingBottom: '8px' }}>
@@ -796,26 +826,121 @@ ${content}`
             Click to add content
           </div>
         )}
+        
+        {/* Notification display - positioned at top of content area */}
+        {notification && (
+          <>
+            <style>{`
+              @keyframes obsNoteNotificationFade {
+                0% { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+                10% { opacity: 1; transform: translateX(-50%) translateY(0); }
+                90% { opacity: 1; transform: translateX(-50%) translateY(0); }
+                100% { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+              }
+            `}</style>
+            <div
+              style={{
+                position: 'absolute',
+                top: '12px',
+                left: '50%',
+                zIndex: 10001,
+                padding: '8px 16px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: '500',
+                color: 'white',
+                backgroundColor: notification.type === 'success' ? '#22c55e' : '#ef4444',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                pointerEvents: 'none',
+                whiteSpace: 'nowrap',
+                maxWidth: 'calc(100% - 24px)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                animation: 'obsNoteNotificationFade 3s ease-in-out forwards',
+              }}
+            >
+              {notification.message}
+            </div>
+          </>
+        )}
       </div>
 
-      {isEditing && (
-        <div style={editControlsStyle}>
+      {/* Bottom action buttons - always visible */}
+      <div style={{
+        padding: '8px 12px',
+        borderTop: '1px solid #e0e0e0',
+        display: 'flex',
+        justifyContent: 'center',
+        gap: '8px',
+        marginTop: 'auto',
+      }}>
+        {/* Restore button - always shown */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            handleRefresh()
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          disabled={isRefreshing}
+          style={{
+            ...buttonStyle,
+            fontSize: '11px',
+            padding: '6px 12px',
+            backgroundColor: isRefreshing ? '#ccc' : '#007acc',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: isRefreshing ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            pointerEvents: 'auto',
+            opacity: isRefreshing ? 0.7 : 1,
+          }}
+          title="restore from vault"
+        >
+          {isRefreshing ? '⏳ Restoring...' : '↩️ Restore'}
+        </button>
+        
+        {/* Save changes button - shown when there are modifications or when editing with changes */}
+        {(() => {
+          // Check if there are changes: either already modified, or currently editing with different content
+          const hasChanges = shape.props.isModified || 
+            (isEditing && editingContent !== (contentAtEditStart !== null ? contentAtEditStart : shape.props.originalContent))
+          return hasChanges
+        })() && (
           <button
-            onClick={handleSaveEdit}
+            onClick={(e) => {
+              e.stopPropagation()
+              // Sync will handle saving if editing
+              handleSync()
+            }}
             onPointerDown={(e) => e.stopPropagation()}
-            style={{ ...buttonStyle, backgroundColor: '#007acc', color: 'white' }}
+            onMouseDown={(e) => e.stopPropagation()}
+            disabled={isSyncing}
+            style={{
+              ...buttonStyle,
+              fontSize: '11px',
+              padding: '6px 12px',
+              backgroundColor: isSyncing ? '#ccc' : '#22c55e',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: isSyncing ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              pointerEvents: 'auto',
+              opacity: isSyncing ? 0.7 : 1,
+            }}
+            title="save new content to vault"
           >
-            Save (Ctrl+Enter)
+            {isSyncing ? '⏳ Saving...' : '💾 Save changes'}
           </button>
-          <button
-            onClick={handleCancelEdit}
-            onPointerDown={(e) => e.stopPropagation()}
-            style={buttonStyle}
-          >
-            Cancel (Esc)
-          </button>
-        </div>
-      )}
+        )}
+      </div>
+      </StandardizedToolWrapper>
     </HTMLContainer>
   )
 }
@@ -843,35 +968,63 @@ export type IObsNoteShape = TLBaseShape<
     originalContent: string
     vaultPath?: string
     vaultName?: string
+    filePath?: string // Original file path from vault - used to maintain filename consistency
   }
 >
 
 export class ObsNoteShape extends BaseBoxShapeUtil<IObsNoteShape> {
   static override type = 'ObsNote'
 
-  getDefaultProps(): IObsNoteShape['props'] {
-    return {
-      w: 300,
-      h: 200,
-      color: 'black',
-      size: 'm',
-      font: 'sans',
-      textAlign: 'start',
-      scale: 1,
-      noteId: '',
-      title: 'Untitled ObsNote',
-      content: '',
-      tags: [],
-      showPreview: true,
-      backgroundColor: '#ffffff',
-      textColor: '#000000',
-      isEditing: false,
-      editingContent: '',
-      isModified: false,
-      originalContent: '',
-      vaultPath: undefined,
-      vaultName: undefined,
+  // Obsidian Note theme color: Indigo (similar to ObsidianBrowser)
+  static readonly PRIMARY_COLOR = "#9333ea"
+
+  /**
+   * Sanitize props to ensure all values are JSON serializable
+   */
+  private static sanitizeProps(props: Partial<IObsNoteShape['props']>): IObsNoteShape['props'] {
+    // Ensure tags is a proper string array
+    const tags = Array.isArray(props.tags)
+      ? props.tags.filter(tag => typeof tag === 'string').map(tag => String(tag))
+      : []
+    
+    // Build sanitized props object
+    const sanitized: IObsNoteShape['props'] = {
+      w: typeof props.w === 'number' ? props.w : 300,
+      h: typeof props.h === 'number' ? props.h : 200,
+      color: typeof props.color === 'string' ? props.color : 'black',
+      size: typeof props.size === 'string' ? props.size : 'm',
+      font: typeof props.font === 'string' ? props.font : 'sans',
+      textAlign: typeof props.textAlign === 'string' ? props.textAlign : 'start',
+      scale: typeof props.scale === 'number' ? props.scale : 1,
+      noteId: typeof props.noteId === 'string' ? props.noteId : '',
+      title: typeof props.title === 'string' ? props.title : 'Untitled ObsNote',
+      content: typeof props.content === 'string' ? props.content : '',
+      tags,
+      showPreview: typeof props.showPreview === 'boolean' ? props.showPreview : true,
+      backgroundColor: typeof props.backgroundColor === 'string' ? props.backgroundColor : '#ffffff',
+      textColor: typeof props.textColor === 'string' ? props.textColor : '#000000',
+      isEditing: typeof props.isEditing === 'boolean' ? props.isEditing : false,
+      editingContent: typeof props.editingContent === 'string' ? props.editingContent : '',
+      isModified: typeof props.isModified === 'boolean' ? props.isModified : false,
+      originalContent: typeof props.originalContent === 'string' ? props.originalContent : '',
     }
+    
+    // Only add optional properties if they're defined and are strings
+    if (props.vaultPath !== undefined && typeof props.vaultPath === 'string') {
+      sanitized.vaultPath = props.vaultPath
+    }
+    if (props.vaultName !== undefined && typeof props.vaultName === 'string') {
+      sanitized.vaultName = props.vaultName
+    }
+    if (props.filePath !== undefined && typeof props.filePath === 'string') {
+      sanitized.filePath = props.filePath
+    }
+    
+    return sanitized
+  }
+
+  getDefaultProps(): IObsNoteShape['props'] {
+    return ObsNoteShape.sanitizeProps({})
   }
 
   component(shape: IObsNoteShape) {
@@ -884,26 +1037,87 @@ export class ObsNoteShape extends BaseBoxShapeUtil<IObsNoteShape> {
 
   /**
    * Format markdown content for preview
+   * Simplified conversion that avoids extra characters
    */
   formatMarkdownPreview(content: string): string {
-    // Simple markdown formatting for preview
-    return content
-      .replace(/^# (.*$)/gim, '<h1 style="font-size: 16px; margin: 0 0 8px 0; font-weight: bold;">$1</h1>')
-      .replace(/^## (.*$)/gim, '<h2 style="font-size: 14px; margin: 0 0 6px 0; font-weight: bold;">$1</h2>')
-      .replace(/^### (.*$)/gim, '<h3 style="font-size: 13px; margin: 0 0 4px 0; font-weight: bold;">$1</h3>')
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.*?)\*/g, '<em>$1</em>')
-      .replace(/`(.*?)`/g, '<code style="background: #f0f0f0; padding: 1px 3px; border-radius: 3px; font-family: monospace;">$1</code>')
-      .replace(/^- (.*$)/gim, '<div style="margin: 2px 0;">• $1</div>')
-      .replace(/^\d+\. (.*$)/gim, '<div style="margin: 2px 0;">$&</div>')
-      .replace(/\[\[([^\]]+)\]\]/g, '<span style="color: #007acc; text-decoration: underline;">$1</span>')
-      .replace(/\n/g, '<br>')
+    if (!content) return ''
+    
+    // Escape HTML first to prevent injection
+    const escapeHtml = (text: string) => {
+      const div = document.createElement('div')
+      div.textContent = text
+      return div.innerHTML
+    }
+    
+    // Split into lines for line-based processing
+    const lines = content.split('\n')
+    const processedLines: string[] = []
+    
+    for (const line of lines) {
+      let processed = escapeHtml(line)
+      
+      // Headers (must be at start of line)
+      if (processed.match(/^### /)) {
+        processed = processed.replace(/^### (.*)$/, '<h3 style="font-size: 13px; margin: 0 0 4px 0; font-weight: bold;">$1</h3>')
+      } else if (processed.match(/^## /)) {
+        processed = processed.replace(/^## (.*)$/, '<h2 style="font-size: 14px; margin: 0 0 6px 0; font-weight: bold;">$1</h2>')
+      } else if (processed.match(/^# /)) {
+        processed = processed.replace(/^# (.*)$/, '<h1 style="font-size: 16px; margin: 0 0 8px 0; font-weight: bold;">$1</h1>')
+      }
+      // Lists (only if not already a header)
+      else if (processed.match(/^- /) && !processed.startsWith('<h')) {
+        processed = processed.replace(/^- (.*)$/, '<div style="margin: 2px 0;">• $1</div>')
+      } else if (processed.match(/^\d+\. /) && !processed.startsWith('<h')) {
+        processed = processed.replace(/^(\d+)\. (.*)$/, '<div style="margin: 2px 0;">$1. $2</div>')
+      }
+      // Regular line - apply inline formatting
+      else {
+        // Process bold first (before italic to avoid conflicts)
+        processed = processed.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        // Then italic (single asterisks that aren't part of bold - use a simple pattern)
+        // Match *text* but not **text** by checking it's not preceded or followed by *
+        processed = processed.replace(/\b\*([^*]+?)\*\b/g, '<em>$1</em>')
+        // Code blocks
+        processed = processed.replace(/`([^`]+?)`/g, '<code style="background: #f0f0f0; padding: 1px 3px; border-radius: 3px; font-family: monospace;">$1</code>')
+        // Wikilinks
+        processed = processed.replace(/\[\[([^\]]+)\]\]/g, '<span style="color: #007acc; text-decoration: underline;">$1</span>')
+      }
+      
+      processedLines.push(processed)
+    }
+    
+    return processedLines.join('<br>')
   }
 
   /**
    * Create an obs_note shape from an ObsidianObsNote
    */
   static createFromObsidianObsNote(obs_note: ObsidianObsNote, x: number = 0, y: number = 0, id?: TLShapeId, vaultPath?: string, vaultName?: string): IObsNoteShape {
+    // Use sanitizeProps to ensure all values are JSON serializable
+    const props = ObsNoteShape.sanitizeProps({
+      w: 300,
+      h: 200,
+      color: 'black',
+      size: 'm',
+      font: 'sans',
+      textAlign: 'start',
+      scale: 1,
+      noteId: obs_note.id || '',
+      title: obs_note.title || 'Untitled',
+      content: obs_note.content || '',
+      tags: obs_note.tags || [],
+      showPreview: true,
+      backgroundColor: '#ffffff',
+      textColor: '#000000',
+      isEditing: false,
+      editingContent: '',
+      isModified: false,
+      originalContent: obs_note.content || '',
+      vaultPath: vaultPath,
+      vaultName: vaultName,
+      filePath: obs_note.filePath,
+    })
+    
     return {
       id: id || createShapeId(),
       type: 'ObsNote',
@@ -911,33 +1125,12 @@ export class ObsNoteShape extends BaseBoxShapeUtil<IObsNoteShape> {
       y,
       rotation: 0,
       index: 'a1' as IndexKey,
-      parentId: null as unknown as TLParentId,
+      parentId: 'page:page' as TLParentId,
       isLocked: false,
       opacity: 1,
       meta: {},
       typeName: 'shape',
-      props: {
-        w: 300,
-        h: 200,
-        color: 'black',
-        size: 'm',
-        font: 'sans',
-        textAlign: 'start',
-        scale: 1,
-        noteId: obs_note.id,
-        title: obs_note.title,
-        content: obs_note.content,
-        tags: obs_note.tags,
-        showPreview: true,
-        backgroundColor: '#ffffff',
-        textColor: '#000000',
-        isEditing: false,
-        editingContent: '',
-        isModified: false,
-        originalContent: obs_note.content,
-        vaultPath,
-        vaultName,
-      }
+      props
     }
   }
 
@@ -945,13 +1138,17 @@ export class ObsNoteShape extends BaseBoxShapeUtil<IObsNoteShape> {
    * Update obs_note content
    */
   updateObsNoteContent(shapeId: string, content: string) {
+    const shape = this.editor.getShape(shapeId as TLShapeId) as IObsNoteShape
+    if (!shape) return
+    
+    const sanitizedProps = ObsNoteShape.sanitizeProps({
+      ...shape.props,
+      content,
+    })
     this.editor.updateShape<IObsNoteShape>({
       id: shapeId as TLShapeId,
       type: 'ObsNote',
-      props: {
-        ...this.editor.getShape(shapeId as TLShapeId)?.props,
-        content,
-      }
+      props: sanitizedProps
     })
   }
 
@@ -961,13 +1158,14 @@ export class ObsNoteShape extends BaseBoxShapeUtil<IObsNoteShape> {
   togglePreview(shapeId: string) {
     const shape = this.editor.getShape(shapeId as TLShapeId) as IObsNoteShape
     if (shape) {
+      const sanitizedProps = ObsNoteShape.sanitizeProps({
+        ...shape.props,
+        showPreview: !shape.props.showPreview,
+      })
       this.editor.updateShape<IObsNoteShape>({
         id: shapeId as TLShapeId,
         type: 'ObsNote',
-        props: {
-          ...shape.props,
-          showPreview: !shape.props.showPreview,
-        }
+        props: sanitizedProps
       })
     }
   }
@@ -976,14 +1174,18 @@ export class ObsNoteShape extends BaseBoxShapeUtil<IObsNoteShape> {
    * Update obs_note styling
    */
   updateStyling(shapeId: string, backgroundColor: string, textColor: string) {
+    const shape = this.editor.getShape(shapeId as TLShapeId) as IObsNoteShape
+    if (!shape) return
+    
+    const sanitizedProps = ObsNoteShape.sanitizeProps({
+      ...shape.props,
+      backgroundColor,
+      textColor,
+    })
     this.editor.updateShape<IObsNoteShape>({
       id: shapeId as TLShapeId,
       type: 'ObsNote',
-      props: {
-        ...this.editor.getShape(shapeId as TLShapeId)?.props,
-        backgroundColor,
-        textColor,
-      }
+      props: sanitizedProps
     })
   }
 
@@ -1027,42 +1229,41 @@ export class ObsNoteShape extends BaseBoxShapeUtil<IObsNoteShape> {
       // Find the updated note by ID, preferring notes without quotes in filename
       const matchingNotes = vault.obs_notes.filter((note: any) => note.id === shape.props.noteId)
       if (matchingNotes.length === 0) {
-        console.warn('Note not found in vault:', shape.props.noteId)
         return false
       }
       
       // If there are multiple notes with the same ID (duplicates), prefer the one without quotes
       let updatedNote = matchingNotes[0]
       if (matchingNotes.length > 1) {
-        console.warn(`Found ${matchingNotes.length} notes with ID ${shape.props.noteId}, selecting best one`)
         const withoutQuotes = matchingNotes.find((note: any) => !note.filePath?.includes('"'))
         if (withoutQuotes) {
           updatedNote = withoutQuotes
-          console.log(`Selected note without quotes: ${updatedNote.filePath}`)
         } else {
           // If all have quotes, pick the one with the most content
           updatedNote = matchingNotes.reduce((best: any, current: any) => 
             current.content?.length > best.content?.length ? current : best
           )
-          console.log(`Selected note with most content: ${updatedNote.filePath}`)
         }
       }
 
-      // Update the shape with latest content
+      // Sanitize and update the shape with latest content
+      const sanitizedProps = ObsNoteShape.sanitizeProps({
+        ...shape.props,
+        title: updatedNote.title,
+        content: updatedNote.content,
+        tags: updatedNote.tags,
+        originalContent: updatedNote.content,
+        isModified: false, // Reset modified flag since we're updating from source
+        // Preserve filePath from updated note if available, otherwise keep existing
+        filePath: updatedNote.filePath || shape.props.filePath,
+      })
+      
       this.editor.updateShape<IObsNoteShape>({
         id: shapeId as TLShapeId,
         type: 'ObsNote',
-        props: {
-          ...shape.props,
-          title: updatedNote.title,
-          content: updatedNote.content,
-          tags: updatedNote.tags,
-          originalContent: updatedNote.content,
-          isModified: false, // Reset modified flag since we're updating from source
-        }
+        props: sanitizedProps
       })
 
-      console.log('✅ Refreshed ObsNote from vault:', shape.props.title)
       return true
     } catch (error) {
       console.error('❌ Failed to refresh ObsNote from vault:', error)
@@ -1089,7 +1290,6 @@ export class ObsNoteShape extends BaseBoxShapeUtil<IObsNoteShape> {
       }
     }
     
-    console.log(`🔄 Refresh complete: ${success} successful, ${failed} failed`)
     return { success, failed }
   }
 }

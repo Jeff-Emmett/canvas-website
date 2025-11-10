@@ -53,27 +53,20 @@ export class GitHubQuartzReader {
    */
   async getAllNotes(): Promise<QuartzNoteFromGitHub[]> {
     try {
-      console.log('🔍 Fetching Quartz notes from GitHub...')
-      console.log(`📁 Repository: ${this.config.owner}/${this.config.repo}`)
-      console.log(`🌿 Branch: ${this.config.branch}`)
-      console.log(`📂 Content path: ${this.config.contentPath}`)
-
       // Get the content directory
       const contentFiles = await this.getDirectoryContents(this.config.contentPath || '')
       
       // Filter for Markdown files
-      const markdownFiles = contentFiles.filter(file => 
-        file.type === 'file' && 
-        (file.name.endsWith('.md') || file.name.endsWith('.markdown'))
-      )
-
-      console.log(`📄 Found ${markdownFiles.length} Markdown files`)
+      const markdownFiles = contentFiles.filter(file => {
+        return file.type === 'file' && 
+          file.name && 
+          (file.name.endsWith('.md') || file.name.endsWith('.markdown'))
+      })
 
       // Fetch content for each file
       const notes: QuartzNoteFromGitHub[] = []
       for (const file of markdownFiles) {
         try {
-          console.log(`🔍 Fetching content for file: ${file.path}`)
           // Get the actual file contents (not just metadata)
           const fileWithContent = await this.getFileContents(file.path)
           const note = await this.getNoteFromFile(fileWithContent)
@@ -85,7 +78,6 @@ export class GitHubQuartzReader {
         }
       }
 
-      console.log(`✅ Successfully loaded ${notes.length} notes from GitHub`)
       return notes
     } catch (error) {
       console.error('❌ Failed to fetch notes from GitHub:', error)
@@ -172,11 +164,10 @@ export class GitHubQuartzReader {
    */
   private async getNoteFromFile(file: GitHubFile): Promise<QuartzNoteFromGitHub | null> {
     try {
-      console.log(`🔍 Processing file: ${file.path}`)
-      console.log(`🔍 File size: ${file.size} bytes`)
-      console.log(`🔍 Has content: ${!!file.content}`)
-      console.log(`🔍 Content length: ${file.content?.length || 0}`)
-      console.log(`🔍 Encoding: ${file.encoding}`)
+      // Validate file object
+      if (!file || !file.path) {
+        return null
+      }
       
       // Decode base64 content
       let content = ''
@@ -189,31 +180,23 @@ export class GitHubQuartzReader {
             // Try direct decoding if not base64
             content = file.content
           }
-          console.log(`🔍 Decoded content length: ${content.length}`)
-          console.log(`🔍 Content preview: ${content.substring(0, 200)}...`)
         } catch (decodeError) {
-          console.error(`🔍 Failed to decode content for ${file.path}:`, decodeError)
           // Try alternative decoding methods
           try {
             content = decodeURIComponent(escape(atob(file.content)))
-            console.log(`🔍 Alternative decode successful, length: ${content.length}`)
           } catch (altError) {
-            console.error(`🔍 Alternative decode also failed:`, altError)
+            console.error(`Failed to decode content for ${file.path}:`, altError)
             return null
           }
         }
-      } else {
-        console.warn(`🔍 No content available for file: ${file.path}`)
-        return null
       }
       
       // Parse frontmatter and content
       const { frontmatter, content: markdownContent } = this.parseMarkdownWithFrontmatter(content)
-      console.log(`🔍 Parsed markdown content length: ${markdownContent.length}`)
-      console.log(`🔍 Frontmatter keys: ${Object.keys(frontmatter).join(', ')}`)
       
       // Extract title
-      const title = frontmatter.title || this.extractTitleFromPath(file.name) || 'Untitled'
+      const fileName = file.name || file.path.split('/').pop() || 'untitled'
+      const title = frontmatter.title || this.extractTitleFromPath(fileName) || 'Untitled'
       
       // Extract tags
       const tags = this.extractTags(frontmatter, markdownContent)
@@ -221,7 +204,7 @@ export class GitHubQuartzReader {
       // Generate note ID
       const id = this.generateNoteId(file.path, title)
 
-      const result = {
+      return {
         id,
         title,
         content: markdownContent,
@@ -232,9 +215,6 @@ export class GitHubQuartzReader {
         htmlUrl: file.html_url,
         rawUrl: file.download_url || file.git_url
       }
-      
-      console.log(`🔍 Final note: ${title} (${markdownContent.length} chars)`)
-      return result
     } catch (error) {
       console.error(`Failed to parse file ${file.path}:`, error)
       return null
@@ -245,8 +225,6 @@ export class GitHubQuartzReader {
    * Parse Markdown content with frontmatter
    */
   private parseMarkdownWithFrontmatter(content: string): { frontmatter: Record<string, any>, content: string } {
-    console.log(`🔍 Parsing markdown with frontmatter, content length: ${content.length}`)
-    
     // More flexible frontmatter regex that handles different formats
     const frontmatterRegex = /^---\s*\r?\n([\s\S]*?)\r?\n---\s*\r?\n([\s\S]*)$/m
     const match = content.match(frontmatterRegex)
@@ -254,10 +232,6 @@ export class GitHubQuartzReader {
     if (match) {
       const frontmatterText = match[1]
       const markdownContent = match[2].trim() // Remove leading/trailing whitespace
-      
-      console.log(`🔍 Found frontmatter, length: ${frontmatterText.length}`)
-      console.log(`🔍 Markdown content length: ${markdownContent.length}`)
-      console.log(`🔍 Markdown preview: ${markdownContent.substring(0, 100)}...`)
       
       // Parse YAML frontmatter (simplified but more robust)
       const frontmatter: Record<string, any> = {}
@@ -298,11 +272,9 @@ export class GitHubQuartzReader {
         }
       }
       
-      console.log(`🔍 Parsed frontmatter:`, frontmatter)
       return { frontmatter, content: markdownContent }
     }
     
-    console.log(`🔍 No frontmatter found, using entire content`)
     return { frontmatter: {}, content: content.trim() }
   }
 
@@ -310,6 +282,10 @@ export class GitHubQuartzReader {
    * Extract title from file path
    */
   private extractTitleFromPath(fileName: string): string {
+    if (!fileName) {
+      return 'Untitled'
+    }
+    
     return fileName
       .replace(/\.(md|markdown)$/i, '')
       .replace(/[-_]/g, ' ')

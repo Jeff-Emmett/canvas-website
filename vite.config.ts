@@ -52,6 +52,20 @@ export default defineConfig(({ mode }) => {
       // Worker URL is now handled dynamically in Board.tsx based on window.location.hostname
       // This ensures remote devices connect to the correct worker IP
       __DAILY_API_KEY__: JSON.stringify(process.env.VITE_DAILY_API_KEY || env.VITE_DAILY_API_KEY)
-    }
+    },
+    optimizeDeps: {
+      include: [
+        '@xenova/transformers'
+      ],
+      exclude: [
+        // Exclude problematic modules from pre-bundling
+      ]
+    },
+    assetsInclude: [
+      // Include WebAssembly files
+      '**/*.wasm',
+      '**/*.onnx',
+      '**/*.bin'
+    ]
   }
 })

@@ -12,9 +12,25 @@ export function applyAutomergePatchesToTLStore(
     if (!isStorePatch(patch)) return
 
     const id = pathToId(patch.path)
+    
+    // Skip records with empty or invalid IDs
+    if (!id || id === '') {
+      return
+    }
+    
+    // CRITICAL: Skip custom record types that aren't TLDraw records
+    // These should only exist in Automerge, not in TLDraw store
+    // Components like ObsidianVaultBrowser read directly from Automerge
+    if (typeof id === 'string' && id.startsWith('obsidian_vault:')) {
+      return // Skip - not a TLDraw record, don't process
+    }
+    
     const existingRecord = getRecordFromStore(store, id)
-    const record = updatedObjects[id] || (existingRecord ? JSON.parse(JSON.stringify(existingRecord)) : { 
-      id, 
+    
+    // Infer typeName from ID pattern if record doesn't exist
+    let defaultTypeName = 'shape'
+    let defaultRecord: any = {
+      id,
       typeName: 'shape',
       type: 'geo', // Default shape type
       x: 0,
@@ -24,7 +40,82 @@ export function applyAutomergePatchesToTLStore(
       opacity: 1,
       meta: {},
       props: {}
-    })
+    }
+    
+    // Check if ID pattern indicates a record type
+    // Note: obsidian_vault records are skipped above, so we don't need to handle them here
+    if (typeof id === 'string') {
+      if (id.startsWith('shape:')) {
+        defaultTypeName = 'shape'
+        // Keep default shape record structure
+      } else if (id.startsWith('page:')) {
+        defaultTypeName = 'page'
+        defaultRecord = {
+          id,
+          typeName: 'page',
+          name: '',
+          index: 'a0' as any,
+          meta: {}
+        }
+      } else if (id.startsWith('camera:')) {
+        defaultTypeName = 'camera'
+        defaultRecord = {
+          id,
+          typeName: 'camera',
+          x: 0,
+          y: 0,
+          z: 1,
+          meta: {}
+        }
+      } else if (id.startsWith('instance:')) {
+        defaultTypeName = 'instance'
+        defaultRecord = {
+          id,
+          typeName: 'instance',
+          currentPageId: 'page:page' as any,
+          meta: {}
+        }
+      } else if (id.startsWith('pointer:')) {
+        defaultTypeName = 'pointer'
+        defaultRecord = {
+          id,
+          typeName: 'pointer',
+          x: 0,
+          y: 0,
+          lastActivityTimestamp: 0,
+          meta: {}
+        }
+      } else if (id.startsWith('document:')) {
+        defaultTypeName = 'document'
+        defaultRecord = {
+          id,
+          typeName: 'document',
+          gridSize: 10,
+          name: '',
+          meta: {}
+        }
+      }
+    }
+    
+    const record = updatedObjects[id] || (existingRecord ? JSON.parse(JSON.stringify(existingRecord)) : defaultRecord)
+    
+    // CRITICAL: Ensure typeName matches ID pattern (fixes misclassification)
+    // Note: obsidian_vault records are skipped above, so we don't need to handle them here
+    if (typeof id === 'string') {
+      if (id.startsWith('shape:') && record.typeName !== 'shape') {
+        record.typeName = 'shape'
+      } else if (id.startsWith('page:') && record.typeName !== 'page') {
+        record.typeName = 'page'
+      } else if (id.startsWith('camera:') && record.typeName !== 'camera') {
+        record.typeName = 'camera'
+      } else if (id.startsWith('instance:') && record.typeName !== 'instance') {
+        record.typeName = 'instance'
+      } else if (id.startsWith('pointer:') && record.typeName !== 'pointer') {
+        record.typeName = 'pointer'
+      } else if (id.startsWith('document:') && record.typeName !== 'document') {
+        record.typeName = 'document'
+      }
+    }
 
     switch (patch.action) {
       case "insert": {
@@ -58,6 +149,9 @@ export function applyAutomergePatchesToTLStore(
         console.log("Unsupported patch:", patch)
       }
     }
+    
+    // CRITICAL: Re-check typeName after patch application to ensure it's still correct
+    // Note: obsidian_vault records are skipped above, so we don't need to handle them here
   })
   
   // Sanitize records before putting them in the store
@@ -65,264 +159,383 @@ export function applyAutomergePatchesToTLStore(
   const failedRecords: any[] = []
   
   Object.values(updatedObjects).forEach(record => {
+    // Skip records with empty or invalid IDs
+    if (!record || !record.id || record.id === '') {
+      return
+    }
+    
+    // CRITICAL: Skip custom record types that aren't TLDraw records
+    // These should only exist in Automerge, not in TLDraw store
+    if (typeof record.id === 'string' && record.id.startsWith('obsidian_vault:')) {
+      return // Skip - not a TLDraw record
+    }
+    
     try {
       const sanitized = sanitizeRecord(record)
       toPut.push(sanitized)
     } catch (error) {
+      // If it's a missing typeName/id error, skip it
+      if (error instanceof Error && 
+          (error.message.includes('missing required typeName') || 
+           error.message.includes('missing required id'))) {
+        // Skip records with missing required fields
+        return
+      }
       console.error("Failed to sanitize record:", error, record)
       failedRecords.push(record)
     }
   })
 
   // put / remove the records in the store
-  console.log({ patches, toPut: toPut.length, failed: failedRecords.length })
+  // Log patch application for debugging
+  console.log(`🔧 AutomergeToTLStore: Applying ${patches.length} patches, ${toPut.length} records to put, ${toRemove.length} records to remove`)
+  
+  if (failedRecords.length > 0) {
+    console.log({ patches, toPut: toPut.length, failed: failedRecords.length })
+  }
   
   if (failedRecords.length > 0) {
     console.error("Failed to sanitize records:", failedRecords)
   }
   
+  // CRITICAL: Final safety check - ensure no geo shapes have w/h/geo at top level
+  // Also ensure text shapes don't have props.text (should use props.richText instead)
+  const finalSanitized = toPut.map(record => {
+    if (record.typeName === 'shape' && record.type === 'geo') {
+      // Store values before removing from top level
+      const wValue = 'w' in record ? (record as any).w : undefined
+      const hValue = 'h' in record ? (record as any).h : undefined
+      const geoValue = 'geo' in record ? (record as any).geo : undefined
+      
+      // Create cleaned record without w/h/geo at top level
+      const cleaned: any = {}
+      for (const key in record) {
+        if (key !== 'w' && key !== 'h' && key !== 'geo') {
+          cleaned[key] = (record as any)[key]
+        }
+      }
+      
+      // Ensure props exists and move values there if needed
+      if (!cleaned.props) cleaned.props = {}
+      if (wValue !== undefined && (!('w' in cleaned.props) || cleaned.props.w === undefined)) {
+        cleaned.props.w = wValue
+      }
+      if (hValue !== undefined && (!('h' in cleaned.props) || cleaned.props.h === undefined)) {
+        cleaned.props.h = hValue
+      }
+      if (geoValue !== undefined && (!('geo' in cleaned.props) || cleaned.props.geo === undefined)) {
+        cleaned.props.geo = geoValue
+      }
+      
+      return cleaned as TLRecord
+    }
+    
+    // CRITICAL: Remove props.text from text shapes (TLDraw schema doesn't allow it)
+    if (record.typeName === 'shape' && record.type === 'text' && (record as any).props && 'text' in (record as any).props) {
+      const cleaned = { ...record }
+      if (cleaned.props && 'text' in cleaned.props) {
+        delete (cleaned.props as any).text
+      }
+      return cleaned as TLRecord
+    }
+    
+    return record
+  })
+  
   store.mergeRemoteChanges(() => {
     if (toRemove.length) store.remove(toRemove)
-    if (toPut.length) store.put(toPut)
+    if (finalSanitized.length) store.put(finalSanitized)
   })
 }
 
-// Sanitize record to remove invalid properties
+// Helper function to clean NaN values from richText content
+// This prevents SVG export errors when TLDraw tries to render text with invalid coordinates
+function cleanRichTextNaN(richText: any): any {
+  if (!richText || typeof richText !== 'object') {
+    return richText
+  }
+  
+  // Deep clone to avoid mutating the original
+  const cleaned = JSON.parse(JSON.stringify(richText))
+  
+  // Recursively clean content array
+  if (Array.isArray(cleaned.content)) {
+    cleaned.content = cleaned.content.map((item: any) => {
+      if (typeof item === 'object' && item !== null) {
+        // Remove any NaN values from the item
+        const cleanedItem: any = {}
+        for (const key in item) {
+          const value = item[key]
+          // Skip NaN values - they cause SVG export errors
+          if (typeof value === 'number' && isNaN(value)) {
+            // Skip NaN values
+            continue
+          }
+          // Recursively clean nested objects
+          if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+            cleanedItem[key] = cleanRichTextNaN(value)
+          } else if (Array.isArray(value)) {
+            cleanedItem[key] = value.map((v: any) => 
+              typeof v === 'object' && v !== null ? cleanRichTextNaN(v) : v
+            )
+          } else {
+            cleanedItem[key] = value
+          }
+        }
+        return cleanedItem
+      }
+      return item
+    })
+  }
+  
+  return cleaned
+}
+
+// Minimal sanitization - only fix critical issues that break TLDraw
 function sanitizeRecord(record: any): TLRecord {
   const sanitized = { ...record }
   
-  // Ensure required fields exist for all records
-  if (!sanitized.id) {
-    console.error("Record missing required id field:", record)
+  // CRITICAL FIXES ONLY - preserve all other properties
+  
+  // Only fix critical structural issues
+  if (!sanitized.id || sanitized.id === '') {
     throw new Error("Record missing required id field")
   }
   
-  if (!sanitized.typeName) {
-    console.error("Record missing required typeName field:", record)
+  if (!sanitized.typeName || sanitized.typeName === '') {
     throw new Error("Record missing required typeName field")
   }
   
-  // Remove invalid properties from shapes
+  // For shapes, only ensure basic required fields exist
   if (sanitized.typeName === 'shape') {
     // Ensure required shape fields exist
-    if (!sanitized.type || typeof sanitized.type !== 'string') {
-      console.error("Shape missing or invalid type field:", {
-        id: sanitized.id,
-        typeName: sanitized.typeName,
-        currentType: sanitized.type,
-        record: sanitized
-      })
-      // Try to infer type from other properties or use a default
-      if (sanitized.props?.geo) {
-        sanitized.type = 'geo'
-      } else if (sanitized.props?.text) {
-        sanitized.type = 'text'
-      } else if (sanitized.props?.roomUrl) {
-        sanitized.type = 'VideoChat'
-      } else if (sanitized.props?.roomId) {
-        sanitized.type = 'ChatBox'
-      } else if (sanitized.props?.url) {
-        sanitized.type = 'Embed'
-      } else if (sanitized.props?.prompt) {
-        sanitized.type = 'Prompt'
-      } else if (sanitized.props?.isMinimized !== undefined) {
-        sanitized.type = 'SharedPiano'
-      } else if (sanitized.props?.isTranscribing !== undefined) {
-        sanitized.type = 'Transcription'
-      } else if (sanitized.props?.noteId) {
-        sanitized.type = 'ObsNote'
-      } else {
-        sanitized.type = 'geo' // Default fallback
-      }
-      console.log(`🔧 Fixed missing/invalid type field for shape ${sanitized.id}, set to: ${sanitized.type}`)
-    }
-    
-    // Ensure type is a valid string
-    if (typeof sanitized.type !== 'string') {
-      console.error("Shape type is not a string:", sanitized.type, "for shape:", sanitized.id)
-      sanitized.type = 'geo' // Force to valid string
-    }
-    
-    // Ensure other required shape fields exist
-    if (typeof sanitized.x !== 'number') {
-      sanitized.x = 0
-    }
-    if (typeof sanitized.y !== 'number') {
-      sanitized.y = 0
-    }
-    if (typeof sanitized.rotation !== 'number') {
-      sanitized.rotation = 0
-    }
-    if (typeof sanitized.isLocked !== 'boolean') {
-      sanitized.isLocked = false
-    }
-    if (typeof sanitized.opacity !== 'number') {
-      sanitized.opacity = 1
-    }
+    if (typeof sanitized.x !== 'number') sanitized.x = 0
+    if (typeof sanitized.y !== 'number') sanitized.y = 0
+    if (typeof sanitized.rotation !== 'number') sanitized.rotation = 0
+    if (typeof sanitized.isLocked !== 'boolean') sanitized.isLocked = false
+    if (typeof sanitized.opacity !== 'number') sanitized.opacity = 1
+    // CRITICAL: Preserve all existing meta properties - only create empty object if meta doesn't exist
     if (!sanitized.meta || typeof sanitized.meta !== 'object') {
       sanitized.meta = {}
+    } else {
+      // Ensure meta is a mutable copy to preserve all properties (including text for rectangles)
+      sanitized.meta = { ...sanitized.meta }
     }
-    // Remove top-level properties that should only be in props
-    const invalidTopLevelProperties = ['insets', 'scribbles', 'duplicateProps', 'geo', 'w', 'h']
-    invalidTopLevelProperties.forEach(prop => {
-      if (prop in sanitized) {
-        console.log(`Moving ${prop} property from top-level to props for shape during patch application:`, {
-          id: sanitized.id,
-          type: sanitized.type,
-          originalValue: sanitized[prop]
-        })
-        
-        // Move to props if props exists, otherwise create props
-        if (!sanitized.props) {
-          sanitized.props = {}
-        }
-        sanitized.props[prop] = sanitized[prop]
-        delete sanitized[prop]
-      }
-    })
+    if (!sanitized.index) sanitized.index = 'a1'
+    if (!sanitized.parentId) sanitized.parentId = 'page:page'
+    if (!sanitized.props || typeof sanitized.props !== 'object') sanitized.props = {}
     
-    // Ensure props object exists for all shapes
-    if (!sanitized.props) {
-      sanitized.props = {}
+    // CRITICAL: Ensure props is a deep mutable copy to preserve all nested properties
+    // This is essential for custom shapes like ObsNote and for preserving richText in geo shapes
+    // Use JSON parse/stringify to create a deep copy of nested objects (like richText.content)
+    sanitized.props = JSON.parse(JSON.stringify(sanitized.props))
+    
+    // CRITICAL: Infer type from properties BEFORE defaulting to 'geo'
+    // This ensures arrows and other shapes are properly recognized
+    if (!sanitized.type || typeof sanitized.type !== 'string') {
+      // Check for arrow-specific properties first
+      if (sanitized.props?.start !== undefined || 
+          sanitized.props?.end !== undefined || 
+          sanitized.props?.arrowheadStart !== undefined || 
+          sanitized.props?.arrowheadEnd !== undefined ||
+          sanitized.props?.kind === 'line' ||
+          sanitized.props?.kind === 'curved' ||
+          sanitized.props?.kind === 'straight') {
+        sanitized.type = 'arrow'
+      }
+      // Check for line-specific properties
+      else if (sanitized.props?.points !== undefined) {
+        sanitized.type = 'line'
+      }
+      // Check for geo-specific properties (w/h/geo)
+      else if (sanitized.props?.geo !== undefined || 
+               ('w' in sanitized && 'h' in sanitized) ||
+               ('w' in sanitized.props && 'h' in sanitized.props)) {
+        sanitized.type = 'geo'
+      }
+      // Check for note-specific properties
+      else if (sanitized.props?.growY !== undefined || 
+               sanitized.props?.verticalAlign !== undefined) {
+        sanitized.type = 'note'
+      }
+      // Check for text-specific properties
+      else if (sanitized.props?.textAlign !== undefined || 
+               sanitized.props?.autoSize !== undefined) {
+        sanitized.type = 'text'
+      }
+      // Check for draw-specific properties
+      else if (sanitized.props?.segments !== undefined) {
+        sanitized.type = 'draw'
+      }
+      // Default to geo only if no other indicators found
+      else {
+        sanitized.type = 'geo'
+      }
     }
     
-    // Fix geo shape specific properties
-    if (sanitized.type === 'geo') {
-      // Ensure geo shape has proper structure
-      if (!sanitized.props.geo) {
-        sanitized.props.geo = 'rectangle'
-      }
-      if (!sanitized.props.w) {
-        sanitized.props.w = 100
-      }
-      if (!sanitized.props.h) {
-        sanitized.props.h = 100
+    // CRITICAL: For geo shapes, move w/h/geo from top level to props (required by TLDraw schema)
+    if (sanitized.type === 'geo' || ('w' in sanitized && 'h' in sanitized && sanitized.type !== 'arrow')) {
+      // If type is missing but has w/h, assume it's a geo shape (but only if not already identified as arrow)
+      if (!sanitized.type || sanitized.type === 'geo') {
+        sanitized.type = 'geo'
       }
       
-      // Remove invalid properties for geo shapes (including insets)
-      const invalidGeoProps = ['transcript', 'isTranscribing', 'isPaused', 'isEditing', 'roomUrl', 'roomId', 'prompt', 'value', 'agentBinding', 'isMinimized', 'noteId', 'title', 'content', 'tags', 'showPreview', 'backgroundColor', 'textColor', 'editingContent', 'vaultName', 'insets']
-      invalidGeoProps.forEach(prop => {
-        if (prop in sanitized.props) {
-          console.log(`Removing invalid ${prop} property from geo shape:`, sanitized.id)
-          delete sanitized.props[prop]
+      // Ensure props exists
+      if (!sanitized.props) sanitized.props = {}
+      
+      // Store values before removing from top level
+      const wValue = 'w' in sanitized ? (sanitized as any).w : undefined
+      const hValue = 'h' in sanitized ? (sanitized as any).h : undefined
+      const geoValue = 'geo' in sanitized ? (sanitized as any).geo : undefined
+      
+      // Move w from top level to props (if present at top level)
+      if (wValue !== undefined) {
+        if (!('w' in sanitized.props) || sanitized.props.w === undefined) {
+          sanitized.props.w = wValue
         }
-      })
+        delete (sanitized as any).w
+      }
+      
+      // Move h from top level to props (if present at top level)
+      if (hValue !== undefined) {
+        if (!('h' in sanitized.props) || sanitized.props.h === undefined) {
+          sanitized.props.h = hValue
+        }
+        delete (sanitized as any).h
+      }
+      
+      // Move geo from top level to props (if present at top level)
+      if (geoValue !== undefined) {
+        if (!('geo' in sanitized.props) || sanitized.props.geo === undefined) {
+          sanitized.props.geo = geoValue
+        }
+        delete (sanitized as any).geo
+      }
+      
     }
     
-    // Fix note shape specific properties
+    // Only fix type if completely missing
+    if (!sanitized.type || typeof sanitized.type !== 'string') {
+      // Simple type inference - only if absolutely necessary
+      if (sanitized.props?.geo) {
+        sanitized.type = 'geo'
+      } else {
+        sanitized.type = 'geo' // Safe default
+      }
+    }
+    
+    // CRITICAL: Fix crop structure for image/video shapes if it exists
+    if (sanitized.type === 'image' || sanitized.type === 'video') {
+      if (sanitized.props.crop !== null && sanitized.props.crop !== undefined) {
+        if (!sanitized.props.crop.topLeft || !sanitized.props.crop.bottomRight) {
+          if (sanitized.props.crop.x !== undefined && sanitized.props.crop.y !== undefined) {
+            // Convert old format to new format
+            sanitized.props.crop = {
+              topLeft: { x: sanitized.props.crop.x || 0, y: sanitized.props.crop.y || 0 },
+              bottomRight: { 
+                x: (sanitized.props.crop.x || 0) + (sanitized.props.crop.w || 1), 
+                y: (sanitized.props.crop.y || 0) + (sanitized.props.crop.h || 1) 
+              }
+            }
+          } else {
+            sanitized.props.crop = {
+              topLeft: { x: 0, y: 0 },
+              bottomRight: { x: 1, y: 1 }
+            }
+          }
+        }
+      }
+    }
+    
+    // CRITICAL: Fix line shapes - ensure valid points structure (required by schema)
+    if (sanitized.type === 'line') {
+      // Remove invalid w/h from props (they cause validation errors)
+      if ('w' in sanitized.props) delete sanitized.props.w
+      if ('h' in sanitized.props) delete sanitized.props.h
+      
+      // Line shapes REQUIRE points property
+      if (!sanitized.props.points || typeof sanitized.props.points !== 'object' || Array.isArray(sanitized.props.points)) {
+        sanitized.props.points = {
+          'a1': { id: 'a1', index: 'a1' as any, x: 0, y: 0 },
+          'a2': { id: 'a2', index: 'a2' as any, x: 100, y: 0 }
+        }
+      }
+    }
+    
+    // CRITICAL: Fix group shapes - remove invalid w/h from props
+    if (sanitized.type === 'group') {
+      if ('w' in sanitized.props) delete sanitized.props.w
+      if ('h' in sanitized.props) delete sanitized.props.h
+    }
+    
+    // CRITICAL: Fix note shapes - ensure richText structure if it exists
     if (sanitized.type === 'note') {
-      // Remove w/h properties from note shapes as they're not valid
-      if ('w' in sanitized.props) {
-        console.log(`Removing invalid w property from note shape:`, sanitized.id)
-        delete sanitized.props.w
-      }
-      if ('h' in sanitized.props) {
-        console.log(`Removing invalid h property from note shape:`, sanitized.id)
-        delete sanitized.props.h
-      }
-    }
-    
-    // Convert custom shape types to valid TLDraw types
-    const customShapeTypeMap: { [key: string]: string } = {
-      'VideoChat': 'embed',
-      'Transcription': 'text',
-      'SharedPiano': 'embed',
-      'Prompt': 'text',
-      'ChatBox': 'embed',
-      'Embed': 'embed',
-      'Markdown': 'text',
-      'MycrozineTemplate': 'embed',
-      'Slide': 'embed',
-      'ObsNote': 'text'
-    }
-    
-    if (customShapeTypeMap[sanitized.type]) {
-      console.log(`Converting custom shape type ${sanitized.type} to ${customShapeTypeMap[sanitized.type]} for shape:`, sanitized.id)
-      sanitized.type = customShapeTypeMap[sanitized.type]
-    }
-    
-    // Ensure proper props for converted shape types
-    if (sanitized.type === 'embed') {
-      // Ensure embed shapes have required properties
-      if (!sanitized.props.url) {
-        sanitized.props.url = ''
-      }
-      if (!sanitized.props.w) {
-        sanitized.props.w = 400
-      }
-      if (!sanitized.props.h) {
-        sanitized.props.h = 300
-      }
-      // Remove invalid properties for embed shapes
-      const invalidEmbedProps = ['isMinimized', 'roomUrl', 'roomId', 'color', 'fill', 'dash', 'size', 'text', 'font', 'align', 'verticalAlign', 'growY', 'richText']
-      invalidEmbedProps.forEach(prop => {
-        if (prop in sanitized.props) {
-          console.log(`Removing invalid ${prop} property from embed shape:`, sanitized.id)
-          delete sanitized.props[prop]
+      if (sanitized.props.richText) {
+        if (Array.isArray(sanitized.props.richText)) {
+          sanitized.props.richText = { content: sanitized.props.richText, type: 'doc' }
+        } else if (typeof sanitized.props.richText === 'object' && sanitized.props.richText !== null) {
+          if (!sanitized.props.richText.type) sanitized.props.richText = { ...sanitized.props.richText, type: 'doc' }
+          if (!sanitized.props.richText.content) sanitized.props.richText = { ...sanitized.props.richText, content: [] }
         }
-      })
+      }
+      // CRITICAL: Clean NaN values from richText content to prevent SVG export errors
+      if (sanitized.props.richText) {
+        sanitized.props.richText = cleanRichTextNaN(sanitized.props.richText)
+      }
     }
     
-    if (sanitized.type === 'text') {
-      // Ensure text shapes have required properties
-      if (!sanitized.props.text) {
-        sanitized.props.text = ''
+    // CRITICAL: Fix richText structure for geo shapes (preserve content)
+    if (sanitized.type === 'geo' && sanitized.props.richText) {
+      if (Array.isArray(sanitized.props.richText)) {
+        sanitized.props.richText = { content: sanitized.props.richText, type: 'doc' }
+      } else if (typeof sanitized.props.richText === 'object' && sanitized.props.richText !== null) {
+        if (!sanitized.props.richText.type) sanitized.props.richText = { ...sanitized.props.richText, type: 'doc' }
+        if (!sanitized.props.richText.content) sanitized.props.richText = { ...sanitized.props.richText, content: [] }
       }
-      if (!sanitized.props.w) {
-        sanitized.props.w = 200
-      }
-      if (!sanitized.props.color) {
-        sanitized.props.color = 'black'
-      }
-      if (!sanitized.props.size) {
-        sanitized.props.size = 'm'
-      }
-      if (!sanitized.props.font) {
-        sanitized.props.font = 'draw'
-      }
-      if (!sanitized.props.textAlign) {
-        sanitized.props.textAlign = 'start'
-      }
-      // Text shapes don't have h property
-      if ('h' in sanitized.props) {
-        delete sanitized.props.h
-      }
-      // Remove invalid properties for text shapes
-      const invalidTextProps = ['isMinimized', 'roomUrl', 'roomId', 'geo', 'insets', 'scribbles']
-      invalidTextProps.forEach(prop => {
-        if (prop in sanitized.props) {
-          console.log(`Removing invalid ${prop} property from text shape:`, sanitized.id)
-          delete sanitized.props[prop]
-        }
-      })
+      // CRITICAL: Clean NaN values from richText content to prevent SVG export errors
+      sanitized.props.richText = cleanRichTextNaN(sanitized.props.richText)
     }
     
-    // General cleanup: remove any properties that might cause validation errors
-    const validShapeProps: { [key: string]: string[] } = {
-      'geo': ['w', 'h', 'geo', 'color', 'fill', 'dash', 'size', 'text', 'font', 'align', 'verticalAlign', 'growY', 'url'],
-      'text': ['w', 'text', 'color', 'fill', 'dash', 'size', 'font', 'align', 'verticalAlign', 'growY', 'url'],
-      'embed': ['w', 'h', 'url', 'doesResize', 'doesResizeHeight'],
-      'note': ['color', 'fill', 'dash', 'size', 'text', 'font', 'align', 'verticalAlign', 'growY', 'url'],
-      'arrow': ['start', 'end', 'color', 'fill', 'dash', 'size', 'text', 'font', 'align', 'verticalAlign', 'growY', 'url', 'arrowheadStart', 'arrowheadEnd'],
-      'draw': ['points', 'color', 'fill', 'dash', 'size'],
-      'bookmark': ['w', 'h', 'url', 'doesResize', 'doesResizeHeight'],
-      'image': ['w', 'h', 'assetId', 'crop', 'doesResize', 'doesResizeHeight'],
-      'video': ['w', 'h', 'assetId', 'crop', 'doesResize', 'doesResizeHeight'],
-      'frame': ['w', 'h', 'name', 'color', 'fill', 'dash', 'size', 'text', 'font', 'align', 'verticalAlign', 'growY', 'url'],
-      'group': ['w', 'h'],
-      'highlight': ['w', 'h', 'color', 'fill', 'dash', 'size', 'text', 'font', 'align', 'verticalAlign', 'growY', 'url'],
-      'line': ['x', 'y', 'color', 'fill', 'dash', 'size', 'text', 'font', 'align', 'verticalAlign', 'growY', 'url']
+    // CRITICAL: Fix richText structure for text shapes
+    if (sanitized.type === 'text' && sanitized.props.richText) {
+      if (Array.isArray(sanitized.props.richText)) {
+        sanitized.props.richText = { content: sanitized.props.richText, type: 'doc' }
+      } else if (typeof sanitized.props.richText === 'object' && sanitized.props.richText !== null) {
+        if (!sanitized.props.richText.type) sanitized.props.richText = { ...sanitized.props.richText, type: 'doc' }
+        if (!sanitized.props.richText.content) sanitized.props.richText = { ...sanitized.props.richText, content: [] }
+      }
+      // CRITICAL: Clean NaN values from richText content to prevent SVG export errors
+      sanitized.props.richText = cleanRichTextNaN(sanitized.props.richText)
     }
     
-    // Remove invalid properties based on shape type
-    if (validShapeProps[sanitized.type]) {
-      const validProps = validShapeProps[sanitized.type]
-      Object.keys(sanitized.props).forEach(prop => {
-        if (!validProps.includes(prop)) {
-          console.log(`Removing invalid property ${prop} from ${sanitized.type} shape:`, sanitized.id)
-          delete sanitized.props[prop]
-        }
-      })
+    // CRITICAL: Remove invalid 'text' property from text shapes (TLDraw schema doesn't allow props.text)
+    // Text shapes should only use props.richText, not props.text
+    if (sanitized.type === 'text' && 'text' in sanitized.props) {
+      delete sanitized.props.text
+    }
+    
+    // CRITICAL: Only convert unknown shapes with richText to text if they're truly unknown
+    // DO NOT convert geo/note shapes - they can legitimately have richText
+    if (sanitized.props?.richText && sanitized.type !== 'text' && sanitized.type !== 'geo' && sanitized.type !== 'note') {
+      // This is an unknown shape type with richText - convert to text shape
+      // But preserve all existing properties first
+      const existingProps = { ...sanitized.props }
+      sanitized.type = 'text'
+      sanitized.props = existingProps
+      
+      // Fix richText structure if needed
+      if (Array.isArray(sanitized.props.richText)) {
+        sanitized.props.richText = { content: sanitized.props.richText, type: 'doc' }
+      } else if (typeof sanitized.props.richText === 'object' && sanitized.props.richText !== null) {
+        if (!sanitized.props.richText.type) sanitized.props.richText = { ...sanitized.props.richText, type: 'doc' }
+        if (!sanitized.props.richText.content) sanitized.props.richText = { ...sanitized.props.richText, content: [] }
+      }
+      // CRITICAL: Clean NaN values from richText content to prevent SVG export errors
+      sanitized.props.richText = cleanRichTextNaN(sanitized.props.richText)
+      
+      // Only remove properties that cause validation errors (not all "invalid" ones)
+      if ('h' in sanitized.props) delete sanitized.props.h
+      if ('geo' in sanitized.props) delete sanitized.props.geo
     }
   }
   
@@ -353,14 +566,27 @@ const applyInsertToObject = (patch: Automerge.InsertPatch, object: any): TLRecor
   const insertionPoint = path[path.length - 1] as number
   const pathEnd = path[path.length - 2] as string
   const parts = path.slice(2, -2)
+  
+  // Create missing properties as we navigate
   for (const part of parts) {
-    if (current[part] === undefined) {
-      throw new Error("NO WAY")
+    if (current[part] === undefined || current[part] === null) {
+      // Create missing property - use array for numeric indices
+      if (typeof part === 'number' || (typeof part === 'string' && !isNaN(Number(part)))) {
+        current[part] = []
+      } else {
+        current[part] = {}
+      }
     }
     current = current[part]
   }
+  
+  // Ensure pathEnd exists and is an array
+  if (current[pathEnd] === undefined || current[pathEnd] === null) {
+    current[pathEnd] = []
+  }
+  
   // splice is a mutator... yay.
-  const clone = current[pathEnd].slice(0)
+  const clone = Array.isArray(current[pathEnd]) ? current[pathEnd].slice(0) : []
   clone.splice(insertionPoint, 0, ...values)
   current[pathEnd] = clone
   return object
@@ -383,10 +609,24 @@ const applyPutToObject = (patch: Automerge.PutPatch, object: any): TLRecord => {
     return { ...object, [property]: value }
   }
 
-  // default case
+  // default case - create missing properties as we navigate
   for (const part of parts) {
+    if (current[part] === undefined || current[part] === null) {
+      // Create missing property - use object for named properties, array for numeric indices
+      if (typeof part === 'number' || (typeof part === 'string' && !isNaN(Number(part)))) {
+        current[part] = []
+      } else {
+        current[part] = {}
+      }
+    }
     current = current[part]
   }
+  
+  // Ensure target exists
+  if (current[target] === undefined || current[target] === null) {
+    current[target] = {}
+  }
+  
   current[target] = { ...current[target], [property]: value }
   return object
 }
@@ -397,12 +637,25 @@ const applySpliceToObject = (patch: Automerge.SpliceTextPatch, object: any): TLR
   const insertionPoint = path[path.length - 1] as number
   const pathEnd = path[path.length - 2] as string
   const parts = path.slice(2, -2)
+  
+  // Create missing properties as we navigate
   for (const part of parts) {
-    if (current[part] === undefined) {
-      throw new Error("NO WAY")
+    if (current[part] === undefined || current[part] === null) {
+      // Create missing property - use array for numeric indices or when splicing
+      if (typeof part === 'number' || (typeof part === 'string' && !isNaN(Number(part)))) {
+        current[part] = []
+      } else {
+        current[part] = {}
+      }
     }
     current = current[part]
   }
+  
+  // Ensure pathEnd exists and is an array for splicing
+  if (current[pathEnd] === undefined || current[pathEnd] === null) {
+    current[pathEnd] = []
+  }
+  
   // TODO: we're not supporting actual splices yet because TLDraw won't generate them natively
   if (insertionPoint !== 0) {
     throw new Error("Splices are not supported yet")

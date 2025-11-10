@@ -183,7 +183,7 @@
   box-shadow: 0 4px 8px rgba(0, 122, 204, 0.3);
 }
 
-.clear-vault-button {
+.disconnect-vault-button {
   background: #dc3545;
   color: white;
   border: none;
@@ -195,7 +195,7 @@
   transition: all 0.2s ease;
 }
 
-.clear-vault-button:hover {
+.disconnect-vault-button:hover {
   background: #c82333;
   transform: translateY(-1px);
 }

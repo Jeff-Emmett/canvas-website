@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
-import { BaseBoxShapeUtil, TLBaseShape } from "tldraw"
+import { BaseBoxShapeUtil, TLBaseShape, HTMLContainer } from "tldraw"
+import { StandardizedToolWrapper } from "../components/StandardizedToolWrapper"
 
 export type IChatBoxShape = TLBaseShape<
   "ChatBox",
@@ -17,24 +18,53 @@ export class ChatBoxShape extends BaseBoxShapeUtil<IChatBoxShape> {
   getDefaultProps(): IChatBoxShape["props"] {
     return {
       roomId: "default-room",
-      w: 100,
-      h: 100,
+      w: 400,
+      h: 500,
       userName: "",
     }
   }
+
+  // ChatBox theme color: Orange (Rainbow)
+  static readonly PRIMARY_COLOR = "#f97316"
 
   indicator(shape: IChatBoxShape) {
     return <rect x={0} y={0} width={shape.props.w} height={shape.props.h} />
   }
 
   component(shape: IChatBoxShape) {
+    const [isMinimized, setIsMinimized] = useState(false)
+    const isSelected = this.editor.getSelectedShapeIds().includes(shape.id)
+
+    const handleClose = () => {
+      this.editor.deleteShape(shape.id)
+    }
+
+    const handleMinimize = () => {
+      setIsMinimized(!isMinimized)
+    }
+
     return (
-      <ChatBox
-        roomId={shape.props.roomId}
-        w={shape.props.w}
-        h={shape.props.h}
-        userName=""
-      />
+      <HTMLContainer style={{ width: shape.props.w, height: shape.props.h }}>
+        <StandardizedToolWrapper
+          title="Chat"
+          primaryColor={ChatBoxShape.PRIMARY_COLOR}
+          isSelected={isSelected}
+          width={shape.props.w}
+          height={shape.props.h}
+          onClose={handleClose}
+          onMinimize={handleMinimize}
+          isMinimized={isMinimized}
+          editor={this.editor}
+          shapeId={shape.id}
+        >
+          <ChatBox
+            roomId={shape.props.roomId}
+            w={shape.props.w}
+            h={shape.props.h - 40} // Subtract header height
+            userName=""
+          />
+        </StandardizedToolWrapper>
+      </HTMLContainer>
     )
   }
 }
@@ -114,10 +144,12 @@ export const ChatBox: React.FC<IChatBoxShape["props"]> = ({
       className="chat-container"
       style={{
         pointerEvents: "all",
-        width: `${w}px`,
-        height: `${h}px`,
-        overflow: "auto",
+        width: '100%',
+        height: '100%',
+        overflow: "hidden",
         touchAction: "auto",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       <div className="messages-container">
