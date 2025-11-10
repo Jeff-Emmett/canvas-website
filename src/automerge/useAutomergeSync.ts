@@ -119,27 +119,29 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
                     try {
                       // Create a deep copy to ensure Automerge properly handles nested objects
                       // This is critical for preserving nested structures like props, richText, etc.
+                      // Cast record to any to access properties that may not exist on all TLRecord types
+                      const recordAny = record as any
                       let recordToSave: any
                       try {
                         recordToSave = JSON.parse(JSON.stringify(record))
                         // Verify essential properties are preserved
-                        if (!recordToSave.typeName && record.typeName) {
-                          recordToSave.typeName = record.typeName
+                        if (!recordToSave.typeName && recordAny.typeName) {
+                          recordToSave.typeName = recordAny.typeName
                         }
-                        if (!recordToSave.id && record.id) {
-                          recordToSave.id = record.id
+                        if (!recordToSave.id && recordAny.id) {
+                          recordToSave.id = recordAny.id
                         }
-                        if (!recordToSave.type && record.type) {
-                          recordToSave.type = record.type
+                        if (!recordToSave.type && recordAny.type) {
+                          recordToSave.type = recordAny.type
                         }
-                        if (!recordToSave.props && record.props) {
-                          recordToSave.props = record.props
+                        if (!recordToSave.props && recordAny.props) {
+                          recordToSave.props = recordAny.props
                         }
                         // Copy all enumerable properties that might have been lost
-                        for (const prop in record) {
+                        for (const prop in recordAny) {
                           if (!(prop in recordToSave)) {
                             try {
-                              recordToSave[prop] = record[prop]
+                              recordToSave[prop] = recordAny[prop]
                             } catch (e) {
                               // Skip properties that can't be accessed
                             }
@@ -149,9 +151,9 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
                         // If JSON serialization fails, manually copy properties
                         console.warn(`⚠️ JSON serialization failed for record ${key}, using manual copy`)
                         recordToSave = {}
-                        for (const prop in record) {
+                        for (const prop in recordAny) {
                           try {
-                            recordToSave[prop] = record[prop]
+                            recordToSave[prop] = recordAny[prop]
                           } catch (e) {
                             // Skip properties that can't be accessed
                           }
