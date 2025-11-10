@@ -23,6 +23,12 @@ bindings = [
 tag = "v1"
 new_classes = ["AutomergeDurableObject"]
 
+[[migrations]]
+tag = "v2"
+renamed_classes = [
+  { from = "TldrawDurableObject", to = "AutomergeDurableObject" }
+]
+
 [[r2_buckets]]
 binding = 'TLDRAW_BUCKET'
 bucket_name = 'jeffemmett-canvas'
