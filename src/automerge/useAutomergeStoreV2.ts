@@ -321,19 +321,49 @@ export function useAutomergeStoreV2({
         
             // Initialize store with existing records from Automerge
             if (doc.store) {
+                const storeKeys = Object.keys(doc.store)
+                console.log(`📊 Store keys count: ${storeKeys.length}`, storeKeys.slice(0, 10))
+                
+                // Get all store values - Automerge should handle this correctly
                 const allStoreValues = Object.values(doc.store)
-                console.log("All store values from Automerge:", allStoreValues.map((v: any) => ({
-                  hasTypeName: !!v?.typeName,
-                  hasId: !!v?.id,
-                  typeName: v?.typeName,
-            id: v?.id
-          })))
+                
+                // Debug: Log first few records in detail to see their structure
+                console.log("📊 Sample store values (first 3):", allStoreValues.slice(0, 3).map((v: any) => {
+                  try {
+                    return {
+                      hasTypeName: !!v?.typeName,
+                      hasId: !!v?.id,
+                      typeName: v?.typeName,
+                      id: v?.id,
+                      type: v?.type,
+                      keys: v ? Object.keys(v).slice(0, 10) : [],
+                      // Try to stringify a sample to see structure
+                      sample: JSON.stringify(v).substring(0, 200)
+                    }
+                  } catch (e) {
+                    return { error: String(e), value: v }
+                  }
+                }))
+                
+                // Debug: Count record types before filtering
+                const typeCountBefore = allStoreValues.reduce((acc: any, v: any) => {
+                  const type = v?.typeName || 'unknown'
+                  acc[type] = (acc[type] || 0) + 1
+                  return acc
+                }, {})
+                console.log(`📊 Store values before filtering:`, {
+                  total: allStoreValues.length,
+                  typeCounts: typeCountBefore
+                })
           
           // Simple filtering - only keep valid TLDraw records
           // Skip custom record types like obsidian_vault - they're not TLDraw records
           // Components should read them directly from Automerge (like ObsidianVaultBrowser does)
           const records = allStoreValues.filter((record: any) => {
-            if (!record || !record.typeName || !record.id) return false
+            if (!record || !record.typeName || !record.id) {
+              console.log(`⚠️ Filtering out invalid record:`, { hasRecord: !!record, hasTypeName: !!record?.typeName, hasId: !!record?.id })
+              return false
+            }
             // Skip obsidian_vault records - they're not TLDraw records
             if (record.typeName === 'obsidian_vault' || 
                 (typeof record.id === 'string' && record.id.startsWith('obsidian_vault:'))) {
@@ -341,6 +371,8 @@ export function useAutomergeStoreV2({
             }
             return true
           })
+          
+          console.log(`📊 After filtering: ${records.length} valid records from ${allStoreValues.length} total store values`)
           
           // Only log if there are many records or if debugging is needed
           if (records.length > 50) {
@@ -1243,6 +1275,20 @@ export function useAutomergeStoreV2({
           })
           
           console.log(`Processed ${processedRecords.length} records for loading`)
+          
+          // Debug: Log what record types we have
+          const recordTypes = processedRecords.reduce((acc: any, r: any) => {
+            const type = r.typeName || 'unknown'
+            acc[type] = (acc[type] || 0) + 1
+            return acc
+          }, {})
+          console.log(`📊 Record types breakdown:`, recordTypes)
+          console.log(`📊 All processed records:`, processedRecords.map((r: any) => ({
+            id: r.id,
+            typeName: r.typeName,
+            type: r.type,
+            hasProps: !!r.props
+          })))
           
           // Debug: Log shape structures before loading
           const shapesToLoad = processedRecords.filter(r => r.typeName === 'shape')
