@@ -79,12 +79,30 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
                       acc[type] = (acc[type] || 0) + 1
                       return acc
                     }, {}),
-                    sampleRecords: storeEntries.slice(0, 5).map(([k, v]: [string, any]) => ({
-                      key: k,
-                      id: v?.id,
-                      typeName: v?.typeName,
-                      type: v?.type
-                    }))
+                    sampleRecords: storeEntries.slice(0, 5).map(([k, v]: [string, any]) => {
+                      // Log full structure for debugging
+                      try {
+                        const fullRecord = JSON.parse(JSON.stringify(v))
+                        return {
+                          key: k,
+                          id: v?.id,
+                          typeName: v?.typeName,
+                          type: v?.type,
+                          hasProps: !!v?.props,
+                          propsKeys: v?.props ? Object.keys(v.props).slice(0, 5) : [],
+                          allKeys: v ? Object.keys(v).slice(0, 10) : [],
+                          fullRecord: fullRecord // Include full record for debugging
+                        }
+                      } catch (e) {
+                        return {
+                          key: k,
+                          id: v?.id,
+                          typeName: v?.typeName,
+                          type: v?.type,
+                          error: String(e)
+                        }
+                      }
+                    })
                   })
                   
                   // Initialize store if it doesn't exist
@@ -101,11 +119,48 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
                     try {
                       // Create a deep copy to ensure Automerge properly handles nested objects
                       // This is critical for preserving nested structures like props, richText, etc.
-                      const recordToSave = JSON.parse(JSON.stringify(record))
+                      let recordToSave: any
+                      try {
+                        recordToSave = JSON.parse(JSON.stringify(record))
+                        // Verify essential properties are preserved
+                        if (!recordToSave.typeName && record.typeName) {
+                          recordToSave.typeName = record.typeName
+                        }
+                        if (!recordToSave.id && record.id) {
+                          recordToSave.id = record.id
+                        }
+                        if (!recordToSave.type && record.type) {
+                          recordToSave.type = record.type
+                        }
+                        if (!recordToSave.props && record.props) {
+                          recordToSave.props = record.props
+                        }
+                        // Copy all enumerable properties that might have been lost
+                        for (const prop in record) {
+                          if (!(prop in recordToSave)) {
+                            try {
+                              recordToSave[prop] = record[prop]
+                            } catch (e) {
+                              // Skip properties that can't be accessed
+                            }
+                          }
+                        }
+                      } catch (jsonError) {
+                        // If JSON serialization fails, manually copy properties
+                        console.warn(`⚠️ JSON serialization failed for record ${key}, using manual copy`)
+                        recordToSave = {}
+                        for (const prop in record) {
+                          try {
+                            recordToSave[prop] = record[prop]
+                          } catch (e) {
+                            // Skip properties that can't be accessed
+                          }
+                        }
+                      }
                       store[key] = recordToSave
                       assignedCount++
                     } catch (e) {
-                      console.error(`❌ Error deep copying record ${key}:`, e)
+                      console.error(`❌ Error copying record ${key}:`, e)
                       // Fallback: assign directly (might not work for nested objects)
                       store[key] = record
                     }
