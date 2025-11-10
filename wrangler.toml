@@ -23,10 +23,11 @@ bindings = [
 tag = "v1"
 new_classes = ["AutomergeDurableObject"]
 
-# Note: TldrawDurableObject → AutomergeDurableObject migration removed
-# The AutomergeDurableObject class is already in use, so we can't rename to it.
-# Any remaining TldrawDurableObject instances will be orphaned but won't cause issues.
-# If you need to clean them up, you can add a delete-class migration in the future.
+[[migrations]]
+tag = "v2"
+renamed_classes = [
+  { from = "TldrawDurableObject", to = "AutomergeDurableObject" }
+]
 
 [[r2_buckets]]
 binding = 'TLDRAW_BUCKET'
@@ -65,6 +66,12 @@ bindings = [
 [[env.dev.migrations]]
 tag = "v1"
 new_classes = ["AutomergeDurableObject"]
+
+[[env.dev.migrations]]
+tag = "v2"
+renamed_classes = [
+  { from = "TldrawDurableObject", to = "AutomergeDurableObject" }
+]
 
 [[env.dev.r2_buckets]]
 binding = 'TLDRAW_BUCKET'
