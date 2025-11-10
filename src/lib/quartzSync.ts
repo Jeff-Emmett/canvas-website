@@ -295,6 +295,21 @@ export function createQuartzNoteFromShape(shape: any): QuartzNote {
   const content = shape.props.content || ''
   const tags = shape.props.tags || []
   
+  // Use stored filePath if available to maintain filename consistency
+  // Otherwise, generate from title
+  let filePath: string
+  if (shape.props.filePath && shape.props.filePath.trim() !== '') {
+    filePath = shape.props.filePath
+    // Ensure it ends with .md if it doesn't already
+    if (!filePath.endsWith('.md')) {
+      filePath = filePath.endsWith('/') ? `${filePath}${title}.md` : `${filePath}.md`
+    }
+  } else {
+    // Generate from title, ensuring it's a valid filename
+    const sanitizedTitle = title.replace(/[^a-zA-Z0-9\s-]/g, '').trim().replace(/\s+/g, '-')
+    filePath = `${sanitizedTitle}.md`
+  }
+  
   return {
     id: shape.props.noteId || title,
     title,
@@ -306,7 +321,7 @@ export function createQuartzNoteFromShape(shape: any): QuartzNote {
       created: new Date().toISOString(),
       modified: new Date().toISOString()
     },
-    filePath: `${title}.md`,
+    filePath: filePath,
     lastModified: new Date()
   }
 }

@@ -15,7 +15,7 @@ interface AutomergeSyncConfig {
   }
 }
 
-export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus {
+export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus & { handle: any | null } {
   const { uri, user } = config
   
   // Extract roomId from URI (e.g., "https://worker.com/connect/room123" -> "room123")
@@ -96,7 +96,44 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
                 
                 handle.change((doc) => {
                   if (snapshotData.store) {
-                    doc.store = snapshotData.store
+                    // Pre-sanitize snapshot data to remove invalid properties
+                    const sanitizedStore = { ...snapshotData.store }
+                    let sanitizedCount = 0
+                    
+                    Object.keys(sanitizedStore).forEach(key => {
+                      const record = (sanitizedStore as any)[key]
+                      if (record && record.typeName === 'shape') {
+                        // Remove invalid properties from embed shapes (both custom Embed and default embed)
+                        if ((record.type === 'Embed' || record.type === 'embed') && record.props) {
+                          const invalidEmbedProps = ['doesResize', 'doesResizeHeight', 'richText']
+                          invalidEmbedProps.forEach(prop => {
+                            if (prop in record.props) {
+                              console.log(`🔧 Pre-sanitizing snapshot: Removing invalid prop '${prop}' from embed shape ${record.id}`)
+                              delete record.props[prop]
+                              sanitizedCount++
+                            }
+                          })
+                        }
+                        
+                        // Remove invalid properties from text shapes
+                        if (record.type === 'text' && record.props) {
+                          const invalidTextProps = ['text', 'richText']
+                          invalidTextProps.forEach(prop => {
+                            if (prop in record.props) {
+                              console.log(`🔧 Pre-sanitizing snapshot: Removing invalid prop '${prop}' from text shape ${record.id}`)
+                              delete record.props[prop]
+                              sanitizedCount++
+                            }
+                          })
+                        }
+                      }
+                    })
+                    
+                    if (sanitizedCount > 0) {
+                      console.log(`🔧 Pre-sanitized ${sanitizedCount} invalid properties from snapshot data`)
+                    }
+                    
+                    doc.store = sanitizedStore
                     console.log("Loaded snapshot store data into Automerge document:", {
                       storeKeys: Object.keys(doc.store).length,
                       shapeCount: Object.values(doc.store).filter((r: any) => r.typeName === 'shape').length,
@@ -187,8 +224,8 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
 
   // Return loading state while initializing
   if (isLoading || !handle) {
-    return { status: "loading" }
+    return { ...store, handle: null }
   }
 
-  return store
+  return { ...store, handle }
 }

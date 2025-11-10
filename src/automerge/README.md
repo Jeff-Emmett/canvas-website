@@ -6,8 +6,8 @@ This directory contains the Automerge-based sync implementation that replaces th
 
 - `AutomergeToTLStore.ts` - Converts Automerge patches to TLdraw store updates
 - `TLStoreToAutomerge.ts` - Converts TLdraw store changes to Automerge document updates
-- `useAutomergeStore.ts` - React hook for managing Automerge document state
-- `useAutomergeSync.ts` - Main sync hook that replaces `useSync` from TLdraw
+- `useAutomergeStoreV2.ts` - Core React hook for managing Automerge document state with TLdraw
+- `useAutomergeSync.ts` - Main sync hook that replaces `useSync` from TLdraw (uses V2 internally)
 - `CloudflareAdapter.ts` - Adapter for Cloudflare Durable Objects and R2 storage
 - `default_store.ts` - Default TLdraw store structure for new documents
 - `index.ts` - Main exports

@@ -173,9 +173,14 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
   }
 
   component(shape: IEmbedShape) {
+    // Ensure shape props exist with defaults
+    const props = shape.props || {}
+    const url = props.url || ""
+    const isMinimized = props.isMinimized || false
+    
     const isSelected = this.editor.getSelectedShapeIds().includes(shape.id)
     
-    const [inputUrl, setInputUrl] = useState(shape.props.url || "")
+    const [inputUrl, setInputUrl] = useState(url)
     const [error, setError] = useState("")
     const [copyStatus, setCopyStatus] = useState(false)
 

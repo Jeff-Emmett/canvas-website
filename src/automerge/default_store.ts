@@ -115,7 +115,8 @@ export const DEFAULT_STORE = {
       "com.tldraw.shape.container": 0,
       "com.tldraw.shape.element": 0,
       "com.tldraw.binding.arrow": 0,
-      "com.tldraw.binding.layout": 0
+      "com.tldraw.binding.layout": 0,
+      "obsidian_vault": 1
     }
   },
 }

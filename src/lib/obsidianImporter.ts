@@ -20,12 +20,34 @@ export interface ObsidianObsNote {
   vaultPath?: string
 }
 
+export interface FolderNode {
+  name: string
+  path: string
+  children: FolderNode[]
+  notes: ObsidianObsNote[]
+  isExpanded: boolean
+  level: number
+}
+
 export interface ObsidianVault {
   name: string
   path: string
   obs_notes: ObsidianObsNote[]
   totalObsNotes: number
   lastImported: Date
+  folderTree: FolderNode
+}
+
+export interface ObsidianVaultRecord {
+  id: string
+  typeName: 'obsidian_vault'
+  name: string
+  path: string
+  obs_notes: ObsidianObsNote[]
+  totalObsNotes: number
+  lastImported: Date
+  folderTree: FolderNode
+  meta: Record<string, any>
 }
 
 export class ObsidianImporter {
@@ -39,7 +61,6 @@ export class ObsidianImporter {
     try {
       // For now, we'll simulate this with a demo vault
       // In a real implementation, you'd use the File System Access API
-      console.log('Importing from directory:', directoryPath)
       
       // Simulate reading files (in real implementation, use File System Access API)
       const mockObsNotes = await this.createMockObsNotes()
@@ -49,7 +70,8 @@ export class ObsidianImporter {
         path: directoryPath,
         obs_notes: mockObsNotes,
         totalObsNotes: mockObsNotes.length,
-        lastImported: new Date()
+        lastImported: new Date(),
+        folderTree: this.buildFolderTree(mockObsNotes)
       }
 
       return this.vault
@@ -64,8 +86,6 @@ export class ObsidianImporter {
    */
   async importFromQuartzUrl(quartzUrl: string): Promise<ObsidianVault> {
     try {
-      console.log('Importing from Quartz URL:', quartzUrl)
-      
       // Ensure URL has protocol
       const url = quartzUrl.startsWith('http') ? quartzUrl : `https://${quartzUrl}`
       
@@ -73,7 +93,6 @@ export class ObsidianImporter {
       const githubConfig = this.getGitHubConfigFromUrl(url)
       
       if (githubConfig) {
-        console.log('🔍 Using GitHub API to read Quartz content')
         const obs_notes = await this.importFromGitHub(githubConfig)
         
         this.vault = {
@@ -81,12 +100,12 @@ export class ObsidianImporter {
           path: url,
           obs_notes,
           totalObsNotes: obs_notes.length,
-          lastImported: new Date()
+          lastImported: new Date(),
+          folderTree: this.buildFolderTree(obs_notes)
         }
 
         return this.vault
       } else {
-        console.log('⚠️ No GitHub config found, falling back to web scraping')
         // Fallback to the old method
         const obs_notes = await this.discoverQuartzContent(url)
         
@@ -95,7 +114,8 @@ export class ObsidianImporter {
           path: url,
           obs_notes,
           totalObsNotes: obs_notes.length,
-          lastImported: new Date()
+          lastImported: new Date(),
+          folderTree: this.buildFolderTree(obs_notes)
         }
 
         return this.vault
@@ -129,7 +149,8 @@ export class ObsidianImporter {
         path: directoryHandle.name, // File System Access API doesn't expose full path
         obs_notes,
         totalObsNotes: obs_notes.length,
-        lastImported: new Date()
+        lastImported: new Date(),
+        folderTree: this.buildFolderTree(obs_notes)
       }
 
       return this.vault
@@ -450,6 +471,163 @@ A collection of creative project ideas and concepts.
   }
 
   /**
+   * Build folder tree structure from obs_notes
+   */
+  buildFolderTree(obs_notes: ObsidianObsNote[]): FolderNode {
+    const root: FolderNode = {
+      name: 'Root',
+      path: '',
+      children: [],
+      notes: [],
+      isExpanded: true,
+      level: 0
+    }
+
+    // Group notes by their folder paths
+    const folderMap = new Map<string, { folders: string[], notes: ObsidianObsNote[] }>()
+    
+    obs_notes.forEach(note => {
+      const pathParts = this.parseFilePath(note.filePath)
+      const folderKey = pathParts.folders.join('/')
+      
+      if (!folderMap.has(folderKey)) {
+        folderMap.set(folderKey, { folders: pathParts.folders, notes: [] })
+      }
+      folderMap.get(folderKey)!.notes.push(note)
+    })
+
+    // Build the tree structure
+    folderMap.forEach(({ folders, notes }) => {
+      this.addFolderToTree(root, folders, notes)
+    })
+
+    return root
+  }
+
+  /**
+   * Parse file path into folder structure
+   */
+  private parseFilePath(filePath: string): { folders: string[], fileName: string } {
+    // Handle both local paths and URLs
+    let pathToParse = filePath
+    
+    if (filePath.startsWith('http')) {
+      // Extract pathname from URL
+      try {
+        const url = new URL(filePath)
+        pathToParse = url.pathname.replace(/^\//, '')
+      } catch (e) {
+        console.warn('Invalid URL:', filePath)
+        return { folders: [], fileName: filePath }
+      }
+    }
+
+    // Split path and filter out empty parts
+    const parts = pathToParse.split('/').filter(part => part.length > 0)
+    
+    if (parts.length === 0) {
+      return { folders: [], fileName: filePath }
+    }
+
+    const fileName = parts[parts.length - 1]
+    const folders = parts.slice(0, -1)
+
+    return { folders, fileName }
+  }
+
+  /**
+   * Add folder to tree structure
+   */
+  private addFolderToTree(root: FolderNode, folderPath: string[], notes: ObsidianObsNote[]): void {
+    let current = root
+    
+    for (let i = 0; i < folderPath.length; i++) {
+      const folderName = folderPath[i]
+      let existingFolder = current.children.find(child => child.name === folderName)
+      
+      if (!existingFolder) {
+        const currentPath = folderPath.slice(0, i + 1).join('/')
+        existingFolder = {
+          name: folderName,
+          path: currentPath,
+          children: [],
+          notes: [],
+          isExpanded: false,
+          level: i + 1
+        }
+        current.children.push(existingFolder)
+      }
+      
+      current = existingFolder
+    }
+    
+    // Add notes to the final folder
+    current.notes.push(...notes)
+  }
+
+  /**
+   * Get all notes from a folder tree (recursive)
+   */
+  getAllNotesFromTree(folder: FolderNode): ObsidianObsNote[] {
+    let notes = [...folder.notes]
+    
+    folder.children.forEach(child => {
+      notes.push(...this.getAllNotesFromTree(child))
+    })
+    
+    return notes
+  }
+
+  /**
+   * Find folder by path in tree
+   */
+  findFolderByPath(root: FolderNode, path: string): FolderNode | null {
+    if (root.path === path) {
+      return root
+    }
+    
+    for (const child of root.children) {
+      const found = this.findFolderByPath(child, path)
+      if (found) {
+        return found
+      }
+    }
+    
+    return null
+  }
+
+  /**
+   * Convert vault to Automerge record format
+   */
+  vaultToRecord(vault: ObsidianVault): ObsidianVaultRecord {
+    return {
+      id: `obsidian_vault:${vault.name}`,
+      typeName: 'obsidian_vault',
+      name: vault.name,
+      path: vault.path,
+      obs_notes: vault.obs_notes,
+      totalObsNotes: vault.totalObsNotes,
+      lastImported: vault.lastImported,
+      folderTree: vault.folderTree,
+      meta: {}
+    }
+  }
+
+  /**
+   * Convert Automerge record to vault format
+   */
+  recordToVault(record: ObsidianVaultRecord): ObsidianVault {
+    return {
+      name: record.name,
+      path: record.path,
+      obs_notes: record.obs_notes,
+      totalObsNotes: record.totalObsNotes,
+      lastImported: record.lastImported,
+      folderTree: record.folderTree
+    }
+  }
+
+  /**
    * Search notes in the current vault
    */
   async searchNotes(query: string): Promise<ObsidianObsNote[]> {
@@ -501,18 +679,15 @@ A collection of creative project ideas and concepts.
     const githubRepo = config.quartzRepo
     
     if (!githubToken || !githubRepo) {
-      console.log('⚠️ GitHub credentials not found in configuration')
       return null
     }
     
     if (githubToken === 'your_github_token_here' || githubRepo === 'your_username/your-quartz-repo') {
-      console.log('⚠️ GitHub credentials are still set to placeholder values')
       return null
     }
     
     const [owner, repo] = githubRepo.split('/')
     if (!owner || !repo) {
-      console.log('⚠️ Invalid GitHub repository format')
       return null
     }
     
@@ -564,15 +739,12 @@ A collection of creative project ideas and concepts.
             const currentHasQuotes = obsNote.filePath.includes('"')
             
             if (currentHasQuotes && !existingHasQuotes) {
-              console.log(`Keeping existing note without quotes: ${existing.filePath}`)
               return // Keep the existing one
             } else if (!currentHasQuotes && existingHasQuotes) {
-              console.log(`Replacing with note without quotes: ${obsNote.filePath}`)
               notesMap.set(obsNote.id, obsNote)
             } else {
               // Both have or don't have quotes, prefer the one with more content
               if (obsNote.content.length > existing.content.length) {
-                console.log(`Replacing with longer content: ${obsNote.filePath}`)
                 notesMap.set(obsNote.id, obsNote)
               }
             }
@@ -582,7 +754,6 @@ A collection of creative project ideas and concepts.
         })
       
       const uniqueNotes = Array.from(notesMap.values())
-      console.log(`Imported ${uniqueNotes.length} unique notes from GitHub (${quartzNotes.length} total files processed)`)
       
       return uniqueNotes
     } catch (error) {
@@ -598,44 +769,29 @@ A collection of creative project ideas and concepts.
     const obs_notes: ObsidianObsNote[] = []
     
     try {
-      console.log('🔍 Starting Quartz content discovery for:', baseUrl)
-      
       // Try to find content through common Quartz patterns
       const contentUrls = await this.findQuartzContentUrls(baseUrl)
-      console.log('🔍 Found content URLs:', contentUrls.length)
       
       if (contentUrls.length === 0) {
-        console.warn('⚠️ No content URLs found for Quartz site:', baseUrl)
         return obs_notes
       }
       
       for (const contentUrl of contentUrls) {
         try {
-          console.log('🔍 Fetching content from:', contentUrl)
           const response = await fetch(contentUrl)
           if (!response.ok) {
-            console.warn(`⚠️ Failed to fetch ${contentUrl}: ${response.status} ${response.statusText}`)
             continue
           }
           
           const content = await response.text()
-          console.log('🔍 Successfully fetched content, length:', content.length)
-          
           const obs_note = this.parseQuartzMarkdown(content, contentUrl, baseUrl)
-          console.log('🔍 Parsed note:', obs_note.title, 'Content length:', obs_note.content.length)
           
-          // Only add notes that have meaningful content
-          if (obs_note.content.length > 10) {
-            obs_notes.push(obs_note)
-          } else {
-            console.log('🔍 Skipping note with insufficient content:', obs_note.title)
-          }
+          // Add all notes regardless of content length
+          obs_notes.push(obs_note)
         } catch (error) {
-          console.warn(`⚠️ Failed to fetch content from ${contentUrl}:`, error)
+          // Silently skip failed fetches
         }
       }
-      
-      console.log('🔍 Successfully discovered', obs_notes.length, 'notes from Quartz site')
     } catch (error) {
       console.warn('⚠️ Failed to discover Quartz content:', error)
     }
@@ -660,7 +816,6 @@ A collection of creative project ideas and concepts.
         // Look for navigation links and content links in the main page
         const discoveredUrls = this.extractContentUrlsFromPage(mainPageContent, baseUrl)
         urls.push(...discoveredUrls)
-        console.log('🔍 Discovered URLs from main page:', discoveredUrls.length)
       }
 
       // Try to find a sitemap
@@ -675,7 +830,6 @@ A collection of creative project ideas and concepts.
               match.replace(/<\/?loc>/g, '').trim()
             ).filter(url => url.endsWith('.html') || url.endsWith('.md') || url.includes(baseUrl))
             urls.push(...sitemapUrls)
-            console.log('🔍 Found sitemap with URLs:', sitemapUrls.length)
           }
         }
       } catch (error) {
@@ -702,7 +856,6 @@ A collection of creative project ideas and concepts.
           const response = await fetch(url)
           if (response.ok) {
             urls.push(url)
-            console.log('🔍 Found content at:', url)
           }
         } catch (error) {
           // Ignore individual path failures
@@ -714,7 +867,6 @@ A collection of creative project ideas and concepts.
     
     // Remove duplicates and limit results
     const uniqueUrls = [...new Set(urls)]
-    console.log('🔍 Total unique URLs found:', uniqueUrls.length)
     return uniqueUrls.slice(0, 50) // Limit to 50 pages to avoid overwhelming
   }
 
@@ -905,7 +1057,6 @@ A collection of creative project ideas and concepts.
     
     // If we still don't have much content, try to extract any text from the original HTML
     if (text.length < 50) {
-      console.log('🔍 Content too short, trying fallback extraction...')
       let fallbackText = html
       
       // Remove script, style, and other non-content tags
@@ -932,14 +1083,12 @@ A collection of creative project ideas and concepts.
       fallbackText = fallbackText.trim()
       
       if (fallbackText.length > text.length) {
-        console.log('🔍 Fallback extraction found more content:', fallbackText.length)
         text = fallbackText
       }
     }
     
     // Final fallback: if we still don't have content, try to extract any text from the body
     if (text.length < 20) {
-      console.log('🔍 Still no content, trying body text extraction...')
       const bodyMatch = html.match(/<body[^>]*>(.*?)<\/body>/is)
       if (bodyMatch) {
         let bodyText = bodyMatch[1]
@@ -955,7 +1104,6 @@ A collection of creative project ideas and concepts.
         bodyText = bodyText.replace(/\s+/g, ' ').trim()
         
         if (bodyText.length > text.length) {
-          console.log('🔍 Body text extraction found content:', bodyText.length)
           text = bodyText
         }
       }

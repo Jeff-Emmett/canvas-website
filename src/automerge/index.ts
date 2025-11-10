@@ -6,9 +6,6 @@ export function init(doc: TLStoreSnapshot) {
   Object.assign(doc, DEFAULT_STORE)
 }
 
-// Export the new V2 approach as the default
+// Export the V2 implementation
 export * from "./useAutomergeStoreV2"
 export * from "./useAutomergeSync"
-
-// Keep the old store for backward compatibility (deprecated)
-// export * from "./useAutomergeStore"

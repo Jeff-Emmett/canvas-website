@@ -106,11 +106,35 @@ export function getGitHubConfig(): { token: string; repo: string; branch: string
  */
 export function isOpenAIConfigured(): boolean {
   try {
+    // First try to get user-specific API keys if available
+    const session = JSON.parse(localStorage.getItem('session') || '{}')
+    if (session.authed && session.username) {
+      const userApiKeys = localStorage.getItem(`${session.username}_api_keys`)
+      if (userApiKeys) {
+        try {
+          const parsed = JSON.parse(userApiKeys)
+          if (parsed.keys && parsed.keys.openai && parsed.keys.openai.trim() !== '') {
+            return true
+          }
+        } catch (e) {
+          // Continue to fallback
+        }
+      }
+    }
+    
+    // Fallback to global API keys
     const settings = localStorage.getItem("openai_api_key")
     if (settings) {
-      const parsed = JSON.parse(settings)
-      if (parsed.keys && parsed.keys.openai && parsed.keys.openai.trim() !== '') {
-        return true
+      try {
+        const parsed = JSON.parse(settings)
+        if (parsed.keys && parsed.keys.openai && parsed.keys.openai.trim() !== '') {
+          return true
+        }
+      } catch (e) {
+        // If it's not JSON, it might be the old format (just a string)
+        if (settings.startsWith('sk-') && settings.trim() !== '') {
+          return true
+        }
       }
     }
     return false
@@ -125,15 +149,45 @@ export function isOpenAIConfigured(): boolean {
  */
 export function getOpenAIConfig(): { apiKey: string } | null {
   try {
-    const settings = localStorage.getItem("openai_api_key")
-    if (settings) {
-      const parsed = JSON.parse(settings)
-      if (parsed.keys && parsed.keys.openai && parsed.keys.openai.trim() !== '') {
-        return { apiKey: parsed.keys.openai }
+    // First try to get user-specific API keys if available
+    const session = JSON.parse(localStorage.getItem('session') || '{}')
+    if (session.authed && session.username) {
+      const userApiKeys = localStorage.getItem(`${session.username}_api_keys`)
+      if (userApiKeys) {
+        try {
+          const parsed = JSON.parse(userApiKeys)
+          if (parsed.keys && parsed.keys.openai && parsed.keys.openai.trim() !== '') {
+            console.log('🔑 Found user-specific OpenAI API key')
+            return { apiKey: parsed.keys.openai }
+          }
+        } catch (e) {
+          console.log('🔑 Error parsing user-specific API keys:', e)
+        }
       }
     }
+    
+    // Fallback to global API keys
+    const settings = localStorage.getItem("openai_api_key")
+    if (settings) {
+      try {
+        const parsed = JSON.parse(settings)
+        if (parsed.keys && parsed.keys.openai && parsed.keys.openai.trim() !== '') {
+          console.log('🔑 Found global OpenAI API key')
+          return { apiKey: parsed.keys.openai }
+        }
+      } catch (e) {
+        // If it's not JSON, it might be the old format (just a string)
+        if (settings.startsWith('sk-') && settings.trim() !== '') {
+          console.log('🔑 Found old format OpenAI API key')
+          return { apiKey: settings }
+        }
+      }
+    }
+    
+    console.log('🔑 No OpenAI API key found')
     return null
   } catch (e) {
+    console.log('🔑 Error getting OpenAI config:', e)
     return null
   }
 }

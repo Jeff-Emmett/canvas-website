@@ -153,12 +153,18 @@ export class CloudflareAdapter {
   }
 }
 
-class CloudflareNetworkAdapter extends NetworkAdapter {
+export class CloudflareNetworkAdapter extends NetworkAdapter {
   private workerUrl: string
   private websocket: WebSocket | null = null
   private roomId: string | null = null
   private readyPromise: Promise<void>
   private readyResolve: (() => void) | null = null
+  private keepAliveInterval: NodeJS.Timeout | null = null
+  private reconnectTimeout: NodeJS.Timeout | null = null
+  private reconnectAttempts: number = 0
+  private maxReconnectAttempts: number = 5
+  private reconnectDelay: number = 1000
+  private isConnecting: boolean = false
 
   constructor(workerUrl: string, roomId?: string) {
     super()
@@ -178,40 +184,93 @@ class CloudflareNetworkAdapter extends NetworkAdapter {
   }
 
   connect(peerId: PeerId, peerMetadata?: PeerMetadata): void {
+    if (this.isConnecting) {
+      console.log('🔌 CloudflareAdapter: Connection already in progress, skipping')
+      return
+    }
+
+    // Clean up existing connection
+    this.cleanup()
+
     // Use the room ID from constructor or default
     // Add sessionId as a query parameter as required by AutomergeDurableObject
     const sessionId = peerId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     const wsUrl = `${this.workerUrl.replace('http', 'ws')}/connect/${this.roomId}?sessionId=${sessionId}`
     
+    this.isConnecting = true
+    
     // Add a small delay to ensure the server is ready
     setTimeout(() => {
       try {
+        console.log('🔌 CloudflareAdapter: Creating WebSocket connection to:', wsUrl)
         this.websocket = new WebSocket(wsUrl)
         
         this.websocket.onopen = () => {
+          console.log('🔌 CloudflareAdapter: WebSocket connection opened successfully')
+          this.isConnecting = false
+          this.reconnectAttempts = 0
           this.readyResolve?.()
+          this.startKeepAlive()
         }
 
         this.websocket.onmessage = (event) => {
           try {
-            const message = JSON.parse(event.data)
-            
-            // Convert the message to the format expected by Automerge
-            if (message.type === 'sync' && message.data) {
-              // For now, we'll handle the JSON data directly
-              // In a full implementation, this would be binary sync data
+            // Automerge's native protocol uses binary messages
+            // We need to handle both binary and text messages
+            if (event.data instanceof ArrayBuffer) {
+              console.log('🔌 CloudflareAdapter: Received binary message (Automerge protocol)')
+              // Handle binary Automerge sync messages - pass directly to Repo
+              // Automerge Repo expects binary sync messages as ArrayBuffer
               this.emit('message', {
                 type: 'sync',
-                senderId: message.senderId,
-                targetId: message.targetId,
-                documentId: message.documentId,
-                data: message.data
+                data: event.data
+              })
+            } else if (event.data instanceof Blob) {
+              // Handle Blob messages (convert to ArrayBuffer)
+              event.data.arrayBuffer().then((buffer) => {
+                console.log('🔌 CloudflareAdapter: Received Blob message, converted to ArrayBuffer')
+                this.emit('message', {
+                  type: 'sync',
+                  data: buffer
+                })
               })
             } else {
-              this.emit('message', message)
+              // Handle text messages (our custom protocol for backward compatibility)
+              const message = JSON.parse(event.data)
+              console.log('🔌 CloudflareAdapter: Received WebSocket message:', message.type)
+              
+              // Handle ping/pong messages for keep-alive
+              if (message.type === 'ping') {
+                this.sendPong()
+                return
+              }
+              
+              // Handle test messages
+              if (message.type === 'test') {
+                console.log('🔌 CloudflareAdapter: Received test message:', message.message)
+                return
+              }
+              
+              // Convert the message to the format expected by Automerge
+              if (message.type === 'sync' && message.data) {
+                console.log('🔌 CloudflareAdapter: Received sync message with data:', {
+                  hasStore: !!message.data.store,
+                  storeKeys: message.data.store ? Object.keys(message.data.store).length : 0
+                })
+                // For backward compatibility, handle JSON sync data
+                this.emit('message', {
+                  type: 'sync',
+                  senderId: message.senderId,
+                  targetId: message.targetId,
+                  documentId: message.documentId,
+                  data: message.data
+                })
+              } else {
+                this.emit('message', message)
+              }
             }
           } catch (error) {
-            console.error('Error parsing WebSocket message:', error)
+            console.error('❌ CloudflareAdapter: Error parsing WebSocket message:', error)
           }
         }
 
@@ -219,16 +278,30 @@ class CloudflareNetworkAdapter extends NetworkAdapter {
           console.log('Disconnected from Cloudflare WebSocket', {
             code: event.code,
             reason: event.reason,
-            wasClean: event.wasClean
+            wasClean: event.wasClean,
+            url: wsUrl,
+            reconnectAttempts: this.reconnectAttempts
           })
+          
+          this.isConnecting = false
+          this.stopKeepAlive()
+          
+          // Log specific error codes for debugging
+          if (event.code === 1005) {
+            console.error('❌ WebSocket closed with code 1005 (No Status Received) - this usually indicates a connection issue or idle timeout')
+          } else if (event.code === 1006) {
+            console.error('❌ WebSocket closed with code 1006 (Abnormal Closure) - connection was lost unexpectedly')
+          } else if (event.code === 1011) {
+            console.error('❌ WebSocket closed with code 1011 (Server Error) - server encountered an error')
+          } else if (event.code === 1000) {
+            console.log('✅ WebSocket closed normally (code 1000)')
+            return // Don't reconnect on normal closure
+          }
+          
           this.emit('close')
-          // Attempt to reconnect after a delay
-          setTimeout(() => {
-            if (this.roomId) {
-              console.log('Attempting to reconnect WebSocket...')
-              this.connect(peerId, peerMetadata)
-            }
-          }, 5000)
+          
+          // Attempt to reconnect with exponential backoff
+          this.scheduleReconnect(peerId, peerMetadata)
         }
 
         this.websocket.onerror = (error) => {
@@ -240,9 +313,11 @@ class CloudflareNetworkAdapter extends NetworkAdapter {
             target: error.target,
             isTrusted: error.isTrusted
           })
+          this.isConnecting = false
         }
       } catch (error) {
         console.error('Failed to create WebSocket:', error)
+        this.isConnecting = false
         return
       }
     }, 100)
@@ -250,8 +325,31 @@ class CloudflareNetworkAdapter extends NetworkAdapter {
 
   send(message: Message): void {
     if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-      console.log('Sending WebSocket message:', message.type)
-      this.websocket.send(JSON.stringify(message))
+      // Check if this is a binary sync message from Automerge Repo
+      if (message.type === 'sync' && (message as any).data instanceof ArrayBuffer) {
+        console.log('🔌 CloudflareAdapter: Sending binary sync message (Automerge protocol)')
+        // Send binary data directly for Automerge's native sync protocol
+        this.websocket.send((message as any).data)
+      } else if (message.type === 'sync' && (message as any).data instanceof Uint8Array) {
+        console.log('🔌 CloudflareAdapter: Sending Uint8Array sync message (Automerge protocol)')
+        // Convert Uint8Array to ArrayBuffer and send
+        this.websocket.send((message as any).data.buffer)
+      } else {
+        // Handle text-based messages (backward compatibility and control messages)
+        console.log('Sending WebSocket message:', message.type)
+        // Debug: Log patch content if it's a patch message
+        if (message.type === 'patch' && (message as any).patches) {
+          console.log('🔍 Sending patches:', (message as any).patches.length, 'patches')
+          ;(message as any).patches.forEach((patch: any, index: number) => {
+            console.log(`  Patch ${index}:`, {
+              action: patch.action,
+              path: patch.path,
+              value: patch.value ? (typeof patch.value === 'object' ? 'object' : patch.value) : 'undefined'
+            })
+          })
+        }
+        this.websocket.send(JSON.stringify(message))
+      }
     }
   }
 
@@ -262,11 +360,73 @@ class CloudflareNetworkAdapter extends NetworkAdapter {
   }
 
   disconnect(): void {
-    if (this.websocket) {
-      this.websocket.close()
-      this.websocket = null
-    }
+    this.cleanup()
     this.roomId = null
     this.emit('close')
+  }
+
+  private cleanup(): void {
+    this.stopKeepAlive()
+    this.clearReconnectTimeout()
+    
+    if (this.websocket) {
+      this.websocket.close(1000, 'Client disconnecting')
+      this.websocket = null
+    }
+  }
+
+  private startKeepAlive(): void {
+    // Send ping every 30 seconds to prevent idle timeout
+    this.keepAliveInterval = setInterval(() => {
+      if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+        console.log('🔌 CloudflareAdapter: Sending keep-alive ping')
+        this.websocket.send(JSON.stringify({
+          type: 'ping',
+          timestamp: Date.now()
+        }))
+      }
+    }, 30000) // 30 seconds
+  }
+
+  private stopKeepAlive(): void {
+    if (this.keepAliveInterval) {
+      clearInterval(this.keepAliveInterval)
+      this.keepAliveInterval = null
+    }
+  }
+
+  private sendPong(): void {
+    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+      this.websocket.send(JSON.stringify({
+        type: 'pong',
+        timestamp: Date.now()
+      }))
+    }
+  }
+
+  private scheduleReconnect(peerId: PeerId, peerMetadata?: PeerMetadata): void {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error('❌ CloudflareAdapter: Max reconnection attempts reached, giving up')
+      return
+    }
+
+    this.reconnectAttempts++
+    const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), 30000) // Max 30 seconds
+    
+    console.log(`🔄 CloudflareAdapter: Scheduling reconnect attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`)
+    
+    this.reconnectTimeout = setTimeout(() => {
+      if (this.roomId) {
+        console.log(`🔄 CloudflareAdapter: Attempting reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts}`)
+        this.connect(peerId, peerMetadata)
+      }
+    }, delay)
+  }
+
+  private clearReconnectTimeout(): void {
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout)
+      this.reconnectTimeout = null
+    }
   }
 }

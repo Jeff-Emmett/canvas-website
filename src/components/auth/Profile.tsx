@@ -25,13 +25,14 @@ export const Profile: React.FC<ProfileProps> = ({ onLogout, onOpenVaultBrowser }
     setIsEditingVault(false);
   };
 
-  const handleClearVaultPath = () => {
+  const handleDisconnectVault = () => {
     setVaultPath('');
     updateSession({ 
       obsidianVaultPath: undefined,
       obsidianVaultName: undefined
     });
     setIsEditingVault(false);
+    console.log('🔧 Vault disconnected from profile');
   };
 
   const handleChangeVault = () => {
@@ -95,8 +96,8 @@ export const Profile: React.FC<ProfileProps> = ({ onLogout, onOpenVaultBrowser }
             {session.obsidianVaultName ? 'Change Obsidian Vault' : 'Set Obsidian Vault'}
           </button>
           {session.obsidianVaultPath && (
-            <button onClick={handleClearVaultPath} className="clear-vault-button">
-              Clear Vault
+            <button onClick={handleDisconnectVault} className="disconnect-vault-button">
+              🔌 Disconnect Vault
             </button>
           )}
         </div>

@@ -1,0 +1,417 @@
+/* Location Sharing Components Styles */
+
+/* Spinner animation */
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Location Capture */
+.location-capture {
+  width: 100%;
+}
+
+.capture-header h2 {
+  margin-bottom: 0.5rem;
+}
+
+.capture-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Location Map */
+.location-map-wrapper {
+  width: 100%;
+}
+
+.location-map {
+  width: 100%;
+  min-height: 300px;
+}
+
+.map-info {
+  margin-top: 0.75rem;
+}
+
+.map-loading,
+.map-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+}
+
+/* Share Settings */
+.share-settings {
+  width: 100%;
+}
+
+.settings-header {
+  margin-bottom: 1rem;
+}
+
+.setting-group {
+  margin-bottom: 1.5rem;
+}
+
+.precision-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.precision-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.precision-option input[type="radio"] {
+  margin-top: 0.125rem;
+  cursor: pointer;
+}
+
+.privacy-notice {
+  padding: 1rem;
+  border-radius: 0.5rem;
+  background-color: rgba(var(--muted), 0.5);
+}
+
+/* Share Location Flow */
+.share-location {
+  width: 100%;
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.progress-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.step-number {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.step-connector {
+  height: 2px;
+  width: 3rem;
+  transition: all 0.2s;
+}
+
+.step-content {
+  width: 100%;
+}
+
+.settings-step {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.location-preview {
+  width: 100%;
+}
+
+.settings-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.share-step {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.share-success {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.share-link-box {
+  background-color: rgba(var(--muted), 0.5);
+  border: 1px solid rgba(var(--border), 1);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.share-link-box input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgba(var(--border), 1);
+  border-radius: 0.5rem;
+  background-color: rgba(var(--background), 1);
+  font-size: 0.875rem;
+}
+
+.share-details {
+  background-color: rgba(var(--muted), 0.5);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.875rem;
+}
+
+/* Location Viewer */
+.location-viewer {
+  width: 100%;
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.viewer-header {
+  margin-bottom: 1.5rem;
+}
+
+.viewer-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.share-info {
+  background-color: rgba(var(--muted), 0.5);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+.info-row:last-child {
+  margin-bottom: 0;
+}
+
+/* Location Dashboard */
+.location-dashboard {
+  width: 100%;
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.dashboard-header {
+  margin-bottom: 2rem;
+}
+
+.dashboard-content {
+  width: 100%;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  background-color: rgba(var(--muted), 0.5);
+  border: 1px solid rgba(var(--border), 1);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  color: rgba(var(--muted-foreground), 1);
+  margin-bottom: 0.25rem;
+}
+
+.stat-value {
+  font-size: 1.875rem;
+  font-weight: 700;
+}
+
+.shares-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.share-card {
+  background-color: rgba(var(--background), 1);
+  border-radius: 0.5rem;
+  border: 2px solid rgba(var(--border), 1);
+  transition: all 0.2s;
+}
+
+.share-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.share-info {
+  flex: 1;
+}
+
+.share-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: rgba(var(--muted-foreground), 1);
+}
+
+.share-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.share-card-body {
+  padding: 1rem;
+  padding-top: 0;
+  border-top: 1px solid rgba(var(--border), 1);
+  margin-top: 1rem;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  text-align: center;
+}
+
+/* Auth required messages */
+.share-location-auth,
+.location-dashboard-auth {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+}
+
+/* Error messages */
+.error-message {
+  background-color: rgba(var(--destructive), 0.1);
+  border: 1px solid rgba(var(--destructive), 0.2);
+  border-radius: 0.5rem;
+  padding: 1rem;
+}
+
+.permission-denied {
+  background-color: rgba(var(--destructive), 0.1);
+  border: 1px solid rgba(var(--destructive), 0.2);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.current-location {
+  background-color: rgba(var(--muted), 0.5);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+.location-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .share-location,
+  .location-viewer,
+  .location-dashboard {
+    padding: 1rem;
+  }
+
+  .progress-steps {
+    flex-wrap: wrap;
+  }
+
+  .step-connector {
+    display: none;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .share-card-header {
+    flex-direction: column;
+  }
+
+  .share-actions {
+    width: 100%;
+  }
+
+  .share-actions button {
+    flex: 1;
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
