@@ -275,15 +275,14 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
                   documentIdType: typeof message.documentId
                 })
                 
-                // Check if this is a JSON sync message with full document data
-                // These should NOT go through Automerge's sync protocol (which expects binary messages)
-                // Instead, apply the data directly to the handle via callback
+                // JSON sync is deprecated - all data flows through Automerge sync protocol
+                // Old format content is converted server-side and saved to R2 in Automerge format
+                // Skip JSON sync messages - they should not be sent anymore
                 const isJsonDocumentData = message.data && typeof message.data === 'object' && message.data.store
                 
-                if (isJsonDocumentData && this.onJsonSyncData) {
-                  console.log('🔌 CloudflareAdapter: Applying JSON document data directly to handle (bypassing sync protocol)')
-                  this.onJsonSyncData(message.data)
-                  return // Don't emit as sync message
+                if (isJsonDocumentData) {
+                  console.warn('⚠️ CloudflareAdapter: Received JSON sync message (deprecated). Ignoring - all data should flow through Automerge sync protocol.')
+                  return // Don't process JSON sync messages
                 }
                 
                 // Validate documentId - Automerge requires a valid Automerge URL format
