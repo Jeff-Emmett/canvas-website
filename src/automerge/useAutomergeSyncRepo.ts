@@ -44,7 +44,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
   // JSON sync is deprecated - all data now flows through Automerge sync protocol
   // Old format content is converted server-side and saved to R2 in Automerge format
   // This callback is kept for backwards compatibility but should not be used
-  const applyJsonSyncData = useCallback((data: TLStoreSnapshot) => {
+  const applyJsonSyncData = useCallback((_data: TLStoreSnapshot) => {
     console.warn('⚠️ JSON sync callback called but JSON sync is deprecated. All data should flow through Automerge sync protocol.')
     // Don't apply JSON sync - let Automerge sync handle everything
     return
@@ -118,7 +118,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
             // Continue anyway - user can still create new content
           }
           
-          const finalDoc = handle.doc()
+          const finalDoc = handle.doc() as any
           const finalStoreKeys = finalDoc?.store ? Object.keys(finalDoc.store).length : 0
           const finalShapeCount = finalDoc?.store ? Object.values(finalDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
           

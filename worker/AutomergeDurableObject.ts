@@ -1264,7 +1264,7 @@ export class AutomergeDurableObject {
       const docFromBucket = await this.r2.get(`rooms/${this.roomId}`)
       if (docFromBucket) {
         try {
-          const r2Doc = await docFromBucket.json()
+          const r2Doc = await docFromBucket.json() as any
           r2ShapeCount = r2Doc.store ? 
             Object.values(r2Doc.store).filter((r: any) => r?.typeName === 'shape').length : 0
           
