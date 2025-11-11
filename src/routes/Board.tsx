@@ -1,7 +1,7 @@
 import { useAutomergeSync } from "@/automerge/useAutomergeSync"
 import { AutomergeHandleProvider } from "@/context/AutomergeHandleContext"
 import { useMemo, useEffect, useState, useRef } from "react"
-import { Tldraw, Editor, TLShapeId } from "tldraw"
+import { Tldraw, Editor, TLShapeId, TLRecord } from "tldraw"
 import { useParams } from "react-router-dom"
 import { ChatBoxTool } from "@/tools/ChatBoxTool"
 import { ChatBoxShape } from "@/shapes/ChatBoxShapeUtil"
@@ -308,18 +308,21 @@ export function Board() {
             console.log(`📊 Board: Attempting to refresh store to make shapes visible`)
             try {
               // Force a store update by reading and re-putting the shapes
+              if (!store.store) return
+              
+              const currentStore = store.store
               const shapesToRefresh = missingShapes.slice(0, 10) // Limit to first 10 to avoid performance issues
               const refreshedShapes = shapesToRefresh.map((s: any) => {
-                const shapeFromStore = store.store.get(s.id)
+                const shapeFromStore = currentStore.get(s.id)
                 if (shapeFromStore) {
                   return shapeFromStore
                 }
                 return null
-              }).filter((s): s is NonNullable<typeof s> => s !== null)
+              }).filter((s): s is TLRecord => s !== null)
               
               if (refreshedShapes.length > 0) {
                 console.log(`📊 Board: Refreshing ${refreshedShapes.length} shapes in store`)
-                store.store.put(refreshedShapes)
+                currentStore.put(refreshedShapes)
               }
             } catch (error) {
               console.error(`📊 Board: Error refreshing shapes:`, error)
