@@ -411,13 +411,81 @@ export function useAutomergeStoreV2({
                 } else if (attempts < maxAttempts) {
                   setTimeout(checkForPatches, 200)
                 } else {
-                  // Patches didn't come through - this may indicate a sync issue
-                  // REMOVED: Fallback that applies records directly - it was causing coordinate loss
-                  // If patches don't work, it's a deeper sync issue that needs to be fixed
-                  // The fallback was resetting coordinates to 0,0 when re-applying records
-                  console.warn(`⚠️ No patches received after ${maxAttempts} attempts. This may indicate a sync issue.`)
-                  console.warn(`⚠️ NOT using fallback direct record application to prevent coordinate loss.`)
-                  console.warn(`⚠️ If shapes aren't loading, check that patches are being generated correctly.`)
+                  // Patches didn't come through - handler may have missed them if data was written before handler was set up
+                  // This happens when Automerge doc is initialized with server data before the change handler is ready
+                  console.warn(`⚠️ No patches received after ${maxAttempts} attempts. Using fallback: loading records directly from Automerge doc.`)
+                  console.warn(`⚠️ This is expected when Automerge doc is initialized with server data before handler is ready.`)
+                  
+                  try {
+                    // Read all records from Automerge doc and apply them directly to store
+                    // CRITICAL: This fallback preserves coordinates properly
+                    const allRecords: TLRecord[] = []
+                    Object.entries(doc.store).forEach(([id, record]: [string, any]) => {
+                      // Skip invalid records and custom record types (same as patch processing)
+                      if (!record || !record.typeName || !record.id) {
+                        return
+                      }
+                      
+                      // Skip obsidian_vault records - they're not TLDraw records
+                      if (record.typeName === 'obsidian_vault' || 
+                          (typeof record.id === 'string' && record.id.startsWith('obsidian_vault:'))) {
+                        return
+                      }
+                      
+                      try {
+                        // Create a clean copy of the record
+                        const cleanRecord = JSON.parse(JSON.stringify(record))
+                        
+                        // CRITICAL: For shapes, preserve x and y coordinates BEFORE sanitization
+                        // This ensures coordinates aren't lost during the sanitization process
+                        if (cleanRecord.typeName === 'shape') {
+                          const originalX = cleanRecord.x
+                          const originalY = cleanRecord.y
+                          
+                          // Use the same sanitizeRecord function that patches use
+                          // This ensures consistency between dev and production
+                          const sanitized = sanitizeRecord(cleanRecord)
+                          
+                          // CRITICAL: Restore original coordinates if they were valid
+                          // sanitizeRecord only sets defaults if coordinates are missing/invalid
+                          // But we want to preserve the original values if they exist
+                          if (typeof originalX === 'number' && !isNaN(originalX) && originalX !== null && originalX !== undefined) {
+                            (sanitized as any).x = originalX
+                          }
+                          if (typeof originalY === 'number' && !isNaN(originalY) && originalY !== null && originalY !== undefined) {
+                            (sanitized as any).y = originalY
+                          }
+                          
+                          allRecords.push(sanitized)
+                        } else {
+                          // For non-shapes, just sanitize normally
+                          const sanitized = sanitizeRecord(cleanRecord)
+                          allRecords.push(sanitized)
+                        }
+                      } catch (e) {
+                        console.warn(`⚠️ Could not serialize/sanitize record ${id}:`, e)
+                      }
+                    })
+                    
+                    if (allRecords.length > 0) {
+                      // Apply records directly to store using mergeRemoteChanges
+                      // This bypasses patches but ensures data is loaded (works for both dev and production)
+                      // Use mergeRemoteChanges to mark as remote changes (prevents feedback loop)
+                      store.mergeRemoteChanges(() => {
+                        // Separate pages, shapes, and other records to ensure proper loading order
+                        const pageRecords = allRecords.filter(r => r.typeName === 'page')
+                        const shapeRecords = allRecords.filter(r => r.typeName === 'shape')
+                        const otherRecords = allRecords.filter(r => r.typeName !== 'page' && r.typeName !== 'shape')
+                        
+                        // Put pages first, then other records, then shapes (ensures pages exist before shapes reference them)
+                        const recordsToAdd = [...pageRecords, ...otherRecords, ...shapeRecords]
+                        store.put(recordsToAdd)
+                      })
+                      console.log(`✅ Applied ${allRecords.length} records directly to store (fallback for missed patches - coordinates preserved)`)
+                    }
+                  } catch (error) {
+                    console.error(`❌ Error applying records directly:`, error)
+                  }
                   
                   setStoreWithStatus({
                     store,
