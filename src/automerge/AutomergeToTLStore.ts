@@ -27,6 +27,21 @@ export function applyAutomergePatchesToTLStore(
     
     const existingRecord = getRecordFromStore(store, id)
     
+    // CRITICAL: For shapes, get coordinates from store's current state BEFORE any patch processing
+    // This ensures we preserve coordinates even if patches don't include them
+    // This is especially important when patches come back after store.put operations
+    let storeCoordinates: { x?: number; y?: number } = {}
+    if (existingRecord && existingRecord.typeName === 'shape') {
+      const storeX = (existingRecord as any).x
+      const storeY = (existingRecord as any).y
+      if (typeof storeX === 'number' && !isNaN(storeX) && storeX !== null && storeX !== undefined) {
+        storeCoordinates.x = storeX
+      }
+      if (typeof storeY === 'number' && !isNaN(storeY) && storeY !== null && storeY !== undefined) {
+        storeCoordinates.y = storeY
+      }
+    }
+    
     // Infer typeName from ID pattern if record doesn't exist
     let defaultTypeName = 'shape'
     let defaultRecord: any = {
@@ -135,9 +150,12 @@ export function applyAutomergePatchesToTLStore(
     }
 
     // CRITICAL: Store original x and y before patch application to preserve them
-    // We need to preserve coordinates from existing records to prevent them from being reset
-    const originalX = (record.typeName === 'shape' && typeof record.x === 'number' && !isNaN(record.x)) ? record.x : undefined
-    const originalY = (record.typeName === 'shape' && typeof record.y === 'number' && !isNaN(record.y)) ? record.y : undefined
+    // Priority: Use coordinates from store's current state (most reliable), then from record, then undefined
+    // This ensures we preserve coordinates even when patches come back after store.put operations
+    const recordX = (record.typeName === 'shape' && typeof record.x === 'number' && !isNaN(record.x)) ? record.x : undefined
+    const recordY = (record.typeName === 'shape' && typeof record.y === 'number' && !isNaN(record.y)) ? record.y : undefined
+    const originalX = storeCoordinates.x !== undefined ? storeCoordinates.x : recordX
+    const originalY = storeCoordinates.y !== undefined ? storeCoordinates.y : recordY
     const hadOriginalCoordinates = originalX !== undefined && originalY !== undefined
 
     switch (patch.action) {

@@ -378,30 +378,41 @@ export function Board() {
           console.warn(`📊 Board: ${shapesWithInvalidParent.length} shapes have invalid or missing parentId. Fixing...`)
           // Fix shapes with invalid parentId by assigning them to current page
           // CRITICAL: Preserve x and y coordinates when fixing parentId
+          // This prevents coordinates from being reset when patches come back from Automerge
           const fixedShapes = shapesWithInvalidParent.map((s: any) => {
             // Get the shape from store to ensure we have all properties
             const shapeFromStore = store.store!.get(s.id)
             if (shapeFromStore && shapeFromStore.typeName === 'shape') {
-              // Preserve original x and y coordinates
-              const originalX = s.x !== undefined && typeof s.x === 'number' && !isNaN(s.x) ? s.x : (shapeFromStore as any).x
-              const originalY = s.y !== undefined && typeof s.y === 'number' && !isNaN(s.y) ? s.y : (shapeFromStore as any).y
+              // CRITICAL: Get coordinates from store's current state (most reliable)
+              // This ensures we preserve coordinates even if the shape object has been modified
+              const storeX = (shapeFromStore as any).x
+              const storeY = (shapeFromStore as any).y
+              const originalX = (typeof storeX === 'number' && !isNaN(storeX) && storeX !== null && storeX !== undefined) 
+                ? storeX 
+                : (s.x !== undefined && typeof s.x === 'number' && !isNaN(s.x) ? s.x : 0)
+              const originalY = (typeof storeY === 'number' && !isNaN(storeY) && storeY !== null && storeY !== undefined)
+                ? storeY
+                : (s.y !== undefined && typeof s.y === 'number' && !isNaN(s.y) ? s.y : 0)
               
               // Create fixed shape with preserved coordinates
               const fixed = { ...shapeFromStore, parentId: currentPageId }
-              if (typeof originalX === 'number' && !isNaN(originalX)) {
-                (fixed as any).x = originalX
-              }
-              if (typeof originalY === 'number' && !isNaN(originalY)) {
-                (fixed as any).y = originalY
-              }
+              // CRITICAL: Always preserve coordinates - never reset to 0,0 unless truly missing
+              (fixed as any).x = originalX
+              (fixed as any).y = originalY
               return fixed as TLRecord
             }
-            // Fallback if shape not in store
-            return { ...s, parentId: currentPageId } as TLRecord
+            // Fallback if shape not in store - preserve coordinates from s
+            const fallbackX = (s.x !== undefined && typeof s.x === 'number' && !isNaN(s.x)) ? s.x : 0
+            const fallbackY = (s.y !== undefined && typeof s.y === 'number' && !isNaN(s.y)) ? s.y : 0
+            return { ...s, parentId: currentPageId, x: fallbackX, y: fallbackY } as TLRecord
           })
           try {
-            store.store.put(fixedShapes)
-            console.log(`📊 Board: Fixed ${fixedShapes.length} shapes by assigning them to current page ${currentPageId}`)
+            // CRITICAL: Use mergeRemoteChanges to prevent feedback loop
+            // This marks the changes as remote, preventing them from triggering another sync
+            store.store.mergeRemoteChanges(() => {
+              store.store.put(fixedShapes)
+            })
+            console.log(`📊 Board: Fixed ${fixedShapes.length} shapes by assigning them to current page ${currentPageId} (coordinates preserved)`)
           } catch (error) {
             console.error(`📊 Board: Error fixing shapes with invalid parentId:`, error)
           }
