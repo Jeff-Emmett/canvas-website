@@ -533,9 +533,12 @@ export function sanitizeRecord(record: any): TLRecord {
       sanitized.props.richText = cleanRichTextNaN(sanitized.props.richText)
     }
     
-    // CRITICAL: Fix richText structure for text shapes
-    if (sanitized.type === 'text' && sanitized.props.richText) {
-      if (Array.isArray(sanitized.props.richText)) {
+    // CRITICAL: Fix richText structure for text shapes - REQUIRED field
+    if (sanitized.type === 'text') {
+      // Text shapes MUST have props.richText as an object - initialize if missing
+      if (!sanitized.props.richText || typeof sanitized.props.richText !== 'object' || sanitized.props.richText === null) {
+        sanitized.props.richText = { content: [], type: 'doc' }
+      } else if (Array.isArray(sanitized.props.richText)) {
         sanitized.props.richText = { content: sanitized.props.richText, type: 'doc' }
       } else if (typeof sanitized.props.richText === 'object' && sanitized.props.richText !== null) {
         if (!sanitized.props.richText.type) sanitized.props.richText = { ...sanitized.props.richText, type: 'doc' }
