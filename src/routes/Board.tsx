@@ -266,12 +266,17 @@ export function Board() {
           
           // Try to get the shapes from the editor to see if they exist but aren't being returned
           const missingShapeIds = missingShapes.map((s: any) => s.id)
-          const shapesFromEditor = missingShapeIds.map(id => editor.getShape(id)).filter(Boolean)
+          const shapesFromEditor = missingShapeIds
+            .map(id => editor.getShape(id))
+            .filter((s): s is NonNullable<typeof s> => s !== undefined)
           
           if (shapesFromEditor.length > 0) {
             console.log(`📊 Board: ${shapesFromEditor.length} missing shapes actually exist in editor but aren't in getCurrentPageShapes()`)
             // Try to select them to make them visible
-            editor.setSelectedShapes(shapesFromEditor.map(s => s.id))
+            const shapeIds = shapesFromEditor.map(s => s.id).filter((id): id is TLShapeId => id !== undefined)
+            if (shapeIds.length > 0) {
+              editor.setSelectedShapes(shapeIds)
+            }
           } else {
             // Shapes don't exist in editor - might be a sync issue
             console.error(`📊 Board: ${missingShapes.length} shapes are in store but don't exist in editor - possible sync issue`)
@@ -314,6 +319,54 @@ export function Board() {
       const shapesOnOtherPages = storeShapes.filter((s: any) => s.parentId !== currentPageId)
       if (shapesOnOtherPages.length > 0) {
         console.log(`📊 Board: ${shapesOnOtherPages.length} shapes exist on other pages (not current page ${currentPageId})`)
+        
+        // Find which page has the most shapes
+        const pageShapeCounts = new Map<string, number>()
+        storeShapes.forEach((s: any) => {
+          if (s.parentId) {
+            pageShapeCounts.set(s.parentId, (pageShapeCounts.get(s.parentId) || 0) + 1)
+          }
+        })
+        
+        // Find the page with the most shapes
+        let maxShapes = 0
+        let pageWithMostShapes: string | null = null
+        pageShapeCounts.forEach((count, pageId) => {
+          if (count > maxShapes) {
+            maxShapes = count
+            pageWithMostShapes = pageId
+          }
+        })
+        
+        // If current page has no shapes but another page does, switch to that page
+        if (editorShapes.length === 0 && pageWithMostShapes && pageWithMostShapes !== currentPageId) {
+          console.log(`📊 Board: Current page has no shapes. Switching to page ${pageWithMostShapes} which has ${maxShapes} shapes`)
+          try {
+            editor.setCurrentPage(pageWithMostShapes as any)
+            // Focus camera on shapes after switching
+            setTimeout(() => {
+              const newPageShapes = editor.getCurrentPageShapes()
+              if (newPageShapes.length > 0) {
+                const bounds = editor.getShapePageBounds(newPageShapes[0])
+                if (bounds) {
+                  editor.setCamera({
+                    x: bounds.x - editor.getViewportPageBounds().w / 2 + bounds.w / 2,
+                    y: bounds.y - editor.getViewportPageBounds().h / 2 + bounds.h / 2,
+                    z: editor.getCamera().z
+                  }, { animation: { duration: 300 } })
+                }
+              }
+            }, 100)
+          } catch (error) {
+            console.error(`❌ Board: Error switching to page ${pageWithMostShapes}:`, error)
+          }
+        } else if (pageWithMostShapes) {
+          console.log(`📊 Board: Page breakdown:`, Array.from(pageShapeCounts.entries()).map(([pageId, count]) => ({
+            pageId,
+            shapeCount: count,
+            isCurrent: pageId === currentPageId
+          })))
+        }
       }
     }
     

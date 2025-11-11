@@ -34,48 +34,20 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
   const [handle, setHandle] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
   const handleRef = useRef<any>(null)
+  const storeRef = useRef<any>(null)
   
-  // Update ref when handle changes
+  // Update refs when handle/store changes
   useEffect(() => {
     handleRef.current = handle
   }, [handle])
   
-  // Callback to apply JSON sync data directly to handle (bypassing Automerge sync protocol)
+  // JSON sync is deprecated - all data now flows through Automerge sync protocol
+  // Old format content is converted server-side and saved to R2 in Automerge format
+  // This callback is kept for backwards compatibility but should not be used
   const applyJsonSyncData = useCallback((data: TLStoreSnapshot) => {
-    const currentHandle = handleRef.current
-    if (!currentHandle) {
-      console.warn('⚠️ Cannot apply JSON sync data: handle not ready yet')
-      return
-    }
-    
-    try {
-      console.log('🔌 Applying JSON sync data directly to handle:', {
-        hasStore: !!data.store,
-        storeKeys: data.store ? Object.keys(data.store).length : 0
-      })
-      
-      // Apply the data directly to the handle
-      currentHandle.change((doc: any) => {
-        // Merge the store data into the document
-        if (data.store) {
-          if (!doc.store) {
-            doc.store = {}
-          }
-          // Merge all records from the sync data
-          Object.entries(data.store).forEach(([id, record]) => {
-            doc.store[id] = record
-          })
-        }
-        // Preserve schema if provided
-        if (data.schema) {
-          doc.schema = data.schema
-        }
-      })
-      
-      console.log('✅ Successfully applied JSON sync data to handle')
-    } catch (error) {
-      console.error('❌ Error applying JSON sync data to handle:', error)
-    }
+    console.warn('⚠️ JSON sync callback called but JSON sync is deprecated. All data should flow through Automerge sync protocol.')
+    // Don't apply JSON sync - let Automerge sync handle everything
+    return
   }, [])
   
   const [repo] = useState(() => {
@@ -91,11 +63,12 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
 
     const initializeHandle = async () => {
       try {
-        console.log("🔌 Initializing Automerge Repo with NetworkAdapter")
+        console.log("🔌 Initializing Automerge Repo with NetworkAdapter for room:", roomId)
         
         if (mounted) {
-          // Create a new document - Automerge will generate the proper document ID
-          // Force refresh to clear cache
+          // CRITICAL: Create a new Automerge document (repo.create() generates a proper document ID)
+          // We can't use repo.find() with a custom ID because Automerge requires specific document ID formats
+          // Instead, we'll create a new document and load initial data from the server
           const handle = repo.create()
           
           console.log("Created Automerge handle via Repo:", {
@@ -106,9 +79,53 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
           // Wait for the handle to be ready
           await handle.whenReady()
           
-          console.log("Automerge handle is ready:", {
-            hasDoc: !!handle.doc(),
-            docKeys: handle.doc() ? Object.keys(handle.doc()).length : 0
+          // CRITICAL: Always load initial data from the server
+          // The server stores documents in R2 as JSON, so we need to load and initialize the Automerge document
+          console.log("📥 Loading initial data from server...")
+          try {
+            const response = await fetch(`${workerUrl}/room/${roomId}`)
+            if (response.ok) {
+              const serverDoc = await response.json() as TLStoreSnapshot
+              const serverShapeCount = serverDoc.store ? Object.values(serverDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
+              const serverRecordCount = Object.keys(serverDoc.store || {}).length
+              
+              console.log(`📥 Loaded document from server: ${serverRecordCount} records, ${serverShapeCount} shapes`)
+              
+              // Initialize the Automerge document with server data
+              if (serverDoc.store && serverRecordCount > 0) {
+                handle.change((doc: any) => {
+                  // Initialize store if it doesn't exist
+                  if (!doc.store) {
+                    doc.store = {}
+                  }
+                  // Copy all records from server document
+                  Object.entries(serverDoc.store).forEach(([id, record]) => {
+                    doc.store[id] = record
+                  })
+                })
+                
+                console.log(`✅ Initialized Automerge document with ${serverRecordCount} records from server`)
+              } else {
+                console.log("📥 Server document is empty - starting with empty Automerge document")
+              }
+            } else if (response.status === 404) {
+              console.log("📥 No document found on server (404) - starting with empty document")
+            } else {
+              console.warn(`⚠️ Failed to load document from server: ${response.status} ${response.statusText}`)
+            }
+          } catch (error) {
+            console.error("❌ Error loading initial document from server:", error)
+            // Continue anyway - user can still create new content
+          }
+          
+          const finalDoc = handle.doc()
+          const finalStoreKeys = finalDoc?.store ? Object.keys(finalDoc.store).length : 0
+          const finalShapeCount = finalDoc?.store ? Object.values(finalDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
+          
+          console.log("Automerge handle initialized:", {
+            hasDoc: !!finalDoc,
+            storeKeys: finalStoreKeys,
+            shapeCount: finalShapeCount
           })
           
           setHandle(handle)
@@ -130,47 +147,98 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
   }, [repo, roomId])
 
   // Auto-save to Cloudflare on every change (with debouncing to prevent excessive calls)
+  // CRITICAL: This ensures new shapes are persisted to R2
   useEffect(() => {
     if (!handle) return
 
     let saveTimeout: NodeJS.Timeout
 
+    const saveDocumentToWorker = async () => {
+      try {
+        const doc = handle.doc()
+        if (!doc || !doc.store) {
+          console.log("🔍 No document to save yet")
+          return
+        }
+
+        const shapeCount = Object.values(doc.store).filter((r: any) => r?.typeName === 'shape').length
+        const storeKeys = Object.keys(doc.store).length
+        
+        // Track shape types being persisted
+        const shapeTypeCounts = Object.values(doc.store)
+          .filter((r: any) => r?.typeName === 'shape')
+          .reduce((acc: any, r: any) => {
+            const type = r?.type || 'unknown'
+            acc[type] = (acc[type] || 0) + 1
+            return acc
+          }, {})
+        
+        console.log(`💾 Persisting document to worker for R2 storage: ${storeKeys} records, ${shapeCount} shapes`)
+        console.log(`💾 Shape type breakdown being persisted:`, shapeTypeCounts)
+        
+        // Send document state to worker via POST /room/:roomId
+        // This updates the worker's currentDoc so it can be persisted to R2
+        const response = await fetch(`${workerUrl}/room/${roomId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(doc),
+        })
+
+        if (!response.ok) {
+          throw new Error(`Failed to save to worker: ${response.statusText}`)
+        }
+
+        console.log(`✅ Successfully sent document state to worker for persistence (${shapeCount} shapes)`)
+      } catch (error) {
+        console.error('❌ Error saving document to worker:', error)
+      }
+    }
+
     const scheduleSave = () => {
       // Clear existing timeout
       if (saveTimeout) clearTimeout(saveTimeout)
       
-      // Schedule save with a short debounce (500ms) to batch rapid changes
-      saveTimeout = setTimeout(async () => {
-        try {
-          // With Repo, we don't need manual saving - the NetworkAdapter handles sync
-          console.log("🔍 Automerge changes detected - NetworkAdapter will handle sync")
-        } catch (error) {
-          console.error('Error in change-triggered save:', error)
-        }
-      }, 500)
+      // Schedule save with a debounce (2 seconds) to batch rapid changes
+      // This matches the worker's persistence throttle
+      saveTimeout = setTimeout(saveDocumentToWorker, 2000)
     }
 
     // Listen for changes to the Automerge document
     const changeHandler = (payload: any) => {
-      console.log('🔍 Automerge document changed:', {
-        hasPatches: !!payload.patches,
-        patchCount: payload.patches?.length || 0,
-        patches: payload.patches?.map((p: any) => ({
-          action: p.action,
-          path: p.path,
-          value: p.value ? (typeof p.value === 'object' ? 'object' : p.value) : 'undefined'
-        }))
+      const patchCount = payload.patches?.length || 0
+      
+      // Check if patches contain shape changes
+      const hasShapeChanges = payload.patches?.some((p: any) => {
+        const id = p.path?.[1]
+        return id && typeof id === 'string' && id.startsWith('shape:')
       })
+      
+      if (hasShapeChanges) {
+        console.log('🔍 Automerge document changed with shape patches:', {
+          patchCount: patchCount,
+          shapePatches: payload.patches.filter((p: any) => {
+            const id = p.path?.[1]
+            return id && typeof id === 'string' && id.startsWith('shape:')
+          }).length
+        })
+      }
+      
+      // Schedule save to worker for persistence
       scheduleSave()
     }
     
     handle.on('change', changeHandler)
 
+    // Also save immediately on mount to ensure initial state is persisted
+    setTimeout(saveDocumentToWorker, 3000)
+
     return () => {
       handle.off('change', changeHandler)
       if (saveTimeout) clearTimeout(saveTimeout)
     }
-  }, [handle])
+  }, [handle, roomId, workerUrl])
 
   // Get user metadata for presence
   const userMetadata: { userId: string; name: string; color: string } = (() => {
@@ -193,6 +261,13 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
     handle: handle || null as any,
     userId: userMetadata.userId
   })
+  
+  // Update store ref when store is available
+  useEffect(() => {
+    if (storeWithStatus.store) {
+      storeRef.current = storeWithStatus.store
+    }
+  }, [storeWithStatus.store])
   
   // Get presence data (only when handle is ready)
   const presence = useAutomergePresence({

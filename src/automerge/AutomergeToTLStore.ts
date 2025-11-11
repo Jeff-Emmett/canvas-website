@@ -204,37 +204,49 @@ export function applyAutomergePatchesToTLStore(
     console.error("Failed to sanitize records:", failedRecords)
   }
   
-  // CRITICAL: Final safety check - ensure no geo shapes have w/h/geo at top level
-  // Also ensure text shapes don't have props.text (should use props.richText instead)
-  const finalSanitized = toPut.map(record => {
-    if (record.typeName === 'shape' && record.type === 'geo') {
-      // Store values before removing from top level
-      const wValue = 'w' in record ? (record as any).w : undefined
-      const hValue = 'h' in record ? (record as any).h : undefined
-      const geoValue = 'geo' in record ? (record as any).geo : undefined
-      
-      // Create cleaned record without w/h/geo at top level
-      const cleaned: any = {}
-      for (const key in record) {
-        if (key !== 'w' && key !== 'h' && key !== 'geo') {
-          cleaned[key] = (record as any)[key]
+    // CRITICAL: Final safety check - ensure no geo shapes have w/h/geo at top level
+    // Also ensure text shapes don't have props.text (should use props.richText instead)
+    const finalSanitized = toPut.map(record => {
+      if (record.typeName === 'shape' && record.type === 'geo') {
+        // Store values before removing from top level
+        const wValue = 'w' in record ? (record as any).w : undefined
+        const hValue = 'h' in record ? (record as any).h : undefined
+        const geoValue = 'geo' in record ? (record as any).geo : undefined
+        
+        // Create cleaned record without w/h/geo at top level
+        const cleaned: any = {}
+        for (const key in record) {
+          if (key !== 'w' && key !== 'h' && key !== 'geo') {
+            cleaned[key] = (record as any)[key]
+          }
         }
+        
+        // Ensure props exists and move values there if needed
+        if (!cleaned.props) cleaned.props = {}
+        if (wValue !== undefined && (!('w' in cleaned.props) || cleaned.props.w === undefined)) {
+          cleaned.props.w = wValue
+        }
+        if (hValue !== undefined && (!('h' in cleaned.props) || cleaned.props.h === undefined)) {
+          cleaned.props.h = hValue
+        }
+        
+        // CRITICAL: props.geo is REQUIRED for geo shapes - TLDraw validation will fail without it
+        // Use geoValue if available, otherwise default to 'rectangle'
+        if (geoValue !== undefined) {
+          cleaned.props.geo = geoValue
+        } else if (!cleaned.props.geo || cleaned.props.geo === undefined || cleaned.props.geo === null) {
+          // Default to rectangle if geo is missing
+          cleaned.props.geo = 'rectangle'
+        }
+        
+        // CRITICAL: props.dash is REQUIRED for geo shapes - TLDraw validation will fail without it
+        // Ensure it's always set, defaulting to 'draw' if missing
+        if (!cleaned.props.dash || cleaned.props.dash === undefined || cleaned.props.dash === null) {
+          cleaned.props.dash = 'draw'
+        }
+        
+        return cleaned as TLRecord
       }
-      
-      // Ensure props exists and move values there if needed
-      if (!cleaned.props) cleaned.props = {}
-      if (wValue !== undefined && (!('w' in cleaned.props) || cleaned.props.w === undefined)) {
-        cleaned.props.w = wValue
-      }
-      if (hValue !== undefined && (!('h' in cleaned.props) || cleaned.props.h === undefined)) {
-        cleaned.props.h = hValue
-      }
-      if (geoValue !== undefined && (!('geo' in cleaned.props) || cleaned.props.geo === undefined)) {
-        cleaned.props.geo = geoValue
-      }
-      
-      return cleaned as TLRecord
-    }
     
     // CRITICAL: Remove props.text from text shapes (TLDraw schema doesn't allow it)
     if (record.typeName === 'shape' && record.type === 'text' && (record as any).props && 'text' in (record as any).props) {
@@ -416,6 +428,18 @@ function sanitizeRecord(record: any): TLRecord {
           sanitized.props.geo = geoValue
         }
         delete (sanitized as any).geo
+      }
+      
+      // CRITICAL: props.geo is REQUIRED for geo shapes - TLDraw validation will fail without it
+      // Ensure it's always set, defaulting to 'rectangle' if missing
+      if (!sanitized.props.geo || sanitized.props.geo === undefined || sanitized.props.geo === null) {
+        sanitized.props.geo = 'rectangle'
+      }
+      
+      // CRITICAL: props.dash is REQUIRED for geo shapes - TLDraw validation will fail without it
+      // Ensure it's always set, defaulting to 'draw' if missing
+      if (!sanitized.props.dash || sanitized.props.dash === undefined || sanitized.props.dash === null) {
+        sanitized.props.dash = 'draw'
       }
       
     }

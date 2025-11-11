@@ -22,6 +22,8 @@ export class AutomergeDurableObject {
   private clients: Map<string, WebSocket> = new Map()
   // Track last persisted state to detect changes
   private lastPersistedHash: string | null = null
+  // Track if document was converted from old format (for JSON sync decision)
+  private wasConvertedFromOldFormat: boolean = false
 
   constructor(private readonly ctx: DurableObjectState, env: Environment) {
     this.r2 = env.TLDRAW_BUCKET
@@ -211,26 +213,23 @@ export class AutomergeDurableObject {
         }))
         console.log(`🔌 AutomergeDurableObject: Test message sent to client: ${sessionId}`)
         
-        // Then try to send the document
-        console.log(`🔌 AutomergeDurableObject: Getting document for session ${sessionId}`)
+        // CRITICAL: No JSON sync - all data flows through Automerge sync protocol
+        // Old format content is converted to Automerge format server-side during getDocument()
+        // and saved back to R2, then Automerge sync loads it normally
+        console.log(`🔌 AutomergeDurableObject: Document ready for Automerge sync (was converted: ${this.wasConvertedFromOldFormat})`)
+        
         const doc = await this.getDocument()
-        console.log(`🔌 AutomergeDurableObject: Document loaded, sending to client:`, { 
+        const shapeCount = doc.store ? Object.values(doc.store).filter((record: any) => record.typeName === 'shape').length : 0
+        
+        console.log(`🔌 AutomergeDurableObject: Document loaded:`, { 
           hasStore: !!doc.store, 
           storeKeys: doc.store ? Object.keys(doc.store).length : 0,
-          shapes: doc.store ? Object.values(doc.store).filter((record: any) => record.typeName === 'shape').length : 0,
-          pages: doc.store ? Object.values(doc.store).filter((record: any) => record.typeName === 'page').length : 0
+          shapes: shapeCount,
+          wasConvertedFromOldFormat: this.wasConvertedFromOldFormat
         })
         
-        // Send the document using Automerge's sync protocol
-        console.log(`🔌 AutomergeDurableObject: Sending document data to client ${sessionId}`)
-        serverWebSocket.send(JSON.stringify({
-          type: "sync",
-          senderId: "server",
-          targetId: sessionId,
-          documentId: "default",
-          data: doc
-        }))
-        console.log(`🔌 AutomergeDurableObject: Document sent to client: ${sessionId}`)
+        // Automerge sync protocol will handle loading the document
+        // No JSON sync needed - everything goes through Automerge's native sync
       } catch (error) {
         console.error(`❌ AutomergeDurableObject: Error sending document to client ${sessionId}:`, error)
         console.error(`❌ AutomergeDurableObject: Error stack:`, error instanceof Error ? error.stack : 'No stack trace')
@@ -301,12 +300,15 @@ export class AutomergeDurableObject {
           const doc = await this.getDocument()
           const client = this.clients.get(sessionId)
           if (client) {
+            // Use consistent document ID format: automerge:${roomId}
+            // This matches what the client uses when calling repo.find()
+            const documentId = message.documentId || `automerge:${this.roomId}`
             // Send the document as a sync message
             client.send(JSON.stringify({
               type: "sync",
               senderId: "server",
               targetId: sessionId,
-              documentId: message.documentId || this.roomId,
+              documentId: documentId,
               data: doc
             }))
           }
@@ -317,14 +319,21 @@ export class AutomergeDurableObject {
         const doc = await this.getDocument()
         const requestClient = this.clients.get(sessionId)
         if (requestClient) {
+          // Use consistent document ID format: automerge:${roomId}
+          // This matches what the client uses when calling repo.find()
+          const documentId = message.documentId || `automerge:${this.roomId}`
           requestClient.send(JSON.stringify({
             type: "sync",
             senderId: "server",
             targetId: sessionId,
-            documentId: message.documentId || this.roomId,
+            documentId: documentId,
             data: doc
           }))
         }
+        break
+      case "request-document-state":
+        // Handle document state request from worker (for persistence)
+        await this.handleDocumentStateRequest(sessionId)
         break
       default:
         console.log("Unknown message type:", message.type)
@@ -338,6 +347,9 @@ export class AutomergeDurableObject {
     // Broadcast binary data directly to other clients for Automerge's native sync protocol
     // Automerge Repo handles the binary sync protocol internally
     this.broadcastBinaryToOthers(sessionId, data)
+    
+    // NOTE: Clients will periodically POST their document state to /room/:roomId
+    // which updates this.currentDoc and triggers persistence to R2
   }
 
   private async handleSyncMessage(sessionId: string, message: any) {
@@ -441,12 +453,27 @@ export class AutomergeDurableObject {
   async getDocument() {
     if (!this.roomId) throw new Error("Missing roomId")
 
-    // If we already have a current document, return it
-    if (this.currentDoc) {
-      return this.currentDoc
+    // CRITICAL: Always load from R2 first if we haven't loaded yet
+    // Don't return currentDoc if it was set by a client POST before R2 load
+    // This ensures we get all shapes from R2, not just what the client sent
+    
+    // If R2 load is in progress or completed, wait for it and return the result
+    if (this.roomPromise) {
+      const doc = await this.roomPromise
+      // After R2 load, merge any client updates that happened during load
+      if (this.currentDoc && this.currentDoc !== doc) {
+        // Merge client updates into R2-loaded document
+        if (doc.store && this.currentDoc.store) {
+          Object.entries(this.currentDoc.store).forEach(([id, record]) => {
+            doc.store[id] = record
+          })
+        }
+        this.currentDoc = doc
+      }
+      return this.currentDoc || doc
     }
 
-    // Otherwise, load from R2 (only once)
+    // Otherwise, start loading from R2 (only once)
     if (!this.roomPromise) {
       this.roomPromise = (async () => {
         let initialDoc: any
@@ -459,11 +486,17 @@ export class AutomergeDurableObject {
           if (docFromBucket) {
             try {
               const rawDoc = await docFromBucket.json()
+              const r2ShapeCount = (rawDoc as any).store ? 
+                Object.values((rawDoc as any).store).filter((r: any) => r?.typeName === 'shape').length : 
+                (Array.isArray(rawDoc) ? rawDoc.filter((r: any) => r?.state?.typeName === 'shape').length : 0)
+              
               console.log(`Loaded raw document from R2 for room ${this.roomId}:`, {
                 isArray: Array.isArray(rawDoc),
                 length: Array.isArray(rawDoc) ? rawDoc.length : 'not array',
                 hasStore: !!(rawDoc as any).store,
                 hasDocuments: !!(rawDoc as any).documents,
+                shapeCount: r2ShapeCount,
+                storeKeys: (rawDoc as any).store ? Object.keys((rawDoc as any).store).length : 0,
                 sampleKeys: Array.isArray(rawDoc) ? rawDoc.slice(0, 3).map((r: any) => r.state?.id) : []
               })
               
@@ -535,13 +568,16 @@ export class AutomergeDurableObject {
         }
         
         this.currentDoc = initialDoc
+        // Store conversion flag for JSON sync decision
+        this.wasConvertedFromOldFormat = wasConverted
         
         // Initialize the last persisted hash with the loaded document
         this.lastPersistedHash = this.generateDocHash(initialDoc)
         
         // If document was converted/migrated, persist it immediately to save in new format
         if (wasConverted && initialDoc.store && Object.keys(initialDoc.store).length > 0) {
-          console.log(`📦 Persisting converted document to R2 in new format for room ${this.roomId}`)
+          const shapeCount = Object.values(initialDoc.store).filter((r: any) => r.typeName === 'shape').length
+          console.log(`📦 Persisting converted document to R2 in new format for room ${this.roomId} (${shapeCount} shapes)`)
           // Persist immediately without throttling for converted documents
           try {
             const docJson = JSON.stringify(initialDoc)
@@ -551,7 +587,7 @@ export class AutomergeDurableObject {
               }
             })
             this.lastPersistedHash = this.generateDocHash(initialDoc)
-            console.log(`✅ Successfully persisted converted document for room ${this.roomId}`)
+            console.log(`✅ Successfully persisted converted document for room ${this.roomId} with ${shapeCount} shapes`)
           } catch (persistError) {
             console.error(`❌ Error persisting converted document for room ${this.roomId}:`, persistError)
           }
@@ -777,8 +813,100 @@ export class AutomergeDurableObject {
   }
 
   private async updateDocument(newDoc: any) {
-    this.currentDoc = newDoc
-    this.schedulePersistToR2()
+    // CRITICAL: Wait for R2 load to complete before processing updates
+    // This ensures we have all shapes from R2 before merging client updates
+    if (this.roomPromise) {
+      try {
+        await this.roomPromise
+      } catch (e) {
+        // R2 load might have failed, continue anyway
+        console.warn(`⚠️ R2 load failed, continuing with client update:`, e)
+      }
+    }
+    
+    const oldShapeCount = this.currentDoc?.store ? Object.values(this.currentDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
+    const newShapeCount = newDoc?.store ? Object.values(newDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
+    
+    // Get list of old shape IDs to check if we're losing any
+    const oldShapeIds = this.currentDoc?.store ? 
+      Object.values(this.currentDoc.store)
+        .filter((r: any) => r?.typeName === 'shape')
+        .map((r: any) => r.id) : []
+    const newShapeIds = newDoc?.store ?
+      Object.values(newDoc.store)
+        .filter((r: any) => r?.typeName === 'shape')
+        .map((r: any) => r.id) : []
+    
+    // CRITICAL: Merge stores instead of replacing entire document
+    // This prevents client from overwriting old shapes when it only has partial data
+    if (this.currentDoc && newDoc?.store) {
+      // Merge new records into existing store, but don't delete old ones
+      if (!this.currentDoc.store) {
+        this.currentDoc.store = {}
+      }
+      
+      // Count records before merge
+      const recordsBefore = Object.keys(this.currentDoc.store).length
+      
+      // Merge: add/update records from newDoc, but keep existing ones that aren't in newDoc
+      Object.entries(newDoc.store).forEach(([id, record]) => {
+        this.currentDoc.store[id] = record
+      })
+      
+      // Count records after merge
+      const recordsAfter = Object.keys(this.currentDoc.store).length
+      
+      // Update schema if provided
+      if (newDoc.schema) {
+        this.currentDoc.schema = newDoc.schema
+      }
+      
+      console.log(`📊 updateDocument: Merged ${Object.keys(newDoc.store).length} records from client into ${recordsBefore} existing records (total: ${recordsAfter})`)
+    } else {
+      // If no current doc yet, set it (R2 load should have completed by now)
+      console.log(`📊 updateDocument: No current doc, setting to new doc (${newShapeCount} shapes)`)
+      this.currentDoc = newDoc
+    }
+    
+    const finalShapeCount = this.currentDoc?.store ? Object.values(this.currentDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
+    const finalShapeIds = this.currentDoc?.store ?
+      Object.values(this.currentDoc.store)
+        .filter((r: any) => r?.typeName === 'shape')
+        .map((r: any) => r.id) : []
+    
+    // Check for lost shapes
+    const lostShapes = oldShapeIds.filter(id => !finalShapeIds.includes(id))
+    if (lostShapes.length > 0) {
+      console.error(`❌ CRITICAL: Lost ${lostShapes.length} shapes during merge! Lost IDs:`, lostShapes)
+    }
+    
+    if (finalShapeCount !== oldShapeCount) {
+      console.log(`📊 Document updated: shape count changed from ${oldShapeCount} to ${finalShapeCount} (merged from client with ${newShapeCount} shapes)`)
+      // CRITICAL: Always persist when shape count changes
+      this.schedulePersistToR2()
+    } else if (newShapeCount < oldShapeCount) {
+      console.log(`⚠️ Client sent ${newShapeCount} shapes but server has ${oldShapeCount}. Merged to preserve all shapes (final: ${finalShapeCount})`)
+      // Persist to ensure we save the merged state
+      this.schedulePersistToR2()
+    } else if (newShapeCount === oldShapeCount && oldShapeCount > 0) {
+      // Check if any records were actually added/updated (not just same count)
+      const recordsAdded = Object.keys(newDoc.store || {}).filter(id => 
+        !this.currentDoc?.store?.[id] || 
+        JSON.stringify(this.currentDoc.store[id]) !== JSON.stringify(newDoc.store[id])
+      ).length
+      
+      if (recordsAdded > 0) {
+        console.log(`ℹ️ Client sent ${newShapeCount} shapes, server had ${oldShapeCount}. ${recordsAdded} records were updated. Merge complete (final: ${finalShapeCount})`)
+        // Persist if records were updated
+        this.schedulePersistToR2()
+      } else {
+        console.log(`ℹ️ Client sent ${newShapeCount} shapes, server had ${oldShapeCount}. No changes detected, skipping persistence.`)
+      }
+    } else {
+      // New shapes or other changes - always persist
+      console.log(`📊 Document updated: scheduling persistence (old: ${oldShapeCount}, new: ${newShapeCount}, final: ${finalShapeCount})`)
+      this.schedulePersistToR2()
+    }
   }
 
   // Migrate old documents format to new store format
@@ -859,6 +987,9 @@ export class AutomergeDurableObject {
       console.warn(`⚠️ migrateDocumentsToStore: oldDoc.documents is not an array or doesn't exist`)
     }
     
+    // Count shapes after migration
+    const shapeCount = Object.values(newDoc.store).filter((r: any) => r?.typeName === 'shape').length
+    
     console.log(`📊 Documents to Store migration statistics:`, {
       total: migrationStats.total,
       converted: migrationStats.converted,
@@ -866,10 +997,20 @@ export class AutomergeDurableObject {
       errors: migrationStats.errors,
       storeKeys: Object.keys(newDoc.store).length,
       recordTypes: migrationStats.recordTypes,
+      shapeCount: shapeCount,
       customRecordCount: migrationStats.customRecords.length,
       customRecordIds: migrationStats.customRecords.slice(0, 10),
       errorCount: migrationStats.errorDetails.length
     })
+    
+    // CRITICAL: Log if shapes are missing after migration
+    if (shapeCount === 0 && migrationStats.recordTypes['shape'] === undefined) {
+      console.warn(`⚠️ Migration completed but NO shapes found! This might indicate old format didn't have shapes or they were filtered out.`)
+    } else if (migrationStats.recordTypes['shape'] && shapeCount !== migrationStats.recordTypes['shape']) {
+      console.warn(`⚠️ Shape count mismatch: Expected ${migrationStats.recordTypes['shape']} shapes but found ${shapeCount} after migration`)
+    } else if (shapeCount > 0) {
+      console.log(`✅ Migration successfully converted ${shapeCount} shapes from old format to new format`)
+    }
     
     // Verify custom records are preserved
     if (migrationStats.customRecords.length > 0) {
@@ -1107,41 +1248,155 @@ export class AutomergeDurableObject {
 
   // we throttle persistence so it only happens every 2 seconds, batching all updates
   schedulePersistToR2 = throttle(async () => {
-    if (!this.roomId || !this.currentDoc) return
+    if (!this.roomId || !this.currentDoc) {
+      console.log(`⚠️ Cannot persist to R2: roomId=${this.roomId}, currentDoc=${!!this.currentDoc}`)
+      return
+    }
     
-    // Generate hash of current document state
-    const currentHash = this.generateDocHash(this.currentDoc)
+    // CRITICAL: Load current R2 state and merge with this.currentDoc before saving
+    // This ensures we never overwrite old shapes that might be in R2 but not in currentDoc
+    let mergedDoc = { ...this.currentDoc }
+    let r2ShapeCount = 0
+    let mergedShapeCount = 0
     
-    console.log(`Server checking R2 persistence for room ${this.roomId}:`, {
+    try {
+      // Try to load current R2 state
+      const docFromBucket = await this.r2.get(`rooms/${this.roomId}`)
+      if (docFromBucket) {
+        try {
+          const r2Doc = await docFromBucket.json()
+          r2ShapeCount = r2Doc.store ? 
+            Object.values(r2Doc.store).filter((r: any) => r?.typeName === 'shape').length : 0
+          
+          // Merge R2 document with current document
+          if (r2Doc.store && mergedDoc.store) {
+            // Start with R2 document (has all old shapes)
+            mergedDoc = { ...r2Doc }
+            
+            // Merge currentDoc into R2 doc (adds/updates new shapes)
+            Object.entries(this.currentDoc.store).forEach(([id, record]) => {
+              mergedDoc.store[id] = record
+            })
+            
+            // Update schema from currentDoc if it exists
+            if (this.currentDoc.schema) {
+              mergedDoc.schema = this.currentDoc.schema
+            }
+            
+            mergedShapeCount = Object.values(mergedDoc.store).filter((r: any) => r?.typeName === 'shape').length
+            
+            // Track shape types in merged document
+            const mergedShapeTypeCounts = Object.values(mergedDoc.store)
+              .filter((r: any) => r?.typeName === 'shape')
+              .reduce((acc: any, r: any) => {
+                const type = r?.type || 'unknown'
+                acc[type] = (acc[type] || 0) + 1
+                return acc
+              }, {})
+            
+            console.log(`🔀 Merging R2 state with current state before persistence:`, {
+              r2Shapes: r2ShapeCount,
+              currentShapes: this.currentDoc.store ? Object.values(this.currentDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0,
+              mergedShapes: mergedShapeCount,
+              r2Records: Object.keys(r2Doc.store || {}).length,
+              currentRecords: Object.keys(this.currentDoc.store || {}).length,
+              mergedRecords: Object.keys(mergedDoc.store || {}).length
+            })
+            console.log(`🔀 Merged shape type breakdown:`, mergedShapeTypeCounts)
+            
+            // Check if we're preserving all shapes
+            if (mergedShapeCount < r2ShapeCount) {
+              console.error(`❌ CRITICAL: Merged document has fewer shapes (${mergedShapeCount}) than R2 (${r2ShapeCount})! This should not happen.`)
+            } else if (mergedShapeCount > r2ShapeCount) {
+              console.log(`✅ Merged document has ${mergedShapeCount - r2ShapeCount} new shapes added to R2's ${r2ShapeCount} shapes`)
+            }
+          } else if (r2Doc.store && !mergedDoc.store) {
+            // R2 has store but currentDoc doesn't - use R2
+            mergedDoc = r2Doc
+            mergedShapeCount = r2ShapeCount
+            console.log(`⚠️ Current doc has no store, using R2 document (${r2ShapeCount} shapes)`)
+          } else {
+            // Neither has store or R2 doesn't have store - use currentDoc
+            mergedDoc = this.currentDoc
+            mergedShapeCount = this.currentDoc.store ? Object.values(this.currentDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
+            console.log(`ℹ️ R2 has no store, using current document (${mergedShapeCount} shapes)`)
+          }
+        } catch (r2ParseError) {
+          console.warn(`⚠️ Error parsing R2 document, using current document:`, r2ParseError)
+          mergedDoc = this.currentDoc
+          mergedShapeCount = this.currentDoc.store ? Object.values(this.currentDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
+        }
+      } else {
+        // No R2 document exists yet - use currentDoc
+        mergedDoc = this.currentDoc
+        mergedShapeCount = this.currentDoc.store ? Object.values(this.currentDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
+        console.log(`ℹ️ No existing R2 document, using current document (${mergedShapeCount} shapes)`)
+      }
+    } catch (r2LoadError) {
+      // If R2 load fails, use currentDoc (better than losing data)
+      console.warn(`⚠️ Error loading from R2, using current document:`, r2LoadError)
+      mergedDoc = this.currentDoc
+      mergedShapeCount = this.currentDoc.store ? Object.values(this.currentDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
+    }
+    
+    // Generate hash of merged document state
+    const currentHash = this.generateDocHash(mergedDoc)
+    
+    console.log(`🔍 Server checking R2 persistence for room ${this.roomId}:`, {
       currentHash: currentHash.substring(0, 8) + '...',
       lastHash: this.lastPersistedHash ? this.lastPersistedHash.substring(0, 8) + '...' : 'none',
-      hasStore: !!this.currentDoc.store,
-      storeKeys: this.currentDoc.store ? Object.keys(this.currentDoc.store).length : 0
+      hasStore: !!mergedDoc.store,
+      storeKeys: mergedDoc.store ? Object.keys(mergedDoc.store).length : 0,
+      shapeCount: mergedShapeCount,
+      hashesMatch: currentHash === this.lastPersistedHash
     })
     
     // Skip persistence if document hasn't changed
     if (currentHash === this.lastPersistedHash) {
-      console.log(`Skipping R2 persistence for room ${this.roomId} - no changes detected`)
+      console.log(`⏭️ Skipping R2 persistence for room ${this.roomId} - no changes detected (hash matches)`)
       return
     }
     
     try {
-      // convert the document to JSON and upload it to R2
-      const docJson = JSON.stringify(this.currentDoc)
+      // Update currentDoc to the merged version
+      this.currentDoc = mergedDoc
+      
+      // convert the merged document to JSON and upload it to R2
+      const docJson = JSON.stringify(mergedDoc)
       await this.r2.put(`rooms/${this.roomId}`, docJson, {
         httpMetadata: {
           contentType: 'application/json'
         }
       })
       
+      // Track shape types in final persisted document
+      const persistedShapeTypeCounts = Object.values(mergedDoc.store || {})
+        .filter((r: any) => r?.typeName === 'shape')
+        .reduce((acc: any, r: any) => {
+          const type = r?.type || 'unknown'
+          acc[type] = (acc[type] || 0) + 1
+          return acc
+        }, {})
+      
       // Update last persisted hash only after successful save
       this.lastPersistedHash = currentHash
-      console.log(`Successfully persisted room ${this.roomId} to R2 (batched):`, {
-        storeKeys: this.currentDoc.store ? Object.keys(this.currentDoc.store).length : 0,
-        docSize: docJson.length
+      console.log(`✅ Successfully persisted room ${this.roomId} to R2 (merged):`, {
+        storeKeys: mergedDoc.store ? Object.keys(mergedDoc.store).length : 0,
+        shapeCount: mergedShapeCount,
+        docSize: docJson.length,
+        preservedR2Shapes: r2ShapeCount > 0 ? `${r2ShapeCount} from R2` : 'none'
       })
+      console.log(`✅ Persisted shape type breakdown:`, persistedShapeTypeCounts)
     } catch (error) {
-      console.error(`Error persisting room ${this.roomId} to R2:`, error)
+      console.error(`❌ Error persisting room ${this.roomId} to R2:`, error)
     }
   }, 2_000)
+
+  // Handle request-document-state message from worker
+  // This allows the worker to request current document state from clients for persistence
+  private async handleDocumentStateRequest(sessionId: string) {
+    // When worker requests document state, we'll respond via the existing POST endpoint
+    // Clients should periodically send their document state, so this is mainly for logging
+    console.log(`📡 Worker: Document state requested from ${sessionId} (clients should send via POST /room/:roomId)`)
+  }
 }

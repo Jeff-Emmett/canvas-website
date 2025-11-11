@@ -126,44 +126,90 @@ export function useAutomergeStoreV2({
       try {
         // Apply patches from Automerge to TLDraw store
         if (payload.patches && payload.patches.length > 0) {
+          // Debug: Check if patches contain shapes
+          const shapePatches = payload.patches.filter((p: any) => {
+            const id = p.path?.[1]
+            return id && typeof id === 'string' && id.startsWith('shape:')
+          })
+          if (shapePatches.length > 0) {
+            console.log(`🔌 Automerge patches contain ${shapePatches.length} shape patches out of ${payload.patches.length} total patches`)
+          }
+          
           try {
+            const recordsBefore = store.allRecords()
+            const shapesBefore = recordsBefore.filter((r: any) => r.typeName === 'shape')
+            
             applyAutomergePatchesToTLStore(payload.patches, store)
+            
+            const recordsAfter = store.allRecords()
+            const shapesAfter = recordsAfter.filter((r: any) => r.typeName === 'shape')
+            
+            if (shapesAfter.length !== shapesBefore.length) {
+              console.log(`✅ Applied ${payload.patches.length} patches: shapes changed from ${shapesBefore.length} to ${shapesAfter.length}`)
+            }
+            
             // Only log if there are many patches or if debugging is needed
             if (payload.patches.length > 5) {
               console.log(`✅ Successfully applied ${payload.patches.length} patches`)
             }
           } catch (patchError) {
-            console.error("Error applying patches, attempting individual patch application:", patchError)
+            console.error("Error applying patches batch, attempting individual patch application:", patchError)
             // Try applying patches one by one to identify problematic ones
+            // This is a fallback - ideally we should fix the data at the source
             let successCount = 0
+            let failedPatches: any[] = []
             for (const patch of payload.patches) {
               try {
                 applyAutomergePatchesToTLStore([patch], store)
                 successCount++
               } catch (individualPatchError) {
+                failedPatches.push({ patch, error: individualPatchError })
                 console.error(`Failed to apply individual patch:`, individualPatchError)
+                
                 // Log the problematic patch for debugging
+                const recordId = patch.path[1] as string
                 console.error("Problematic patch details:", {
                   action: patch.action,
                   path: patch.path,
+                  recordId: recordId,
                   value: 'value' in patch ? patch.value : undefined,
-                  patchId: patch.path[1],
                   errorMessage: individualPatchError instanceof Error ? individualPatchError.message : String(individualPatchError)
                 })
                 
                 // Try to get more context about the failing record
-                const recordId = patch.path[1] as string
                 try {
                   const existingRecord = store.get(recordId as any)
                   console.error("Existing record that failed:", existingRecord)
+                  
+                  // If it's a geo shape missing props.geo, try to fix it
+                  if (existingRecord && (existingRecord as any).typeName === 'shape' && (existingRecord as any).type === 'geo') {
+                    const geoRecord = existingRecord as any
+                    if (!geoRecord.props || !geoRecord.props.geo) {
+                      console.log(`🔧 Attempting to fix geo shape ${recordId} missing props.geo`)
+                      // This won't help with the current patch, but might help future patches
+                      // The real fix should happen in AutomergeToTLStore sanitization
+                    }
+                  }
                 } catch (e) {
                   console.error("Could not retrieve existing record:", e)
                 }
               }
             }
-            // Only log if there are failures or many patches
+            
+            // Log summary
+            if (failedPatches.length > 0) {
+              console.error(`❌ Failed to apply ${failedPatches.length} out of ${payload.patches.length} patches`)
+              // Most common issue: geo shapes missing props.geo - this should be fixed in sanitization
+              const geoShapeErrors = failedPatches.filter(p => 
+                p.error instanceof Error && p.error.message.includes('props.geo')
+              )
+              if (geoShapeErrors.length > 0) {
+                console.error(`⚠️ ${geoShapeErrors.length} failures due to missing props.geo - this should be fixed in AutomergeToTLStore sanitization`)
+              }
+            }
+            
             if (successCount < payload.patches.length || payload.patches.length > 5) {
-              console.log(`Successfully applied ${successCount} out of ${payload.patches.length} patches`)
+              console.log(`✅ Successfully applied ${successCount} out of ${payload.patches.length} patches`)
             }
           }
         }
@@ -320,8 +366,28 @@ export function useAutomergeStoreV2({
         // Force cache refresh - pre-sanitization code has been removed
         
             // Initialize store with existing records from Automerge
+            // NOTE: JSON sync might have already loaded data into the store
+            // Check if store is already populated before loading from Automerge
+            const existingStoreRecords = store.allRecords()
+            const existingStoreShapes = existingStoreRecords.filter((r: any) => r.typeName === 'shape')
+            
             if (doc.store) {
                 const storeKeys = Object.keys(doc.store)
+                const docShapes = Object.values(doc.store).filter((r: any) => r?.typeName === 'shape').length
+                console.log(`📊 Automerge store initialization: doc has ${storeKeys.length} records (${docShapes} shapes), store already has ${existingStoreRecords.length} records (${existingStoreShapes.length} shapes)`)
+                
+                // If store already has shapes (from JSON sync), skip Automerge initialization
+                // JSON sync happened first and loaded the data
+                if (existingStoreShapes.length > 0 && docShapes === 0) {
+                  console.log(`ℹ️ Store already populated from JSON sync (${existingStoreShapes.length} shapes). Skipping Automerge initialization to prevent overwriting.`)
+                  setStoreWithStatus({
+                    store,
+                    status: "synced-remote",
+                    connectionStatus: "online",
+                  })
+                  return // Skip Automerge initialization
+                }
+                
                 console.log(`📊 Store keys count: ${storeKeys.length}`, storeKeys.slice(0, 10))
                 
                 // Get all store values - Automerge should handle this correctly
@@ -372,7 +438,16 @@ export function useAutomergeStoreV2({
             return true
           })
           
+          // Track shape types before processing to ensure all are loaded
+          const shapeRecordsBefore = records.filter((r: any) => r.typeName === 'shape')
+          const shapeTypeCountsBefore = shapeRecordsBefore.reduce((acc: any, r: any) => {
+            const type = r.type || 'unknown'
+            acc[type] = (acc[type] || 0) + 1
+            return acc
+          }, {})
+          
           console.log(`📊 After filtering: ${records.length} valid records from ${allStoreValues.length} total store values`)
+          console.log(`📊 Shape type breakdown before processing (${shapeRecordsBefore.length} shapes):`, shapeTypeCountsBefore)
           
           // Only log if there are many records or if debugging is needed
           if (records.length > 50) {
@@ -977,11 +1052,31 @@ export function useAutomergeStoreV2({
               }
               
               // Validate that the shape type is supported by our schema
+              // CRITICAL: Include ALL original tldraw shapes to ensure they're preserved
               const validCustomShapes = ['ObsNote', 'VideoChat', 'Transcription', 'SharedPiano', 'Prompt', 'ChatBox', 'Embed', 'Markdown', 'MycrozineTemplate', 'Slide', 'FathomTranscript', 'Holon', 'ObsidianBrowser', 'HolonBrowser', 'FathomMeetingsBrowser', 'LocationShare']
               const validDefaultShapes = ['arrow', 'bookmark', 'draw', 'embed', 'frame', 'geo', 'group', 'highlight', 'image', 'line', 'note', 'text', 'video']
               const allValidShapes = [...validCustomShapes, ...validDefaultShapes]
               
-              if (!allValidShapes.includes(processedRecord.type)) {
+              // Normalize shape type to handle case variations and known aliases
+              const normalizedType = processedRecord.type?.toLowerCase()
+              const isDefaultShape = validDefaultShapes.includes(normalizedType)
+              const isCustomShape = validCustomShapes.includes(processedRecord.type)
+              
+              // Handle known shape type aliases/variations
+              const shapeTypeAliases: Record<string, string> = {
+                'transcribe': 'Transcription', // "Transcribe" -> "Transcription"
+                'transcription': 'Transcription', // lowercase -> proper case
+              }
+              const aliasType = shapeTypeAliases[normalizedType] || shapeTypeAliases[processedRecord.type]
+              if (aliasType) {
+                console.log(`🔧 Normalizing shape type from "${processedRecord.type}" to "${aliasType}" for shape:`, processedRecord.id)
+                processedRecord.type = aliasType
+              } else if (isDefaultShape && processedRecord.type !== normalizedType) {
+                // If it's a valid default shape but with wrong casing, normalize it
+                console.log(`🔧 Normalizing shape type from "${processedRecord.type}" to "${normalizedType}" for shape:`, processedRecord.id)
+                processedRecord.type = normalizedType
+              } else if (!isDefaultShape && !isCustomShape) {
+                // Only convert to text if it's truly unknown
                 console.log(`🔧 Unknown shape type ${processedRecord.type}, converting to text shape for shape:`, processedRecord.id)
                 processedRecord.type = 'text'
                 if (!processedRecord.props) processedRecord.props = {}
@@ -1351,9 +1446,15 @@ export function useAutomergeStoreV2({
             hasProps: !!r.props
           })))
           
-          // Debug: Log shape structures before loading
+          // Debug: Log shape structures before loading - track ALL shape types
           const shapesToLoad = processedRecords.filter(r => r.typeName === 'shape')
+          const shapeTypeCountsToLoad = shapesToLoad.reduce((acc: any, r: any) => {
+            const type = r.type || 'unknown'
+            acc[type] = (acc[type] || 0) + 1
+            return acc
+          }, {})
           console.log(`📊 About to load ${shapesToLoad.length} shapes into store`)
+          console.log(`📊 Shape type breakdown to load:`, shapeTypeCountsToLoad)
           
           if (shapesToLoad.length > 0) {
             console.log("📊 Sample processed shape structure:", {
@@ -1366,8 +1467,9 @@ export function useAutomergeStoreV2({
               allKeys: Object.keys(shapesToLoad[0])
             })
             
-            // Log all shapes with their positions
-            console.log("📊 All processed shapes:", shapesToLoad.map(s => ({
+            // Log all shapes with their positions (first 20)
+            const shapesToLog = shapesToLoad.slice(0, 20)
+            console.log("📊 Processed shapes (first 20):", shapesToLog.map(s => ({
               id: s.id,
               type: s.type,
               x: s.x,
@@ -1377,6 +1479,9 @@ export function useAutomergeStoreV2({
               propsH: s.props?.h,
               parentId: s.parentId
             })))
+            if (shapesToLoad.length > 20) {
+              console.log(`📊 ... and ${shapesToLoad.length - 20} more shapes`)
+            }
           }
           
           // Load records into store
@@ -1521,10 +1626,17 @@ export function useAutomergeStoreV2({
                       delete (record as any).geo
                     }
                     
-                    // Ensure geo property exists in props
+                    // CRITICAL: props.geo is REQUIRED for geo shapes - TLDraw validation will fail without it
+                    // Ensure it's always set, defaulting to 'rectangle' if missing
                     if (!record.props) record.props = {}
-                    if (!record.props.geo) {
+                    if (!record.props.geo || record.props.geo === undefined || record.props.geo === null) {
                       record.props.geo = 'rectangle'
+                    }
+                    
+                    // CRITICAL: props.dash is REQUIRED for geo shapes - TLDraw validation will fail without it
+                    // Ensure it's always set, defaulting to 'draw' if missing
+                    if (!record.props.dash || record.props.dash === undefined || record.props.dash === null) {
+                      record.props.dash = 'draw'
                     }
                   }
                   
@@ -1963,10 +2075,16 @@ export function useAutomergeStoreV2({
             }
           }
                 
-            // Verify loading
+            // Verify loading - track ALL shape types that were successfully loaded
             const storeRecords = store.allRecords()
             const shapes = storeRecords.filter(r => r.typeName === 'shape')
+            const shapeTypeCountsAfter = shapes.reduce((acc: any, r: any) => {
+              const type = (r as any).type || 'unknown'
+              acc[type] = (acc[type] || 0) + 1
+              return acc
+            }, {})
             console.log(`📊 Store verification: ${processedRecords.length} processed records, ${storeRecords.length} total store records, ${shapes.length} shapes`)
+            console.log(`📊 Shape type breakdown after loading:`, shapeTypeCountsAfter)
             
             // Debug: Check if shapes have the right structure
             if (shapes.length > 0) {
