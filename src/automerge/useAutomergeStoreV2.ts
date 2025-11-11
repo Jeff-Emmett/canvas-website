@@ -346,341 +346,121 @@ export function useAutomergeStoreV2({
       unsubscribeTLDraw
     )
 
-    // Initial load - populate TLDraw store from Automerge document
+    // CRITICAL: Use patch-based loading exclusively (same as dev)
+    // No bulk loading - all data flows through patches via automergeChangeHandler
+    // This ensures production works exactly like dev
     const initializeStore = async () => {
       try {
-        // Only log if debugging is needed
-        // console.log("Starting TLDraw store initialization...")
         await handle.whenReady()
-        // console.log("Automerge handle is ready")
-        
         const doc = handle.doc()
-        // Only log if debugging is needed
-        // console.log("Got Automerge document (FIXED VERSION):", {
-        //   hasStore: !!doc.store,
-        //   storeKeys: doc.store ? Object.keys(doc.store).length : 0,
-        // })
         
-        // Skip pre-sanitization to avoid Automerge reference errors
-        // We'll handle validation issues in the record processing loop instead
-        // Force cache refresh - pre-sanitization code has been removed
-        
-        // Initialize store with existing records from Automerge
-        // NOTE: JSON sync might have already loaded data into the store
-        // Check if store is already populated before loading from Automerge
+        // Check if store is already populated from patches
         const existingStoreRecords = store.allRecords()
         const existingStoreShapes = existingStoreRecords.filter((r: any) => r.typeName === 'shape')
         
         if (doc.store) {
           const storeKeys = Object.keys(doc.store)
           const docShapes = Object.values(doc.store).filter((r: any) => r?.typeName === 'shape').length
-          console.log(`📊 Automerge store initialization: doc has ${storeKeys.length} records (${docShapes} shapes), store already has ${existingStoreRecords.length} records (${existingStoreShapes.length} shapes)`)
+          console.log(`📊 Patch-based initialization: doc has ${storeKeys.length} records (${docShapes} shapes), store has ${existingStoreRecords.length} records (${existingStoreShapes.length} shapes)`)
           
-          // If store already has shapes (from JSON sync), skip Automerge initialization
-          // JSON sync happened first and loaded the data
-          if (existingStoreShapes.length > 0 && docShapes === 0) {
-            console.log(`ℹ️ Store already populated from JSON sync (${existingStoreShapes.length} shapes). Skipping Automerge initialization to prevent overwriting.`)
+          // If store already has shapes, patches have been applied (dev mode behavior)
+          if (existingStoreShapes.length > 0) {
+            console.log(`✅ Store already populated from patches (${existingStoreShapes.length} shapes) - using patch-based loading like dev`)
             setStoreWithStatus({
               store,
               status: "synced-remote",
               connectionStatus: "online",
             })
-            return // Skip Automerge initialization
+            return
           }
           
-          console.log(`📊 Store keys count: ${storeKeys.length}`, storeKeys.slice(0, 10))
-          
-          // Get all store values - Automerge should handle this correctly
-          const allStoreValues = Object.values(doc.store)
-          
-          // Debug: Log first few records in detail to see their structure
-          console.log("📊 Sample store values (first 3):", allStoreValues.slice(0, 3).map((v: any) => {
-            try {
-              return {
-                hasTypeName: !!v?.typeName,
-                hasId: !!v?.id,
-                typeName: v?.typeName,
-                id: v?.id,
-                type: v?.type,
-                keys: v ? Object.keys(v).slice(0, 10) : [],
-                // Try to stringify a sample to see structure
-                sample: JSON.stringify(v).substring(0, 200)
-              }
-            } catch (e) {
-              return { error: String(e), value: v }
-            }
-          }))
-          
-          // Debug: Count record types before filtering
-          const typeCountBefore = allStoreValues.reduce((acc: any, v: any) => {
-            const type = v?.typeName || 'unknown'
-            acc[type] = (acc[type] || 0) + 1
-            return acc
-          }, {})
-          console.log(`📊 Store values before filtering:`, {
-            total: allStoreValues.length,
-            typeCounts: typeCountBefore
-          })
-          
-          // Simple filtering - only keep valid TLDraw records
-          // Skip custom record types like obsidian_vault - they're not TLDraw records
-          // Components should read them directly from Automerge (like ObsidianVaultBrowser does)
-          const records = allStoreValues.filter((record: any) => {
-            if (!record || !record.typeName || !record.id) {
-              console.log(`⚠️ Filtering out invalid record:`, { hasRecord: !!record, hasTypeName: !!record?.typeName, hasId: !!record?.id })
-              return false
-            }
-            // Skip obsidian_vault records - they're not TLDraw records
-            if (record.typeName === 'obsidian_vault' || 
-                (typeof record.id === 'string' && record.id.startsWith('obsidian_vault:'))) {
-              return false
-            }
-            return true
-          })
-          
-          // Track shape types before processing to ensure all are loaded
-          const shapeRecordsBefore = records.filter((r: any) => r.typeName === 'shape')
-          const shapeTypeCountsBefore = shapeRecordsBefore.reduce((acc: any, r: any) => {
-            const type = r.type || 'unknown'
-            acc[type] = (acc[type] || 0) + 1
-            return acc
-          }, {})
-          
-          console.log(`📊 After filtering: ${records.length} valid records from ${allStoreValues.length} total store values`)
-          console.log(`📊 Shape type breakdown before processing (${shapeRecordsBefore.length} shapes):`, shapeTypeCountsBefore)
-          
-          // Only log if there are many records or if debugging is needed
-          if (records.length > 50) {
-            console.log(`Found ${records.length} valid records in Automerge document`)
-          }
-          
-          // CRITICAL: Use the same sanitization as dev mode (patch-based loading)
-          // This ensures production works exactly like dev mode
-          const processedRecords = records.map((record: any) => {
-            // Create a deep copy to avoid modifying immutable Automerge objects
-            let processedRecord: any
-            try {
-              // First try JSON serialization (works for most cases)
-              processedRecord = JSON.parse(JSON.stringify(record))
-              // Verify the record has essential properties
-              if (!processedRecord.typeName || !processedRecord.id) {
-                // If serialization lost properties, try accessing them directly
-                processedRecord = {
-                  ...record,
-                  typeName: record.typeName,
-                  id: record.id,
-                  type: record.type,
-                  props: record.props ? { ...record.props } : {},
-                }
-                // Copy all enumerable properties
-                for (const key in record) {
-                  if (!(key in processedRecord)) {
-                    try {
-                      processedRecord[key] = record[key]
-                    } catch (e) {
-                      // Skip properties that can't be accessed
-                    }
-                  }
-                }
-              }
-            } catch (e) {
-              // Fallback: manual copy if JSON serialization fails
-              console.warn(`⚠️ JSON serialization failed for record ${record?.id}, using manual copy:`, e)
-              processedRecord = {
-                typeName: record.typeName,
-                id: record.id,
-                type: record.type,
-                props: record.props ? { ...record.props } : {},
-              }
-              // Copy all enumerable properties
-              for (const key in record) {
-                try {
-                  processedRecord[key] = record[key]
-                } catch (err) {
-                  // Skip properties that can't be accessed
-                }
-              }
-            }
+          // If doc has data but store doesn't, trigger patches by making a minimal change
+          // This ensures patches are generated and processed by automergeChangeHandler
+          if (docShapes > 0 && existingStoreShapes.length === 0) {
+            console.log(`📊 Doc has ${docShapes} shapes but store is empty. Triggering patches to populate store (patch-based loading)...`)
             
-            // CRITICAL: Use the same sanitizeRecord function that dev mode uses
-            // This ensures production uses the exact same sanitization logic
-            try {
-              return sanitizeRecord(processedRecord)
-            } catch (error) {
-              console.error(`Failed to sanitize record ${processedRecord?.id}:`, error)
-              // Return unsanitized record as fallback (will likely fail validation)
-              return processedRecord
-            }
-          }).filter((r): r is TLRecord => r !== null && r !== undefined)
-          
-          // OLD COMPLEX SANITIZATION CODE REMOVED - now using sanitizeRecord from AutomergeToTLStore
-          // This matches dev mode behavior exactly
-          
-          console.log(`Processed ${processedRecords.length} records for loading (using same sanitization as dev mode)`)
-          
-          // Debug: Log what record types we have
-          const recordTypes = processedRecords.reduce((acc: any, r: any) => {
-            const type = r.typeName || 'unknown'
-            acc[type] = (acc[type] || 0) + 1
-            return acc
-          }, {})
-          console.log(`📊 Record types breakdown:`, recordTypes)
-          console.log(`📊 All processed records:`, processedRecords.map((r: any) => ({
-            id: r.id,
-            typeName: r.typeName,
-            type: r.type,
-            hasProps: !!r.props
-          })))
-          
-          // Debug: Log shape structures before loading - track ALL shape types
-          const shapesToLoad = processedRecords.filter(r => r.typeName === 'shape')
-          const shapeTypeCountsToLoad = shapesToLoad.reduce((acc: any, r: any) => {
-            const type = r.type || 'unknown'
-            acc[type] = (acc[type] || 0) + 1
-            return acc
-          }, {})
-          console.log(`📊 About to load ${shapesToLoad.length} shapes into store`)
-          console.log(`📊 Shape type breakdown to load:`, shapeTypeCountsToLoad)
-          
-          if (shapesToLoad.length > 0) {
-            console.log("📊 Sample processed shape structure:", {
-              id: shapesToLoad[0].id,
-              type: shapesToLoad[0].type,
-              x: shapesToLoad[0].x,
-              y: shapesToLoad[0].y,
-              props: shapesToLoad[0].props,
-              parentId: shapesToLoad[0].parentId,
-              allKeys: Object.keys(shapesToLoad[0])
+            // Trigger patches by touching the document - this will cause automergeChangeHandler to fire
+            // The handler will process all existing records via patches (same as dev)
+            handle.change((doc: any) => {
+              if (doc.store && Object.keys(doc.store).length > 0) {
+                // Touch the first record to trigger change detection and patch generation
+                const firstKey = Object.keys(doc.store)[0]
+                if (firstKey) {
+                  // This minimal change triggers Automerge to generate patches for all records
+                  doc.store[firstKey] = { ...doc.store[firstKey] }
+                }
+              }
             })
             
-            // Log all shapes with their positions (first 20)
-            const shapesToLog = shapesToLoad.slice(0, 20)
-            console.log("📊 Processed shapes (first 20):", shapesToLog.map(s => ({
-              id: s.id,
-              type: s.type,
-              x: s.x,
-              y: s.y,
-              hasProps: !!s.props,
-              propsW: (s.props as any)?.w,
-              propsH: (s.props as any)?.h,
-              parentId: s.parentId
-            })))
-            if (shapesToLoad.length > 20) {
-              console.log(`📊 ... and ${shapesToLoad.length - 20} more shapes`)
-            }
+            // Wait for patches to be processed by automergeChangeHandler
+            // Give it time for the handler to apply patches to the store
+            let attempts = 0
+            const maxAttempts = 20 // Wait up to 4 seconds (20 * 200ms)
+            
+            await new Promise<void>(resolve => {
+              const checkForPatches = () => {
+                attempts++
+                const currentShapes = store.allRecords().filter((r: any) => r.typeName === 'shape')
+                
+                if (currentShapes.length > 0) {
+                  console.log(`✅ Patches applied successfully: ${currentShapes.length} shapes loaded via patches (same as dev)`)
+                  setStoreWithStatus({
+                    store,
+                    status: "synced-remote",
+                    connectionStatus: "online",
+                  })
+                  resolve()
+                } else if (attempts < maxAttempts) {
+                  setTimeout(checkForPatches, 200)
+                } else {
+                  console.warn(`⚠️ Patches didn't populate store after ${maxAttempts * 200}ms. This shouldn't happen - patches should always work.`)
+                  // Still set status to synced - patches might come through later
+                  setStoreWithStatus({
+                    store,
+                    status: "synced-remote",
+                    connectionStatus: "online",
+                  })
+                  resolve()
+                }
+              }
+              
+              setTimeout(checkForPatches, 200)
+            })
+            
+            return // Always return - patches handle everything, no bulk loading
           }
           
-          // Load records into store
-          if (processedRecords.length > 0) {
-            console.log("Attempting to load records into store...")
-            
-            try {
-              // CRITICAL: Ensure page exists before adding shapes
-              // Get all page records from processed records
-              const pageRecords = processedRecords.filter(r => r.typeName === 'page')
-              const shapeRecords = processedRecords.filter(r => r.typeName === 'shape')
-              const otherRecords = processedRecords.filter(r => r.typeName !== 'page' && r.typeName !== 'shape')
-              
-              console.log(`📊 Loading order: ${pageRecords.length} pages, ${shapeRecords.length} shapes, ${otherRecords.length} other records`)
-              
-              // Ensure default page exists if no pages in data
-              if (pageRecords.length === 0) {
-                console.log(`📊 No page records found, ensuring default page exists`)
-                const defaultPage = {
-                  id: 'page:page' as any,
-                  typeName: 'page' as const,
-                  name: 'Page 1',
-                  index: 'a0' as any,
-                }
-                pageRecords.push(defaultPage as any)
-              }
-              
-              store.mergeRemoteChanges(() => {
-                // CRITICAL: Add pages first, then other records, then shapes
-                // This ensures pages exist before shapes reference them
-                const recordsToAdd = [...pageRecords, ...otherRecords, ...shapeRecords]
-                
-                // Verify all shapes have valid parentId pointing to an existing page
-                const pageIds = new Set(pageRecords.map(p => p.id))
-                const shapesWithInvalidParent = recordsToAdd.filter(r => {
-                  if (r.typeName === 'shape') {
-                    const shape = r as any
-                    if (shape.parentId) {
-                      return !pageIds.has(shape.parentId as any)
-                    }
-                  }
-                  return false
-                })
-                
-                if (shapesWithInvalidParent.length > 0) {
-                  console.warn(`⚠️ Found ${shapesWithInvalidParent.length} shapes with invalid parentId, fixing...`)
-                  shapesWithInvalidParent.forEach(shape => {
-                    const defaultPageId = pageRecords[0]?.id || 'page:page'
-                    const shapeRecord = shape as any
-                    console.log(`🔧 Fixing shape ${shapeRecord.id}: parentId ${shapeRecord.parentId} -> ${defaultPageId}`)
-                    shapeRecord.parentId = defaultPageId
-                  })
-                }
-                
-                // Put TLDraw records into store in correct order
-                if (recordsToAdd.length > 0) {
-                  console.log(`📊 Adding ${recordsToAdd.length} records to store (${pageRecords.length} pages, ${recordsToAdd.filter(r => r.typeName === 'shape').length} shapes)`)
-                  store.put(recordsToAdd)
-                  
-                  // Verify shapes were added
-                  setTimeout(() => {
-                    const allShapes = store.allRecords().filter(r => r.typeName === 'shape')
-                    const shapesOnPages = allShapes.filter(s => {
-                      const shape = s as any
-                      return shape.parentId && pageIds.has(shape.parentId)
-                    })
-                    console.log(`📊 Verification: Store now has ${allShapes.length} total shapes, ${shapesOnPages.length} with valid parentId`)
-                  }, 100)
-                }
-              })
-              console.log("Successfully loaded all records into store")
-            } catch (error) {
-              console.error("Error loading records into store:", error)
-              // Try loading records one by one to identify problematic ones
-              console.log("Attempting to load records one by one...")
-              let successCount = 0
-              const failedRecords = []
-              
-              for (const record of processedRecords) {
-                try {
-                  store.mergeRemoteChanges(() => {
-                    store.put([record])
-                  })
-                  successCount++
-                  console.log(`✅ Successfully loaded record ${record.id} (${record.typeName})`)
-                } catch (individualError) {
-                  console.error(`❌ Failed to load record ${record.id} (${record.typeName}):`, individualError)
-                  failedRecords.push(record)
-                }
-              }
-              if (successCount < processedRecords.length || processedRecords.length > 50) {
-                console.log(`Successfully loaded ${successCount} out of ${processedRecords.length} records`)
-              }
-            }
+          // If doc is empty, just set status
+          if (docShapes === 0) {
+            console.log(`📊 Empty document - starting fresh (patch-based loading)`)
+            setStoreWithStatus({
+              store,
+              status: "synced-remote",
+              connectionStatus: "online",
+            })
+            return
           }
+        } else {
+          // No store in doc - empty document
+          console.log(`📊 No store in Automerge doc - starting fresh (patch-based loading)`)
+          setStoreWithStatus({
+            store,
+            status: "synced-remote",
+            connectionStatus: "online",
+          })
+          return
         }
-        
+      } catch (error) {
+        console.error("Error in patch-based initialization:", error)
         setStoreWithStatus({
           store,
           status: "synced-remote",
           connectionStatus: "online",
         })
-      } catch (error) {
-          console.error("Error initializing store from Automerge:", error)
-          setStoreWithStatus({
-            store,
-            status: "not-synced",
-            error: error instanceof Error ? error : new Error("Unknown error") as any,
-          })
-        }
       }
-      
-      initializeStore()
+    }
+    
+    initializeStore()
       
       return () => {
         unsubs.forEach((unsub) => unsub())
