@@ -282,34 +282,12 @@ export function Board() {
         console.log(`📊 Board: Shape parent ID distribution:`, Array.from(parentIdCounts.entries()))
       }
       
-      // CRITICAL: If shapes are in store but editor sees 0, force refresh
-      // This handles the case where old bulk loading code doesn't refresh shapes
-      if (storeShapes.length > 0 && editorShapes.length === 0 && storeShapesOnCurrentPage.length > 0 && store.store) {
-        console.warn(`⚠️ Board: ${storeShapes.length} shapes in store (${storeShapesOnCurrentPage.length} on current page) but editor sees 0. Forcing refresh...`)
-        
-        // Force refresh by re-putting shapes with mergeRemoteChanges
-        // CRITICAL: Preserve x and y coordinates when refreshing shapes
-        const shapesToRefresh = storeShapesOnCurrentPage.map((s: any) => {
-          const shapeFromStore = store.store!.get(s.id)
-          if (shapeFromStore && shapeFromStore.typeName === 'shape') {
-            // Preserve original x and y from the store shape data
-            const originalX = s.x !== undefined && typeof s.x === 'number' && !isNaN(s.x) ? s.x : (shapeFromStore as any).x
-            const originalY = s.y !== undefined && typeof s.y === 'number' && !isNaN(s.y) ? s.y : (shapeFromStore as any).y
-            
-            // Ensure x and y are preserved
-            if (typeof originalX === 'number' && !isNaN(originalX) && typeof originalY === 'number' && !isNaN(originalY)) {
-              return { ...shapeFromStore, x: originalX, y: originalY } as TLRecord
-            }
-            return shapeFromStore
-          }
-          return null
-        }).filter((s): s is TLRecord => s !== null && s.typeName === 'shape')
-        if (shapesToRefresh.length > 0) {
-          store.store.mergeRemoteChanges(() => {
-            store.store!.put(shapesToRefresh)
-          })
-          console.log(`🔄 Board: Forced refresh of ${shapesToRefresh.length} shapes to make editor see them`)
-        }
+      // REMOVED: Aggressive force refresh that was causing coordinate loss
+      // If shapes are in store but editor doesn't see them, it's likely a different issue
+      // Forcing refresh by re-putting was resetting coordinates to 0,0
+      if (storeShapes.length > 0 && editorShapes.length === 0 && storeShapesOnCurrentPage.length > 0) {
+        console.warn(`⚠️ Board: ${storeShapes.length} shapes in store (${storeShapesOnCurrentPage.length} on current page) but editor sees 0. This may indicate a sync issue.`)
+        // Don't force refresh - it was causing coordinate loss
       }
       
       // Check if there are shapes in store on current page that editor can't see
@@ -343,39 +321,9 @@ export function Board() {
             // Shapes don't exist in editor - might be a sync issue
             console.error(`📊 Board: ${missingShapes.length} shapes are in store but don't exist in editor - possible sync issue`)
             
-            // Try to force a refresh by updating the store
-            // This might help if shapes are stuck in a validation error state
-            console.log(`📊 Board: Attempting to refresh store to make shapes visible`)
-            try {
-              // Force a store update by reading and re-putting the shapes
-              if (!store.store) return
-              
-              const currentStore = store.store
-              const shapesToRefresh = missingShapes.slice(0, 10) // Limit to first 10 to avoid performance issues
-              // CRITICAL: Preserve x and y coordinates when refreshing shapes
-              const refreshedShapes = shapesToRefresh.map((s: any) => {
-                const shapeFromStore = currentStore.get(s.id)
-                if (shapeFromStore && shapeFromStore.typeName === 'shape') {
-                  // Preserve original x and y from the store shape data
-                  const originalX = s.x !== undefined && typeof s.x === 'number' && !isNaN(s.x) ? s.x : (shapeFromStore as any).x
-                  const originalY = s.y !== undefined && typeof s.y === 'number' && !isNaN(s.y) ? s.y : (shapeFromStore as any).y
-                  
-                  // Ensure x and y are preserved
-                  if (typeof originalX === 'number' && !isNaN(originalX) && typeof originalY === 'number' && !isNaN(originalY)) {
-                    return { ...shapeFromStore, x: originalX, y: originalY } as TLRecord
-                  }
-                  return shapeFromStore
-                }
-                return null
-              }).filter((s): s is TLRecord => s !== null && s.typeName === 'shape')
-              
-              if (refreshedShapes.length > 0) {
-                console.log(`📊 Board: Refreshing ${refreshedShapes.length} shapes in store`)
-                currentStore.put(refreshedShapes)
-              }
-            } catch (error) {
-              console.error(`📊 Board: Error refreshing shapes:`, error)
-            }
+            // REMOVED: Force refresh that was causing coordinate loss
+            // Re-putting shapes was resetting coordinates to 0,0
+            console.log(`📊 Board: ${missingShapes.length} shapes are in store but not visible in editor - this may indicate a sync issue`)
           }
           
           // Check if shapes are outside viewport

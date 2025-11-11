@@ -368,45 +368,9 @@ export function useAutomergeStoreV2({
           if (existingStoreShapes.length > 0) {
             console.log(`✅ Store already populated from patches (${existingStoreShapes.length} shapes) - using patch-based loading like dev`)
             
-            // CRITICAL: Force editor to see shapes by refreshing them multiple times
-            // Sometimes the editor needs multiple updates to detect shapes
-            const refreshShapes = (attempt: number) => {
-              // CRITICAL: Preserve x and y coordinates when refreshing shapes
-              const shapesToRefresh = existingStoreShapes.map(s => {
-                const shapeFromStore = store.get(s.id)
-                if (shapeFromStore && shapeFromStore.typeName === 'shape') {
-                  // Preserve original x and y from the store shape data
-                  // Type assertion needed because s is TLRecord but we know it's a shape
-                  const sAny = s as any
-                  const shapeFromStoreAny = shapeFromStore as any
-                  const originalX = sAny.x !== undefined && typeof sAny.x === 'number' && !isNaN(sAny.x) ? sAny.x : shapeFromStoreAny.x
-                  const originalY = sAny.y !== undefined && typeof sAny.y === 'number' && !isNaN(sAny.y) ? sAny.y : shapeFromStoreAny.y
-                  
-                  // Ensure x and y are preserved
-                  if (typeof originalX === 'number' && !isNaN(originalX) && typeof originalY === 'number' && !isNaN(originalY)) {
-                    return { ...shapeFromStore, x: originalX, y: originalY } as TLRecord
-                  }
-                  return shapeFromStore
-                }
-                return null
-              }).filter((s): s is TLRecord => s !== null && s.typeName === 'shape')
-              
-              if (shapesToRefresh.length > 0) {
-                store.mergeRemoteChanges(() => {
-                  // Re-put shapes to trigger editor update
-                  store.put(shapesToRefresh)
-                })
-                console.log(`📊 Refreshed ${shapesToRefresh.length} existing shapes (attempt ${attempt}) to ensure editor visibility`)
-                
-                // Try multiple times to ensure editor picks them up
-                if (attempt < 3) {
-                  setTimeout(() => refreshShapes(attempt + 1), 200)
-                }
-              }
-            }
-            
-            // Start refreshing after a short delay
-            setTimeout(() => refreshShapes(1), 100)
+            // REMOVED: Aggressive shape refresh that was causing coordinate loss
+            // Shapes should be visible through normal patch application
+            // If shapes aren't visible, it's likely a different issue that refresh won't fix
             
             setStoreWithStatus({
               store,
@@ -435,45 +399,8 @@ export function useAutomergeStoreV2({
                 if (currentShapes.length > 0) {
                   console.log(`✅ Patches applied successfully: ${currentShapes.length} shapes loaded via patches`)
                   
-                  // CRITICAL: Force editor to see shapes by refreshing them multiple times
-                  // Sometimes the editor needs multiple updates to detect shapes
-                  const refreshShapes = (attempt: number) => {
-                    // CRITICAL: Preserve x and y coordinates when refreshing shapes
-                    const shapesToRefresh = currentShapes.map(s => {
-                      const shapeFromStore = store.get(s.id)
-                      if (shapeFromStore && shapeFromStore.typeName === 'shape') {
-                        // Preserve original x and y from the store shape data
-                        // Type assertion needed because s is TLRecord but we know it's a shape
-                        const sAny = s as any
-                        const shapeFromStoreAny = shapeFromStore as any
-                        const originalX = sAny.x !== undefined && typeof sAny.x === 'number' && !isNaN(sAny.x) ? sAny.x : shapeFromStoreAny.x
-                        const originalY = sAny.y !== undefined && typeof sAny.y === 'number' && !isNaN(sAny.y) ? sAny.y : shapeFromStoreAny.y
-                        
-                        // Ensure x and y are preserved
-                        if (typeof originalX === 'number' && !isNaN(originalX) && typeof originalY === 'number' && !isNaN(originalY)) {
-                          return { ...shapeFromStore, x: originalX, y: originalY } as TLRecord
-                        }
-                        return shapeFromStore
-                      }
-                      return null
-                    }).filter((s): s is TLRecord => s !== null && s.typeName === 'shape')
-                    
-                    if (shapesToRefresh.length > 0) {
-                      store.mergeRemoteChanges(() => {
-                        // Re-put shapes to trigger editor update
-                        store.put(shapesToRefresh)
-                      })
-                      console.log(`📊 Refreshed ${shapesToRefresh.length} shapes (attempt ${attempt}) to ensure editor visibility`)
-                      
-                      // Try multiple times to ensure editor picks them up
-                      if (attempt < 3) {
-                        setTimeout(() => refreshShapes(attempt + 1), 200)
-                      }
-                    }
-                  }
-                  
-                  // Start refreshing after a short delay
-                  setTimeout(() => refreshShapes(1), 100)
+                  // REMOVED: Aggressive shape refresh that was causing coordinate loss
+                  // Shapes loaded via patches should be visible without forced refresh
                   
                   setStoreWithStatus({
                     store,
@@ -534,46 +461,8 @@ export function useAutomergeStoreV2({
                       })
                       console.log(`✅ Applied ${allRecords.length} records directly to store (fallback for missed patches - works in dev and production)`)
                       
-                      // CRITICAL: Force editor to see shapes by refreshing them multiple times
-                      // Sometimes the editor needs multiple updates to detect shapes
-                      const refreshShapes = (attempt: number) => {
-                        const shapes = store.allRecords().filter((r: any) => r.typeName === 'shape')
-                        // CRITICAL: Preserve x and y coordinates when refreshing shapes
-                        const shapesToRefresh = shapes.map(s => {
-                          const shapeFromStore = store.get(s.id)
-                          if (shapeFromStore && shapeFromStore.typeName === 'shape') {
-                            // Preserve original x and y from the store shape data
-                            // Type assertion needed because s is TLRecord but we know it's a shape
-                            const sAny = s as any
-                            const shapeFromStoreAny = shapeFromStore as any
-                            const originalX = sAny.x !== undefined && typeof sAny.x === 'number' && !isNaN(sAny.x) ? sAny.x : shapeFromStoreAny.x
-                            const originalY = sAny.y !== undefined && typeof sAny.y === 'number' && !isNaN(sAny.y) ? sAny.y : shapeFromStoreAny.y
-                            
-                            // Ensure x and y are preserved
-                            if (typeof originalX === 'number' && !isNaN(originalX) && typeof originalY === 'number' && !isNaN(originalY)) {
-                              return { ...shapeFromStore, x: originalX, y: originalY } as TLRecord
-                            }
-                            return shapeFromStore
-                          }
-                          return null
-                        }).filter((s): s is TLRecord => s !== null && s.typeName === 'shape')
-                        
-                        if (shapesToRefresh.length > 0) {
-                          store.mergeRemoteChanges(() => {
-                            // Re-put shapes to trigger editor update
-                            store.put(shapesToRefresh)
-                          })
-                          console.log(`📊 Refreshed ${shapesToRefresh.length} shapes (attempt ${attempt}) to ensure editor visibility`)
-                          
-                          // Try multiple times to ensure editor picks them up
-                          if (attempt < 3) {
-                            setTimeout(() => refreshShapes(attempt + 1), 200)
-                          }
-                        }
-                      }
-                      
-                      // Start refreshing after a short delay
-                      setTimeout(() => refreshShapes(1), 100)
+                      // REMOVED: Aggressive shape refresh that was causing coordinate loss
+                      // Shapes loaded directly should be visible without forced refresh
                     }
                   } catch (error) {
                     console.error(`❌ Error applying records directly:`, error)
