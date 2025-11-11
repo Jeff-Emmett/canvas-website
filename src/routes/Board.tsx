@@ -379,9 +379,16 @@ export function Board() {
           // Fix shapes with invalid parentId by assigning them to current page
           // CRITICAL: Preserve x and y coordinates when fixing parentId
           // This prevents coordinates from being reset when patches come back from Automerge
-          const fixedShapes = shapesWithInvalidParent.map((s: any) => {
+          const fixedShapes = shapesWithInvalidParent.map((s: any): TLRecord => {
             // Get the shape from store to ensure we have all properties
-            const shapeFromStore = store.store!.get(s.id)
+            if (!store.store) {
+              // Fallback if store not available
+              const fallbackX = (s.x !== undefined && typeof s.x === 'number' && !isNaN(s.x)) ? s.x : 0
+              const fallbackY = (s.y !== undefined && typeof s.y === 'number' && !isNaN(s.y)) ? s.y : 0
+              return { ...s, parentId: currentPageId, x: fallbackX, y: fallbackY } as TLRecord
+            }
+            
+            const shapeFromStore = store.store.get(s.id)
             if (shapeFromStore && shapeFromStore.typeName === 'shape') {
               // CRITICAL: Get coordinates from store's current state (most reliable)
               // This ensures we preserve coordinates even if the shape object has been modified
@@ -395,10 +402,10 @@ export function Board() {
                 : (s.y !== undefined && typeof s.y === 'number' && !isNaN(s.y) ? s.y : 0)
               
               // Create fixed shape with preserved coordinates
-              const fixed = { ...shapeFromStore, parentId: currentPageId }
+              const fixed: any = { ...shapeFromStore, parentId: currentPageId }
               // CRITICAL: Always preserve coordinates - never reset to 0,0 unless truly missing
-              (fixed as any).x = originalX
-              (fixed as any).y = originalY
+              fixed.x = originalX
+              fixed.y = originalY
               return fixed as TLRecord
             }
             // Fallback if shape not in store - preserve coordinates from s
@@ -409,9 +416,13 @@ export function Board() {
           try {
             // CRITICAL: Use mergeRemoteChanges to prevent feedback loop
             // This marks the changes as remote, preventing them from triggering another sync
-            store.store.mergeRemoteChanges(() => {
-              store.store.put(fixedShapes)
-            })
+            if (store.store) {
+              store.store.mergeRemoteChanges(() => {
+                if (store.store) {
+                  store.store.put(fixedShapes)
+                }
+              })
+            }
             console.log(`📊 Board: Fixed ${fixedShapes.length} shapes by assigning them to current page ${currentPageId} (coordinates preserved)`)
           } catch (error) {
             console.error(`📊 Board: Error fixing shapes with invalid parentId:`, error)
