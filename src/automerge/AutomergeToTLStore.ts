@@ -360,9 +360,15 @@ export function sanitizeRecord(record: any): TLRecord {
   // For shapes, only ensure basic required fields exist
   if (sanitized.typeName === 'shape') {
     // Ensure required shape fields exist
-    // CRITICAL: Check for non-number, null, undefined, or NaN values
-    if (typeof sanitized.x !== 'number' || sanitized.x === null || isNaN(sanitized.x)) sanitized.x = 0
-    if (typeof sanitized.y !== 'number' || sanitized.y === null || isNaN(sanitized.y)) sanitized.y = 0
+    // CRITICAL: Only set defaults if coordinates are truly missing or invalid
+    // DO NOT overwrite valid coordinates (including 0, which is a valid position)
+    // Only set to 0 if the value is undefined, null, or NaN
+    if (sanitized.x === undefined || sanitized.x === null || (typeof sanitized.x === 'number' && isNaN(sanitized.x))) {
+      sanitized.x = 0
+    }
+    if (sanitized.y === undefined || sanitized.y === null || (typeof sanitized.y === 'number' && isNaN(sanitized.y))) {
+      sanitized.y = 0
+    }
     if (typeof sanitized.rotation !== 'number') sanitized.rotation = 0
     if (typeof sanitized.isLocked !== 'boolean') sanitized.isLocked = false
     if (typeof sanitized.opacity !== 'number') sanitized.opacity = 1
