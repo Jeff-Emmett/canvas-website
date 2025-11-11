@@ -202,13 +202,14 @@ export function CustomMainMenu() {
                         }
                         
                         // CRITICAL: Preserve existing coordinates - only set defaults if truly missing
-                        // x/y can be 0, which is a valid coordinate, so check for undefined/null
-                        // Note: validateShapeGeometry already ensures x/y are valid numbers
-                        if (fixedShape.x === undefined || fixedShape.x === null) {
-                            fixedShape.x = Math.random() * 400 + 50 // Random position only if missing
+                        // x/y can be 0, which is a valid coordinate, so check for undefined/null/NaN
+                        // Note: validateShapeGeometry already ensures x/y are valid numbers, but we need to
+                        // handle the case where they might be NaN or Infinity after validation
+                        if (fixedShape.x === undefined || fixedShape.x === null || isNaN(fixedShape.x) || !isFinite(fixedShape.x)) {
+                            fixedShape.x = Math.random() * 400 + 50 // Random position only if missing or invalid
                         }
-                        if (fixedShape.y === undefined || fixedShape.y === null) {
-                            fixedShape.y = Math.random() * 300 + 50 // Random position only if missing
+                        if (fixedShape.y === undefined || fixedShape.y === null || isNaN(fixedShape.y) || !isFinite(fixedShape.y)) {
+                            fixedShape.y = Math.random() * 300 + 50 // Random position only if missing or invalid
                         }
                         
                         // Preserve rotation, isLocked, opacity - only set defaults if missing

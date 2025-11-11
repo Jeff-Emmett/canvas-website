@@ -371,7 +371,23 @@ export function useAutomergeStoreV2({
             // CRITICAL: Force editor to see shapes by refreshing them multiple times
             // Sometimes the editor needs multiple updates to detect shapes
             const refreshShapes = (attempt: number) => {
-              const shapesToRefresh = existingStoreShapes.map(s => store.get(s.id)).filter((s): s is TLRecord => s !== undefined && s.typeName === 'shape')
+              // CRITICAL: Preserve x and y coordinates when refreshing shapes
+              const shapesToRefresh = existingStoreShapes.map(s => {
+                const shapeFromStore = store.get(s.id)
+                if (shapeFromStore && shapeFromStore.typeName === 'shape') {
+                  // Preserve original x and y from the store shape data
+                  const originalX = s.x !== undefined && typeof s.x === 'number' && !isNaN(s.x) ? s.x : (shapeFromStore as any).x
+                  const originalY = s.y !== undefined && typeof s.y === 'number' && !isNaN(s.y) ? s.y : (shapeFromStore as any).y
+                  
+                  // Ensure x and y are preserved
+                  if (typeof originalX === 'number' && !isNaN(originalX) && typeof originalY === 'number' && !isNaN(originalY)) {
+                    return { ...shapeFromStore, x: originalX, y: originalY } as TLRecord
+                  }
+                  return shapeFromStore
+                }
+                return null
+              }).filter((s): s is TLRecord => s !== null && s.typeName === 'shape')
+              
               if (shapesToRefresh.length > 0) {
                 store.mergeRemoteChanges(() => {
                   // Re-put shapes to trigger editor update
@@ -419,7 +435,23 @@ export function useAutomergeStoreV2({
                   // CRITICAL: Force editor to see shapes by refreshing them multiple times
                   // Sometimes the editor needs multiple updates to detect shapes
                   const refreshShapes = (attempt: number) => {
-                    const shapesToRefresh = currentShapes.map(s => store.get(s.id)).filter((s): s is TLRecord => s !== undefined && s.typeName === 'shape')
+                    // CRITICAL: Preserve x and y coordinates when refreshing shapes
+                    const shapesToRefresh = currentShapes.map(s => {
+                      const shapeFromStore = store.get(s.id)
+                      if (shapeFromStore && shapeFromStore.typeName === 'shape') {
+                        // Preserve original x and y from the store shape data
+                        const originalX = s.x !== undefined && typeof s.x === 'number' && !isNaN(s.x) ? s.x : (shapeFromStore as any).x
+                        const originalY = s.y !== undefined && typeof s.y === 'number' && !isNaN(s.y) ? s.y : (shapeFromStore as any).y
+                        
+                        // Ensure x and y are preserved
+                        if (typeof originalX === 'number' && !isNaN(originalX) && typeof originalY === 'number' && !isNaN(originalY)) {
+                          return { ...shapeFromStore, x: originalX, y: originalY } as TLRecord
+                        }
+                        return shapeFromStore
+                      }
+                      return null
+                    }).filter((s): s is TLRecord => s !== null && s.typeName === 'shape')
+                    
                     if (shapesToRefresh.length > 0) {
                       store.mergeRemoteChanges(() => {
                         // Re-put shapes to trigger editor update
@@ -500,7 +532,23 @@ export function useAutomergeStoreV2({
                       // Sometimes the editor needs multiple updates to detect shapes
                       const refreshShapes = (attempt: number) => {
                         const shapes = store.allRecords().filter((r: any) => r.typeName === 'shape')
-                        const shapesToRefresh = shapes.map(s => store.get(s.id)).filter((s): s is TLRecord => s !== undefined && s.typeName === 'shape')
+                        // CRITICAL: Preserve x and y coordinates when refreshing shapes
+                        const shapesToRefresh = shapes.map(s => {
+                          const shapeFromStore = store.get(s.id)
+                          if (shapeFromStore && shapeFromStore.typeName === 'shape') {
+                            // Preserve original x and y from the store shape data
+                            const originalX = s.x !== undefined && typeof s.x === 'number' && !isNaN(s.x) ? s.x : (shapeFromStore as any).x
+                            const originalY = s.y !== undefined && typeof s.y === 'number' && !isNaN(s.y) ? s.y : (shapeFromStore as any).y
+                            
+                            // Ensure x and y are preserved
+                            if (typeof originalX === 'number' && !isNaN(originalX) && typeof originalY === 'number' && !isNaN(originalY)) {
+                              return { ...shapeFromStore, x: originalX, y: originalY } as TLRecord
+                            }
+                            return shapeFromStore
+                          }
+                          return null
+                        }).filter((s): s is TLRecord => s !== null && s.typeName === 'shape')
+                        
                         if (shapesToRefresh.length > 0) {
                           store.mergeRemoteChanges(() => {
                             // Re-put shapes to trigger editor update

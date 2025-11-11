@@ -134,6 +134,10 @@ export function applyAutomergePatchesToTLStore(
       }
     }
 
+    // CRITICAL: Store original x and y before patch application to preserve them
+    const originalX = (record.typeName === 'shape' && typeof record.x === 'number' && !isNaN(record.x)) ? record.x : undefined
+    const originalY = (record.typeName === 'shape' && typeof record.y === 'number' && !isNaN(record.y)) ? record.y : undefined
+
     switch (patch.action) {
       case "insert": {
         updatedObjects[id] = applyInsertToObject(patch, record)
@@ -164,6 +168,23 @@ export function applyAutomergePatchesToTLStore(
       }
       default: {
         console.log("Unsupported patch:", patch)
+      }
+    }
+    
+    // CRITICAL: After patch application, ensure x and y coordinates are preserved for shapes
+    if (updatedObjects[id] && updatedObjects[id].typeName === 'shape') {
+      const patchedRecord = updatedObjects[id]
+      // Preserve original x and y if they were valid, otherwise use defaults
+      if (originalX !== undefined && (typeof patchedRecord.x !== 'number' || patchedRecord.x === null || isNaN(patchedRecord.x))) {
+        updatedObjects[id] = { ...patchedRecord, x: originalX }
+      } else if (typeof patchedRecord.x !== 'number' || patchedRecord.x === null || isNaN(patchedRecord.x)) {
+        updatedObjects[id] = { ...patchedRecord, x: defaultRecord.x || 0 }
+      }
+      
+      if (originalY !== undefined && (typeof patchedRecord.y !== 'number' || patchedRecord.y === null || isNaN(patchedRecord.y))) {
+        updatedObjects[id] = { ...patchedRecord, y: originalY }
+      } else if (typeof patchedRecord.y !== 'number' || patchedRecord.y === null || isNaN(patchedRecord.y)) {
+        updatedObjects[id] = { ...patchedRecord, y: defaultRecord.y || 0 }
       }
     }
     
