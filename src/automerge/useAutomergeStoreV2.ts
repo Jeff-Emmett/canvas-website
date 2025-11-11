@@ -230,6 +230,7 @@ export function useAutomergeStoreV2({
       }
     }
     
+    // Set up handler BEFORE initializeStore to catch patches from initial data load
     handle.on("change", automergeChangeHandler)
 
     // Listen for changes from TLDraw and apply them to Automerge
@@ -366,6 +367,20 @@ export function useAutomergeStoreV2({
           // If store already has shapes, patches have been applied (dev mode behavior)
           if (existingStoreShapes.length > 0) {
             console.log(`✅ Store already populated from patches (${existingStoreShapes.length} shapes) - using patch-based loading like dev`)
+            
+            // CRITICAL: Force editor to see shapes by refreshing them
+            // This ensures the editor detects shapes that were loaded via patches
+            setTimeout(() => {
+              const shapesToRefresh = existingStoreShapes.map(s => store.get(s.id)).filter((s): s is TLRecord => s !== undefined && s.typeName === 'shape')
+              if (shapesToRefresh.length > 0) {
+                store.mergeRemoteChanges(() => {
+                  // Re-put shapes to ensure editor detects them
+                  store.put(shapesToRefresh)
+                })
+                console.log(`📊 Refreshed ${shapesToRefresh.length} existing shapes to ensure editor visibility`)
+              }
+            }, 100)
+            
             setStoreWithStatus({
               store,
               status: "synced-remote",
@@ -374,28 +389,16 @@ export function useAutomergeStoreV2({
             return
           }
           
-          // If doc has data but store doesn't, trigger patches by making a minimal change
-          // This ensures patches are generated and processed by automergeChangeHandler
+          // If doc has data but store doesn't, patches should have been generated when data was written
+          // The automergeChangeHandler (set up above) should process them automatically
+          // Just wait a bit for patches to be processed, then set status
           if (docShapes > 0 && existingStoreShapes.length === 0) {
-            console.log(`📊 Doc has ${docShapes} shapes but store is empty. Triggering patches to populate store (patch-based loading)...`)
+            console.log(`📊 Doc has ${docShapes} shapes but store is empty. Waiting for patches to be processed by handler...`)
             
-            // Trigger patches by touching the document - this will cause automergeChangeHandler to fire
-            // The handler will process all existing records via patches (same as dev)
-            handle.change((doc: any) => {
-              if (doc.store && Object.keys(doc.store).length > 0) {
-                // Touch the first record to trigger change detection and patch generation
-                const firstKey = Object.keys(doc.store)[0]
-                if (firstKey) {
-                  // This minimal change triggers Automerge to generate patches for all records
-                  doc.store[firstKey] = { ...doc.store[firstKey] }
-                }
-              }
-            })
-            
-            // Wait for patches to be processed by automergeChangeHandler
-            // Give it time for the handler to apply patches to the store
+            // Wait briefly for patches to be processed by automergeChangeHandler
+            // The handler is already set up, so it should catch patches from the initial data load
             let attempts = 0
-            const maxAttempts = 20 // Wait up to 4 seconds (20 * 200ms)
+            const maxAttempts = 10 // Wait up to 2 seconds (10 * 200ms)
             
             await new Promise<void>(resolve => {
               const checkForPatches = () => {
@@ -403,7 +406,19 @@ export function useAutomergeStoreV2({
                 const currentShapes = store.allRecords().filter((r: any) => r.typeName === 'shape')
                 
                 if (currentShapes.length > 0) {
-                  console.log(`✅ Patches applied successfully: ${currentShapes.length} shapes loaded via patches (same as dev)`)
+                  console.log(`✅ Patches applied successfully: ${currentShapes.length} shapes loaded via patches`)
+                  
+                  // Refresh shapes to ensure editor sees them
+                  setTimeout(() => {
+                    const shapesToRefresh = currentShapes.map(s => store.get(s.id)).filter((s): s is TLRecord => s !== undefined && s.typeName === 'shape')
+                    if (shapesToRefresh.length > 0) {
+                      store.mergeRemoteChanges(() => {
+                        store.put(shapesToRefresh)
+                      })
+                      console.log(`📊 Refreshed ${shapesToRefresh.length} shapes to ensure editor visibility`)
+                    }
+                  }, 100)
+                  
                   setStoreWithStatus({
                     store,
                     status: "synced-remote",
@@ -413,8 +428,72 @@ export function useAutomergeStoreV2({
                 } else if (attempts < maxAttempts) {
                   setTimeout(checkForPatches, 200)
                 } else {
-                  console.warn(`⚠️ Patches didn't populate store after ${maxAttempts * 200}ms. This shouldn't happen - patches should always work.`)
-                  // Still set status to synced - patches might come through later
+                  // Patches didn't come through - handler may have missed them if data was written before handler was set up
+                  // In this case, we need to manually apply the data via patches
+                  // We'll trigger patches by making a safe change that doesn't modify existing objects
+                  console.log(`⚠️ Patches didn't populate store. Handler may have missed initial patches. Applying data directly via patches...`)
+                  
+                  try {
+                    // Read all records from Automerge doc and apply them directly to store
+                    // This is a fallback when patches are missed (works for both dev and production)
+                    // Use the same sanitization as patches would use to ensure consistency
+                    const allRecords: TLRecord[] = []
+                    Object.entries(doc.store).forEach(([id, record]: [string, any]) => {
+                      // Skip invalid records and custom record types (same as patch processing)
+                      if (!record || !record.typeName || !record.id) {
+                        return
+                      }
+                      
+                      // Skip obsidian_vault records - they're not TLDraw records
+                      if (record.typeName === 'obsidian_vault' || 
+                          (typeof record.id === 'string' && record.id.startsWith('obsidian_vault:'))) {
+                        return
+                      }
+                      
+                      try {
+                        // Create a clean copy of the record
+                        const cleanRecord = JSON.parse(JSON.stringify(record))
+                        // CRITICAL: Use the same sanitizeRecord function that patches use
+                        // This ensures consistency between dev and production
+                        const sanitized = sanitizeRecord(cleanRecord)
+                        allRecords.push(sanitized)
+                      } catch (e) {
+                        console.warn(`⚠️ Could not serialize/sanitize record ${id}:`, e)
+                      }
+                    })
+                    
+                    if (allRecords.length > 0) {
+                      // Apply records directly to store using mergeRemoteChanges
+                      // This bypasses patches but ensures data is loaded (works for both dev and production)
+                      // Use mergeRemoteChanges to mark as remote changes (prevents feedback loop)
+                      store.mergeRemoteChanges(() => {
+                        // Separate pages, shapes, and other records to ensure proper loading order
+                        const pageRecords = allRecords.filter(r => r.typeName === 'page')
+                        const shapeRecords = allRecords.filter(r => r.typeName === 'shape')
+                        const otherRecords = allRecords.filter(r => r.typeName !== 'page' && r.typeName !== 'shape')
+                        
+                        // Put pages first, then other records, then shapes (ensures pages exist before shapes reference them)
+                        const recordsToAdd = [...pageRecords, ...otherRecords, ...shapeRecords]
+                        store.put(recordsToAdd)
+                      })
+                      console.log(`✅ Applied ${allRecords.length} records directly to store (fallback for missed patches - works in dev and production)`)
+                      
+                      // Refresh shapes to ensure editor sees them
+                      setTimeout(() => {
+                        const shapes = store.allRecords().filter((r: any) => r.typeName === 'shape')
+                        const shapesToRefresh = shapes.map(s => store.get(s.id)).filter((s): s is TLRecord => s !== undefined && s.typeName === 'shape')
+                        if (shapesToRefresh.length > 0) {
+                          store.mergeRemoteChanges(() => {
+                            store.put(shapesToRefresh)
+                          })
+                          console.log(`📊 Refreshed ${shapesToRefresh.length} shapes to ensure editor visibility`)
+                        }
+                      }, 100)
+                    }
+                  } catch (error) {
+                    console.error(`❌ Error applying records directly:`, error)
+                  }
+                  
                   setStoreWithStatus({
                     store,
                     status: "synced-remote",
@@ -424,10 +503,11 @@ export function useAutomergeStoreV2({
                 }
               }
               
-              setTimeout(checkForPatches, 200)
+              // Start checking immediately since handler is already set up
+              setTimeout(checkForPatches, 100)
             })
             
-            return // Always return - patches handle everything, no bulk loading
+            return
           }
           
           // If doc is empty, just set status

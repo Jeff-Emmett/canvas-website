@@ -310,7 +310,7 @@ function cleanRichTextNaN(richText: any): any {
 }
 
 // Minimal sanitization - only fix critical issues that break TLDraw
-// EXPORTED: Use this same sanitization in production bulk loading to match dev mode behavior
+// EXPORTED: Use this same sanitization for patch-based loading (same as dev mode)
 export function sanitizeRecord(record: any): TLRecord {
   const sanitized = { ...record }
   
@@ -567,6 +567,47 @@ export function sanitizeRecord(record: any): TLRecord {
       // Only remove properties that cause validation errors (not all "invalid" ones)
       if ('h' in sanitized.props) delete sanitized.props.h
       if ('geo' in sanitized.props) delete sanitized.props.geo
+    }
+  } else if (sanitized.typeName === 'instance') {
+    // CRITICAL: Handle instance records - ensure required fields exist
+    if (!sanitized.meta || typeof sanitized.meta !== 'object') {
+      sanitized.meta = {}
+    } else {
+      sanitized.meta = { ...sanitized.meta }
+    }
+    // Only fix critical instance fields that cause validation errors
+    if ('brush' in sanitized && (sanitized.brush === null || sanitized.brush === undefined)) {
+      (sanitized as any).brush = { x: 0, y: 0, w: 0, h: 0 }
+    }
+    if ('zoomBrush' in sanitized && (sanitized.zoomBrush === null || sanitized.zoomBrush === undefined)) {
+      (sanitized as any).zoomBrush = { x: 0, y: 0, w: 0, h: 0 }
+    }
+    if ('insets' in sanitized && (sanitized.insets === undefined || !Array.isArray(sanitized.insets))) {
+      (sanitized as any).insets = [false, false, false, false]
+    }
+    if ('scribbles' in sanitized && (sanitized.scribbles === undefined || !Array.isArray(sanitized.scribbles))) {
+      (sanitized as any).scribbles = []
+    }
+    // CRITICAL: duplicateProps is REQUIRED for instance records - TLDraw validation will fail without it
+    if (!('duplicateProps' in sanitized) || sanitized.duplicateProps === undefined || typeof sanitized.duplicateProps !== 'object') {
+      (sanitized as any).duplicateProps = { 
+        shapeIds: [],
+        offset: { x: 0, y: 0 }
+      }
+    }
+  } else if (sanitized.typeName === 'document') {
+    // CRITICAL: Preserve all existing meta properties
+    if (!sanitized.meta || typeof sanitized.meta !== 'object') {
+      sanitized.meta = {}
+    } else {
+      sanitized.meta = { ...sanitized.meta }
+    }
+  } else if (sanitized.typeName === 'page') {
+    // CRITICAL: Preserve all existing meta properties
+    if (!sanitized.meta || typeof sanitized.meta !== 'object') {
+      sanitized.meta = {}
+    } else {
+      sanitized.meta = { ...sanitized.meta }
     }
   }
   
