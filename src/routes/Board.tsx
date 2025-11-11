@@ -243,6 +243,9 @@ export function Board() {
       const editorShapes = editor.getCurrentPageShapes()
       const currentPageId = editor.getCurrentPageId()
       
+      // Get all shapes from store
+      const storeShapes = store.store.allRecords().filter((r: any) => r.typeName === 'shape') || []
+      
       // Get shapes on current page from store
       const storeShapesOnCurrentPage = storeShapes.filter((s: any) => s.parentId === currentPageId)
       
@@ -296,13 +299,13 @@ export function Board() {
           // Try to get the shapes from the editor to see if they exist but aren't being returned
           const missingShapeIds = missingShapes.map((s: any) => s.id)
           const shapesFromEditor = missingShapeIds
-            .map(id => editor.getShape(id))
+            .map((id: string) => editor.getShape(id))
             .filter((s): s is NonNullable<typeof s> => s !== undefined)
           
           if (shapesFromEditor.length > 0) {
             console.log(`📊 Board: ${shapesFromEditor.length} missing shapes actually exist in editor but aren't in getCurrentPageShapes()`)
             // Try to select them to make them visible
-            const shapeIds = shapesFromEditor.map(s => s.id).filter((id): id is TLShapeId => id !== undefined)
+            const shapeIds = shapesFromEditor.map((s: any) => s.id).filter((id: string): id is TLShapeId => id !== undefined)
             if (shapeIds.length > 0) {
               editor.setSelectedShapes(shapeIds)
             }
@@ -325,7 +328,7 @@ export function Board() {
                   return shapeFromStore
                 }
                 return null
-              }).filter((s): s is TLRecord => s !== null)
+              }).filter((s: TLRecord | null): s is TLRecord => s !== null)
               
               if (refreshedShapes.length > 0) {
                 console.log(`📊 Board: Refreshing ${refreshedShapes.length} shapes in store`)
@@ -435,17 +438,17 @@ export function Board() {
                 if (shapesOnNewPage.length > 0) {
                   // Try to manually add shapes that might have validation issues
                   console.log(`📊 Board: Attempting to force visibility by selecting all shapes on page`)
-                  const shapeIds = shapesOnNewPage.map((s: any) => s.id).filter((id): id is TLShapeId => id !== undefined)
-                  if (shapeIds.length > 0) {
-                    // Try to get shapes from editor to see if they exist
-                    const existingShapes = shapeIds
-                      .map(id => editor.getShape(id))
-                      .filter((s): s is NonNullable<typeof s> => s !== undefined)
+                    const shapeIds = shapesOnNewPage.map((s: any) => s.id).filter((id: string): id is TLShapeId => id !== undefined)
+                    if (shapeIds.length > 0) {
+                      // Try to get shapes from editor to see if they exist
+                      const existingShapes = shapeIds
+                        .map((id: string) => editor.getShape(id))
+                        .filter((s): s is NonNullable<typeof s> => s !== undefined)
                     console.log(`📊 Board: ${existingShapes.length} of ${shapeIds.length} shapes exist in editor`)
-                    if (existingShapes.length > 0) {
-                      editor.setSelectedShapes(existingShapes.map(s => s.id))
-                      editor.zoomToFit()
-                    }
+                      if (existingShapes.length > 0) {
+                        editor.setSelectedShapes(existingShapes.map((s: any) => s.id))
+                        editor.zoomToFit()
+                      }
                   }
                 }
               }
@@ -634,7 +637,7 @@ export function Board() {
 
   // Use shape count as key to force remount when shapes are loaded
   // This ensures Tldraw re-initializes with all shapes, matching dev behavior
-  const shapeCount = store.store.allRecords().filter((r: any) => r.typeName === 'shape').length
+  const shapeCount = store.store ? store.store.allRecords().filter((r: any) => r.typeName === 'shape').length : 0
   const storeKey = `tldraw-${shapeCount}-${isSynced}`
 
   return (
