@@ -6,6 +6,9 @@ import { useState, useEffect, useRef } from "react"
 import { useDialogs } from "tldraw"
 import { SettingsDialog } from "./SettingsDialog"
 import { useAuth } from "../context/AuthContext"
+import { useBlockchain } from "../context/BlockchainContext"
+import { useNotifications } from "../context/NotificationContext"
+import { unlinkAccount } from "../lib/auth/blockchainLinking"
 import LoginButton from "../components/auth/LoginButton"
 import StarBoardButton from "../components/StarBoardButton"
 import { ObsidianVaultBrowser } from "../components/ObsidianVaultBrowser"
@@ -25,7 +28,10 @@ export function CustomToolbar() {
   const { addDialog, removeDialog } = useDialogs()
 
   const { session, setSession, clearSession } = useAuth()
+  const { wallet, linkedAccount, isConnecting, connect, linkWebCryptoAccount, disconnect } = useBlockchain()
+  const { addNotification } = useNotifications()
   const [showProfilePopup, setShowProfilePopup] = useState(false)
+  const [isLinking, setIsLinking] = useState(false)
   const [showVaultBrowser, setShowVaultBrowser] = useState(false)
   const [showHolonBrowser, setShowHolonBrowser] = useState(false)
   const [vaultBrowserMode, setVaultBrowserMode] = useState<'keyboard' | 'button'>('keyboard')
@@ -769,6 +775,195 @@ export function CustomToolbar() {
                   >
                     {session.obsidianVaultName ? "Change Vault" : "Set Vault"}
                   </button>
+                </div>
+                
+                {/* Blockchain Wallet Settings */}
+                <div style={{ 
+                  marginBottom: "16px", 
+                  padding: "12px",
+                  backgroundColor: "#f8f9fa",
+                  borderRadius: "4px",
+                  border: "1px solid #e9ecef"
+                }}>
+                  <div style={{ 
+                    display: "flex", 
+                    alignItems: "center", 
+                    justifyContent: "space-between",
+                    marginBottom: "8px"
+                  }}>
+                    <span style={{ fontWeight: "500" }}>Blockchain Wallet</span>
+                    <span style={{ fontSize: "14px" }}>
+                      {linkedAccount ? "✅ Linked" : wallet ? "🔗 Connected" : "❌ Not connected"}
+                    </span>
+                  </div>
+                  
+                  {wallet ? (
+                    <div style={{ marginBottom: "8px" }}>
+                      <div style={{ 
+                        fontSize: "12px", 
+                        color: "#007acc",
+                        fontWeight: "600",
+                        marginBottom: "4px"
+                      }}>
+                        {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
+                      </div>
+                      <div style={{ 
+                        fontSize: "11px", 
+                        color: "#666",
+                        fontFamily: "monospace"
+                      }}>
+                        Chain ID: {wallet.chainId}
+                      </div>
+                      {linkedAccount && (
+                        <div style={{ 
+                          fontSize: "11px", 
+                          color: "#10b981",
+                          marginTop: "4px"
+                        }}>
+                          ✓ Linked to Web Crypto account
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p style={{ 
+                      fontSize: "12px", 
+                      color: "#666",
+                      margin: "0 0 8px 0"
+                    }}>
+                      Connect a wallet to enable blockchain transactions
+                    </p>
+                  )}
+                  
+                  {!wallet ? (
+                    <button
+                      onClick={async () => {
+                        try {
+                          await connect()
+                          addNotification('Wallet connected successfully', 'success')
+                        } catch (error: any) {
+                          addNotification(error.message || 'Failed to connect wallet', 'error')
+                        }
+                      }}
+                      disabled={isConnecting}
+                      style={{
+                        width: "100%",
+                        padding: "6px 12px",
+                        backgroundColor: "#28a745",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "4px",
+                        cursor: "pointer",
+                        fontSize: "12px",
+                        fontWeight: "500",
+                        transition: "background 0.2s",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isConnecting) e.currentTarget.style.backgroundColor = "#218838"
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isConnecting) e.currentTarget.style.backgroundColor = "#28a745"
+                      }}
+                    >
+                      {isConnecting ? "Connecting..." : "Connect Wallet"}
+                    </button>
+                  ) : (
+                    <div style={{ display: "flex", gap: "4px" }}>
+                      {!linkedAccount ? (
+                        <button
+                          onClick={async () => {
+                            setIsLinking(true)
+                            try {
+                              const result = await linkWebCryptoAccount(session.username)
+                              if (result.success) {
+                                addNotification('Account linked successfully!', 'success')
+                              } else {
+                                addNotification(result.error || 'Failed to link account', 'error')
+                              }
+                            } catch (error: any) {
+                              addNotification(error.message || 'Failed to link account', 'error')
+                            } finally {
+                              setIsLinking(false)
+                            }
+                          }}
+                          disabled={isLinking}
+                          style={{
+                            flex: 1,
+                            padding: "6px 12px",
+                            backgroundColor: "#007acc",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            fontSize: "12px",
+                            fontWeight: "500",
+                            transition: "background 0.2s",
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isLinking) e.currentTarget.style.backgroundColor = "#005a9e"
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isLinking) e.currentTarget.style.backgroundColor = "#007acc"
+                          }}
+                        >
+                          {isLinking ? "Linking..." : "Link Account"}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            if (unlinkAccount(session.username)) {
+                              disconnect()
+                              addNotification('Account unlinked successfully', 'success')
+                            } else {
+                              addNotification('Failed to unlink account', 'error')
+                            }
+                          }}
+                          style={{
+                            flex: 1,
+                            padding: "6px 12px",
+                            backgroundColor: "#dc3545",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            fontSize: "12px",
+                            fontWeight: "500",
+                            transition: "background 0.2s",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = "#c82333"
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = "#dc3545"
+                          }}
+                        >
+                          Unlink
+                        </button>
+                      )}
+                      <button
+                        onClick={disconnect}
+                        style={{
+                          flex: 1,
+                          padding: "6px 12px",
+                          backgroundColor: "#6c757d",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "4px",
+                          cursor: "pointer",
+                          fontSize: "12px",
+                          fontWeight: "500",
+                          transition: "background 0.2s",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = "#5a6268"
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "#6c757d"
+                        }}
+                      >
+                        Disconnect
+                      </button>
+                    </div>
+                  )}
                 </div>
                 
                 <a

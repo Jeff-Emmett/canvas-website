@@ -1,5 +1,6 @@
 import * as crypto from './crypto';
 import { isBrowser } from '../utils/browser';
+import { storeKeyPairInMemory } from './keyStorage';
 
 export interface CryptoAuthResult {
   success: boolean;
@@ -87,6 +88,10 @@ export class CryptoAuthService {
       // Store user credentials
       crypto.addRegisteredUser(username);
       crypto.storePublicKey(username, publicKeyBase64);
+
+      // Store the key pair in memory for blockchain signing
+      // In production, use Web Crypto API's persistent key storage
+      storeKeyPairInMemory(username, keyPair);
 
       // Store the authentication data securely (in a real app, this would be more secure)
       localStorage.setItem(`${username}_authData`, JSON.stringify({

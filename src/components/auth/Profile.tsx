@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useBlockchain } from '../../context/BlockchainContext';
+import { useNotifications } from '../../context/NotificationContext';
+import { unlinkAccount } from '../../lib/auth/blockchainLinking';
 
 interface ProfileProps {
   onLogout?: () => void;
@@ -8,8 +11,11 @@ interface ProfileProps {
 
 export const Profile: React.FC<ProfileProps> = ({ onLogout, onOpenVaultBrowser }) => {
   const { session, updateSession, clearSession } = useAuth();
+  const { wallet, linkedAccount, isConnecting, connect, linkWebCryptoAccount, disconnect } = useBlockchain();
+  const { addNotification } = useNotifications();
   const [vaultPath, setVaultPath] = useState(session.obsidianVaultPath || '');
   const [isEditingVault, setIsEditingVault] = useState(false);
+  const [isLinking, setIsLinking] = useState(false);
 
   const handleVaultPathChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setVaultPath(e.target.value);
@@ -38,6 +44,45 @@ export const Profile: React.FC<ProfileProps> = ({ onLogout, onOpenVaultBrowser }
   const handleChangeVault = () => {
     if (onOpenVaultBrowser) {
       onOpenVaultBrowser();
+    }
+  };
+
+  const handleConnectWallet = async () => {
+    try {
+      await connect();
+      addNotification('Wallet connected successfully', 'success');
+    } catch (error: any) {
+      addNotification(error.message || 'Failed to connect wallet', 'error');
+    }
+  };
+
+  const handleLinkAccount = async () => {
+    if (!wallet) {
+      addNotification('Please connect your wallet first', 'error');
+      return;
+    }
+
+    setIsLinking(true);
+    try {
+      const result = await linkWebCryptoAccount(session.username);
+      if (result.success) {
+        addNotification('Account linked successfully!', 'success');
+      } else {
+        addNotification(result.error || 'Failed to link account', 'error');
+      }
+    } catch (error: any) {
+      addNotification(error.message || 'Failed to link account', 'error');
+    } finally {
+      setIsLinking(false);
+    }
+  };
+
+  const handleUnlinkAccount = () => {
+    if (unlinkAccount(session.username)) {
+      disconnect();
+      addNotification('Account unlinked successfully', 'success');
+    } else {
+      addNotification('Failed to unlink account', 'error');
     }
   };
 
@@ -146,6 +191,116 @@ export const Profile: React.FC<ProfileProps> = ({ onLogout, onOpenVaultBrowser }
             )}
           </div>
         </details>
+      </div>
+
+      {/* Blockchain Wallet Section */}
+      <div className="profile-settings">
+        <h4>Blockchain Wallet</h4>
+        
+        {/* Current Wallet Display */}
+        <div className="current-vault-section">
+          {wallet ? (
+            <div className="vault-info">
+              <div className="vault-name">
+                <span className="vault-label">Connected Wallet:</span>
+                <span className="vault-name-text">{wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}</span>
+              </div>
+              <div className="vault-path-info">
+                Chain ID: {wallet.chainId}
+              </div>
+              {linkedAccount && (
+                <div className="vault-path-info" style={{ marginTop: '8px', color: '#10b981' }}>
+                  ✓ Linked to Web Crypto account
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="no-vault-info">
+              <span className="no-vault-text">No wallet connected</span>
+            </div>
+          )}
+        </div>
+
+        {/* Wallet Actions */}
+        <div className="vault-actions-section">
+          {!wallet ? (
+            <button 
+              onClick={handleConnectWallet} 
+              disabled={isConnecting}
+              className="change-vault-button"
+            >
+              {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+            </button>
+          ) : (
+            <>
+              {!linkedAccount ? (
+                <button 
+                  onClick={handleLinkAccount} 
+                  disabled={isLinking}
+                  className="change-vault-button"
+                >
+                  {isLinking ? 'Linking...' : 'Link to Web Crypto Account'}
+                </button>
+              ) : (
+                <button 
+                  onClick={handleUnlinkAccount}
+                  className="disconnect-vault-button"
+                >
+                  🔌 Unlink Wallet
+                </button>
+              )}
+              <button 
+                onClick={disconnect}
+                className="disconnect-vault-button"
+                style={{ marginLeft: '8px' }}
+              >
+                Disconnect Wallet
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Linked Account Details */}
+        {linkedAccount && (
+          <details className="advanced-vault-settings" style={{ marginTop: '16px' }}>
+            <summary>Wallet Details</summary>
+            <div className="vault-settings">
+              <div className="vault-display">
+                <div className="vault-path-display">
+                  <p><strong>Ethereum Address:</strong></p>
+                  <code style={{ 
+                    display: 'block', 
+                    padding: '8px', 
+                    background: '#f8f9fa', 
+                    borderRadius: '4px',
+                    wordBreak: 'break-all',
+                    fontSize: '12px'
+                  }}>
+                    {linkedAccount.ethereumAddress}
+                  </code>
+                  {linkedAccount.proxyContractAddress && (
+                    <>
+                      <p style={{ marginTop: '12px' }}><strong>Proxy Contract:</strong></p>
+                      <code style={{ 
+                        display: 'block', 
+                        padding: '8px', 
+                        background: '#f8f9fa', 
+                        borderRadius: '4px',
+                        wordBreak: 'break-all',
+                        fontSize: '12px'
+                      }}>
+                        {linkedAccount.proxyContractAddress}
+                      </code>
+                    </>
+                  )}
+                  <p style={{ marginTop: '12px', fontSize: '12px', color: '#6c757d' }}>
+                    Linked on {new Date(linkedAccount.linkedAt).toLocaleDateString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </details>
+        )}
       </div>
 
       <div className="profile-actions">

@@ -28,6 +28,7 @@ import { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { FileSystemProvider } from './context/FileSystemContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { BlockchainProvider } from './context/BlockchainContext';
 import NotificationsDisplay from './components/NotificationsDisplay';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -102,8 +103,9 @@ const AppWithProviders = () => {
       <AuthProvider>
         <FileSystemProvider>
           <NotificationProvider>
-            <DailyProvider callObject={callObject}>
-              <BrowserRouter>
+            <BlockchainProvider>
+              <DailyProvider callObject={callObject}>
+                <BrowserRouter>
                 {/* Display notifications */}
                 <NotificationsDisplay />
                 
@@ -169,8 +171,9 @@ const AppWithProviders = () => {
                     </OptionalAuthRoute>
                   } />
                 </Routes>
-              </BrowserRouter>
-            </DailyProvider>
+                </BrowserRouter>
+              </DailyProvider>
+            </BlockchainProvider>
           </NotificationProvider>
         </FileSystemProvider>
       </AuthProvider>
