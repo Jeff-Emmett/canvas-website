@@ -634,7 +634,17 @@ export function Board() {
 
   // Only render Tldraw when store is ready and synced
   // This ensures shapes are loaded before Tldraw initializes
-  if (!store.store || store.status !== 'synced-remote') {
+  // In production, be more lenient - allow rendering if store exists and has shapes
+  const isProduction = import.meta.env.PROD || import.meta.env.MODE === 'production'
+  const hasStore = !!store.store
+  const isSynced = store.status === 'synced-remote'
+  const hasShapes = store.store ? store.store.allRecords().filter((r: any) => r.typeName === 'shape').length > 0 : false
+  
+  // In production, allow rendering if store exists and has shapes, even if not fully synced
+  // This handles cases where network issues prevent 'synced-remote' status
+  const shouldRender = hasStore && (isSynced || (isProduction && hasShapes))
+  
+  if (!shouldRender) {
     return (
       <AutomergeHandleProvider handle={automergeHandle}>
         <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
