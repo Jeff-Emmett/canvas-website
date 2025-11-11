@@ -493,24 +493,19 @@ export function Board() {
       }
     }
     
-    // Initial check after a short delay to ensure editor is ready
-    setTimeout(checkAndFixMissingShapes, 500)
+    // REMOVED: Recurring checks that were causing coordinate resets
+    // Only do initial check once after shapes are loaded
+    // The recurring checks were triggering store.put operations that caused
+    // coordinates to reset when patches came back from Automerge
     
-    // Also check after shapes are loaded (give more time for initial load)
-    setTimeout(checkAndFixMissingShapes, 2000)
-    setTimeout(checkAndFixMissingShapes, 5000)
-    
-    // Listen to store changes to continuously monitor for missing shapes
-    // Listen to ALL sources (user, remote, etc.) to catch shapes loaded from Automerge
-    let checkTimeout: NodeJS.Timeout | null = null
-    const unsubscribe = store.store.listen(() => {
-      // Use consistent debounce for both dev and prod
-      if (checkTimeout) clearTimeout(checkTimeout)
-      checkTimeout = setTimeout(checkAndFixMissingShapes, 500)
-    })
+    // Single check after shapes are loaded (give time for initial load)
+    // This is the only time we'll fix missing shapes - no recurring checks
+    const initialCheckTimeout = setTimeout(() => {
+      checkAndFixMissingShapes()
+    }, 3000) // Wait 3 seconds for initial load to complete
     
     return () => {
-      unsubscribe()
+      clearTimeout(initialCheckTimeout)
     }
   }, [editor, store.store, store.status])
 
