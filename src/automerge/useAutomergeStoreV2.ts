@@ -376,8 +376,11 @@ export function useAutomergeStoreV2({
                 const shapeFromStore = store.get(s.id)
                 if (shapeFromStore && shapeFromStore.typeName === 'shape') {
                   // Preserve original x and y from the store shape data
-                  const originalX = s.x !== undefined && typeof s.x === 'number' && !isNaN(s.x) ? s.x : (shapeFromStore as any).x
-                  const originalY = s.y !== undefined && typeof s.y === 'number' && !isNaN(s.y) ? s.y : (shapeFromStore as any).y
+                  // Type assertion needed because s is TLRecord but we know it's a shape
+                  const sAny = s as any
+                  const shapeFromStoreAny = shapeFromStore as any
+                  const originalX = sAny.x !== undefined && typeof sAny.x === 'number' && !isNaN(sAny.x) ? sAny.x : shapeFromStoreAny.x
+                  const originalY = sAny.y !== undefined && typeof sAny.y === 'number' && !isNaN(sAny.y) ? sAny.y : shapeFromStoreAny.y
                   
                   // Ensure x and y are preserved
                   if (typeof originalX === 'number' && !isNaN(originalX) && typeof originalY === 'number' && !isNaN(originalY)) {
@@ -440,8 +443,11 @@ export function useAutomergeStoreV2({
                       const shapeFromStore = store.get(s.id)
                       if (shapeFromStore && shapeFromStore.typeName === 'shape') {
                         // Preserve original x and y from the store shape data
-                        const originalX = s.x !== undefined && typeof s.x === 'number' && !isNaN(s.x) ? s.x : (shapeFromStore as any).x
-                        const originalY = s.y !== undefined && typeof s.y === 'number' && !isNaN(s.y) ? s.y : (shapeFromStore as any).y
+                        // Type assertion needed because s is TLRecord but we know it's a shape
+                        const sAny = s as any
+                        const shapeFromStoreAny = shapeFromStore as any
+                        const originalX = sAny.x !== undefined && typeof sAny.x === 'number' && !isNaN(sAny.x) ? sAny.x : shapeFromStoreAny.x
+                        const originalY = sAny.y !== undefined && typeof sAny.y === 'number' && !isNaN(sAny.y) ? sAny.y : shapeFromStoreAny.y
                         
                         // Ensure x and y are preserved
                         if (typeof originalX === 'number' && !isNaN(originalX) && typeof originalY === 'number' && !isNaN(originalY)) {
@@ -537,8 +543,11 @@ export function useAutomergeStoreV2({
                           const shapeFromStore = store.get(s.id)
                           if (shapeFromStore && shapeFromStore.typeName === 'shape') {
                             // Preserve original x and y from the store shape data
-                            const originalX = s.x !== undefined && typeof s.x === 'number' && !isNaN(s.x) ? s.x : (shapeFromStore as any).x
-                            const originalY = s.y !== undefined && typeof s.y === 'number' && !isNaN(s.y) ? s.y : (shapeFromStore as any).y
+                            // Type assertion needed because s is TLRecord but we know it's a shape
+                            const sAny = s as any
+                            const shapeFromStoreAny = shapeFromStore as any
+                            const originalX = sAny.x !== undefined && typeof sAny.x === 'number' && !isNaN(sAny.x) ? sAny.x : shapeFromStoreAny.x
+                            const originalY = sAny.y !== undefined && typeof sAny.y === 'number' && !isNaN(sAny.y) ? sAny.y : shapeFromStoreAny.y
                             
                             // Ensure x and y are preserved
                             if (typeof originalX === 'number' && !isNaN(originalX) && typeof originalY === 'number' && !isNaN(originalY)) {
