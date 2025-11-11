@@ -288,7 +288,22 @@ export function Board() {
         console.warn(`⚠️ Board: ${storeShapes.length} shapes in store (${storeShapesOnCurrentPage.length} on current page) but editor sees 0. Forcing refresh...`)
         
         // Force refresh by re-putting shapes with mergeRemoteChanges
-        const shapesToRefresh = storeShapesOnCurrentPage.map((s: any) => store.store!.get(s.id)).filter((s): s is TLRecord => s !== undefined && s.typeName === 'shape')
+        // CRITICAL: Preserve x and y coordinates when refreshing shapes
+        const shapesToRefresh = storeShapesOnCurrentPage.map((s: any) => {
+          const shapeFromStore = store.store!.get(s.id)
+          if (shapeFromStore && shapeFromStore.typeName === 'shape') {
+            // Preserve original x and y from the store shape data
+            const originalX = s.x !== undefined && typeof s.x === 'number' && !isNaN(s.x) ? s.x : (shapeFromStore as any).x
+            const originalY = s.y !== undefined && typeof s.y === 'number' && !isNaN(s.y) ? s.y : (shapeFromStore as any).y
+            
+            // Ensure x and y are preserved
+            if (typeof originalX === 'number' && !isNaN(originalX) && typeof originalY === 'number' && !isNaN(originalY)) {
+              return { ...shapeFromStore, x: originalX, y: originalY } as TLRecord
+            }
+            return shapeFromStore
+          }
+          return null
+        }).filter((s): s is TLRecord => s !== null && s.typeName === 'shape')
         if (shapesToRefresh.length > 0) {
           store.store.mergeRemoteChanges(() => {
             store.store!.put(shapesToRefresh)
@@ -337,9 +352,18 @@ export function Board() {
               
               const currentStore = store.store
               const shapesToRefresh = missingShapes.slice(0, 10) // Limit to first 10 to avoid performance issues
+              // CRITICAL: Preserve x and y coordinates when refreshing shapes
               const refreshedShapes = shapesToRefresh.map((s: any) => {
                 const shapeFromStore = currentStore.get(s.id)
                 if (shapeFromStore && shapeFromStore.typeName === 'shape') {
+                  // Preserve original x and y from the store shape data
+                  const originalX = s.x !== undefined && typeof s.x === 'number' && !isNaN(s.x) ? s.x : (shapeFromStore as any).x
+                  const originalY = s.y !== undefined && typeof s.y === 'number' && !isNaN(s.y) ? s.y : (shapeFromStore as any).y
+                  
+                  // Ensure x and y are preserved
+                  if (typeof originalX === 'number' && !isNaN(originalX) && typeof originalY === 'number' && !isNaN(originalY)) {
+                    return { ...shapeFromStore, x: originalX, y: originalY } as TLRecord
+                  }
                   return shapeFromStore
                 }
                 return null
