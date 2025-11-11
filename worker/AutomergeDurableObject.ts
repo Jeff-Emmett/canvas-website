@@ -1069,11 +1069,12 @@ export class AutomergeDurableObject {
           }
           
           // Ensure other required shape properties exist
-          if (record.x === undefined) {
+          // CRITICAL: Check for undefined, null, or non-number values (including NaN)
+          if (record.x === undefined || record.x === null || typeof record.x !== 'number' || isNaN(record.x)) {
             record.x = 0
             needsUpdate = true
           }
-          if (record.y === undefined) {
+          if (record.y === undefined || record.y === null || typeof record.y !== 'number' || isNaN(record.y)) {
             record.y = 0
             needsUpdate = true
           }

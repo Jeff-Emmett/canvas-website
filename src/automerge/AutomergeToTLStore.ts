@@ -99,6 +99,17 @@ export function applyAutomergePatchesToTLStore(
     
     let record = updatedObjects[id] || (existingRecord ? JSON.parse(JSON.stringify(existingRecord)) : defaultRecord)
     
+    // CRITICAL: For shapes, ensure x and y are always present (even if record came from updatedObjects)
+    // This prevents coordinates from being lost when records are created from patches
+    if (record.typeName === 'shape') {
+      if (typeof record.x !== 'number' || record.x === null || isNaN(record.x)) {
+        record = { ...record, x: defaultRecord.x || 0 }
+      }
+      if (typeof record.y !== 'number' || record.y === null || isNaN(record.y)) {
+        record = { ...record, y: defaultRecord.y || 0 }
+      }
+    }
+    
     // CRITICAL: Ensure typeName matches ID pattern (fixes misclassification)
     // Note: obsidian_vault records are skipped above, so we don't need to handle them here
     if (typeof id === 'string') {
@@ -328,8 +339,9 @@ export function sanitizeRecord(record: any): TLRecord {
   // For shapes, only ensure basic required fields exist
   if (sanitized.typeName === 'shape') {
     // Ensure required shape fields exist
-    if (typeof sanitized.x !== 'number') sanitized.x = 0
-    if (typeof sanitized.y !== 'number') sanitized.y = 0
+    // CRITICAL: Check for non-number, null, undefined, or NaN values
+    if (typeof sanitized.x !== 'number' || sanitized.x === null || isNaN(sanitized.x)) sanitized.x = 0
+    if (typeof sanitized.y !== 'number' || sanitized.y === null || isNaN(sanitized.y)) sanitized.y = 0
     if (typeof sanitized.rotation !== 'number') sanitized.rotation = 0
     if (typeof sanitized.isLocked !== 'boolean') sanitized.isLocked = false
     if (typeof sanitized.opacity !== 'number') sanitized.opacity = 1
