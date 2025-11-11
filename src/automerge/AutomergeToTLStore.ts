@@ -349,6 +349,12 @@ export function sanitizeRecord(record: any): TLRecord {
     // Use JSON parse/stringify to create a deep copy of nested objects (like richText.content)
     sanitized.props = JSON.parse(JSON.stringify(sanitized.props))
     
+    // CRITICAL: Map old shape type names to new ones (migration support)
+    // This handles renamed shape types from old data
+    if (sanitized.type === 'Transcribe') {
+      sanitized.type = 'Transcription'
+    }
+    
     // CRITICAL: Infer type from properties BEFORE defaulting to 'geo'
     // This ensures arrows and other shapes are properly recognized
     if (!sanitized.type || typeof sanitized.type !== 'string') {
