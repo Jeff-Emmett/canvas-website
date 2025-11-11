@@ -561,8 +561,8 @@ export function useAutomergeStoreV2({
               x: s.x,
               y: s.y,
               hasProps: !!s.props,
-              propsW: s.props?.w,
-              propsH: s.props?.h,
+              propsW: (s.props as any)?.w,
+              propsH: (s.props as any)?.h,
               parentId: s.parentId
             })))
             if (shapesToLoad.length > 20) {
@@ -603,8 +603,11 @@ export function useAutomergeStoreV2({
                 // Verify all shapes have valid parentId pointing to an existing page
                 const pageIds = new Set(pageRecords.map(p => p.id))
                 const shapesWithInvalidParent = recordsToAdd.filter(r => {
-                  if (r.typeName === 'shape' && r.parentId) {
-                    return !pageIds.has(r.parentId)
+                  if (r.typeName === 'shape') {
+                    const shape = r as any
+                    if (shape.parentId) {
+                      return !pageIds.has(shape.parentId as any)
+                    }
                   }
                   return false
                 })
@@ -613,8 +616,9 @@ export function useAutomergeStoreV2({
                   console.warn(`⚠️ Found ${shapesWithInvalidParent.length} shapes with invalid parentId, fixing...`)
                   shapesWithInvalidParent.forEach(shape => {
                     const defaultPageId = pageRecords[0]?.id || 'page:page'
-                    console.log(`🔧 Fixing shape ${shape.id}: parentId ${shape.parentId} -> ${defaultPageId}`)
-                    ;(shape as any).parentId = defaultPageId
+                    const shapeRecord = shape as any
+                    console.log(`🔧 Fixing shape ${shapeRecord.id}: parentId ${shapeRecord.parentId} -> ${defaultPageId}`)
+                    shapeRecord.parentId = defaultPageId
                   })
                 }
                 
