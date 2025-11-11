@@ -18,33 +18,35 @@ See `CLOUDFLARE_PAGES_MIGRATION.md` for detailed migration guide.
 
 ## Worker Deployment Strategy
 
-**Recommendation: Use GitHub Actions only** to avoid conflicts and duplication.
+**Using Cloudflare's Native Git Integration** for automatic deployments.
 
 ### Current Setup
-- ✅ **GitHub Actions**: Deploys worker on push to `main` branch
-- ❌ **Cloudflare Workers Builds**: Also deploying (causing conflicts)
+- ✅ **Cloudflare Workers Builds**: Automatic deployment on push to `main` branch
+- ✅ **Build Status**: Integrated with GitHub (commit statuses, PR comments)
+- ✅ **Environment Support**: Production and preview environments
 
-### How to Disable Cloudflare Workers Builds
+### How to Configure Cloudflare Native Deployment
 
 1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com/)
 2. Navigate to **Workers & Pages** → **jeffemmett-canvas**
 3. Go to **Settings** → **Builds & Deployments**
-4. **Disable** "Automatically deploy from Git" or remove the Git integration
-5. Alternatively, go to **Settings** → **Integrations** and disconnect GitHub if connected
+4. Ensure **"Automatically deploy from Git"** is enabled
+5. Configure build settings:
+   - **Build command**: Leave empty (wrangler handles this automatically)
+   - **Root directory**: `/` (or leave empty)
+   - **Environment variables**: Set in Cloudflare dashboard (not in wrangler.toml)
 
-### Why Use GitHub Actions?
+### Why Use Cloudflare Native Deployment?
 
 **Advantages:**
-- ✅ Single source of truth for deployments
-- ✅ Better control over deployment process
-- ✅ Can add tests, checks, and conditional deployments
-- ✅ Version tracking in GitHub
-- ✅ No conflicts between two deployment systems
+- ✅ Simpler setup (no workflow files to maintain)
+- ✅ Integrated with Cloudflare dashboard
+- ✅ Automatic resource provisioning (KV, R2, Durable Objects)
+- ✅ Build status in GitHub (commit statuses, PR comments)
+- ✅ No GitHub Actions minutes usage
+- ✅ Less moving parts, easier to debug
 
-**Cloudflare Workers Builds:**
-- ❌ Can conflict with GitHub Actions
-- ❌ Less control over the process
-- ❌ Harder to debug when issues occur
+**Note:** The GitHub Action workflow has been deprecated (see `.github/workflows/deploy-worker.yml.disabled`) but kept as backup.
 
 ### Migration Fix
 

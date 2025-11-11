@@ -9,32 +9,29 @@
 - **Configuration**: Set in Cloudflare Pages dashboard
 - **Environment Variables**: Set in Cloudflare Pages dashboard (VITE_* variables)
 
-### ✅ Worker: GitHub Actions
-- **Production**: Deploys on push to `main` branch → uses `wrangler.toml`
-- **Dev**: Deploys on push to `automerge/**` branches → uses `wrangler.dev.toml`
-- **Manual**: Can trigger via GitHub Actions UI with environment selection
+### ✅ Worker: Cloudflare Native Git Integration
+- **Production**: Automatic deployment on push to `main` branch → uses `wrangler.toml`
+- **Preview**: Automatic deployment for pull requests → uses `wrangler.toml` (or can be configured for dev)
+- **Build Status**: Integrated with GitHub (commit statuses, PR comments)
+- **Configuration**: Managed in Cloudflare Dashboard → Settings → Builds & Deployments
 
 ### ❌ Vercel: Can be disabled
 - Frontend is now on Cloudflare Pages
 - Worker was never on Vercel
 - You can safely disconnect/delete the Vercel project
 
-## Why GitHub Actions for Workers?
+## Why Cloudflare Native Deployment?
 
-**GitHub Actions is better than Cloudflare's automatic worker deployments because:**
+**Cloudflare's native Git integration provides:**
 
-1. ✅ **More Control**: You can add tests, checks, conditional logic
-2. ✅ **Better Branching**: Different configs for dev vs prod
-3. ✅ **Manual Triggers**: Deploy specific environments on demand
-4. ✅ **No Conflicts**: Single source of truth (no competing deployments)
-5. ✅ **Version Tracking**: All deployments tracked in GitHub
-6. ✅ **Flexibility**: Can add deployment gates, notifications, etc.
+1. ✅ **Simplicity**: No workflow files to maintain, automatic setup
+2. ✅ **Integration**: Build status directly in GitHub (commit statuses, PR comments)
+3. ✅ **Resource Provisioning**: Automatically provisions KV, R2, Durable Objects
+4. ✅ **Environment Support**: Production and preview environments
+5. ✅ **Dashboard Integration**: All deployments visible in Cloudflare dashboard
+6. ✅ **No GitHub Actions Minutes**: Free deployment, no usage limits
 
-**Cloudflare's automatic worker deployments:**
-- ❌ Less control over the process
-- ❌ Can conflict with GitHub Actions
-- ❌ Harder to debug when issues occur
-- ❌ Limited branching/environment support
+**Note:** GitHub Actions workflow has been deprecated (see `.github/workflows/deploy-worker.yml.disabled`) but kept as backup if needed.
 
 ## Environment Switching
 
@@ -70,10 +67,10 @@ Set environment variables in Cloudflare Pages dashboard:
 2. Create PR → Auto-deploys to preview environment
 3. Environment variables set in Cloudflare dashboard
 
-### Worker (GitHub Actions)
+### Worker (Cloudflare Native)
 1. **Production**: Push to `main` → Auto-deploys to production worker
-2. **Dev**: Push to `automerge/**` branch → Auto-deploys to dev worker
-3. **Manual**: Go to Actions → "Deploy Worker" → Run workflow → Choose environment
+2. **Preview**: Create PR → Auto-deploys to preview environment (optional)
+3. **Manual**: Deploy via `wrangler deploy` command or Cloudflare dashboard
 
 ## Testing Both Environments
 
