@@ -469,11 +469,17 @@ export function Board() {
     // Initial check after a short delay to ensure editor is ready
     setTimeout(checkAndFixMissingShapes, 500)
     
+    // Also check after shapes are loaded (give more time for initial load)
+    setTimeout(checkAndFixMissingShapes, 2000)
+    setTimeout(checkAndFixMissingShapes, 5000)
+    
     // Listen to store changes to continuously monitor for missing shapes
     // Listen to ALL sources (user, remote, etc.) to catch shapes loaded from Automerge
+    let checkTimeout: NodeJS.Timeout | null = null
     const unsubscribe = store.store.listen(() => {
       // Use consistent debounce for both dev and prod
-      setTimeout(checkAndFixMissingShapes, 500)
+      if (checkTimeout) clearTimeout(checkTimeout)
+      checkTimeout = setTimeout(checkAndFixMissingShapes, 500)
     })
     
     return () => {
