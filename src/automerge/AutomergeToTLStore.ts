@@ -310,7 +310,8 @@ function cleanRichTextNaN(richText: any): any {
 }
 
 // Minimal sanitization - only fix critical issues that break TLDraw
-function sanitizeRecord(record: any): TLRecord {
+// EXPORTED: Use this same sanitization in production bulk loading to match dev mode behavior
+export function sanitizeRecord(record: any): TLRecord {
   const sanitized = { ...record }
   
   // CRITICAL FIXES ONLY - preserve all other properties
