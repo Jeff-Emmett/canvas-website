@@ -377,10 +377,28 @@ export function Board() {
         if (shapesWithInvalidParent.length > 0) {
           console.warn(`📊 Board: ${shapesWithInvalidParent.length} shapes have invalid or missing parentId. Fixing...`)
           // Fix shapes with invalid parentId by assigning them to current page
-          const fixedShapes = shapesWithInvalidParent.map((s: any) => ({
-            ...s,
-            parentId: currentPageId
-          }))
+          // CRITICAL: Preserve x and y coordinates when fixing parentId
+          const fixedShapes = shapesWithInvalidParent.map((s: any) => {
+            // Get the shape from store to ensure we have all properties
+            const shapeFromStore = store.store!.get(s.id)
+            if (shapeFromStore && shapeFromStore.typeName === 'shape') {
+              // Preserve original x and y coordinates
+              const originalX = s.x !== undefined && typeof s.x === 'number' && !isNaN(s.x) ? s.x : (shapeFromStore as any).x
+              const originalY = s.y !== undefined && typeof s.y === 'number' && !isNaN(s.y) ? s.y : (shapeFromStore as any).y
+              
+              // Create fixed shape with preserved coordinates
+              const fixed = { ...shapeFromStore, parentId: currentPageId }
+              if (typeof originalX === 'number' && !isNaN(originalX)) {
+                (fixed as any).x = originalX
+              }
+              if (typeof originalY === 'number' && !isNaN(originalY)) {
+                (fixed as any).y = originalY
+              }
+              return fixed as TLRecord
+            }
+            // Fallback if shape not in store
+            return { ...s, parentId: currentPageId } as TLRecord
+          })
           try {
             store.store.put(fixedShapes)
             console.log(`📊 Board: Fixed ${fixedShapes.length} shapes by assigning them to current page ${currentPageId}`)
