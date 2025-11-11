@@ -368,18 +368,26 @@ export function useAutomergeStoreV2({
           if (existingStoreShapes.length > 0) {
             console.log(`✅ Store already populated from patches (${existingStoreShapes.length} shapes) - using patch-based loading like dev`)
             
-            // CRITICAL: Force editor to see shapes by refreshing them
-            // This ensures the editor detects shapes that were loaded via patches
-            setTimeout(() => {
+            // CRITICAL: Force editor to see shapes by refreshing them multiple times
+            // Sometimes the editor needs multiple updates to detect shapes
+            const refreshShapes = (attempt: number) => {
               const shapesToRefresh = existingStoreShapes.map(s => store.get(s.id)).filter((s): s is TLRecord => s !== undefined && s.typeName === 'shape')
               if (shapesToRefresh.length > 0) {
                 store.mergeRemoteChanges(() => {
-                  // Re-put shapes to ensure editor detects them
+                  // Re-put shapes to trigger editor update
                   store.put(shapesToRefresh)
                 })
-                console.log(`📊 Refreshed ${shapesToRefresh.length} existing shapes to ensure editor visibility`)
+                console.log(`📊 Refreshed ${shapesToRefresh.length} existing shapes (attempt ${attempt}) to ensure editor visibility`)
+                
+                // Try multiple times to ensure editor picks them up
+                if (attempt < 3) {
+                  setTimeout(() => refreshShapes(attempt + 1), 200)
+                }
               }
-            }, 100)
+            }
+            
+            // Start refreshing after a short delay
+            setTimeout(() => refreshShapes(1), 100)
             
             setStoreWithStatus({
               store,
@@ -408,16 +416,26 @@ export function useAutomergeStoreV2({
                 if (currentShapes.length > 0) {
                   console.log(`✅ Patches applied successfully: ${currentShapes.length} shapes loaded via patches`)
                   
-                  // Refresh shapes to ensure editor sees them
-                  setTimeout(() => {
+                  // CRITICAL: Force editor to see shapes by refreshing them multiple times
+                  // Sometimes the editor needs multiple updates to detect shapes
+                  const refreshShapes = (attempt: number) => {
                     const shapesToRefresh = currentShapes.map(s => store.get(s.id)).filter((s): s is TLRecord => s !== undefined && s.typeName === 'shape')
                     if (shapesToRefresh.length > 0) {
                       store.mergeRemoteChanges(() => {
+                        // Re-put shapes to trigger editor update
                         store.put(shapesToRefresh)
                       })
-                      console.log(`📊 Refreshed ${shapesToRefresh.length} shapes to ensure editor visibility`)
+                      console.log(`📊 Refreshed ${shapesToRefresh.length} shapes (attempt ${attempt}) to ensure editor visibility`)
+                      
+                      // Try multiple times to ensure editor picks them up
+                      if (attempt < 3) {
+                        setTimeout(() => refreshShapes(attempt + 1), 200)
+                      }
                     }
-                  }, 100)
+                  }
+                  
+                  // Start refreshing after a short delay
+                  setTimeout(() => refreshShapes(1), 100)
                   
                   setStoreWithStatus({
                     store,
@@ -478,17 +496,27 @@ export function useAutomergeStoreV2({
                       })
                       console.log(`✅ Applied ${allRecords.length} records directly to store (fallback for missed patches - works in dev and production)`)
                       
-                      // Refresh shapes to ensure editor sees them
-                      setTimeout(() => {
+                      // CRITICAL: Force editor to see shapes by refreshing them multiple times
+                      // Sometimes the editor needs multiple updates to detect shapes
+                      const refreshShapes = (attempt: number) => {
                         const shapes = store.allRecords().filter((r: any) => r.typeName === 'shape')
                         const shapesToRefresh = shapes.map(s => store.get(s.id)).filter((s): s is TLRecord => s !== undefined && s.typeName === 'shape')
                         if (shapesToRefresh.length > 0) {
                           store.mergeRemoteChanges(() => {
+                            // Re-put shapes to trigger editor update
                             store.put(shapesToRefresh)
                           })
-                          console.log(`📊 Refreshed ${shapesToRefresh.length} shapes to ensure editor visibility`)
+                          console.log(`📊 Refreshed ${shapesToRefresh.length} shapes (attempt ${attempt}) to ensure editor visibility`)
+                          
+                          // Try multiple times to ensure editor picks them up
+                          if (attempt < 3) {
+                            setTimeout(() => refreshShapes(attempt + 1), 200)
+                          }
                         }
-                      }, 100)
+                      }
+                      
+                      // Start refreshing after a short delay
+                      setTimeout(() => refreshShapes(1), 100)
                     }
                   } catch (error) {
                     console.error(`❌ Error applying records directly:`, error)
