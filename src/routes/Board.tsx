@@ -211,9 +211,6 @@ export function Board() {
   }
   const automergeHandle = (storeWithHandle as any).handle
   const [editor, setEditor] = useState<Editor | null>(null)
-  
-  // Ref for production polling interval
-  const statusCheckIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     const value = localStorage.getItem("makereal_settings_2")
@@ -238,15 +235,8 @@ export function Board() {
     const checkAndFixMissingShapes = () => {
       if (!editor || !store.store) return
       
-      // In production, be more lenient - check if store has shapes even if not fully synced
-      // This handles timing issues where shapes are loaded but status hasn't updated yet
-      const storeShapes = store.store.allRecords().filter((r: any) => r.typeName === 'shape') || []
-      const hasShapes = storeShapes.length > 0
-      
-      // Only check if store is synced OR if we have shapes (production workaround)
-      // In dev, we can be strict, but in production we need to be more lenient
-      const isProduction = import.meta.env.PROD || import.meta.env.MODE === 'production'
-      if (store.status !== 'synced-remote' && (!isProduction || !hasShapes)) {
+      // Only check if store is synced - wait for proper sync like in dev
+      if (store.status !== 'synced-remote') {
         return
       }
       
@@ -261,6 +251,23 @@ export function Board() {
       console.log(`📊 Board: Current page ID: ${currentPageId}`)
       console.log(`📊 Board: Available pages:`, allPages.map((p: any) => ({ id: p.id, name: p.name })))
       console.log(`📊 Board: Store has ${storeShapes.length} total shapes, ${storeShapesOnCurrentPage.length} on current page. Editor sees ${editorShapes.length} shapes on current page.`)
+      
+      // CRITICAL DEBUG: Check if shapes exist in editor but aren't returned by getCurrentPageShapes
+      if (storeShapesOnCurrentPage.length > 0 && editorShapes.length === 0) {
+        console.log(`🔍 DEBUG: Checking why ${storeShapesOnCurrentPage.length} shapes aren't visible...`)
+        const sampleShape = storeShapesOnCurrentPage[0]
+        const shapeInEditor = editor.getShape(sampleShape.id)
+        console.log(`🔍 DEBUG: Sample shape ${sampleShape.id} in editor:`, shapeInEditor ? 'EXISTS' : 'MISSING')
+        if (shapeInEditor) {
+          console.log(`🔍 DEBUG: Shape details:`, {
+            id: shapeInEditor.id,
+            type: shapeInEditor.type,
+            parentId: shapeInEditor.parentId,
+            pageId: editor.getCurrentPageId(),
+            matches: shapeInEditor.parentId === editor.getCurrentPageId()
+          })
+        }
+      }
       
       // Debug: Log shape parent IDs to see if there's a mismatch
       if (storeShapes.length > 0 && editorShapes.length === 0) {
@@ -456,45 +463,18 @@ export function Board() {
       }
     }
     
-    // Initial check - with delay in production to handle timing issues
-    const isProduction = import.meta.env.PROD || import.meta.env.MODE === 'production'
-    const initialDelay = isProduction ? 1000 : 0
-    setTimeout(checkAndFixMissingShapes, initialDelay)
+    // Initial check after a short delay to ensure editor is ready
+    setTimeout(checkAndFixMissingShapes, 500)
     
     // Listen to store changes to continuously monitor for missing shapes
     // Listen to ALL sources (user, remote, etc.) to catch shapes loaded from Automerge
     const unsubscribe = store.store.listen(() => {
-      // In production, use longer debounce to ensure shapes are fully loaded
-      const debounceDelay = isProduction ? 1000 : 500
-      setTimeout(checkAndFixMissingShapes, debounceDelay)
+      // Use consistent debounce for both dev and prod
+      setTimeout(checkAndFixMissingShapes, 500)
     })
-    
-    // Also listen to store status changes - critical for production
-    // In production, shapes might load after status changes
-    if (isProduction) {
-      // Poll every 2 seconds in production until shapes are visible
-      statusCheckIntervalRef.current = setInterval(() => {
-        const storeShapes = store.store?.allRecords().filter((r: any) => r.typeName === 'shape') || []
-        const editorShapes = editor?.getCurrentPageShapes() || []
-        if (storeShapes.length > 0 && editorShapes.length === 0) {
-          console.log(`📊 Production: Store has ${storeShapes.length} shapes but editor sees 0. Running fix...`)
-          checkAndFixMissingShapes()
-        } else if (editorShapes.length > 0) {
-          // Shapes are visible, stop polling
-          if (statusCheckIntervalRef.current) {
-            clearInterval(statusCheckIntervalRef.current)
-            statusCheckIntervalRef.current = null
-          }
-        }
-      }, 2000)
-    }
     
     return () => {
       unsubscribe()
-      if (statusCheckIntervalRef.current) {
-        clearInterval(statusCheckIntervalRef.current)
-        statusCheckIntervalRef.current = null
-      }
     }
   }, [editor, store.store, store.status])
 
@@ -634,15 +614,13 @@ export function Board() {
 
   // Only render Tldraw when store is ready and synced
   // This ensures shapes are loaded before Tldraw initializes
-  // In production, be more lenient - allow rendering if store exists and has shapes
-  const isProduction = import.meta.env.PROD || import.meta.env.MODE === 'production'
   const hasStore = !!store.store
   const isSynced = store.status === 'synced-remote'
   const hasShapes = store.store ? store.store.allRecords().filter((r: any) => r.typeName === 'shape').length > 0 : false
   
-  // In production, allow rendering if store exists and has shapes, even if not fully synced
-  // This handles cases where network issues prevent 'synced-remote' status
-  const shouldRender = hasStore && (isSynced || (isProduction && hasShapes))
+  // Wait for store to be synced AND have shapes before rendering
+  // This ensures Tldraw mounts with shapes already in the store (like in dev)
+  const shouldRender = hasStore && isSynced && hasShapes
   
   if (!shouldRender) {
     return (
@@ -654,10 +632,16 @@ export function Board() {
     )
   }
 
+  // Use shape count as key to force remount when shapes are loaded
+  // This ensures Tldraw re-initializes with all shapes, matching dev behavior
+  const shapeCount = store.store.allRecords().filter((r: any) => r.typeName === 'shape').length
+  const storeKey = `tldraw-${shapeCount}-${isSynced}`
+
   return (
     <AutomergeHandleProvider handle={automergeHandle}>
       <div style={{ position: "fixed", inset: 0 }}>
         <Tldraw
+        key={storeKey}
         store={store.store}
         shapeUtils={[...defaultShapeUtils, ...customShapeUtils]}
         tools={customTools}
