@@ -453,20 +453,20 @@ export function useAutomergeStoreV2({
                           // Even if sanitizeRecord preserved them, we ensure they're correct
                           // This prevents any possibility of coordinates being reset
                           if (hadValidX) {
+                            const beforeX = (sanitized as any).x
                             (sanitized as any).x = originalX
+                            // Log if coordinates were changed during sanitization (for debugging)
+                            if (beforeX !== originalX) {
+                              console.warn(`⚠️ Coordinate X was changed during sanitization for shape ${cleanRecord.id}: ${originalX} -> ${beforeX}. Restored to ${originalX}.`)
+                            }
                           }
                           if (hadValidY) {
+                            const beforeY = (sanitized as any).y
                             (sanitized as any).y = originalY
-                          }
-                          
-                          // Log if coordinates were changed (for debugging)
-                          if (hadValidX && (sanitized as any).x !== originalX) {
-                            console.warn(`⚠️ Coordinate X was changed during sanitization for shape ${cleanRecord.id}: ${originalX} -> ${(sanitized as any).x}. Restored to ${originalX}.`)
-                            (sanitized as any).x = originalX
-                          }
-                          if (hadValidY && (sanitized as any).y !== originalY) {
-                            console.warn(`⚠️ Coordinate Y was changed during sanitization for shape ${cleanRecord.id}: ${originalY} -> ${(sanitized as any).y}. Restored to ${originalY}.`)
-                            (sanitized as any).y = originalY
+                            // Log if coordinates were changed during sanitization (for debugging)
+                            if (beforeY !== originalY) {
+                              console.warn(`⚠️ Coordinate Y was changed during sanitization for shape ${cleanRecord.id}: ${originalY} -> ${beforeY}. Restored to ${originalY}.`)
+                            }
                           }
                           
                           allRecords.push(sanitized)
