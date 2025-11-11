@@ -616,14 +616,13 @@ export function Board() {
   }, [editor]);
 
   // Only render Tldraw when store is ready and synced
-  // This ensures shapes are loaded before Tldraw initializes
+  // Tldraw will automatically render shapes as they're added via patches (like in dev)
   const hasStore = !!store.store
   const isSynced = store.status === 'synced-remote'
-  const hasShapes = store.store ? store.store.allRecords().filter((r: any) => r.typeName === 'shape').length > 0 : false
   
-  // Wait for store to be synced AND have shapes before rendering
-  // This ensures Tldraw mounts with shapes already in the store (like in dev)
-  const shouldRender = hasStore && isSynced && hasShapes
+  // Render as soon as store is synced - shapes will load via patches
+  // This matches dev behavior where Tldraw mounts first, then shapes load
+  const shouldRender = hasStore && isSynced
   
   if (!shouldRender) {
     return (
@@ -635,16 +634,10 @@ export function Board() {
     )
   }
 
-  // Use shape count as key to force remount when shapes are loaded
-  // This ensures Tldraw re-initializes with all shapes, matching dev behavior
-  const shapeCount = store.store ? store.store.allRecords().filter((r: any) => r.typeName === 'shape').length : 0
-  const storeKey = `tldraw-${shapeCount}-${isSynced}`
-
   return (
     <AutomergeHandleProvider handle={automergeHandle}>
       <div style={{ position: "fixed", inset: 0 }}>
         <Tldraw
-        key={storeKey}
         store={store.store}
         shapeUtils={[...defaultShapeUtils, ...customShapeUtils]}
         tools={customTools}
