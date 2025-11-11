@@ -1,6 +1,6 @@
 import { useAutomergeSync } from "@/automerge/useAutomergeSync"
 import { AutomergeHandleProvider } from "@/context/AutomergeHandleContext"
-import { useMemo, useEffect, useState } from "react"
+import { useMemo, useEffect, useState, useRef } from "react"
 import { Tldraw, Editor, TLShapeId } from "tldraw"
 import { useParams } from "react-router-dom"
 import { ChatBoxTool } from "@/tools/ChatBoxTool"
@@ -211,6 +211,9 @@ export function Board() {
   }
   const automergeHandle = (storeWithHandle as any).handle
   const [editor, setEditor] = useState<Editor | null>(null)
+  
+  // Ref for production polling interval
+  const statusCheckIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     const value = localStorage.getItem("makereal_settings_2")
@@ -235,19 +238,39 @@ export function Board() {
     const checkAndFixMissingShapes = () => {
       if (!editor || !store.store) return
       
-      // Only check if store is synced
-      if (store.status !== 'synced-remote') {
+      // In production, be more lenient - check if store has shapes even if not fully synced
+      // This handles timing issues where shapes are loaded but status hasn't updated yet
+      const storeShapes = store.store.allRecords().filter((r: any) => r.typeName === 'shape') || []
+      const hasShapes = storeShapes.length > 0
+      
+      // Only check if store is synced OR if we have shapes (production workaround)
+      // In dev, we can be strict, but in production we need to be more lenient
+      const isProduction = import.meta.env.PROD || import.meta.env.MODE === 'production'
+      if (store.status !== 'synced-remote' && (!isProduction || !hasShapes)) {
         return
       }
       
       const editorShapes = editor.getCurrentPageShapes()
-      const storeShapes = store.store.allRecords().filter((r: any) => r.typeName === 'shape') || []
       const currentPageId = editor.getCurrentPageId()
       
       // Get shapes on current page from store
       const storeShapesOnCurrentPage = storeShapes.filter((s: any) => s.parentId === currentPageId)
       
+      // Debug: Log page information
+      const allPages = store.store.allRecords().filter((r: any) => r.typeName === 'page')
+      console.log(`📊 Board: Current page ID: ${currentPageId}`)
+      console.log(`📊 Board: Available pages:`, allPages.map((p: any) => ({ id: p.id, name: p.name })))
       console.log(`📊 Board: Store has ${storeShapes.length} total shapes, ${storeShapesOnCurrentPage.length} on current page. Editor sees ${editorShapes.length} shapes on current page.`)
+      
+      // Debug: Log shape parent IDs to see if there's a mismatch
+      if (storeShapes.length > 0 && editorShapes.length === 0) {
+        const parentIdCounts = new Map<string, number>()
+        storeShapes.forEach((s: any) => {
+          const pid = s.parentId || 'no-parent'
+          parentIdCounts.set(pid, (parentIdCounts.get(pid) || 0) + 1)
+        })
+        console.log(`📊 Board: Shape parent ID distribution:`, Array.from(parentIdCounts.entries()))
+      }
       
       // Check if there are shapes in store on current page that editor can't see
       if (storeShapesOnCurrentPage.length > editorShapes.length) {
@@ -279,6 +302,28 @@ export function Board() {
           } else {
             // Shapes don't exist in editor - might be a sync issue
             console.error(`📊 Board: ${missingShapes.length} shapes are in store but don't exist in editor - possible sync issue`)
+            
+            // Try to force a refresh by updating the store
+            // This might help if shapes are stuck in a validation error state
+            console.log(`📊 Board: Attempting to refresh store to make shapes visible`)
+            try {
+              // Force a store update by reading and re-putting the shapes
+              const shapesToRefresh = missingShapes.slice(0, 10) // Limit to first 10 to avoid performance issues
+              const refreshedShapes = shapesToRefresh.map((s: any) => {
+                const shapeFromStore = store.store.get(s.id)
+                if (shapeFromStore) {
+                  return shapeFromStore
+                }
+                return null
+              }).filter((s): s is NonNullable<typeof s> => s !== null)
+              
+              if (refreshedShapes.length > 0) {
+                console.log(`📊 Board: Refreshing ${refreshedShapes.length} shapes in store`)
+                store.store.put(refreshedShapes)
+              }
+            } catch (error) {
+              console.error(`📊 Board: Error refreshing shapes:`, error)
+            }
           }
           
           // Check if shapes are outside viewport
@@ -315,7 +360,7 @@ export function Board() {
       }
       
       // Also check for shapes on other pages
-      const shapesOnOtherPages = storeShapes.filter((s: any) => s.parentId !== currentPageId)
+      const shapesOnOtherPages = storeShapes.filter((s: any) => s.parentId && s.parentId !== currentPageId)
       if (shapesOnOtherPages.length > 0) {
         console.log(`📊 Board: ${shapesOnOtherPages.length} shapes exist on other pages (not current page ${currentPageId})`)
         
@@ -326,6 +371,23 @@ export function Board() {
             pageShapeCounts.set(s.parentId, (pageShapeCounts.get(s.parentId) || 0) + 1)
           }
         })
+        
+        // Also check for shapes with no parentId or invalid parentId
+        const shapesWithInvalidParent = storeShapes.filter((s: any) => !s.parentId || (s.parentId && !allPages.find((p: any) => p.id === s.parentId)))
+        if (shapesWithInvalidParent.length > 0) {
+          console.warn(`📊 Board: ${shapesWithInvalidParent.length} shapes have invalid or missing parentId. Fixing...`)
+          // Fix shapes with invalid parentId by assigning them to current page
+          const fixedShapes = shapesWithInvalidParent.map((s: any) => ({
+            ...s,
+            parentId: currentPageId
+          }))
+          try {
+            store.store.put(fixedShapes)
+            console.log(`📊 Board: Fixed ${fixedShapes.length} shapes by assigning them to current page ${currentPageId}`)
+          } catch (error) {
+            console.error(`📊 Board: Error fixing shapes with invalid parentId:`, error)
+          }
+        }
         
         // Find the page with the most shapes
         let maxShapes = 0
@@ -345,6 +407,7 @@ export function Board() {
             // Focus camera on shapes after switching
             setTimeout(() => {
               const newPageShapes = editor.getCurrentPageShapes()
+              console.log(`📊 Board: After page switch, editor sees ${newPageShapes.length} shapes on page ${pageWithMostShapes}`)
               if (newPageShapes.length > 0) {
                 const bounds = editor.getShapePageBounds(newPageShapes[0])
                 if (bounds) {
@@ -353,6 +416,27 @@ export function Board() {
                     y: bounds.y - editor.getViewportPageBounds().h / 2 + bounds.h / 2,
                     z: editor.getCamera().z
                   }, { animation: { duration: 300 } })
+                }
+              } else {
+                // Still no shapes after switching - might be a validation issue
+                console.warn(`📊 Board: After switching to page ${pageWithMostShapes}, still no shapes visible. Checking store...`)
+                const shapesOnNewPage = storeShapes.filter((s: any) => s.parentId === pageWithMostShapes)
+                console.log(`📊 Board: Store has ${shapesOnNewPage.length} shapes on page ${pageWithMostShapes}`)
+                if (shapesOnNewPage.length > 0) {
+                  // Try to manually add shapes that might have validation issues
+                  console.log(`📊 Board: Attempting to force visibility by selecting all shapes on page`)
+                  const shapeIds = shapesOnNewPage.map((s: any) => s.id).filter((id): id is TLShapeId => id !== undefined)
+                  if (shapeIds.length > 0) {
+                    // Try to get shapes from editor to see if they exist
+                    const existingShapes = shapeIds
+                      .map(id => editor.getShape(id))
+                      .filter((s): s is NonNullable<typeof s> => s !== undefined)
+                    console.log(`📊 Board: ${existingShapes.length} of ${shapeIds.length} shapes exist in editor`)
+                    if (existingShapes.length > 0) {
+                      editor.setSelectedShapes(existingShapes.map(s => s.id))
+                      editor.zoomToFit()
+                    }
+                  }
                 }
               }
             }, 100)
@@ -369,18 +453,45 @@ export function Board() {
       }
     }
     
-    // Initial check
-    checkAndFixMissingShapes()
+    // Initial check - with delay in production to handle timing issues
+    const isProduction = import.meta.env.PROD || import.meta.env.MODE === 'production'
+    const initialDelay = isProduction ? 1000 : 0
+    setTimeout(checkAndFixMissingShapes, initialDelay)
     
     // Listen to store changes to continuously monitor for missing shapes
     // Listen to ALL sources (user, remote, etc.) to catch shapes loaded from Automerge
     const unsubscribe = store.store.listen(() => {
-      // Debounce the check to avoid excessive calls
-      setTimeout(checkAndFixMissingShapes, 500)
+      // In production, use longer debounce to ensure shapes are fully loaded
+      const debounceDelay = isProduction ? 1000 : 500
+      setTimeout(checkAndFixMissingShapes, debounceDelay)
     })
+    
+    // Also listen to store status changes - critical for production
+    // In production, shapes might load after status changes
+    if (isProduction) {
+      // Poll every 2 seconds in production until shapes are visible
+      statusCheckIntervalRef.current = setInterval(() => {
+        const storeShapes = store.store?.allRecords().filter((r: any) => r.typeName === 'shape') || []
+        const editorShapes = editor?.getCurrentPageShapes() || []
+        if (storeShapes.length > 0 && editorShapes.length === 0) {
+          console.log(`📊 Production: Store has ${storeShapes.length} shapes but editor sees 0. Running fix...`)
+          checkAndFixMissingShapes()
+        } else if (editorShapes.length > 0) {
+          // Shapes are visible, stop polling
+          if (statusCheckIntervalRef.current) {
+            clearInterval(statusCheckIntervalRef.current)
+            statusCheckIntervalRef.current = null
+          }
+        }
+      }, 2000)
+    }
     
     return () => {
       unsubscribe()
+      if (statusCheckIntervalRef.current) {
+        clearInterval(statusCheckIntervalRef.current)
+        statusCheckIntervalRef.current = null
+      }
     }
   }, [editor, store.store, store.status])
 
