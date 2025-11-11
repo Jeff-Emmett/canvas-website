@@ -374,10 +374,11 @@ export function Board() {
     checkAndFixMissingShapes()
     
     // Listen to store changes to continuously monitor for missing shapes
+    // Listen to ALL sources (user, remote, etc.) to catch shapes loaded from Automerge
     const unsubscribe = store.store.listen(() => {
       // Debounce the check to avoid excessive calls
       setTimeout(checkAndFixMissingShapes, 500)
-    }, { source: "user", scope: "document" })
+    })
     
     return () => {
       unsubscribe()
