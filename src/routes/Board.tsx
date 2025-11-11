@@ -282,6 +282,21 @@ export function Board() {
         console.log(`📊 Board: Shape parent ID distribution:`, Array.from(parentIdCounts.entries()))
       }
       
+      // CRITICAL: If shapes are in store but editor sees 0, force refresh
+      // This handles the case where old bulk loading code doesn't refresh shapes
+      if (storeShapes.length > 0 && editorShapes.length === 0 && storeShapesOnCurrentPage.length > 0 && store.store) {
+        console.warn(`⚠️ Board: ${storeShapes.length} shapes in store (${storeShapesOnCurrentPage.length} on current page) but editor sees 0. Forcing refresh...`)
+        
+        // Force refresh by re-putting shapes with mergeRemoteChanges
+        const shapesToRefresh = storeShapesOnCurrentPage.map((s: any) => store.store!.get(s.id)).filter((s): s is TLRecord => s !== undefined && s.typeName === 'shape')
+        if (shapesToRefresh.length > 0) {
+          store.store.mergeRemoteChanges(() => {
+            store.store!.put(shapesToRefresh)
+          })
+          console.log(`🔄 Board: Forced refresh of ${shapesToRefresh.length} shapes to make editor see them`)
+        }
+      }
+      
       // Check if there are shapes in store on current page that editor can't see
       if (storeShapesOnCurrentPage.length > editorShapes.length) {
         const editorShapeIds = new Set(editorShapes.map(s => s.id))
