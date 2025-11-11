@@ -259,7 +259,7 @@ export function Board() {
       if (storeShapesOnCurrentPage.length > 0 && editorShapes.length === 0) {
         console.log(`🔍 DEBUG: Checking why ${storeShapesOnCurrentPage.length} shapes aren't visible...`)
         const sampleShape = storeShapesOnCurrentPage[0]
-        const shapeInEditor = editor.getShape(sampleShape.id)
+        const shapeInEditor = editor.getShape(sampleShape.id as TLShapeId)
         console.log(`🔍 DEBUG: Sample shape ${sampleShape.id} in editor:`, shapeInEditor ? 'EXISTS' : 'MISSING')
         if (shapeInEditor) {
           console.log(`🔍 DEBUG: Shape details:`, {
@@ -297,9 +297,9 @@ export function Board() {
           })))
           
           // Try to get the shapes from the editor to see if they exist but aren't being returned
-          const missingShapeIds = missingShapes.map((s: any) => s.id)
+          const missingShapeIds = missingShapes.map((s: any) => s.id as TLShapeId)
           const shapesFromEditor = missingShapeIds
-            .map((id: string) => editor.getShape(id))
+            .map((id: TLShapeId) => editor.getShape(id))
             .filter((s): s is NonNullable<typeof s> => s !== undefined)
           
           if (shapesFromEditor.length > 0) {
@@ -324,11 +324,11 @@ export function Board() {
               const shapesToRefresh = missingShapes.slice(0, 10) // Limit to first 10 to avoid performance issues
               const refreshedShapes = shapesToRefresh.map((s: any) => {
                 const shapeFromStore = currentStore.get(s.id)
-                if (shapeFromStore) {
+                if (shapeFromStore && shapeFromStore.typeName === 'shape') {
                   return shapeFromStore
                 }
                 return null
-              }).filter((s: TLRecord | null): s is TLRecord => s !== null)
+              }).filter((s): s is TLRecord => s !== null && s.typeName === 'shape')
               
               if (refreshedShapes.length > 0) {
                 console.log(`📊 Board: Refreshing ${refreshedShapes.length} shapes in store`)
@@ -438,11 +438,11 @@ export function Board() {
                 if (shapesOnNewPage.length > 0) {
                   // Try to manually add shapes that might have validation issues
                   console.log(`📊 Board: Attempting to force visibility by selecting all shapes on page`)
-                    const shapeIds = shapesOnNewPage.map((s: any) => s.id).filter((id: string): id is TLShapeId => id !== undefined)
+                    const shapeIds = shapesOnNewPage.map((s: any) => s.id as TLShapeId).filter((id): id is TLShapeId => id !== undefined)
                     if (shapeIds.length > 0) {
                       // Try to get shapes from editor to see if they exist
                       const existingShapes = shapeIds
-                        .map((id: string) => editor.getShape(id))
+                        .map((id: TLShapeId) => editor.getShape(id))
                         .filter((s): s is NonNullable<typeof s> => s !== undefined)
                     console.log(`📊 Board: ${existingShapes.length} of ${shapeIds.length} shapes exist in editor`)
                       if (existingShapes.length > 0) {
