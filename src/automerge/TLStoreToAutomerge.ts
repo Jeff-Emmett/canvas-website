@@ -55,8 +55,15 @@ function sanitizeRecord(record: TLRecord): TLRecord {
   
   // Ensure required top-level fields exist
   if (sanitized.typeName === 'shape') {
-    if (typeof sanitized.x !== 'number') sanitized.x = 0
-    if (typeof sanitized.y !== 'number') sanitized.y = 0
+    // CRITICAL: Only set defaults if coordinates are truly missing or invalid
+    // DO NOT overwrite valid coordinates (including 0, which is a valid position)
+    // Only set to 0 if the value is undefined, null, or NaN
+    if (sanitized.x === undefined || sanitized.x === null || (typeof sanitized.x === 'number' && isNaN(sanitized.x))) {
+      sanitized.x = 0
+    }
+    if (sanitized.y === undefined || sanitized.y === null || (typeof sanitized.y === 'number' && isNaN(sanitized.y))) {
+      sanitized.y = 0
+    }
     if (typeof sanitized.rotation !== 'number') sanitized.rotation = 0
     if (typeof sanitized.isLocked !== 'boolean') sanitized.isLocked = false
     if (typeof sanitized.opacity !== 'number') sanitized.opacity = 1
@@ -311,8 +318,29 @@ export function applyTLStoreChangesToAutomerge(
   // Handle added records
   if (changes.added) {
     Object.values(changes.added).forEach((record) => {
+      // CRITICAL: For shapes, preserve x and y coordinates before sanitization
+      // This ensures coordinates aren't lost when saving to Automerge
+      let originalX: number | undefined = undefined
+      let originalY: number | undefined = undefined
+      if (record.typeName === 'shape') {
+        originalX = (record as any).x
+        originalY = (record as any).y
+      }
+      
       // Sanitize record before saving to ensure all required fields are present
       const sanitizedRecord = sanitizeRecord(record)
+      
+      // CRITICAL: Restore original coordinates if they were valid
+      // This prevents coordinates from being reset to 0,0 when saving to Automerge
+      if (record.typeName === 'shape' && originalX !== undefined && originalY !== undefined) {
+        if (typeof originalX === 'number' && !isNaN(originalX) && originalX !== null) {
+          (sanitizedRecord as any).x = originalX
+        }
+        if (typeof originalY === 'number' && !isNaN(originalY) && originalY !== null) {
+          (sanitizedRecord as any).y = originalY
+        }
+      }
+      
       // CRITICAL: Create a deep copy to ensure all properties (including richText and text) are preserved
       // This prevents Automerge from treating the object as read-only
       const recordToSave = JSON.parse(JSON.stringify(sanitizedRecord))
@@ -326,6 +354,14 @@ export function applyTLStoreChangesToAutomerge(
   // This is simpler than deep comparison and leverages Automerge's conflict resolution
   if (changes.updated) {
     Object.values(changes.updated).forEach(([_, record]) => {
+      // CRITICAL: For shapes, preserve x and y coordinates before sanitization
+      // This ensures coordinates aren't lost when updating records in Automerge
+      let originalX: number | undefined = undefined
+      let originalY: number | undefined = undefined
+      if (record.typeName === 'shape') {
+        originalX = (record as any).x
+        originalY = (record as any).y
+      }
       // DEBUG: Log richText, meta.text, and Obsidian note properties before sanitization
       if (record.typeName === 'shape') {
         if (record.type === 'geo' && (record.props as any)?.richText) {
@@ -370,6 +406,17 @@ export function applyTLStoreChangesToAutomerge(
       }
       
       const sanitizedRecord = sanitizeRecord(record)
+      
+      // CRITICAL: Restore original coordinates if they were valid
+      // This prevents coordinates from being reset to 0,0 when updating records in Automerge
+      if (record.typeName === 'shape' && originalX !== undefined && originalY !== undefined) {
+        if (typeof originalX === 'number' && !isNaN(originalX) && originalX !== null) {
+          (sanitizedRecord as any).x = originalX
+        }
+        if (typeof originalY === 'number' && !isNaN(originalY) && originalY !== null) {
+          (sanitizedRecord as any).y = originalY
+        }
+      }
       
       // DEBUG: Log richText, meta.text, and Obsidian note properties after sanitization
       if (sanitizedRecord.typeName === 'shape') {
