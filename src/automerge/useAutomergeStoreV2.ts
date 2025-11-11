@@ -436,23 +436,36 @@ export function useAutomergeStoreV2({
                         // Create a clean copy of the record
                         const cleanRecord = JSON.parse(JSON.stringify(record))
                         
-                        // CRITICAL: For shapes, preserve x and y coordinates BEFORE sanitization
-                        // This ensures coordinates aren't lost during the sanitization process
+                        // CRITICAL: For shapes, preserve x and y coordinates
+                        // We MUST preserve coordinates - they should never be reset to 0,0 unless truly missing
                         if (cleanRecord.typeName === 'shape') {
+                          // Store original coordinates BEFORE any processing
                           const originalX = cleanRecord.x
                           const originalY = cleanRecord.y
+                          const hadValidX = typeof originalX === 'number' && !isNaN(originalX) && originalX !== null && originalX !== undefined
+                          const hadValidY = typeof originalY === 'number' && !isNaN(originalY) && originalY !== null && originalY !== undefined
                           
                           // Use the same sanitizeRecord function that patches use
                           // This ensures consistency between dev and production
                           const sanitized = sanitizeRecord(cleanRecord)
                           
-                          // CRITICAL: Restore original coordinates if they were valid
-                          // sanitizeRecord only sets defaults if coordinates are missing/invalid
-                          // But we want to preserve the original values if they exist
-                          if (typeof originalX === 'number' && !isNaN(originalX) && originalX !== null && originalX !== undefined) {
+                          // CRITICAL: ALWAYS restore original coordinates if they were valid
+                          // Even if sanitizeRecord preserved them, we ensure they're correct
+                          // This prevents any possibility of coordinates being reset
+                          if (hadValidX) {
                             (sanitized as any).x = originalX
                           }
-                          if (typeof originalY === 'number' && !isNaN(originalY) && originalY !== null && originalY !== undefined) {
+                          if (hadValidY) {
+                            (sanitized as any).y = originalY
+                          }
+                          
+                          // Log if coordinates were changed (for debugging)
+                          if (hadValidX && (sanitized as any).x !== originalX) {
+                            console.warn(`⚠️ Coordinate X was changed during sanitization for shape ${cleanRecord.id}: ${originalX} -> ${(sanitized as any).x}. Restored to ${originalX}.`)
+                            (sanitized as any).x = originalX
+                          }
+                          if (hadValidY && (sanitized as any).y !== originalY) {
+                            console.warn(`⚠️ Coordinate Y was changed during sanitization for shape ${cleanRecord.id}: ${originalY} -> ${(sanitized as any).y}. Restored to ${originalY}.`)
                             (sanitized as any).y = originalY
                           }
                           

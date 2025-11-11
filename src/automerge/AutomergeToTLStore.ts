@@ -135,8 +135,10 @@ export function applyAutomergePatchesToTLStore(
     }
 
     // CRITICAL: Store original x and y before patch application to preserve them
+    // We need to preserve coordinates from existing records to prevent them from being reset
     const originalX = (record.typeName === 'shape' && typeof record.x === 'number' && !isNaN(record.x)) ? record.x : undefined
     const originalY = (record.typeName === 'shape' && typeof record.y === 'number' && !isNaN(record.y)) ? record.y : undefined
+    const hadOriginalCoordinates = originalX !== undefined && originalY !== undefined
 
     switch (patch.action) {
       case "insert": {
@@ -172,19 +174,42 @@ export function applyAutomergePatchesToTLStore(
     }
     
     // CRITICAL: After patch application, ensure x and y coordinates are preserved for shapes
+    // This prevents coordinates from being reset to 0,0 when patches don't include them
     if (updatedObjects[id] && updatedObjects[id].typeName === 'shape') {
       const patchedRecord = updatedObjects[id]
-      // Preserve original x and y if they were valid, otherwise use defaults
-      if (originalX !== undefined && (typeof patchedRecord.x !== 'number' || patchedRecord.x === null || isNaN(patchedRecord.x))) {
-        updatedObjects[id] = { ...patchedRecord, x: originalX }
-      } else if (typeof patchedRecord.x !== 'number' || patchedRecord.x === null || isNaN(patchedRecord.x)) {
-        updatedObjects[id] = { ...patchedRecord, x: defaultRecord.x || 0 }
-      }
+      const patchedX = (patchedRecord as any).x
+      const patchedY = (patchedRecord as any).y
+      const patchedHasValidX = typeof patchedX === 'number' && !isNaN(patchedX) && patchedX !== null && patchedX !== undefined
+      const patchedHasValidY = typeof patchedY === 'number' && !isNaN(patchedY) && patchedY !== null && patchedY !== undefined
       
-      if (originalY !== undefined && (typeof patchedRecord.y !== 'number' || patchedRecord.y === null || isNaN(patchedRecord.y))) {
-        updatedObjects[id] = { ...patchedRecord, y: originalY }
-      } else if (typeof patchedRecord.y !== 'number' || patchedRecord.y === null || isNaN(patchedRecord.y)) {
-        updatedObjects[id] = { ...patchedRecord, y: defaultRecord.y || 0 }
+      // CRITICAL: If we had original coordinates, preserve them unless patch explicitly set different valid coordinates
+      // This prevents coordinates from collapsing to 0,0 after bulk upload
+      if (hadOriginalCoordinates) {
+        // Only use patched coordinates if they're explicitly set and different from original
+        // Otherwise, preserve the original coordinates
+        if (patchedHasValidX && patchedX !== originalX) {
+          // Patch explicitly set a different X coordinate - use it
+          updatedObjects[id] = { ...patchedRecord, x: patchedX }
+        } else {
+          // Preserve original X coordinate
+          updatedObjects[id] = { ...patchedRecord, x: originalX }
+        }
+        
+        if (patchedHasValidY && patchedY !== originalY) {
+          // Patch explicitly set a different Y coordinate - use it
+          updatedObjects[id] = { ...updatedObjects[id], y: patchedY } as TLRecord
+        } else {
+          // Preserve original Y coordinate
+          updatedObjects[id] = { ...updatedObjects[id], y: originalY } as TLRecord
+        }
+      } else {
+        // No original coordinates - use patched values or defaults
+        if (!patchedHasValidX) {
+          updatedObjects[id] = { ...patchedRecord, x: defaultRecord.x || 0 }
+        }
+        if (!patchedHasValidY) {
+          updatedObjects[id] = { ...updatedObjects[id], y: defaultRecord.y || 0 } as TLRecord
+        }
       }
     }
     
