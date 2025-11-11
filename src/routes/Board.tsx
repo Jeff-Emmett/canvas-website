@@ -237,7 +237,6 @@ export function Board() {
       
       // Only check if store is synced
       if (store.status !== 'synced-remote') {
-        console.log(`📊 Board: Store not synced yet (status: ${store.status}), skipping shape check`)
         return
       }
       
@@ -383,7 +382,7 @@ export function Board() {
     return () => {
       unsubscribe()
     }
-  }, [editor, store.store])
+  }, [editor, store.store, store.status])
 
   // Update presence when session changes
   useEffect(() => {
@@ -518,6 +517,18 @@ export function Board() {
       document.removeEventListener('keydown', handleKeyDown, true);
     };
   }, [editor]);
+
+  // Only render Tldraw when store is ready and synced
+  // This ensures shapes are loaded before Tldraw initializes
+  if (!store.store || store.status !== 'synced-remote') {
+    return (
+      <AutomergeHandleProvider handle={automergeHandle}>
+        <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div>Loading canvas...</div>
+        </div>
+      </AutomergeHandleProvider>
+    )
+  }
 
   return (
     <AutomergeHandleProvider handle={automergeHandle}>
