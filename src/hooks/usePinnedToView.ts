@@ -65,44 +65,42 @@ export function usePinnedToView(editor: Editor | null, shapeId: string | undefin
         
         // Bring the shape to the front by manually setting index
         // Note: sendToFront doesn't exist in this version of tldraw, so we use manual index setting
-        try {
-          // Try to set a safe index value
-          // Use conservative values that are known to work (a1, a2, b1, etc.)
-          let newIndex: string = 'a2' // Safe default
-          
-          // Try to find a valid index higher than existing ones
-          const allIndices = allShapes
-            .map(s => s.index)
-            .filter((idx): idx is string => typeof idx === 'string' && /^[a-z]\d+$/.test(idx))
-            .sort()
-          
-          if (allIndices.length > 0) {
-            const highest = allIndices[allIndices.length - 1]
-            const match = highest.match(/^([a-z])(\d+)$/)
-            if (match) {
-              const letter = match[1]
-              const num = parseInt(match[2], 10)
-              // Increment number, or move to next letter if number gets too high
-              if (num < 100) {
-                newIndex = `${letter}${num + 1}`
-              } else if (letter < 'y') {
-                const nextLetter = String.fromCharCode(letter.charCodeAt(0) + 1)
-                newIndex = `${nextLetter}1`
-              } else {
-                // Use a safe value if we're running out of letters
-                newIndex = 'a2'
-              }
+        // Try to set a safe index value
+        // Use conservative values that are known to work (a1, a2, b1, etc.)
+        let newIndex: string = 'a2' // Safe default
+        
+        // Try to find a valid index higher than existing ones
+        const allIndices = allShapes
+          .map(s => s.index)
+          .filter((idx): idx is string => typeof idx === 'string' && /^[a-z]\d+$/.test(idx))
+          .sort()
+        
+        if (allIndices.length > 0) {
+          const highest = allIndices[allIndices.length - 1]
+          const match = highest.match(/^([a-z])(\d+)$/)
+          if (match) {
+            const letter = match[1]
+            const num = parseInt(match[2], 10)
+            // Increment number, or move to next letter if number gets too high
+            if (num < 100) {
+              newIndex = `${letter}${num + 1}`
+            } else if (letter < 'y') {
+              const nextLetter = String.fromCharCode(letter.charCodeAt(0) + 1)
+              newIndex = `${nextLetter}1`
+            } else {
+              // Use a safe value if we're running out of letters
+              newIndex = 'a2'
             }
           }
-          
-          // Validate before using
-          if (/^[a-z]\d+$/.test(newIndex)) {
-            editor.updateShape({
-              id: shapeId as TLShapeId,
-              type: shape.type,
-              index: newIndex as any,
-            })
-          }
+        }
+        
+        // Validate before using
+        if (/^[a-z]\d+$/.test(newIndex)) {
+          editor.updateShape({
+            id: shapeId as TLShapeId,
+            type: shape.type,
+            index: newIndex as any,
+          })
         }
       } catch (error) {
         console.error('Error bringing pinned shape to front:', error)
