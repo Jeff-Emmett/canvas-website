@@ -1,4 +1,4 @@
-import React, { useState, ReactNode } from 'react'
+import React, { useState, ReactNode, useEffect, useRef } from 'react'
 
 export interface StandardizedToolWrapperProps {
   /** The title to display in the header */
@@ -25,6 +25,16 @@ export interface StandardizedToolWrapperProps {
   editor?: any
   /** Shape ID for selection handling */
   shapeId?: string
+  /** Whether the shape is pinned to view */
+  isPinnedToView?: boolean
+  /** Callback when pin button is clicked */
+  onPinToggle?: () => void
+  /** Tags to display at the bottom of the shape */
+  tags?: string[]
+  /** Callback when tags are updated */
+  onTagsChange?: (tags: string[]) => void
+  /** Whether tags can be edited */
+  tagsEditable?: boolean
 }
 
 /**
@@ -44,9 +54,48 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
   headerContent,
   editor,
   shapeId,
+  isPinnedToView = false,
+  onPinToggle,
+  tags = [],
+  onTagsChange,
+  tagsEditable = true,
 }) => {
   const [isHoveringHeader, setIsHoveringHeader] = useState(false)
+  const [isEditingTags, setIsEditingTags] = useState(false)
+  const [editingTagInput, setEditingTagInput] = useState('')
+  const tagInputRef = useRef<HTMLInputElement>(null)
 
+  // Bring selected shape to front when it becomes selected
+  useEffect(() => {
+    if (editor && shapeId && isSelected) {
+      try {
+        // Bring the shape to the front by updating its index
+        // Note: sendToFront doesn't exist in this version of tldraw
+        const allShapes = editor.getCurrentPageShapes()
+        let highestIndex = 'a0'
+        for (const s of allShapes) {
+          if (s.index && typeof s.index === 'string' && s.index > highestIndex) {
+            highestIndex = s.index
+          }
+        }
+        const shape = editor.getShape(shapeId)
+        if (shape) {
+          const match = highestIndex.match(/^([a-z])(\d+)$/)
+          if (match) {
+            const letter = match[1]
+            const num = parseInt(match[2], 10)
+            const newIndex = num < 100 ? `${letter}${num + 1}` : `${String.fromCharCode(letter.charCodeAt(0) + 1)}1`
+            if (/^[a-z]\d+$/.test(newIndex)) {
+              editor.updateShape({ id: shapeId, type: shape.type, index: newIndex as any })
+            }
+          }
+        }
+      } catch (error) {
+        // Silently fail if shape doesn't exist or operation fails
+        // This prevents console spam if shape is deleted during selection
+      }
+    }
+  }, [editor, shapeId, isSelected])
 
   // Calculate header background color (lighter shade of primary color)
   const headerBgColor = isSelected 
@@ -128,6 +177,16 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
     color: isSelected ? 'white' : primaryColor,
   }
 
+  const pinButtonStyle: React.CSSProperties = {
+    ...buttonBaseStyle,
+    backgroundColor: isPinnedToView 
+      ? (isSelected ? 'rgba(255,255,255,0.4)' : primaryColor)
+      : (isSelected ? 'rgba(255,255,255,0.2)' : `${primaryColor}20`),
+    color: isPinnedToView 
+      ? (isSelected ? 'white' : 'white')
+      : (isSelected ? 'white' : primaryColor),
+  }
+
   const closeButtonStyle: React.CSSProperties = {
     ...buttonBaseStyle,
     backgroundColor: isSelected ? 'rgba(255,255,255,0.2)' : `${primaryColor}20`,
@@ -143,7 +202,102 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
     transition: 'height 0.2s ease',
     display: 'flex',
     flexDirection: 'column',
+    flex: 1,
   }
+
+  const tagsContainerStyle: React.CSSProperties = {
+    padding: '8px 12px',
+    borderTop: '1px solid #e0e0e0',
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '4px',
+    alignItems: 'center',
+    minHeight: '32px',
+    backgroundColor: '#f8f9fa',
+    flexShrink: 0,
+  }
+
+  const tagStyle: React.CSSProperties = {
+    backgroundColor: '#007acc',
+    color: 'white',
+    padding: '2px 6px',
+    borderRadius: '12px',
+    fontSize: '10px',
+    fontWeight: '500',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    cursor: tagsEditable ? 'pointer' : 'default',
+  }
+
+  const tagInputStyle: React.CSSProperties = {
+    border: '1px solid #007acc',
+    borderRadius: '12px',
+    padding: '2px 6px',
+    fontSize: '10px',
+    outline: 'none',
+    minWidth: '60px',
+    flex: 1,
+  }
+
+  const addTagButtonStyle: React.CSSProperties = {
+    backgroundColor: '#007acc',
+    color: 'white',
+    border: 'none',
+    borderRadius: '12px',
+    padding: '2px 8px',
+    fontSize: '10px',
+    fontWeight: '500',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+  }
+
+  const handleTagClick = (tag: string) => {
+    if (tagsEditable && onTagsChange) {
+      // Remove tag on click
+      const newTags = tags.filter(t => t !== tag)
+      onTagsChange(newTags)
+    }
+  }
+
+  const handleAddTag = () => {
+    if (editingTagInput.trim() && onTagsChange) {
+      const newTag = editingTagInput.trim().replace('#', '')
+      if (newTag && !tags.includes(newTag) && !tags.includes(`#${newTag}`)) {
+        const tagToAdd = newTag.startsWith('#') ? newTag : newTag
+        onTagsChange([...tags, tagToAdd])
+      }
+      setEditingTagInput('')
+      setIsEditingTags(false)
+    }
+  }
+
+  const handleTagInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      e.stopPropagation()
+      handleAddTag()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsEditingTags(false)
+      setEditingTagInput('')
+    } else if (e.key === 'Backspace' && editingTagInput === '' && tags.length > 0) {
+      // Remove last tag if backspace on empty input
+      e.stopPropagation()
+      if (onTagsChange) {
+        onTagsChange(tags.slice(0, -1))
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (isEditingTags && tagInputRef.current) {
+      tagInputRef.current.focus()
+    }
+  }, [isEditingTags])
 
   const handleHeaderPointerDown = (e: React.PointerEvent) => {
     // Check if this is an interactive element (button)
@@ -197,7 +351,18 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
         onPointerDown={handleHeaderPointerDown}
         onMouseEnter={() => setIsHoveringHeader(true)}
         onMouseLeave={() => setIsHoveringHeader(false)}
-        onMouseDown={(_e) => {
+        onMouseDown={(e) => {
+          // Don't select if clicking on a button - let the button handle the click
+          const target = e.target as HTMLElement
+          const isButton = 
+            target.tagName === 'BUTTON' || 
+            target.closest('button') ||
+            target.closest('[role="button"]')
+          
+          if (isButton) {
+            return
+          }
+          
           // Ensure selection happens on mouse down for immediate visual feedback
           if (editor && shapeId && !isSelected) {
             editor.setSelectedShapes([shapeId])
@@ -209,6 +374,18 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
           {headerContent || title}
         </div>
         <div style={buttonContainerStyle}>
+          {onPinToggle && (
+            <button
+              style={pinButtonStyle}
+              onClick={(e) => handleButtonClick(e, onPinToggle)}
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              title={isPinnedToView ? "Unpin from view" : "Pin to view"}
+              aria-label={isPinnedToView ? "Unpin from view" : "Pin to view"}
+            >
+              📌
+            </button>
+          )}
           <button
             style={minimizeButtonStyle}
             onClick={(e) => {
@@ -220,6 +397,7 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
               }
             }}
             onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
             title="Minimize"
             aria-label="Minimize"
             disabled={!onMinimize}
@@ -230,6 +408,7 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
             style={closeButtonStyle}
             onClick={(e) => handleButtonClick(e, onClose)}
             onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
             title="Close"
             aria-label="Close"
           >
@@ -240,12 +419,75 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
       
       {/* Content Area */}
       {!isMinimized && (
-        <div 
-          style={contentStyle}
-          onPointerDown={handleContentPointerDown}
-        >
-          {children}
-        </div>
+        <>
+          <div 
+            style={contentStyle}
+            onPointerDown={handleContentPointerDown}
+          >
+            {children}
+          </div>
+          
+          {/* Tags at the bottom */}
+          {(tags.length > 0 || (tagsEditable && isSelected)) && (
+            <div 
+              style={tagsContainerStyle}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                if (tagsEditable && !isEditingTags && e.target === e.currentTarget) {
+                  setIsEditingTags(true)
+                }
+              }}
+            >
+              {tags.slice(0, 5).map((tag, index) => (
+                <span
+                  key={index}
+                  style={tagStyle}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleTagClick(tag)
+                  }}
+                  title={tagsEditable ? "Click to remove tag" : undefined}
+                >
+                  {tag.replace('#', '')}
+                  {tagsEditable && <span style={{ fontSize: '8px' }}>×</span>}
+                </span>
+              ))}
+              {tags.length > 5 && (
+                <span style={tagStyle}>
+                  +{tags.length - 5}
+                </span>
+              )}
+              {isEditingTags && (
+                <input
+                  ref={tagInputRef}
+                  type="text"
+                  value={editingTagInput}
+                  onChange={(e) => setEditingTagInput(e.target.value)}
+                  onKeyDown={handleTagInputKeyDown}
+                  onBlur={() => {
+                    handleAddTag()
+                  }}
+                  style={tagInputStyle}
+                  placeholder="Add tag..."
+                  onPointerDown={(e) => e.stopPropagation()}
+                />
+              )}
+              {!isEditingTags && tagsEditable && isSelected && tags.length < 10 && (
+                <button
+                  style={addTagButtonStyle}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsEditingTags(true)
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  title="Add tag"
+                >
+                  + Add
+                </button>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   )

@@ -7,12 +7,15 @@ import React, { useState } from "react"
 import { HolonBrowser } from "../components/HolonBrowser"
 import { HolonData } from "../lib/HoloSphereService"
 import { StandardizedToolWrapper } from "../components/StandardizedToolWrapper"
+import { usePinnedToView } from "../hooks/usePinnedToView"
 
 type IHolonBrowser = TLBaseShape<
   "HolonBrowser",
   {
     w: number
     h: number
+    pinnedToView: boolean
+    tags: string[]
   }
 >
 
@@ -23,6 +26,8 @@ export class HolonBrowserShape extends BaseBoxShapeUtil<IHolonBrowser> {
     return {
       w: 800,
       h: 600,
+      pinnedToView: false,
+      tags: ['holon', 'browser'],
     }
   }
 
@@ -34,6 +39,9 @@ export class HolonBrowserShape extends BaseBoxShapeUtil<IHolonBrowser> {
     const [isOpen, setIsOpen] = useState(true)
     const [isMinimized, setIsMinimized] = useState(false)
     const isSelected = this.editor.getSelectedShapeIds().includes(shape.id)
+
+    // Use the pinning hook to keep the shape fixed to viewport when pinned
+    usePinnedToView(this.editor, shape.id, shape.props.pinnedToView)
 
     const handleSelectHolon = (holonData: HolonData) => {
       // Store current camera position to prevent it from changing
@@ -92,18 +100,7 @@ export class HolonBrowserShape extends BaseBoxShapeUtil<IHolonBrowser> {
         this.editor.setCamera(currentCamera, { animation: { duration: 0 } })
       }
       
-      // Select the new shape
-      setTimeout(() => {
-        // Preserve camera position when selecting
-        const cameraBeforeSelect = this.editor.getCamera()
-        this.editor.stopCameraAnimation()
-        this.editor.setSelectedShapes([`shape:${holonShape.id}`] as any)
-        // Restore camera if it changed during selection
-        const cameraAfterSelect = this.editor.getCamera()
-        if (cameraBeforeSelect.x !== cameraAfterSelect.x || cameraBeforeSelect.y !== cameraAfterSelect.y || cameraAfterSelect.z !== cameraAfterSelect.z) {
-          this.editor.setCamera(cameraBeforeSelect, { animation: { duration: 0 } })
-        }
-      }, 100)
+      // Don't select the new shape - let it be created without selection like other tools
       
       // Close the browser shape
       setIsOpen(false)
@@ -115,14 +112,23 @@ export class HolonBrowserShape extends BaseBoxShapeUtil<IHolonBrowser> {
 
     const handleClose = () => {
       setIsOpen(false)
-      // Delete the browser shape
-      setTimeout(() => {
-        this.editor.deleteShape(shape.id)
-      }, 100)
+      // Delete the browser shape immediately so it's tracked in undo/redo history
+      this.editor.deleteShape(shape.id)
     }
 
     const handleMinimize = () => {
       setIsMinimized(!isMinimized)
+    }
+
+    const handlePinToggle = () => {
+      this.editor.updateShape<IHolonBrowser>({
+        id: shape.id,
+        type: shape.type,
+        props: {
+          ...shape.props,
+          pinnedToView: !shape.props.pinnedToView,
+        },
+      })
     }
 
     if (!isOpen) {
@@ -142,6 +148,20 @@ export class HolonBrowserShape extends BaseBoxShapeUtil<IHolonBrowser> {
           isMinimized={isMinimized}
           editor={this.editor}
           shapeId={shape.id}
+          isPinnedToView={shape.props.pinnedToView}
+          onPinToggle={handlePinToggle}
+          tags={shape.props.tags}
+          onTagsChange={(newTags) => {
+            this.editor.updateShape<IHolonBrowser>({
+              id: shape.id,
+              type: 'HolonBrowser',
+              props: {
+                ...shape.props,
+                tags: newTags,
+              }
+            })
+          }}
+          tagsEditable={true}
         >
           <HolonBrowser
             isOpen={isOpen}

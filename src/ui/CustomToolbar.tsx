@@ -16,6 +16,7 @@ import type { ObsidianObsNote } from "../lib/obsidianImporter"
 import { HolonData } from "../lib/HoloSphereService"
 import { FathomMeetingsPanel } from "../components/FathomMeetingsPanel"
 import { LocationShareDialog } from "../components/location/LocationShareDialog"
+import { getFathomApiKey, saveFathomApiKey, removeFathomApiKey, isFathomApiKeyConfigured } from "../lib/fathomApiKey"
 
 export function CustomToolbar() {
   const editor = useEditor()
@@ -30,6 +31,9 @@ export function CustomToolbar() {
   const [showHolonBrowser, setShowHolonBrowser] = useState(false)
   const [vaultBrowserMode, setVaultBrowserMode] = useState<'keyboard' | 'button'>('keyboard')
   const [showFathomPanel, setShowFathomPanel] = useState(false)
+  const [showFathomApiKeyInput, setShowFathomApiKeyInput] = useState(false)
+  const [fathomApiKeyInput, setFathomApiKeyInput] = useState('')
+  const [hasFathomApiKey, setHasFathomApiKey] = useState(false)
   const profilePopupRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -327,18 +331,7 @@ export function CustomToolbar() {
         editor.setCamera(currentCamera, { animation: { duration: 0 } })
       }
       
-      // Select the new shape
-      setTimeout(() => {
-        // Preserve camera position when selecting
-        const cameraBeforeSelect = editor.getCamera()
-        editor.stopCameraAnimation()
-        editor.setSelectedShapes([`shape:${holonShape.id}`] as any)
-        // Restore camera if it changed during selection
-        const cameraAfterSelect = editor.getCamera()
-        if (cameraBeforeSelect.x !== cameraAfterSelect.x || cameraBeforeSelect.y !== cameraAfterSelect.y || cameraAfterSelect.z !== cameraAfterSelect.z) {
-          editor.setCamera(cameraBeforeSelect, { animation: { duration: 0 } })
-        }
-      }, 100)
+      // Don't select the new shape - let it be created without selection like other tools
       
     } catch (error) {
       console.error('❌ Error creating Holon shape from data:', error)
@@ -411,6 +404,16 @@ export function CustomToolbar() {
     const interval = setInterval(checkApiKeys, 5000)
     return () => clearInterval(interval)
   }, [])
+
+  // Check Fathom API key status
+  useEffect(() => {
+    if (session.authed && session.username) {
+      const hasKey = isFathomApiKeyConfigured(session.username)
+      setHasFathomApiKey(hasKey)
+    } else {
+      setHasFathomApiKey(false)
+    }
+  }, [session.authed, session.username])
 
   const handleLogout = () => {
     // Clear the session
@@ -771,6 +774,158 @@ export function CustomToolbar() {
                   </button>
                 </div>
                 
+                {/* Fathom API Key Settings */}
+                <div style={{ 
+                  marginBottom: "16px", 
+                  padding: "12px",
+                  backgroundColor: hasFathomApiKey ? "#f0f9ff" : "#fef2f2",
+                  borderRadius: "4px",
+                  border: `1px solid ${hasFathomApiKey ? "#0ea5e9" : "#f87171"}`
+                }}>
+                  <div style={{ 
+                    display: "flex", 
+                    alignItems: "center", 
+                    justifyContent: "space-between",
+                    marginBottom: "8px"
+                  }}>
+                    <span style={{ fontWeight: "500" }}>Fathom API</span>
+                    <span style={{ fontSize: "14px" }}>
+                      {hasFathomApiKey ? "✅ Connected" : "❌ Not connected"}
+                    </span>
+                  </div>
+                  
+                  {showFathomApiKeyInput ? (
+                    <div>
+                      <input
+                        type="password"
+                        value={fathomApiKeyInput}
+                        onChange={(e) => setFathomApiKeyInput(e.target.value)}
+                        placeholder="Enter Fathom API key..."
+                        style={{
+                          width: "100%",
+                          padding: "6px 8px",
+                          marginBottom: "8px",
+                          border: "1px solid #ddd",
+                          borderRadius: "4px",
+                          fontSize: "12px",
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            if (fathomApiKeyInput.trim()) {
+                              saveFathomApiKey(fathomApiKeyInput.trim(), session.username)
+                              setHasFathomApiKey(true)
+                              setShowFathomApiKeyInput(false)
+                              setFathomApiKeyInput('')
+                            }
+                          } else if (e.key === 'Escape') {
+                            setShowFathomApiKeyInput(false)
+                            setFathomApiKeyInput('')
+                          }
+                        }}
+                        autoFocus
+                      />
+                      <div style={{ display: "flex", gap: "4px" }}>
+                        <button
+                          onClick={() => {
+                            if (fathomApiKeyInput.trim()) {
+                              saveFathomApiKey(fathomApiKeyInput.trim(), session.username)
+                              setHasFathomApiKey(true)
+                              setShowFathomApiKeyInput(false)
+                              setFathomApiKeyInput('')
+                            }
+                          }}
+                          style={{
+                            flex: 1,
+                            padding: "4px 8px",
+                            backgroundColor: "#0ea5e9",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            fontSize: "11px",
+                          }}
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowFathomApiKeyInput(false)
+                            setFathomApiKeyInput('')
+                          }}
+                          style={{
+                            flex: 1,
+                            padding: "4px 8px",
+                            backgroundColor: "#6b7280",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            fontSize: "11px",
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p style={{ 
+                        fontSize: "12px", 
+                        color: "#666",
+                        margin: "0 0 8px 0"
+                      }}>
+                        {hasFathomApiKey 
+                          ? "Your Fathom account is connected" 
+                          : "Connect your Fathom account to import meetings"}
+                      </p>
+                      <div style={{ display: "flex", gap: "4px" }}>
+                        <button
+                          onClick={() => {
+                            setShowFathomApiKeyInput(true)
+                            const currentKey = getFathomApiKey(session.username)
+                            if (currentKey) {
+                              setFathomApiKeyInput(currentKey)
+                            }
+                          }}
+                          style={{
+                            flex: 1,
+                            padding: "6px 12px",
+                            backgroundColor: hasFathomApiKey ? "#0ea5e9" : "#ef4444",
+                            color: "white",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            fontSize: "12px",
+                            fontWeight: "500",
+                          }}
+                        >
+                          {hasFathomApiKey ? "Change Key" : "Add API Key"}
+                        </button>
+                        {hasFathomApiKey && (
+                          <button
+                            onClick={() => {
+                              removeFathomApiKey(session.username)
+                              setHasFathomApiKey(false)
+                            }}
+                            style={{
+                              padding: "6px 12px",
+                              backgroundColor: "#6b7280",
+                              color: "white",
+                              border: "none",
+                              borderRadius: "4px",
+                              cursor: "pointer",
+                              fontSize: "12px",
+                              fontWeight: "500",
+                            }}
+                          >
+                            Disconnect
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+                
                 <a
                   href="/dashboard"
                   target="_blank"
@@ -900,14 +1055,6 @@ export function CustomToolbar() {
             isSelected={tools["Prompt"].id === editor.getCurrentToolId()}
           />
         )}
-        {tools["SharedPiano"] && (
-          <TldrawUiMenuItem
-            {...tools["SharedPiano"]}
-            icon="music"
-            label="Shared Piano"
-            isSelected={tools["SharedPiano"].id === editor.getCurrentToolId()}
-          />
-        )}
         {tools["ObsidianNote"] && (
           <TldrawUiMenuItem
             {...tools["ObsidianNote"]}
@@ -922,14 +1069,6 @@ export function CustomToolbar() {
             icon="microphone"
             label="Transcription"
             isSelected={tools["Transcription"].id === editor.getCurrentToolId()}
-          />
-        )}
-        {tools["FathomTranscript"] && (
-          <TldrawUiMenuItem
-            {...tools["FathomTranscript"]}
-            icon="video"
-            label="Fathom Transcript"
-            isSelected={tools["FathomTranscript"].id === editor.getCurrentToolId()}
           />
         )}
         {tools["Holon"] && (

@@ -1,5 +1,6 @@
 import { BaseBoxShapeUtil, TLBaseShape } from "tldraw"
 import { useCallback, useState } from "react"
+import * as React from "react"
 
 export type ISharedPianoShape = TLBaseShape<
   "SharedPiano",
@@ -43,8 +44,62 @@ export class SharedPianoShape extends BaseBoxShapeUtil<ISharedPianoShape> {
   }
 
   component(shape: ISharedPianoShape) {
+    // Guard against undefined shape or props
+    if (!shape || !shape.props) {
+      return null
+    }
+
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
+
+    // Suppress Chrome Music Lab console errors
+    React.useEffect(() => {
+      const originalError = console.error
+      const originalWarn = console.warn
+      
+      // Filter out errors from Chrome Music Lab
+      const errorHandler = (message: any, ...args: any[]) => {
+        const messageStr = String(message)
+        if (messageStr.includes('musiclab.chromeexperiments.com') || 
+            messageStr.includes('Uncaught (in promise) false')) {
+          // Suppress these errors silently
+          return
+        }
+        originalError(message, ...args)
+      }
+      
+      const warnHandler = (message: any, ...args: any[]) => {
+        const messageStr = String(message)
+        if (messageStr.includes('musiclab.chromeexperiments.com')) {
+          // Suppress these warnings silently
+          return
+        }
+        originalWarn(message, ...args)
+      }
+      
+      // Override console methods
+      console.error = errorHandler
+      console.warn = warnHandler
+      
+      // Also catch unhandled promise rejections from the iframe
+      const unhandledRejectionHandler = (event: PromiseRejectionEvent) => {
+        const reason = event.reason
+        if (reason === false || 
+            (typeof reason === 'string' && reason.includes('musiclab.chromeexperiments.com'))) {
+          event.preventDefault()
+          return
+        }
+      }
+      
+      window.addEventListener('unhandledrejection', unhandledRejectionHandler)
+      
+      return () => {
+        // Restore original console methods
+        console.error = originalError
+        console.warn = originalWarn
+        window.removeEventListener('unhandledrejection', unhandledRejectionHandler)
+      }
+    }, [])
 
     const handleIframeLoad = useCallback(() => {
       setIsLoading(false)
@@ -58,6 +113,7 @@ export class SharedPianoShape extends BaseBoxShapeUtil<ISharedPianoShape> {
 
     const handleToggleMinimize = (e: React.MouseEvent) => {
       e.stopPropagation()
+      if (!shape.props) return
       this.editor.updateShape<ISharedPianoShape>({
         id: shape.id,
         type: "SharedPiano",
@@ -67,6 +123,8 @@ export class SharedPianoShape extends BaseBoxShapeUtil<ISharedPianoShape> {
         },
       })
     }
+
+    const isMinimized = shape.props?.isMinimized ?? false
 
     const controls = (
       <div
@@ -92,7 +150,7 @@ export class SharedPianoShape extends BaseBoxShapeUtil<ISharedPianoShape> {
             cursor: "pointer",
           }}
         >
-          {shape.props.isMinimized ? "🔽" : "🔼"}
+          {isMinimized ? "🔽" : "🔼"}
         </button>
       </div>
     )
@@ -115,7 +173,7 @@ export class SharedPianoShape extends BaseBoxShapeUtil<ISharedPianoShape> {
       >
         {controls}
         
-        {shape.props.isMinimized ? (
+        {isMinimized ? (
           <div
             style={{
               width: "100%",

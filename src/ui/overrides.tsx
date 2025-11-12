@@ -151,15 +151,6 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("Prompt"),
       },
-      SharedPiano: {
-        id: "SharedPiano",
-        icon: "music",
-        label: "Shared Piano",
-        type: "SharedPiano",
-        kbd: "alt+p",
-        readonlyOk: true,
-        onSelect: () => editor.setCurrentTool("SharedPiano"),
-      },
       gesture: {
         id: "gesture",
         icon: "draw",
@@ -185,19 +176,6 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         type: "Transcription",
         onSelect: () => editor.setCurrentTool("transcription"),
-      },
-      FathomTranscript: {
-        id: "fathom-transcript",
-        icon: "file-text",
-        label: "Fathom Transcript",
-        kbd: "alt+f",
-        readonlyOk: true,
-        type: "FathomTranscript",
-        onSelect: () => {
-          // Dispatch custom event to open Fathom meetings panel
-          const event = new CustomEvent('open-fathom-meetings')
-          window.dispatchEvent(event)
-        },
       },
       Holon: {
         id: "holon",

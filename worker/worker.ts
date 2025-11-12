@@ -544,15 +544,19 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     }
   })
 
-  // Fathom API endpoints
+  // Fathom API endpoints (api.fathom.ai)
   .get("/fathom/meetings", async (req) => {
     console.log('Fathom meetings endpoint called')
-    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+    // Support both Authorization: Bearer and X-Api-Key headers for backward compatibility
+    let apiKey = req.headers.get('X-Api-Key')
+    if (!apiKey) {
+      apiKey = req.headers.get('Authorization')?.split('Bearer ')[1] || null
+    }
     console.log('API key present:', !!apiKey)
     
     if (!apiKey) {
       console.log('No API key provided')
-      return new Response(JSON.stringify({ error: 'No API key provided' }), {
+      return new Response(JSON.stringify({ error: 'No API key provided. Use X-Api-Key header or Authorization: Bearer' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' }
       })
@@ -561,10 +565,29 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     try {
       console.log('Making request to Fathom API...')
       
-      const response = await fetch('https://api.usefathom.com/v1/meetings', {
+      // Build query parameters from URL
+      const url = new URL(req.url)
+      const params = new URLSearchParams()
+      if (url.searchParams.has('cursor')) {
+        params.append('cursor', url.searchParams.get('cursor')!)
+      }
+      if (url.searchParams.has('include_transcript')) {
+        params.append('include_transcript', url.searchParams.get('include_transcript')!)
+      }
+      if (url.searchParams.has('created_after')) {
+        params.append('created_after', url.searchParams.get('created_after')!)
+      }
+      if (url.searchParams.has('created_before')) {
+        params.append('created_before', url.searchParams.get('created_before')!)
+      }
+      
+      const queryString = params.toString()
+      const apiUrl = `https://api.fathom.ai/external/v1/meetings${queryString ? '?' + queryString : ''}`
+      
+      const response = await fetch(apiUrl, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          'X-Api-Key': apiKey,
           'Content-Type': 'application/json'
         }
       })
@@ -573,17 +596,40 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
       
       if (!response.ok) {
         console.log('Fathom API error response')
-        const error = await response.json()
-        console.log('Error details:', error)
-        return new Response(JSON.stringify(error), {
+        const contentType = response.headers.get('content-type') || ''
+        let errorData: any
+        
+        if (contentType.includes('application/json')) {
+          try {
+            errorData = await response.json()
+            console.log('Error details:', errorData)
+          } catch (e) {
+            errorData = { error: `HTTP ${response.status}: ${response.statusText}` }
+          }
+        } else {
+          // Handle HTML or text error responses
+          const text = await response.text()
+          console.log('Non-JSON error response:', text.substring(0, 200))
+          errorData = { 
+            error: `HTTP ${response.status}: ${response.statusText}`,
+            details: text.substring(0, 500) // Include first 500 chars for debugging
+          }
+        }
+        
+        return new Response(JSON.stringify(errorData), {
           status: response.status,
           headers: { 'Content-Type': 'application/json' }
         })
       }
 
-      const data = await response.json() as { data?: any[] }
-      console.log('Fathom API success, data length:', data?.data?.length || 0)
-      return new Response(JSON.stringify(data), {
+      const data = await response.json() as { items?: any[], limit?: number, next_cursor?: string }
+      console.log('Fathom API success, items length:', data?.items?.length || 0)
+      // Transform response to match expected format (items -> data for backward compatibility)
+      return new Response(JSON.stringify({
+        data: data.items || [],
+        limit: data.limit,
+        next_cursor: data.next_cursor
+      }), {
         headers: { 'Content-Type': 'application/json' }
       })
     } catch (error) {
@@ -599,35 +645,84 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
   })
 
   .get("/fathom/meetings/:meetingId", async (req) => {
-    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+    // Support both Authorization: Bearer and X-Api-Key headers
+    let apiKey = req.headers.get('X-Api-Key')
+    if (!apiKey) {
+      apiKey = req.headers.get('Authorization')?.split('Bearer ')[1] || null
+    }
     const { meetingId } = req.params
     
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'No API key provided' }), {
+      return new Response(JSON.stringify({ error: 'No API key provided. Use X-Api-Key header or Authorization: Bearer' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' }
       })
     }
 
     try {
-      const response = await fetch(`https://api.usefathom.com/v1/meetings/${meetingId}`, {
+      // Get transcript if requested
+      const url = new URL(req.url)
+      const includeTranscript = url.searchParams.get('include_transcript') === 'true'
+      // Use the meetings endpoint with filters to get a specific meeting by recording_id
+      // The API doesn't have a direct /meetings/:id endpoint, so we filter by recording_id
+      // Include summary and action items parameters - these are required to get the data
+      const apiUrl = `https://api.fathom.ai/external/v1/meetings?recording_id=${meetingId}&include_summary=true&include_action_items=true${includeTranscript ? '&include_transcript=true' : ''}`
+      
+      console.log('Fetching Fathom meeting with URL:', apiUrl)
+      
+      const response = await fetch(apiUrl, {
         method: 'GET',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          'X-Api-Key': apiKey,
           'Content-Type': 'application/json'
         }
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        return new Response(JSON.stringify(error), {
+        const contentType = response.headers.get('content-type') || ''
+        let errorData: any
+        
+        if (contentType.includes('application/json')) {
+          try {
+            errorData = await response.json()
+          } catch (e) {
+            errorData = { error: `HTTP ${response.status}: ${response.statusText}` }
+          }
+        } else {
+          // Handle HTML or text error responses
+          const text = await response.text()
+          errorData = { 
+            error: `HTTP ${response.status}: ${response.statusText}`,
+            details: text.substring(0, 500) // Include first 500 chars for debugging
+          }
+        }
+        
+        return new Response(JSON.stringify(errorData), {
           status: response.status,
           headers: { 'Content-Type': 'application/json' }
         })
       }
 
-      const data = await response.json()
-      return new Response(JSON.stringify(data), {
+      const data = await response.json() as { items?: any[] }
+      // The API returns an array, so get the first item (should be the matching meeting)
+      const meeting = data.items && data.items.length > 0 ? data.items[0] : null
+      
+      if (!meeting) {
+        return new Response(JSON.stringify({ error: 'Meeting not found' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+      
+      // Log the meeting structure for debugging
+      console.log('Fathom meeting response keys:', Object.keys(meeting))
+      console.log('Has default_summary:', !!meeting.default_summary)
+      console.log('Has action_items:', !!meeting.action_items)
+      if (meeting.default_summary) {
+        console.log('default_summary keys:', Object.keys(meeting.default_summary))
+      }
+      
+      return new Response(JSON.stringify(meeting), {
         headers: { 'Content-Type': 'application/json' }
       })
     } catch (error) {
