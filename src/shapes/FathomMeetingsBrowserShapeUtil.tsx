@@ -83,7 +83,7 @@ export class FathomMeetingsBrowserShape extends BaseBoxShapeUtil<IFathomMeetings
       const handleMeetingSelect = async (
         meeting: any,
         options: { summary: boolean; transcript: boolean; actionItems: boolean; video: boolean },
-        format: 'fathom' | 'note'
+        _format: 'fathom' | 'note'
       ) => {
         try {
           // CRITICAL: Store meeting data immediately to avoid closure issues
