@@ -1,7 +1,6 @@
 import { StateNode } from "tldraw"
 import { HolonShape } from "@/shapes/HolonShapeUtil"
 import { holosphereService } from "@/lib/HoloSphereService"
-import { findNonOverlappingPosition } from "@/utils/shapeCollisionUtils"
 
 export class HolonTool extends StateNode {
   static override id = "holon"
@@ -138,9 +137,16 @@ export class HolonIdle extends StateNode {
       this.mouseMoveHandler = undefined
     }
     
-    // Remove tooltip element
+    // Remove tooltip element (safely check if it exists in DOM)
     if (this.tooltipElement) {
-      document.body.removeChild(this.tooltipElement)
+      try {
+        if (this.tooltipElement.parentNode) {
+          document.body.removeChild(this.tooltipElement)
+        }
+      } catch (e) {
+        // Element might already be removed, ignore error
+        console.log('Tooltip element already removed')
+      }
       this.tooltipElement = undefined
     }
   }
@@ -193,17 +199,10 @@ export class HolonIdle extends StateNode {
           shapeSize: { w: shapeWidth, h: shapeHeight }
         })
       } else {
-        // For fallback (no click), use collision detection
-        const position = findNonOverlappingPosition(
-          this.editor,
-          baseX,
-          baseY,
-          shapeWidth,
-          shapeHeight
-        )
-        finalX = position.x
-        finalY = position.y
-        console.log('📍 No click position - using collision detection:', { finalX, finalY })
+        // For fallback (no click), use base position directly
+        finalX = baseX
+        finalY = baseY
+        console.log('📍 No click position - using base position:', { finalX, finalY })
       }
       
       // Default coordinates (can be changed by user)
@@ -243,19 +242,11 @@ export class HolonIdle extends StateNode {
         this.editor.setCamera(currentCamera, { animation: { duration: 0 } })
       }
       
-      // Select the new shape
-      setTimeout(() => {
-        // Preserve camera position when selecting
-        const cameraBeforeSelect = this.editor.getCamera()
-        this.editor.stopCameraAnimation()
-        this.editor.setSelectedShapes([`shape:${holonShape.id}`] as any)
-        this.editor.setCurrentTool('select')
-        // Restore camera if it changed during selection
-        const cameraAfterSelect = this.editor.getCamera()
-        if (cameraBeforeSelect.x !== cameraAfterSelect.x || cameraBeforeSelect.y !== cameraAfterSelect.y || cameraBeforeSelect.z !== cameraAfterSelect.z) {
-          this.editor.setCamera(cameraBeforeSelect, { animation: { duration: 0 } })
-        }
-      }, 100)
+      // Don't select the new shape - let it be created without selection like other tools
+      // Clean up tooltip before switching tools
+      this.cleanupTooltip()
+      // Switch back to selector tool after creating the shape
+      this.editor.setCurrentTool('select')
       
     } catch (error) {
       console.error('❌ Error creating Holon shape:', error)

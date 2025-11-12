@@ -20,7 +20,10 @@ function minimalSanitizeRecord(record: any): any {
     if (typeof sanitized.isLocked !== 'boolean') sanitized.isLocked = false
     if (typeof sanitized.opacity !== 'number') sanitized.opacity = 1
     if (!sanitized.meta || typeof sanitized.meta !== 'object') sanitized.meta = {}
-    if (!sanitized.index) sanitized.index = 'a1'
+    // Validate and fix index property - must be a valid IndexKey (like 'a1', 'a2', etc.)
+    if (!sanitized.index || typeof sanitized.index !== 'string' || !/^[a-z]\d+$/.test(sanitized.index)) {
+      sanitized.index = 'a1'
+    }
     if (!sanitized.parentId) sanitized.parentId = 'page:page'
     
     // Ensure props object exists

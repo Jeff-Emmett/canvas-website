@@ -1,6 +1,5 @@
 import { StateNode } from "tldraw"
 import { ObsNoteShape } from "@/shapes/ObsNoteShapeUtil"
-import { findNonOverlappingPosition } from "@/utils/shapeCollisionUtils"
 
 export class ObsNoteTool extends StateNode {
   static override id = "obs_note"

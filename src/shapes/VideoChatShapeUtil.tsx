@@ -2,6 +2,7 @@ import { BaseBoxShapeUtil, TLBaseShape, HTMLContainer } from "tldraw"
 import { useEffect, useState } from "react"
 import { WORKER_URL } from "../constants/workerUrl"
 import { StandardizedToolWrapper } from "../components/StandardizedToolWrapper"
+import { usePinnedToView } from "../hooks/usePinnedToView"
 
 interface DailyApiResponse {
   url: string;
@@ -23,6 +24,8 @@ export type IVideoChatShape = TLBaseShape<
     recordingId: string | null // Track active recording
     meetingToken: string | null
     isOwner: boolean
+    pinnedToView: boolean
+    tags: string[]
   }
 >
 
@@ -40,13 +43,15 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     const props = {
       roomUrl: null,
       w: 800,
-      h: 600,
+      h: 560, // Reduced from 600 to account for header (40px) and avoid scrollbars
       allowCamera: false,
       allowMicrophone: false,
       enableRecording: true,
       recordingId: null,
       meetingToken: null,
-      isOwner: false
+      isOwner: false,
+      pinnedToView: false,
+      tags: ['video-chat']
     };
     console.log('🔧 getDefaultProps called, returning:', props);
     return props;
@@ -201,23 +206,62 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         console.log('🔧 Daily.co API response status:', response.status);
         console.log('🔧 Daily.co API response ok:', response.ok);
 
+        let url: string;
+        let isNewRoom: boolean = false;
+
         if (!response.ok) {
           const error = await response.json()
           console.error('🔧 Daily.co API error:', error);
-          throw new Error(`Failed to create room (${response.status}): ${JSON.stringify(error)}`)
+          
+          // Check if the room already exists
+          if (response.status === 400 && error.info && error.info.includes('already exists')) {
+            console.log('🔧 Room already exists, connecting to existing room:', roomName);
+            isNewRoom = false;
+            
+            // Try to get the existing room info from Daily.co API
+            try {
+              const getRoomResponse = await fetch(`https://api.daily.co/v1/rooms/${roomName}`, {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${apiKey}`
+                }
+              });
+              
+              if (getRoomResponse.ok) {
+                const roomData = await getRoomResponse.json();
+                url = roomData.url;
+                console.log('🔧 Retrieved existing room URL:', url);
+              } else {
+                // If we can't get room info, construct the URL
+                // This is a fallback - ideally we'd get it from the API
+                console.warn('🔧 Could not get room info, constructing URL (this may not work)');
+                // We'll need to construct it, but we don't have the domain
+                // For now, throw an error and let the user know
+                throw new Error(`Room ${roomName} already exists but could not retrieve room URL. Please contact support.`);
+              }
+            } catch (getRoomError) {
+              console.error('🔧 Error getting existing room:', getRoomError);
+              throw new Error(`Room ${roomName} already exists but could not connect to it: ${(getRoomError as Error).message}`);
+            }
+          } else {
+            // Some other error occurred
+            throw new Error(`Failed to create room (${response.status}): ${JSON.stringify(error)}`)
+          }
+        } else {
+          // Room was created successfully
+          isNewRoom = true;
+          const data = (await response.json()) as DailyApiResponse;
+          console.log('🔧 Daily.co API response data:', data);
+          url = data.url;
         }
 
-        const data = (await response.json()) as DailyApiResponse;
-        console.log('🔧 Daily.co API response data:', data);
-        const url = data.url;
-
         if (!url) {
-          console.error('🔧 Room URL is missing from API response:', data);
+          console.error('🔧 Room URL is missing');
           throw new Error("Room URL is missing")
         }
 
         console.log('🔧 Room URL from API:', url);
-
+        
         // Generate meeting token for the owner
         // First ensure the room exists, then generate token
         const meetingToken = await this.generateMeetingToken(roomName);
@@ -226,10 +270,15 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         localStorage.setItem(storageKey, url);
         localStorage.setItem(`${storageKey}_token`, meetingToken);
 
-        console.log("Room created successfully:", url)
+        if (isNewRoom) {
+          console.log("Room created successfully:", url)
+        } else {
+          console.log("Connected to existing room:", url)
+        }
         console.log("Meeting token generated:", meetingToken)
         console.log("Updating shape with new URL and token")
-        console.log("Setting isOwner to true")
+        // Set isOwner to true only if we created the room, false if we connected to existing
+        console.log("Setting isOwner to", isNewRoom)
 
         await this.editor.updateShape<IVideoChatShape>({
           id: shape.id,
@@ -238,7 +287,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
             ...shape.props,
             roomUrl: url,
             meetingToken: meetingToken,
-            isOwner: true,
+            isOwner: isNewRoom, // Only owner if we created the room
           },
         })
 
@@ -411,6 +460,10 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
       }
     }, [shape.props.allowCamera, shape.props.allowMicrophone])
 
+    // CRITICAL: Hooks must be called before any conditional returns
+    // Use the pinning hook to keep the shape fixed to viewport when pinned
+    usePinnedToView(this.editor, shape.id, shape.props.pinnedToView)
+
     if (error) {
         return <div>Error creating room: {error.message}</div>
     }
@@ -487,6 +540,17 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
       setIsMinimized(!isMinimized)
     }
 
+    const handlePinToggle = () => {
+      this.editor.updateShape<IVideoChatShape>({
+        id: shape.id,
+        type: shape.type,
+        props: {
+          ...shape.props,
+          pinnedToView: !shape.props.pinnedToView,
+        },
+      })
+    }
+
     return (
       <HTMLContainer style={{ width: shape.props.w, height: shape.props.h + 40 }}>
         <StandardizedToolWrapper
@@ -494,12 +558,26 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
           primaryColor={VideoChatShape.PRIMARY_COLOR}
           isSelected={isSelected}
           width={shape.props.w}
-          height={shape.props.h + 40} // Include space for URL bubble
+          height={shape.props.h + 40}
           onClose={handleClose}
           onMinimize={handleMinimize}
           isMinimized={isMinimized}
           editor={this.editor}
           shapeId={shape.id}
+          isPinnedToView={shape.props.pinnedToView}
+          onPinToggle={handlePinToggle}
+          tags={shape.props.tags}
+          onTagsChange={(newTags) => {
+            this.editor.updateShape<IVideoChatShape>({
+              id: shape.id,
+              type: 'VideoChat',
+              props: {
+                ...shape.props,
+                tags: newTags,
+              }
+            })
+          }}
+          tagsEditable={true}
         >
           <div
             style={{
@@ -509,6 +587,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
               pointerEvents: "all",
               display: "flex",
               flexDirection: "column",
+              overflow: "hidden",
             }}
           >
 
@@ -519,6 +598,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
             flex: 1,
             position: "relative",
             overflow: "hidden",
+            minHeight: 0, // Allow flex item to shrink below content size
           }}
         >
         {!useFallback ? (
@@ -686,13 +766,13 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 
         </div>
 
-        {/* URL Bubble - Below the video iframe */}
+        {/* URL Bubble - Overlay on bottom of video */}
         <p
           style={{
             position: "absolute",
             bottom: "8px",
             left: "8px",
-            margin: "8px",
+            margin: 0,
             padding: "4px 8px",
             background: "rgba(255, 255, 255, 0.9)",
             borderRadius: "4px",
@@ -701,7 +781,10 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
             cursor: "text",
             userSelect: "text",
             zIndex: 1,
-            top: `${shape.props.h + 50}px`, // Position it below the iframe with proper spacing
+            maxWidth: "calc(100% - 16px)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           }}
         >
           url: {currentRoomUrl}

@@ -24,6 +24,9 @@ export class AutomergeDurableObject {
   private lastPersistedHash: string | null = null
   // Track if document was converted from old format (for JSON sync decision)
   private wasConvertedFromOldFormat: boolean = false
+  // Cache R2 document hash to avoid reloading when unchanged
+  private cachedR2Hash: string | null = null
+  private cachedR2Doc: any = null
 
   constructor(private readonly ctx: DurableObjectState, env: Environment) {
     this.r2 = env.TLDRAW_BUCKET
@@ -837,23 +840,21 @@ export class AutomergeDurableObject {
         .filter((r: any) => r?.typeName === 'shape')
         .map((r: any) => r.id) : []
     
-    // CRITICAL: Merge stores instead of replacing entire document
-    // This prevents client from overwriting old shapes when it only has partial data
+    // CRITICAL: Replace the entire store with the client's document
+    // The client's document is authoritative and includes deletions
+    // This ensures that when shapes are deleted, they're actually removed
+    // Clear R2 cache since document has been updated
+    this.cachedR2Doc = null
+    this.cachedR2Hash = null
+    
     if (this.currentDoc && newDoc?.store) {
-      // Merge new records into existing store, but don't delete old ones
-      if (!this.currentDoc.store) {
-        this.currentDoc.store = {}
-      }
+      // Count records before update
+      const recordsBefore = Object.keys(this.currentDoc.store || {}).length
       
-      // Count records before merge
-      const recordsBefore = Object.keys(this.currentDoc.store).length
+      // Replace the entire store with the client's version (preserves deletions)
+      this.currentDoc.store = { ...newDoc.store }
       
-      // Merge: add/update records from newDoc, but keep existing ones that aren't in newDoc
-      Object.entries(newDoc.store).forEach(([id, record]) => {
-        this.currentDoc.store[id] = record
-      })
-      
-      // Count records after merge
+      // Count records after update
       const recordsAfter = Object.keys(this.currentDoc.store).length
       
       // Update schema if provided
@@ -861,7 +862,7 @@ export class AutomergeDurableObject {
         this.currentDoc.schema = newDoc.schema
       }
       
-      console.log(`📊 updateDocument: Merged ${Object.keys(newDoc.store).length} records from client into ${recordsBefore} existing records (total: ${recordsAfter})`)
+      console.log(`📊 updateDocument: Replaced store with client document: ${recordsBefore} -> ${recordsAfter} records (client sent ${Object.keys(newDoc.store).length})`)
     } else {
       // If no current doc yet, set it (R2 load should have completed by now)
       console.log(`📊 updateDocument: No current doc, setting to new doc (${newShapeCount} shapes)`)
@@ -883,21 +884,67 @@ export class AutomergeDurableObject {
     if (finalShapeCount !== oldShapeCount) {
       console.log(`📊 Document updated: shape count changed from ${oldShapeCount} to ${finalShapeCount} (merged from client with ${newShapeCount} shapes)`)
       // CRITICAL: Always persist when shape count changes
+      console.log(`📤 Triggering R2 persistence due to shape count change`)
       this.schedulePersistToR2()
     } else if (newShapeCount < oldShapeCount) {
       console.log(`⚠️ Client sent ${newShapeCount} shapes but server has ${oldShapeCount}. Merged to preserve all shapes (final: ${finalShapeCount})`)
       // Persist to ensure we save the merged state
+      console.log(`📤 Triggering R2 persistence to save merged state`)
       this.schedulePersistToR2()
     } else if (newShapeCount === oldShapeCount && oldShapeCount > 0) {
-      // Check if any records were actually added/updated (not just same count)
-      const recordsAdded = Object.keys(newDoc.store || {}).filter(id => 
-        !this.currentDoc?.store?.[id] || 
-        JSON.stringify(this.currentDoc.store[id]) !== JSON.stringify(newDoc.store[id])
-      ).length
+      // OPTIMIZED: Fast comparison without expensive JSON.stringify
+      // Check if any records were actually added/updated using lightweight comparison
+      let recordsChanged = false
+      const newStore = newDoc.store || {}
+      const currentStore = this.currentDoc?.store || {}
       
-      if (recordsAdded > 0) {
-        console.log(`ℹ️ Client sent ${newShapeCount} shapes, server had ${oldShapeCount}. ${recordsAdded} records were updated. Merge complete (final: ${finalShapeCount})`)
+      // Quick check: compare record counts and IDs first
+      const newKeys = Object.keys(newStore)
+      const currentKeys = Object.keys(currentStore)
+      
+      if (newKeys.length !== currentKeys.length) {
+        recordsChanged = true
+      } else {
+        // Check for new or removed records
+        for (const id of newKeys) {
+          if (!currentStore[id]) {
+            recordsChanged = true
+            break
+          }
+        }
+        if (!recordsChanged) {
+          for (const id of currentKeys) {
+            if (!newStore[id]) {
+              recordsChanged = true
+              break
+            }
+          }
+        }
+        
+        // Only do deep comparison if structure matches (avoid expensive JSON.stringify)
+        if (!recordsChanged) {
+          // Lightweight comparison: check if record types or key properties changed
+          for (const id of newKeys) {
+            const newRecord = newStore[id]
+            const currentRecord = currentStore[id]
+            if (!currentRecord) continue
+            
+            // Quick checks: typeName, type, x, y (most common changes)
+            if (newRecord.typeName !== currentRecord.typeName ||
+                newRecord.type !== currentRecord.type ||
+                (newRecord.x !== currentRecord.x) ||
+                (newRecord.y !== currentRecord.y)) {
+              recordsChanged = true
+              break
+            }
+          }
+        }
+      }
+      
+      if (recordsChanged) {
+        console.log(`ℹ️ Client sent ${newShapeCount} shapes, server had ${oldShapeCount}. Records were updated. Merge complete (final: ${finalShapeCount})`)
         // Persist if records were updated
+        console.log(`📤 Triggering R2 persistence due to record updates`)
         this.schedulePersistToR2()
       } else {
         console.log(`ℹ️ Client sent ${newShapeCount} shapes, server had ${oldShapeCount}. No changes detected, skipping persistence.`)
@@ -905,6 +952,7 @@ export class AutomergeDurableObject {
     } else {
       // New shapes or other changes - always persist
       console.log(`📊 Document updated: scheduling persistence (old: ${oldShapeCount}, new: ${newShapeCount}, final: ${finalShapeCount})`)
+      console.log(`📤 Triggering R2 persistence for new shapes/changes`)
       this.schedulePersistToR2()
     }
   }
@@ -1053,7 +1101,7 @@ export class AutomergeDurableObject {
         migrationStats.shapeTypes[shapeType] = (migrationStats.shapeTypes[shapeType] || 0) + 1
         
         // Track custom shapes (non-standard TLDraw shapes)
-        const customShapeTypes = ['ObsNote', 'Holon', 'FathomMeetingsBrowser', 'FathomTranscript', 'HolonBrowser', 'LocationShare', 'ObsidianBrowser']
+        const customShapeTypes = ['ObsNote', 'Holon', 'FathomMeetingsBrowser', 'FathomNote', 'HolonBrowser', 'LocationShare', 'ObsidianBrowser']
         if (customShapeTypes.includes(shapeType)) {
           migrationStats.customShapes.push(record.id)
         }
@@ -1090,8 +1138,9 @@ export class AutomergeDurableObject {
             record.meta = {}
             needsUpdate = true
           }
-          if (!record.index) {
-            record.index = 'a1' // Required index property for all shapes
+          // Validate and fix index property - must be a valid IndexKey (like 'a1', 'a2', etc.)
+          if (!record.index || typeof record.index !== 'string' || !/^[a-z]\d+$/.test(record.index)) {
+            record.index = 'a1' // Required index property for all shapes - must be valid IndexKey format
             needsUpdate = true
           }
           
@@ -1184,6 +1233,74 @@ export class AutomergeDurableObject {
             }
           }
           
+          // Special handling for text shapes - ensure required properties exist
+          if (record.type === 'text') {
+            if (!record.props || typeof record.props !== 'object') {
+              record.props = {}
+              needsUpdate = true
+            }
+            
+            // CRITICAL: color is REQUIRED for text shapes and must be a valid color value
+            const validColors = ['black', 'grey', 'light-violet', 'violet', 'blue', 'light-blue', 'yellow', 'orange', 'green', 'light-green', 'light-red', 'red', 'white']
+            if (!record.props.color || typeof record.props.color !== 'string' || !validColors.includes(record.props.color)) {
+              record.props.color = 'black'
+              needsUpdate = true
+            }
+            
+            // Ensure other required text shape properties have defaults
+            if (typeof record.props.w !== 'number') {
+              record.props.w = 300
+              needsUpdate = true
+            }
+            if (!record.props.size || typeof record.props.size !== 'string') {
+              record.props.size = 'm'
+              needsUpdate = true
+            }
+            if (!record.props.font || typeof record.props.font !== 'string') {
+              record.props.font = 'draw'
+              needsUpdate = true
+            }
+            if (!record.props.textAlign || typeof record.props.textAlign !== 'string') {
+              record.props.textAlign = 'start'
+              needsUpdate = true
+            }
+            if (typeof record.props.autoSize !== 'boolean') {
+              record.props.autoSize = false
+              needsUpdate = true
+            }
+            if (typeof record.props.scale !== 'number') {
+              record.props.scale = 1
+              needsUpdate = true
+            }
+            
+            // Ensure richText structure is correct
+            if (record.props.richText) {
+              if (Array.isArray(record.props.richText)) {
+                record.props.richText = { content: record.props.richText, type: 'doc' }
+                needsUpdate = true
+              } else if (typeof record.props.richText === 'object' && record.props.richText !== null) {
+                if (!record.props.richText.type) {
+                  record.props.richText = { ...record.props.richText, type: 'doc' }
+                  needsUpdate = true
+                }
+                if (!record.props.richText.content) {
+                  record.props.richText = { ...record.props.richText, content: [] }
+                  needsUpdate = true
+                }
+              }
+            }
+            
+            // Remove invalid properties for text shapes (these cause validation errors)
+            // Remove properties that are only valid for custom shapes, not standard TLDraw text shapes
+            const invalidTextProps = ['h', 'geo', 'text', 'isEditing', 'editingContent', 'isTranscribing', 'isPaused', 'fixedHeight', 'pinnedToView', 'isModified', 'originalContent', 'editingName', 'editingDescription', 'isConnected', 'holonId', 'noteId', 'title', 'content', 'tags', 'showPreview', 'backgroundColor', 'textColor']
+            invalidTextProps.forEach(prop => {
+              if (prop in record.props) {
+                delete record.props[prop]
+                needsUpdate = true
+              }
+            })
+          }
+          
           if (needsUpdate) {
             migrationStats.migrated++
             // Only log detailed migration info for first few shapes to avoid spam
@@ -1249,6 +1366,8 @@ export class AutomergeDurableObject {
 
   // we throttle persistence so it only happens every 2 seconds, batching all updates
   schedulePersistToR2 = throttle(async () => {
+    console.log(`📤 schedulePersistToR2 called for room ${this.roomId}`)
+    
     if (!this.roomId || !this.currentDoc) {
       console.log(`⚠️ Cannot persist to R2: roomId=${this.roomId}, currentDoc=${!!this.currentDoc}`)
       return
@@ -1261,71 +1380,73 @@ export class AutomergeDurableObject {
     let mergedShapeCount = 0
     
     try {
-      // Try to load current R2 state
-      const docFromBucket = await this.r2.get(`rooms/${this.roomId}`)
-      if (docFromBucket) {
-        try {
-          const r2Doc = await docFromBucket.json() as any
-          r2ShapeCount = r2Doc.store ? 
-            Object.values(r2Doc.store).filter((r: any) => r?.typeName === 'shape').length : 0
-          
-          // Merge R2 document with current document
-          if (r2Doc.store && mergedDoc.store) {
-            // Start with R2 document (has all old shapes)
-            mergedDoc = { ...r2Doc }
-            
-            // Merge currentDoc into R2 doc (adds/updates new shapes)
-            Object.entries(this.currentDoc.store).forEach(([id, record]) => {
-              mergedDoc.store[id] = record
-            })
-            
-            // Update schema from currentDoc if it exists
-            if (this.currentDoc.schema) {
-              mergedDoc.schema = this.currentDoc.schema
-            }
-            
-            mergedShapeCount = Object.values(mergedDoc.store).filter((r: any) => r?.typeName === 'shape').length
-            
-            // Track shape types in merged document
-            const mergedShapeTypeCounts = Object.values(mergedDoc.store)
-              .filter((r: any) => r?.typeName === 'shape')
-              .reduce((acc: any, r: any) => {
-                const type = r?.type || 'unknown'
-                acc[type] = (acc[type] || 0) + 1
-                return acc
-              }, {})
-            
-            console.log(`🔀 Merging R2 state with current state before persistence:`, {
-              r2Shapes: r2ShapeCount,
-              currentShapes: this.currentDoc.store ? Object.values(this.currentDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0,
-              mergedShapes: mergedShapeCount,
-              r2Records: Object.keys(r2Doc.store || {}).length,
-              currentRecords: Object.keys(this.currentDoc.store || {}).length,
-              mergedRecords: Object.keys(mergedDoc.store || {}).length
-            })
-            console.log(`🔀 Merged shape type breakdown:`, mergedShapeTypeCounts)
-            
-            // Check if we're preserving all shapes
-            if (mergedShapeCount < r2ShapeCount) {
-              console.error(`❌ CRITICAL: Merged document has fewer shapes (${mergedShapeCount}) than R2 (${r2ShapeCount})! This should not happen.`)
-            } else if (mergedShapeCount > r2ShapeCount) {
-              console.log(`✅ Merged document has ${mergedShapeCount - r2ShapeCount} new shapes added to R2's ${r2ShapeCount} shapes`)
-            }
-          } else if (r2Doc.store && !mergedDoc.store) {
-            // R2 has store but currentDoc doesn't - use R2
-            mergedDoc = r2Doc
-            mergedShapeCount = r2ShapeCount
-            console.log(`⚠️ Current doc has no store, using R2 document (${r2ShapeCount} shapes)`)
-          } else {
-            // Neither has store or R2 doesn't have store - use currentDoc
-            mergedDoc = this.currentDoc
-            mergedShapeCount = this.currentDoc.store ? Object.values(this.currentDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
-            console.log(`ℹ️ R2 has no store, using current document (${mergedShapeCount} shapes)`)
+      // OPTIMIZATION: Only reload R2 if we don't have a cached version or if it might have changed
+      // Since currentDoc is authoritative (includes deletions), we can skip R2 merge in most cases
+      // Only merge if we suspect there might be data in R2 that's not in currentDoc
+      let r2Doc: any = null
+      
+      // Check if we need to reload R2 (only if cache is invalid or missing)
+      if (!this.cachedR2Doc) {
+        const docFromBucket = await this.r2.get(`rooms/${this.roomId}`)
+        if (docFromBucket) {
+          try {
+            r2Doc = await docFromBucket.json() as any
+            // Cache the R2 document
+            this.cachedR2Doc = r2Doc
+            this.cachedR2Hash = this.generateDocHash(r2Doc)
+          } catch (r2ParseError) {
+            console.warn(`⚠️ Error parsing R2 document, using current document:`, r2ParseError)
+            r2Doc = null
           }
-        } catch (r2ParseError) {
-          console.warn(`⚠️ Error parsing R2 document, using current document:`, r2ParseError)
-          mergedDoc = this.currentDoc
-          mergedShapeCount = this.currentDoc.store ? Object.values(this.currentDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
+        }
+      } else {
+        // Use cached R2 document
+        r2Doc = this.cachedR2Doc
+      }
+      
+      if (r2Doc) {
+        r2ShapeCount = r2Doc.store ? 
+          Object.values(r2Doc.store).filter((r: any) => r?.typeName === 'shape').length : 0
+        
+        // CRITICAL: Use currentDoc as the source of truth (has the latest state including deletions)
+        // Don't merge in old records from R2 - currentDoc is authoritative
+        mergedDoc = { ...this.currentDoc }
+        mergedDoc.store = { ...this.currentDoc.store }
+        
+        // Update schema from currentDoc if it exists
+        if (this.currentDoc.schema) {
+          mergedDoc.schema = this.currentDoc.schema
+        }
+        
+        mergedShapeCount = Object.values(mergedDoc.store).filter((r: any) => r?.typeName === 'shape').length
+        
+        // Only log merge details if there's a significant difference
+        if (Math.abs(mergedShapeCount - r2ShapeCount) > 0) {
+          const mergedShapeTypeCounts = Object.values(mergedDoc.store)
+            .filter((r: any) => r?.typeName === 'shape')
+            .reduce((acc: any, r: any) => {
+              const type = r?.type || 'unknown'
+              acc[type] = (acc[type] || 0) + 1
+              return acc
+            }, {})
+          
+          console.log(`🔀 Merging R2 state with current state before persistence:`, {
+            r2Shapes: r2ShapeCount,
+            currentShapes: this.currentDoc.store ? Object.values(this.currentDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0,
+            mergedShapes: mergedShapeCount,
+            r2Records: Object.keys(r2Doc.store || {}).length,
+            currentRecords: Object.keys(this.currentDoc.store || {}).length,
+            mergedRecords: Object.keys(mergedDoc.store || {}).length
+          })
+          console.log(`🔀 Merged shape type breakdown:`, mergedShapeTypeCounts)
+          
+          // Log merge results
+          if (mergedShapeCount < r2ShapeCount) {
+            // This is expected when shapes are deleted - currentDoc has fewer shapes than R2
+            console.log(`✅ Merged document has ${r2ShapeCount - mergedShapeCount} fewer shapes than R2 (deletions preserved)`)
+          } else if (mergedShapeCount > r2ShapeCount) {
+            console.log(`✅ Merged document has ${mergedShapeCount - r2ShapeCount} new shapes added to R2's ${r2ShapeCount} shapes`)
+          }
         }
       } else {
         // No R2 document exists yet - use currentDoc
@@ -1338,6 +1459,9 @@ export class AutomergeDurableObject {
       console.warn(`⚠️ Error loading from R2, using current document:`, r2LoadError)
       mergedDoc = this.currentDoc
       mergedShapeCount = this.currentDoc.store ? Object.values(this.currentDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
+      // Clear cache on error
+      this.cachedR2Doc = null
+      this.cachedR2Hash = null
     }
     
     // Generate hash of merged document state
@@ -1358,13 +1482,20 @@ export class AutomergeDurableObject {
       return
     }
     
+    console.log(`💾 Attempting to persist room ${this.roomId} to R2...`)
+    
     try {
       // Update currentDoc to the merged version
       this.currentDoc = mergedDoc
       
-      // convert the merged document to JSON and upload it to R2
+      // OPTIMIZED: Serialize efficiently - R2 handles large payloads well, but we can optimize
+      // For very large documents, consider compression or chunking in the future
       const docJson = JSON.stringify(mergedDoc)
-      await this.r2.put(`rooms/${this.roomId}`, docJson, {
+      const docSize = docJson.length
+      
+      console.log(`💾 Uploading to R2: ${docSize} bytes, ${mergedShapeCount} shapes`)
+      
+      const putResult = await this.r2.put(`rooms/${this.roomId}`, docJson, {
         httpMetadata: {
           contentType: 'application/json'
         }
@@ -1381,15 +1512,30 @@ export class AutomergeDurableObject {
       
       // Update last persisted hash only after successful save
       this.lastPersistedHash = currentHash
+      // Update cached R2 document to match what we just saved
+      this.cachedR2Doc = mergedDoc
+      this.cachedR2Hash = currentHash
       console.log(`✅ Successfully persisted room ${this.roomId} to R2 (merged):`, {
         storeKeys: mergedDoc.store ? Object.keys(mergedDoc.store).length : 0,
         shapeCount: mergedShapeCount,
-        docSize: docJson.length,
-        preservedR2Shapes: r2ShapeCount > 0 ? `${r2ShapeCount} from R2` : 'none'
+        docSize: docSize,
+        preservedR2Shapes: r2ShapeCount > 0 ? `${r2ShapeCount} from R2` : 'none',
+        r2PutResult: putResult ? 'success' : 'unknown'
       })
       console.log(`✅ Persisted shape type breakdown:`, persistedShapeTypeCounts)
     } catch (error) {
-      console.error(`❌ Error persisting room ${this.roomId} to R2:`, error)
+      // Enhanced error logging for R2 persistence failures
+      const errorDetails = {
+        roomId: this.roomId,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorName: error instanceof Error ? error.name : 'Unknown',
+        errorStack: error instanceof Error ? error.stack : undefined,
+        shapeCount: mergedShapeCount,
+        storeKeys: mergedDoc.store ? Object.keys(mergedDoc.store).length : 0,
+        docSize: mergedDoc.store ? JSON.stringify(mergedDoc).length : 0
+      }
+      console.error(`❌ Error persisting room ${this.roomId} to R2:`, errorDetails)
+      console.error(`❌ Full error object:`, error)
     }
   }, 2_000)
 

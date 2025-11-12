@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { BaseBoxShapeUtil, TLBaseShape, HTMLContainer } from "tldraw"
 import { StandardizedToolWrapper } from "../components/StandardizedToolWrapper"
+import { usePinnedToView } from "../hooks/usePinnedToView"
 
 export type IChatBoxShape = TLBaseShape<
   "ChatBox",
@@ -9,6 +10,8 @@ export type IChatBoxShape = TLBaseShape<
     h: number
     roomId: string
     userName: string
+    pinnedToView: boolean
+    tags: string[]
   }
 >
 
@@ -21,6 +24,8 @@ export class ChatBoxShape extends BaseBoxShapeUtil<IChatBoxShape> {
       w: 400,
       h: 500,
       userName: "",
+      pinnedToView: false,
+      tags: ['chat'],
     }
   }
 
@@ -35,12 +40,26 @@ export class ChatBoxShape extends BaseBoxShapeUtil<IChatBoxShape> {
     const [isMinimized, setIsMinimized] = useState(false)
     const isSelected = this.editor.getSelectedShapeIds().includes(shape.id)
 
+    // Use the pinning hook to keep the shape fixed to viewport when pinned
+    usePinnedToView(this.editor, shape.id, shape.props.pinnedToView)
+
     const handleClose = () => {
       this.editor.deleteShape(shape.id)
     }
 
     const handleMinimize = () => {
       setIsMinimized(!isMinimized)
+    }
+
+    const handlePinToggle = () => {
+      this.editor.updateShape<IChatBoxShape>({
+        id: shape.id,
+        type: shape.type,
+        props: {
+          ...shape.props,
+          pinnedToView: !shape.props.pinnedToView,
+        },
+      })
     }
 
     return (
@@ -56,6 +75,20 @@ export class ChatBoxShape extends BaseBoxShapeUtil<IChatBoxShape> {
           isMinimized={isMinimized}
           editor={this.editor}
           shapeId={shape.id}
+          isPinnedToView={shape.props.pinnedToView}
+          onPinToggle={handlePinToggle}
+          tags={shape.props.tags}
+          onTagsChange={(newTags) => {
+            this.editor.updateShape<IChatBoxShape>({
+              id: shape.id,
+              type: 'ChatBox',
+              props: {
+                ...shape.props,
+                tags: newTags,
+              }
+            })
+          }}
+          tagsEditable={true}
         >
           <ChatBox
             roomId={shape.props.roomId}
