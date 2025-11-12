@@ -30,14 +30,11 @@ import { SlideShape } from "@/shapes/SlideShapeUtil"
 import { makeRealSettings, applySettingsMigrations } from "@/lib/settings"
 import { PromptShapeTool } from "@/tools/PromptShapeTool"
 import { PromptShape } from "@/shapes/PromptShapeUtil"
-import { SharedPianoTool } from "@/tools/SharedPianoTool"
-import { SharedPianoShape } from "@/shapes/SharedPianoShapeUtil"
 import { ObsNoteTool } from "@/tools/ObsNoteTool"
 import { ObsNoteShape } from "@/shapes/ObsNoteShapeUtil"
 import { TranscriptionTool } from "@/tools/TranscriptionTool"
 import { TranscriptionShape } from "@/shapes/TranscriptionShapeUtil"
-import { FathomTranscriptTool } from "@/tools/FathomTranscriptTool"
-import { FathomTranscriptShape } from "@/shapes/FathomTranscriptShapeUtil"
+import { FathomNoteShape } from "@/shapes/FathomNoteShapeUtil"
 import { HolonTool } from "@/tools/HolonTool"
 import { HolonShape } from "@/shapes/HolonShapeUtil"
 import { FathomMeetingsTool } from "@/tools/FathomMeetingsTool"
@@ -77,10 +74,9 @@ const customShapeUtils = [
   MycrozineTemplateShape,
   MarkdownShape,
   PromptShape,
-  SharedPianoShape,
   ObsNoteShape,
   TranscriptionShape,
-  FathomTranscriptShape,
+  FathomNoteShape,
   HolonShape,
   HolonBrowserShape,
   ObsidianBrowserShape,
@@ -95,11 +91,9 @@ const customTools = [
   MycrozineTemplateTool,
   MarkdownTool,
   PromptShapeTool,
-  SharedPianoTool,
   GestureTool,
   ObsNoteTool,
   TranscriptionTool,
-  FathomTranscriptTool,
   HolonTool,
   FathomMeetingsTool,
 ]
@@ -224,6 +218,45 @@ export function Board() {
       makeRealSettings.set(migratedSettings)
     }
   }, [])
+
+  // Bring selected shapes to front when they become selected
+  useEffect(() => {
+    if (!editor) return
+
+    let lastSelectedIds: string[] = []
+
+    const handleSelectionChange = () => {
+      const selectedShapeIds = editor.getSelectedShapeIds()
+      
+      // Only bring to front if selection actually changed
+      const selectionChanged = 
+        selectedShapeIds.length !== lastSelectedIds.length ||
+        selectedShapeIds.some((id, index) => id !== lastSelectedIds[index])
+      
+      if (selectionChanged && selectedShapeIds.length > 0) {
+        try {
+          // Bring all selected shapes to the front
+          editor.sendToFront(selectedShapeIds)
+          lastSelectedIds = [...selectedShapeIds]
+        } catch (error) {
+          // Silently fail if shapes don't exist or operation fails
+          // This prevents console spam if shapes are deleted during selection
+        }
+      } else if (!selectionChanged) {
+        // Update lastSelectedIds even if no action taken
+        lastSelectedIds = [...selectedShapeIds]
+      }
+    }
+
+    // Listen for selection changes (fires on any store change, but we filter for selection changes)
+    const unsubscribe = editor.addListener('change', handleSelectionChange)
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe()
+      }
+    }
+  }, [editor])
 
   // Remove the URL-based locking effect and replace with store-based initialization
   useEffect(() => {
@@ -596,31 +629,81 @@ export function Board() {
     };
   }, [editor, roomId, store.store]);
 
-  // Handle Escape key to cancel active tool and return to hand tool
-  // Also prevent Escape from deleting shapes
+  // TLDraw has built-in undo/redo that works with the store
+  // No need for custom undo/redo manager - TLDraw handles it automatically
+
+  // Handle keyboard shortcuts for undo (Ctrl+Z) and redo (Ctrl+Y)
   useEffect(() => {
     if (!editor) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Only handle Escape key
-      if (event.key === 'Escape') {
-        // Check if the event target or active element is an input field or textarea
-        const target = event.target as HTMLElement;
-        const activeElement = document.activeElement;
-        const isInputFocused = (target && (
-          target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          (target instanceof HTMLElement && target.isContentEditable)
-        )) || (activeElement && (
-          activeElement.tagName === 'INPUT' ||
-          activeElement.tagName === 'TEXTAREA' ||
-          (activeElement instanceof HTMLElement && activeElement.isContentEditable)
-        ));
+      // Check if the event target or active element is an input field or textarea
+      const target = event.target as HTMLElement;
+      const activeElement = document.activeElement;
+      const isInputFocused = (target && (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      )) || (activeElement && (
+        activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA' ||
+        (activeElement instanceof HTMLElement && activeElement.isContentEditable)
+      ));
 
-        // If an input is focused, let it handle Escape (don't prevent default)
-        // This allows components like Obsidian notes to handle Escape for canceling edits
+      // Handle Ctrl+Z (Undo) - use TLDraw's built-in undo
+      if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
+        // If an input is focused, let it handle Ctrl+Z (don't prevent default)
         if (isInputFocused) {
-          return; // Let the event propagate to the component's handler
+          return;
+        }
+
+        if (editor) {
+          event.preventDefault();
+          event.stopPropagation();
+          editor.undo();
+        }
+        return;
+      }
+
+      // Handle Ctrl+Y (Redo) or Ctrl+Shift+Z (Redo on some systems) - use TLDraw's built-in redo
+      if (
+        ((event.ctrlKey || event.metaKey) && event.key === 'y') ||
+        ((event.ctrlKey || event.metaKey) && event.key === 'z' && event.shiftKey)
+      ) {
+        // If an input is focused, let it handle Ctrl+Y (don't prevent default)
+        if (isInputFocused) {
+          return;
+        }
+
+        if (editor) {
+          event.preventDefault();
+          event.stopPropagation();
+          editor.redo();
+        }
+        return;
+      }
+
+      // Handle Escape key to cancel active tool and return to hand tool
+      // Also prevent Escape from deleting shapes, especially browser shapes
+      if (event.key === 'Escape') {
+        // If an input is focused, let it handle Escape (don't prevent default)
+        if (isInputFocused) {
+          return;
+        }
+
+        // Check if any selected shapes are browser shapes that should not be deleted
+        const selectedShapes = editor.getSelectedShapes();
+        const hasBrowserShape = selectedShapes.some(shape => 
+          shape.type === 'ObsidianBrowser' || 
+          shape.type === 'HolonBrowser' || 
+          shape.type === 'FathomMeetingsBrowser'
+        );
+
+        // Prevent deletion of browser shapes with Escape
+        if (hasBrowserShape) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
         }
 
         // Otherwise, prevent default to stop tldraw from deleting shapes
@@ -641,7 +724,7 @@ export function Board() {
     return () => {
       document.removeEventListener('keydown', handleKeyDown, true);
     };
-  }, [editor]);
+  }, [editor, automergeHandle]);
 
   // Only render Tldraw when store is ready and synced
   // Tldraw will automatically render shapes as they're added via patches (like in dev)
@@ -737,7 +820,7 @@ export function Board() {
           // Note: User presence is configured through the useAutomergeSync hook above
           // The authenticated username should appear in the people section
         }}
-      >
+        >
           <CmdK />
         </Tldraw>
       </div>

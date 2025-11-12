@@ -5,6 +5,7 @@ import { QuartzSync, createQuartzNoteFromShape, QuartzSyncConfig } from '@/lib/q
 import { logGitHubSetupStatus } from '@/lib/githubSetupValidator'
 import { getClientConfig } from '@/lib/clientConfig'
 import { StandardizedToolWrapper } from '../components/StandardizedToolWrapper'
+import { usePinnedToView } from '../hooks/usePinnedToView'
 
 // Auto-resizing textarea component
 const AutoResizeTextarea: React.FC<{
@@ -66,6 +67,10 @@ const ObsNoteComponent: React.FC<{
   const [isSyncing, setIsSyncing] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isMinimized, setIsMinimized] = useState(false)
+  const [isCopying, setIsCopying] = useState(false)
+
+  // Use the pinning hook to keep the shape fixed to viewport when pinned
+  usePinnedToView(shapeUtil.editor, shape.id, shape.props.pinnedToView)
   // Store the content at the start of editing to revert to on cancel
   const [contentAtEditStart, setContentAtEditStart] = useState<string | null>(null)
   // Notification state for in-shape notifications
@@ -348,6 +353,37 @@ const ObsNoteComponent: React.FC<{
     }
   }
 
+  const handleCopy = async () => {
+    if (isCopying) return
+    
+    if (!isSelected) {
+      setNotification({ message: '⚠️ Please select this note to copy', type: 'error' })
+      return
+    }
+    
+    setIsCopying(true)
+    
+    try {
+      const contentToCopy = shape.props.content || ''
+      if (!contentToCopy.trim()) {
+        setNotification({ message: '⚠️ No content to copy', type: 'error' })
+        setIsCopying(false)
+        return
+      }
+      
+      await navigator.clipboard.writeText(contentToCopy)
+      setNotification({ message: '✅ Content copied to clipboard', type: 'success' })
+    } catch (error) {
+      console.error('❌ Copy failed:', error)
+      setNotification({ 
+        message: `Copy failed: ${error instanceof Error ? error.message : 'Unknown error'}`, 
+        type: 'error' 
+      })
+    } finally {
+      setIsCopying(false)
+    }
+  }
+
   const handleSync = async () => {
     if (isSyncing) return
     
@@ -608,6 +644,17 @@ ${content}`
     shapeUtil.editor.deleteShape(shape.id)
   }
 
+  const handlePinToggle = () => {
+    shapeUtil.editor.updateShape<IObsNoteShape>({
+      id: shape.id,
+      type: shape.type,
+      props: {
+        ...shape.props,
+        pinnedToView: !shape.props.pinnedToView,
+      },
+    })
+  }
+
   // Custom header content with editable title and action buttons
   const headerContent = (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', gap: '8px' }}>
@@ -664,7 +711,7 @@ ${content}`
     <HTMLContainer style={{ width: shape.props.w, height: shape.props.h }}>
       <StandardizedToolWrapper
         title="Obsidian Note"
-        primaryColor={ObsNoteShape.PRIMARY_COLOR}
+        primaryColor={shape.props.primaryColor || ObsNoteShape.PRIMARY_COLOR}
         isSelected={isSelected}
         width={shape.props.w}
         height={shape.props.h}
@@ -674,24 +721,22 @@ ${content}`
         headerContent={headerContent}
         editor={shapeUtil.editor}
         shapeId={shape.id}
+        isPinnedToView={shape.props.pinnedToView}
+        onPinToggle={handlePinToggle}
+        tags={shape.props.tags}
+        onTagsChange={(newTags) => {
+          const sanitizedProps = ObsNoteShape.sanitizeProps({
+            ...shape.props,
+            tags: newTags,
+          })
+          shapeUtil.editor.updateShape<IObsNoteShape>({
+            id: shape.id,
+            type: 'ObsNote',
+            props: sanitizedProps
+          })
+        }}
+        tagsEditable={true}
       >
-      
-      {shape.props.tags.length > 0 && (
-        <div style={{ padding: '0 12px', paddingBottom: '8px' }}>
-          <div style={tagsStyle}>
-            {shape.props.tags.slice(0, 3).map((tag, index) => (
-              <span key={index} style={tagStyle}>
-                {tag.replace('#', '')}
-              </span>
-            ))}
-            {shape.props.tags.length > 3 && (
-              <span style={tagStyle}>
-                +{shape.props.tags.length - 3}
-              </span>
-            )}
-          </div>
-        </div>
-      )}
 
       <div 
         style={{
@@ -874,33 +919,34 @@ ${content}`
         gap: '8px',
         marginTop: 'auto',
       }}>
-        {/* Restore button - always shown */}
+        {/* Copy button - always clickable */}
         <button
           onClick={(e) => {
             e.stopPropagation()
-            handleRefresh()
+            handleCopy()
           }}
           onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
-          disabled={isRefreshing}
+          disabled={isCopying}
           style={{
             ...buttonStyle,
             fontSize: '11px',
             padding: '6px 12px',
-            backgroundColor: isRefreshing ? '#ccc' : '#007acc',
+            backgroundColor: isCopying ? '#6c757d' : isSelected ? '#004d85' : '#005a9e',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: isRefreshing ? 'not-allowed' : 'pointer',
+            cursor: isCopying ? 'not-allowed' : 'pointer',
             display: 'flex',
             alignItems: 'center',
             gap: '4px',
             pointerEvents: 'auto',
-            opacity: isRefreshing ? 0.7 : 1,
+            opacity: isCopying ? 0.7 : 1,
+            transition: 'background-color 0.2s ease',
           }}
-          title="restore from vault"
+          title={!isSelected ? "Select this note to copy" : "Copy transcript content to clipboard"}
         >
-          {isRefreshing ? '⏳ Restoring...' : '↩️ Restore'}
+          {isCopying ? '⏳ Copying...' : '📋 Copy'}
         </button>
         
         {/* Save changes button - shown when there are modifications or when editing with changes */}
@@ -969,6 +1015,8 @@ export type IObsNoteShape = TLBaseShape<
     vaultPath?: string
     vaultName?: string
     filePath?: string // Original file path from vault - used to maintain filename consistency
+    pinnedToView: boolean
+    primaryColor?: string // Optional custom primary color for the header
   }
 >
 
@@ -1007,6 +1055,7 @@ export class ObsNoteShape extends BaseBoxShapeUtil<IObsNoteShape> {
       editingContent: typeof props.editingContent === 'string' ? props.editingContent : '',
       isModified: typeof props.isModified === 'boolean' ? props.isModified : false,
       originalContent: typeof props.originalContent === 'string' ? props.originalContent : '',
+      pinnedToView: typeof props.pinnedToView === 'boolean' ? props.pinnedToView : false,
     }
     
     // Only add optional properties if they're defined and are strings
@@ -1018,6 +1067,9 @@ export class ObsNoteShape extends BaseBoxShapeUtil<IObsNoteShape> {
     }
     if (props.filePath !== undefined && typeof props.filePath === 'string') {
       sanitized.filePath = props.filePath
+    }
+    if (props.primaryColor !== undefined && typeof props.primaryColor === 'string') {
+      sanitized.primaryColor = props.primaryColor
     }
     
     return sanitized

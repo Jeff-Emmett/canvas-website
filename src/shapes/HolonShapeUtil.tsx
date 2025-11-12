@@ -7,6 +7,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { holosphereService, HoloSphereService, HolonData, HolonLens, HolonConnection } from "@/lib/HoloSphereService"
 import * as h3 from 'h3-js'
 import { StandardizedToolWrapper } from "../components/StandardizedToolWrapper"
+import { usePinnedToView } from "../hooks/usePinnedToView"
 
 type IHolon = TLBaseShape<
   "Holon",
@@ -27,6 +28,8 @@ type IHolon = TLBaseShape<
     data: Record<string, any>
     connections: HolonConnection[]
     lastUpdated: number
+    pinnedToView: boolean
+    tags: string[]
   }
 >
 
@@ -43,11 +46,8 @@ const AutoResizeTextarea: React.FC<{
 }> = ({ value, onChange, onBlur, onKeyDown, style, placeholder, onPointerDown, onWheel }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.focus()
-    }
-  }, [value])
+  // Removed auto-focus - textarea will only focus when user explicitly clicks on it
+  // This prevents text boxes from being selected when shapes are created/recreated
 
   return (
     <textarea
@@ -60,7 +60,6 @@ const AutoResizeTextarea: React.FC<{
       onWheel={onWheel}
       style={style}
       placeholder={placeholder}
-      autoFocus
     />
   )
 }
@@ -87,6 +86,8 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
       data: {},
       connections: [],
       lastUpdated: Date.now(),
+      pinnedToView: false,
+      tags: ['holon'],
     }
   }
 
@@ -108,6 +109,9 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
     
     const isSelected = this.editor.getSelectedShapeIds().includes(shape.id)
     const isMountedRef = useRef(true)
+
+    // Use the pinning hook to keep the shape fixed to viewport when pinned
+    usePinnedToView(this.editor, shape.id, shape.props.pinnedToView)
 
     // Note: Auto-initialization is disabled. Users must manually enter Holon IDs.
     // This prevents the shape from auto-generating IDs based on coordinates.
@@ -561,6 +565,17 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
       this.editor.deleteShape(shape.id)
     }
 
+    const handlePinToggle = () => {
+      this.editor.updateShape<IHolon>({
+        id: shape.id,
+        type: shape.type,
+        props: {
+          ...shape.props,
+          pinnedToView: !shape.props.pinnedToView,
+        },
+      })
+    }
+
     const contentStyle: React.CSSProperties = {
       padding: '12px',
       flex: 1,
@@ -678,6 +693,20 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
           headerContent={headerContent}
           editor={this.editor}
           shapeId={shape.id}
+          isPinnedToView={shape.props.pinnedToView}
+          onPinToggle={handlePinToggle}
+          tags={shape.props.tags}
+          onTagsChange={(newTags) => {
+            this.editor.updateShape<IHolon>({
+              id: shape.id,
+              type: 'Holon',
+              props: {
+                ...shape.props,
+                tags: newTags,
+              }
+            })
+          }}
+          tagsEditable={true}
         >
         
         <div style={contentStyle}>
@@ -725,7 +754,6 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
                     }
                   }}
                   placeholder="1002848305066"
-                  autoFocus
                   style={{
                     flex: 1,
                     height: '48px',

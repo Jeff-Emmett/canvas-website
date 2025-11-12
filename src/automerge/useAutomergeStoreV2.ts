@@ -15,6 +15,99 @@ import {
 import { applyAutomergePatchesToTLStore, sanitizeRecord } from "./AutomergeToTLStore.js"
 import { applyTLStoreChangesToAutomerge } from "./TLStoreToAutomerge.js"
 
+// Helper function to safely extract plain objects from Automerge proxies
+// This handles cases where JSON.stringify fails due to functions or getters
+function safeExtractPlainObject(obj: any, visited = new WeakSet()): any {
+  // Handle null and undefined
+  if (obj === null || obj === undefined) {
+    return obj
+  }
+  
+  // Handle primitives
+  if (typeof obj !== 'object') {
+    return obj
+  }
+  
+  // Handle circular references
+  if (visited.has(obj)) {
+    return null
+  }
+  visited.add(obj)
+  
+  // Handle arrays
+  if (Array.isArray(obj)) {
+    try {
+      return obj.map(item => safeExtractPlainObject(item, visited))
+    } catch (e) {
+      return []
+    }
+  }
+  
+  // Handle objects
+  try {
+    const result: any = {}
+    // Use Object.keys to get enumerable properties, which is safer than for...in
+    // for Automerge proxies
+    const keys = Object.keys(obj)
+    for (const key of keys) {
+      try {
+        // Safely get the property value
+        // Use Object.getOwnPropertyDescriptor to check if it's a getter
+        const descriptor = Object.getOwnPropertyDescriptor(obj, key)
+        if (descriptor) {
+          // If it's a getter, try to get the value, but catch any errors
+          if (descriptor.get) {
+            try {
+              const value = descriptor.get.call(obj)
+              // Skip functions
+              if (typeof value === 'function') {
+                continue
+              }
+              result[key] = safeExtractPlainObject(value, visited)
+            } catch (e) {
+              // Skip properties that can't be accessed via getter
+              continue
+            }
+          } else if (descriptor.value !== undefined) {
+            // Regular property
+            const value = descriptor.value
+            // Skip functions
+            if (typeof value === 'function') {
+              continue
+            }
+            result[key] = safeExtractPlainObject(value, visited)
+          }
+        } else {
+          // Fallback: try direct access
+          try {
+            const value = obj[key]
+            // Skip functions
+            if (typeof value === 'function') {
+              continue
+            }
+            result[key] = safeExtractPlainObject(value, visited)
+          } catch (e) {
+            // Skip properties that can't be accessed
+            continue
+          }
+        }
+      } catch (e) {
+        // Skip properties that can't be accessed
+        continue
+      }
+    }
+    return result
+  } catch (e) {
+    // If extraction fails, try JSON.stringify as fallback
+    try {
+      return JSON.parse(JSON.stringify(obj))
+    } catch (jsonError) {
+      // If that also fails, return empty object
+      return {}
+    }
+  }
+}
+
 // Import custom shape utilities
 import { ChatBoxShape } from "@/shapes/ChatBoxShapeUtil"
 import { VideoChatShape } from "@/shapes/VideoChatShapeUtil"
@@ -23,10 +116,9 @@ import { MarkdownShape } from "@/shapes/MarkdownShapeUtil"
 import { MycrozineTemplateShape } from "@/shapes/MycrozineTemplateShapeUtil"
 import { SlideShape } from "@/shapes/SlideShapeUtil"
 import { PromptShape } from "@/shapes/PromptShapeUtil"
-import { SharedPianoShape } from "@/shapes/SharedPianoShapeUtil"
 import { TranscriptionShape } from "@/shapes/TranscriptionShapeUtil"
 import { ObsNoteShape } from "@/shapes/ObsNoteShapeUtil"
-import { FathomTranscriptShape } from "@/shapes/FathomTranscriptShapeUtil"
+import { FathomNoteShape } from "@/shapes/FathomNoteShapeUtil"
 import { HolonShape } from "@/shapes/HolonShapeUtil"
 import { ObsidianBrowserShape } from "@/shapes/ObsidianBrowserShapeUtil"
 import { FathomMeetingsBrowserShape } from "@/shapes/FathomMeetingsBrowserShapeUtil"
@@ -52,10 +144,9 @@ export function useAutomergeStoreV2({
       MycrozineTemplate: {} as any,
       Slide: {} as any,
       Prompt: {} as any,
-      SharedPiano: {} as any,
       Transcription: {} as any,
       ObsNote: {} as any,
-      FathomTranscript: {} as any,
+      FathomNote: {} as any,
       Holon: {} as any,
       ObsidianBrowser: {} as any,
       FathomMeetingsBrowser: {} as any,
@@ -75,10 +166,9 @@ export function useAutomergeStoreV2({
         MycrozineTemplateShape,
         SlideShape,
         PromptShape,
-        SharedPianoShape,
         TranscriptionShape,
         ObsNoteShape,
-        FathomTranscriptShape,
+        FathomNoteShape,
         HolonShape,
         ObsidianBrowserShape,
         FathomMeetingsBrowserShape,
@@ -232,24 +322,414 @@ export function useAutomergeStoreV2({
     
     // Set up handler BEFORE initializeStore to catch patches from initial data load
     handle.on("change", automergeChangeHandler)
+    
+    // CRITICAL: If data was written to Automerge before this handler was set up,
+    // manually trigger patch processing by reading the current doc state
+    // This handles the case where useAutomergeSyncRepo writes data before useAutomergeStoreV2 sets up the handler
+    // We do this synchronously when the handler is set up to catch any missed patches
+    const currentDoc = handle.doc()
+    if (currentDoc && currentDoc.store && Object.keys(currentDoc.store).length > 0) {
+      const docShapeCount = Object.values(currentDoc.store).filter((r: any) => r?.typeName === 'shape').length
+      const storeShapeCount = store.allRecords().filter((r: any) => r.typeName === 'shape').length
+      
+      if (docShapeCount > 0 && storeShapeCount === 0) {
+        console.log(`🔧 Handler set up after data was written. Manually processing ${docShapeCount} shapes that were loaded before handler was ready...`)
+        // Since patches were already emitted when handle.change() was called in useAutomergeSyncRepo,
+        // we need to manually process the data that's already in the doc
+        try {
+          const allRecords: TLRecord[] = []
+          Object.entries(currentDoc.store).forEach(([id, record]: [string, any]) => {
+            if (!record || !record.typeName || !record.id) return
+            if (record.typeName === 'obsidian_vault' || (typeof record.id === 'string' && record.id.startsWith('obsidian_vault:'))) return
+            
+            try {
+              let cleanRecord: any
+              try {
+                cleanRecord = JSON.parse(JSON.stringify(record))
+              } catch {
+                cleanRecord = safeExtractPlainObject(record)
+              }
+              
+              if (cleanRecord && typeof cleanRecord === 'object') {
+                const sanitized = sanitizeRecord(cleanRecord)
+                const plainSanitized = JSON.parse(JSON.stringify(sanitized))
+                allRecords.push(plainSanitized)
+              }
+            } catch (e) {
+              console.warn(`⚠️ Could not process record ${id}:`, e)
+            }
+          })
+          
+          // Filter out SharedPiano shapes since they're no longer supported
+          const filteredRecords = allRecords.filter((record: any) => {
+            if (record.typeName === 'shape' && record.type === 'SharedPiano') {
+              console.log(`⚠️ Filtering out deprecated SharedPiano shape: ${record.id}`)
+              return false
+            }
+            return true
+          })
+          
+          if (filteredRecords.length > 0) {
+            console.log(`🔧 Manually applying ${filteredRecords.length} records to store (patches were missed during initial load, filtered out ${allRecords.length - filteredRecords.length} SharedPiano shapes)`)
+            store.mergeRemoteChanges(() => {
+              const pageRecords = filteredRecords.filter(r => r.typeName === 'page')
+              const shapeRecords = filteredRecords.filter(r => r.typeName === 'shape')
+              const otherRecords = filteredRecords.filter(r => r.typeName !== 'page' && r.typeName !== 'shape')
+              const recordsToAdd = [...pageRecords, ...otherRecords, ...shapeRecords]
+              store.put(recordsToAdd)
+            })
+            console.log(`✅ Manually applied ${filteredRecords.length} records to store`)
+          }
+        } catch (error) {
+          console.error(`❌ Error manually processing initial data:`, error)
+        }
+      }
+    }
 
+    // Throttle position-only updates (x/y changes) to reduce automerge saves during movement
+    let positionUpdateQueue: RecordsDiff<TLRecord> | null = null
+    let positionUpdateTimeout: NodeJS.Timeout | null = null
+    const POSITION_UPDATE_THROTTLE_MS = 1000 // Save position updates every 1 second
+    
+    const flushPositionUpdates = () => {
+      if (positionUpdateQueue && handle) {
+        const queuedChanges = positionUpdateQueue
+        positionUpdateQueue = null
+        
+        // CRITICAL: Defer position update saves to prevent interrupting active interactions
+        requestAnimationFrame(() => {
+          try {
+            isLocalChange = true
+            handle.change((doc) => {
+              applyTLStoreChangesToAutomerge(doc, queuedChanges)
+            })
+            setTimeout(() => {
+              isLocalChange = false
+            }, 100)
+          } catch (error) {
+            console.error("Error applying throttled position updates to Automerge:", error)
+            isLocalChange = false
+          }
+        })
+      }
+    }
+    
+    // Helper to check if a change is only a position update (x/y changed, nothing else)
+    const isPositionOnlyUpdate = (changes: RecordsDiff<TLRecord>): boolean => {
+      // If there are added or removed records, it's not just a position update
+      if (changes.added && Object.keys(changes.added).length > 0) return false
+      if (changes.removed && Object.keys(changes.removed).length > 0) return false
+      
+      // Check if all updated records are only position changes
+      if (changes.updated) {
+        const doc = handle?.doc()
+        if (!doc?.store) return false
+        
+        for (const [id, recordTuple] of Object.entries(changes.updated)) {
+          const isTuple = Array.isArray(recordTuple) && recordTuple.length === 2
+          const oldRecord = isTuple ? recordTuple[0] : null
+          const newRecord = isTuple ? recordTuple[1] : recordTuple
+          
+          if (!oldRecord || !newRecord) return false
+          if (newRecord.typeName !== 'shape') return false
+          
+          // Check if only x/y changed
+          const oldX = (oldRecord as any).x
+          const oldY = (oldRecord as any).y
+          const newX = (newRecord as any).x
+          const newY = (newRecord as any).y
+          
+          // If x/y didn't change, it's not a position update
+          if (oldX === newX && oldY === newY) return false
+          
+          // Check if any other properties changed
+          for (const key of Object.keys(newRecord)) {
+            if (key === 'x' || key === 'y') continue
+            if (key === 'props') {
+              // Deep compare props
+              const oldProps = oldRecord.props || {}
+              const newProps = newRecord.props || {}
+              if (JSON.stringify(oldProps) !== JSON.stringify(newProps)) {
+                return false // Props changed, not just position
+              }
+            } else {
+              if ((oldRecord as any)[key] !== (newRecord as any)[key]) {
+                return false // Other property changed
+              }
+            }
+          }
+        }
+        return true // All updates are position-only
+      }
+      
+      return false
+    }
+    
+    // Track recent eraser activity to detect active eraser drags
+    let lastEraserActivity = 0
+    let eraserToolSelected = false
+    const ERASER_ACTIVITY_THRESHOLD = 2000 // Increased to 2 seconds to handle longer eraser drags
+    let eraserChangeQueue: RecordsDiff<TLRecord> | null = null
+    let eraserCheckInterval: NodeJS.Timeout | null = null
+    
+    // Helper to check if eraser tool is actively erasing (to prevent saves during eraser drag)
+    const isEraserActive = (): boolean => {
+      try {
+        const allRecords = store.allRecords()
+        
+        // Check instance_page_state for erasingShapeIds (most reliable indicator)
+        const instancePageState = allRecords.find((r: any) => 
+          r.typeName === 'instance_page_state' && 
+          (r as any).erasingShapeIds && 
+          Array.isArray((r as any).erasingShapeIds) && 
+          (r as any).erasingShapeIds.length > 0
+        )
+        
+        if (instancePageState) {
+          lastEraserActivity = Date.now()
+          eraserToolSelected = true
+          return true // Eraser is actively erasing shapes
+        }
+        
+        // Check if eraser tool is selected
+        const instance = allRecords.find((r: any) => r.typeName === 'instance')
+        const currentToolId = instance ? (instance as any).currentToolId : null
+        
+        if (currentToolId === 'eraser') {
+          eraserToolSelected = true
+          const now = Date.now()
+          // If eraser tool is selected, keep it active for longer to handle drags
+          // Also check if there was recent activity
+          if (now - lastEraserActivity < ERASER_ACTIVITY_THRESHOLD) {
+            return true
+          }
+          // If tool is selected but no recent activity, still consider it active
+          // (user might be mid-drag)
+          return true
+        } else {
+          // Tool switched away - only consider active if very recent activity
+          eraserToolSelected = false
+          const now = Date.now()
+          if (now - lastEraserActivity < 300) {
+            return true // Very recent activity, might still be processing
+          }
+        }
+        
+        return false
+      } catch (e) {
+        // If we can't check, use last known state with timeout
+        const now = Date.now()
+        if (eraserToolSelected && now - lastEraserActivity < ERASER_ACTIVITY_THRESHOLD) {
+          return true
+        }
+        return false
+      }
+    }
+    
+    // Track eraser activity from shape deletions
+    const checkForEraserActivity = (changes: RecordsDiff<TLRecord>) => {
+      // If shapes are being removed and eraser tool might be active, mark activity
+      if (changes.removed) {
+        const removedShapes = Object.values(changes.removed).filter((r: any) => 
+          r && r.typeName === 'shape'
+        )
+        if (removedShapes.length > 0) {
+          // Check if eraser tool is currently selected
+          const allRecords = store.allRecords()
+          const instance = allRecords.find((r: any) => r.typeName === 'instance')
+          if (instance && (instance as any).currentToolId === 'eraser') {
+            lastEraserActivity = Date.now()
+            eraserToolSelected = true
+          }
+        }
+      }
+    }
+    
     // Listen for changes from TLDraw and apply them to Automerge
     // CRITICAL: Listen to ALL sources, not just "user", to catch richText/text changes
     const unsubscribeTLDraw = store.listen(({ changes, source }) => {
+      // Check for eraser activity from shape deletions
+      checkForEraserActivity(changes)
+      
+      // Filter out ephemeral records that shouldn't be persisted
+      // These include:
+      // - instance: UI state (cursor, screen bounds, etc.)
+      // - instance_page_state: selection state, editing state, etc.
+      // - instance_presence: presence/awareness data
+      // - camera: viewport position (x, y, z) - changes when panning/zooming
+      // - pointer: pointer position - changes on mouse movement
+      const ephemeralTypes = ['instance', 'instance_page_state', 'instance_presence', 'camera', 'pointer']
+      
+      const filterEphemeral = (records: any) => {
+        if (!records) return {}
+        const filtered: any = {}
+        Object.entries(records).forEach(([id, record]: [string, any]) => {
+          const recordObj = Array.isArray(record) ? record[1] : record
+          // Check typeName from the record object
+          const typeName = recordObj?.typeName
+          // Also check if ID pattern matches ephemeral types (e.g., "camera:page:page")
+          const idMatchesEphemeral = typeof id === 'string' && (
+            id.startsWith('instance:') ||
+            id.startsWith('instance_page_state:') ||
+            id.startsWith('instance_presence:') ||
+            id.startsWith('camera:') ||
+            id.startsWith('pointer:')
+          )
+          
+          // DEBUG: Log why records are being filtered or not
+          const shouldFilter = (typeName && ephemeralTypes.includes(typeName)) || idMatchesEphemeral
+          if (shouldFilter) {
+            console.log(`🚫 Filtering out ephemeral record:`, {
+              id,
+              typeName,
+              idMatchesEphemeral,
+              typeNameMatches: typeName && ephemeralTypes.includes(typeName)
+            })
+          }
+          
+          // Filter out if typeName matches OR if ID pattern matches ephemeral types
+          if (typeName && ephemeralTypes.includes(typeName)) {
+            // Skip - this is an ephemeral record
+            return
+          }
+          if (idMatchesEphemeral) {
+            // Skip - ID pattern indicates ephemeral record (even if typeName is missing)
+            return
+          }
+          
+          // Keep this record - it's not ephemeral
+          filtered[id] = record
+        })
+        return filtered
+      }
+      
+      const filteredChanges = {
+        added: filterEphemeral(changes.added),
+        updated: filterEphemeral(changes.updated),
+        removed: filterEphemeral(changes.removed),
+      }
+      
       // DEBUG: Log all changes to see what's being detected
       const totalChanges = Object.keys(changes.added || {}).length + Object.keys(changes.updated || {}).length + Object.keys(changes.removed || {}).length
+      const filteredTotalChanges = Object.keys(filteredChanges.added || {}).length + Object.keys(filteredChanges.updated || {}).length + Object.keys(filteredChanges.removed || {}).length
       
+      // DEBUG: Log ALL changes (before filtering) to see what's actually being updated
       if (totalChanges > 0) {
+        const allChangedRecords: Array<{id: string, typeName: string, changeType: string}> = []
+        if (changes.added) {
+          Object.entries(changes.added).forEach(([id, record]: [string, any]) => {
+            const recordObj = Array.isArray(record) ? record[1] : record
+            allChangedRecords.push({ id, typeName: recordObj?.typeName || 'unknown', changeType: 'added' })
+          })
+        }
+        if (changes.updated) {
+          Object.entries(changes.updated).forEach(([id, [_, record]]: [string, [any, any]]) => {
+            allChangedRecords.push({ id, typeName: record?.typeName || 'unknown', changeType: 'updated' })
+          })
+        }
+        if (changes.removed) {
+          Object.entries(changes.removed).forEach(([id, record]: [string, any]) => {
+            const recordObj = Array.isArray(record) ? record[1] : record
+            allChangedRecords.push({ id, typeName: recordObj?.typeName || 'unknown', changeType: 'removed' })
+          })
+        }
+        console.log(`🔍 ALL changes detected (before filtering):`, {
+          total: totalChanges,
+          records: allChangedRecords,
+          // Also log the actual record objects to see their structure
+          recordDetails: allChangedRecords.map(r => {
+            let record: any = null
+            if (r.changeType === 'added' && changes.added) {
+              const rec = changes.added[r.id]
+              record = Array.isArray(rec) ? rec[1] : rec
+            } else if (r.changeType === 'updated' && changes.updated) {
+              const rec = changes.updated[r.id]
+              record = Array.isArray(rec) ? rec[1] : rec
+            } else if (r.changeType === 'removed' && changes.removed) {
+              const rec = changes.removed[r.id]
+              record = Array.isArray(rec) ? rec[1] : rec
+            }
+            return {
+              id: r.id,
+              typeName: r.typeName,
+              changeType: r.changeType,
+              hasTypeName: !!record?.typeName,
+              actualTypeName: record?.typeName,
+              recordKeys: record ? Object.keys(record).slice(0, 10) : []
+            }
+          })
+        })
+      }
+      
+      // Log if we filtered out any ephemeral changes
+      if (totalChanges > 0 && filteredTotalChanges < totalChanges) {
+        const filteredCount = totalChanges - filteredTotalChanges
+        const filteredTypes = new Set<string>()
+        const filteredIds: string[] = []
+        if (changes.added) {
+          Object.entries(changes.added).forEach(([id, record]: [string, any]) => {
+            const recordObj = Array.isArray(record) ? record[1] : record
+            if (recordObj && ephemeralTypes.includes(recordObj.typeName)) {
+              filteredTypes.add(recordObj.typeName)
+              filteredIds.push(id)
+            }
+          })
+        }
+        if (changes.updated) {
+          Object.entries(changes.updated).forEach(([id, [_, record]]: [string, [any, any]]) => {
+            if (ephemeralTypes.includes(record.typeName)) {
+              filteredTypes.add(record.typeName)
+              filteredIds.push(id)
+            }
+          })
+        }
+        if (changes.removed) {
+          Object.entries(changes.removed).forEach(([id, record]: [string, any]) => {
+            const recordObj = Array.isArray(record) ? record[1] : record
+            if (recordObj && ephemeralTypes.includes(recordObj.typeName)) {
+              filteredTypes.add(recordObj.typeName)
+              filteredIds.push(id)
+            }
+          })
+        }
+        console.log(`🚫 Filtered out ${filteredCount} ephemeral change(s) (${Array.from(filteredTypes).join(', ')}) - not persisting`, {
+          filteredIds: filteredIds.slice(0, 5), // Show first 5 IDs
+          totalFiltered: filteredIds.length
+        })
+      }
+      
+      if (filteredTotalChanges > 0) {
+        // Log what records are passing through the filter (shouldn't happen for ephemeral records)
+        const passingRecords: Array<{id: string, typeName: string, changeType: string}> = []
+        if (filteredChanges.added) {
+          Object.entries(filteredChanges.added).forEach(([id, record]: [string, any]) => {
+            const recordObj = Array.isArray(record) ? record[1] : record
+            passingRecords.push({ id, typeName: recordObj?.typeName || 'unknown', changeType: 'added' })
+          })
+        }
+        if (filteredChanges.updated) {
+          Object.entries(filteredChanges.updated).forEach(([id, [_, record]]: [string, [any, any]]) => {
+            passingRecords.push({ id, typeName: record?.typeName || 'unknown', changeType: 'updated' })
+          })
+        }
+        if (filteredChanges.removed) {
+          Object.entries(filteredChanges.removed).forEach(([id, record]: [string, any]) => {
+            const recordObj = Array.isArray(record) ? record[1] : record
+            passingRecords.push({ id, typeName: recordObj?.typeName || 'unknown', changeType: 'removed' })
+          })
+        }
+        
         console.log(`🔍 TLDraw store changes detected (source: ${source}):`, {
-          added: Object.keys(changes.added || {}).length,
-          updated: Object.keys(changes.updated || {}).length,
-          removed: Object.keys(changes.removed || {}).length,
-          source: source
+          added: Object.keys(filteredChanges.added || {}).length,
+          updated: Object.keys(filteredChanges.updated || {}).length,
+          removed: Object.keys(filteredChanges.removed || {}).length,
+          source: source,
+          passingRecords: passingRecords // Show what's actually passing through
         })
         
         // DEBUG: Check for richText/text changes in updated records
-        if (changes.updated) {
-          Object.values(changes.updated).forEach(([_, record]) => {
+        if (filteredChanges.updated) {
+          Object.values(filteredChanges.updated).forEach(([_, record]) => {
             if (record.typeName === 'shape') {
               if (record.type === 'geo' && (record.props as any)?.richText) {
                 console.log(`🔍 Geo shape ${record.id} richText change detected:`, {
@@ -287,8 +767,8 @@ export function useAutomergeStoreV2({
         }
         
         // DEBUG: Log added shapes to track what's being created
-        if (changes.added) {
-          Object.values(changes.added).forEach((record) => {
+        if (filteredChanges.added) {
+          Object.values(filteredChanges.added).forEach((record) => {
             if (record.typeName === 'shape') {
               console.log(`🔍 Shape added: ${record.type} (${record.id})`, {
                 type: record.type,
@@ -302,38 +782,342 @@ export function useAutomergeStoreV2({
         }
       }
       
-      // CRITICAL: Don't skip changes - always save them to ensure consistency
-      // The isLocalChange flag is only used to prevent feedback loops from Automerge changes
-      // We should always save TLDraw changes, even if they came from Automerge sync
-      // This ensures that all shapes (notes, rectangles, etc.) are consistently persisted
+      // Skip if no meaningful changes after filtering ephemeral records
+      if (filteredTotalChanges === 0) {
+        return
+      }
       
-      try {
-        // Set flag to prevent feedback loop when this change comes back from Automerge
-        isLocalChange = true
+      // CRITICAL: Filter out x/y coordinate changes for pinned-to-view shapes
+      // When a shape is pinned, its x/y coordinates change to stay in the same screen position,
+      // but we want to keep the original coordinates static in Automerge
+      const filterPinnedPositionChanges = (changes: any) => {
+        if (!changes || !handle) return changes
         
-        handle.change((doc) => {
-          applyTLStoreChangesToAutomerge(doc, changes)
+        const doc = handle.doc()
+        if (!doc?.store) return changes
+        
+        // First, check if there are ANY pinned shapes in the document
+        // Only filter if there are actually pinned shapes
+        // Use strict equality check to ensure we only match true (not truthy values)
+        const hasPinnedShapes = Object.values(doc.store).some((record: any) => {
+          const isShape = record?.typeName === 'shape'
+          const isPinned = record?.props?.pinnedToView === true
+          return isShape && isPinned
         })
         
-        // Reset flag after a short delay to allow Automerge change handler to process
-        // This prevents feedback loops while ensuring all changes are saved
-        setTimeout(() => {
-          isLocalChange = false
-        }, 100)
-        
-        // Only log if there are many changes or if debugging is needed
-        if (totalChanges > 3) {
-          console.log(`✅ Applied ${totalChanges} TLDraw changes to Automerge document`)
-        } else if (totalChanges > 0) {
-          console.log(`✅ Applied ${totalChanges} TLDraw change(s) to Automerge document`)
+        // Also check the changes being processed to see if any shapes are pinned
+        let hasPinnedShapesInChanges = false
+        if (changes.updated) {
+          hasPinnedShapesInChanges = Object.entries(changes.updated).some(([id, recordTuple]: [string, any]) => {
+            const isTuple = Array.isArray(recordTuple) && recordTuple.length === 2
+            const newRecord = isTuple ? recordTuple[1] : recordTuple
+            const isShape = newRecord?.typeName === 'shape'
+            const isPinned = (newRecord.props as any)?.pinnedToView === true
+            // Also verify in the doc that it's actually pinned
+            const docShape = doc.store[id]
+            const isPinnedInDoc = docShape?.props?.pinnedToView === true
+            return isShape && isPinned && isPinnedInDoc
+        })
         }
         
-        // Check if the document actually changed
-        const docAfter = handle.doc()
-      } catch (error) {
-        console.error("Error applying TLDraw changes to Automerge:", error)
-        // Reset flag on error to prevent getting stuck
-        isLocalChange = false
+        // If there are no pinned shapes in either the doc or the changes, skip filtering entirely
+        if (!hasPinnedShapes && !hasPinnedShapesInChanges) {
+          return changes
+        }
+        
+        const filtered: any = { ...changes }
+        
+        // Check updated shapes for pinned position changes
+        if (filtered.updated) {
+          const updatedEntries = Object.entries(filtered.updated)
+          const filteredUpdated: any = {}
+          
+          updatedEntries.forEach(([id, recordTuple]: [string, any]) => {
+            // TLDraw store changes use tuple format [oldRecord, newRecord] for updates
+            const isTuple = Array.isArray(recordTuple) && recordTuple.length === 2
+            const oldRecord = isTuple ? recordTuple[0] : null
+            const newRecord = isTuple ? recordTuple[1] : recordTuple
+            const record = newRecord
+            
+            // Get the original shape from Automerge doc to verify it's actually pinned
+              const originalShape = doc.store[id]
+            
+            // STRICT CHECK: Must be a shape, must have pinnedToView === true in BOTH the record AND the doc
+            const isShape = record?.typeName === 'shape'
+            const isPinnedInRecord = (record.props as any)?.pinnedToView === true
+            const isPinnedInDoc = originalShape?.props?.pinnedToView === true
+            
+            // Only filter if the shape is actually pinned in BOTH places
+            if (isShape && isPinnedInRecord && isPinnedInDoc) {
+              if (originalShape) {
+                const originalX = originalShape.x
+                const originalY = originalShape.y
+                const newX = (record as any).x
+                const newY = (record as any).y
+                
+                // If only x/y coordinates changed, restore original coordinates
+                // Compare all other properties to see if anything else changed
+                const otherPropsChanged = Object.keys(record).some(key => {
+                  if (key === 'x' || key === 'y') return false
+                  if (key === 'props') {
+                    // Check if props changed (excluding pinnedToView changes)
+                    const oldProps = oldRecord?.props || originalShape?.props || {}
+                    const newProps = record.props || {}
+                    // Deep compare props (excluding pinnedToView which might change)
+                    const oldPropsCopy = { ...oldProps }
+                    const newPropsCopy = { ...newProps }
+                    delete oldPropsCopy.pinnedToView
+                    delete newPropsCopy.pinnedToView
+                    return JSON.stringify(oldPropsCopy) !== JSON.stringify(newPropsCopy)
+                  }
+                  const oldValue = oldRecord?.[key] ?? originalShape?.[key]
+                  return oldValue !== record[key]
+                })
+                
+                // If only position changed (x/y), restore original coordinates
+                if (!otherPropsChanged && (newX !== originalX || newY !== originalY)) {
+                  console.log(`🚫 Filtering out x/y coordinate change for pinned shape ${id}: (${newX}, ${newY}) -> keeping original (${originalX}, ${originalY})`)
+                  // Restore original coordinates
+                  const recordWithOriginalCoords = {
+                    ...record,
+                    x: originalX,
+                    y: originalY
+                  }
+                  filteredUpdated[id] = isTuple 
+                    ? [oldRecord, recordWithOriginalCoords]
+                    : recordWithOriginalCoords
+                } else if (otherPropsChanged) {
+                  // Other properties changed, keep the update but restore coordinates
+                  const recordWithOriginalCoords = {
+                    ...record,
+                    x: originalX,
+                    y: originalY
+                  }
+                  filteredUpdated[id] = isTuple
+                    ? [oldRecord, recordWithOriginalCoords]
+                    : recordWithOriginalCoords
+                } else {
+                  // No changes or only non-position changes, keep as is
+                  filteredUpdated[id] = recordTuple
+                }
+              } else {
+                // Shape not in doc yet, keep as is
+                filteredUpdated[id] = recordTuple
+              }
+            } else {
+              // Not a pinned shape (or not pinned in both places), keep as is
+              filteredUpdated[id] = recordTuple
+            }
+          })
+          
+          filtered.updated = filteredUpdated
+        }
+        
+        return filtered
+      }
+      
+      const finalFilteredChanges = filterPinnedPositionChanges(filteredChanges)
+      
+      // Check if this is a position-only update that should be throttled
+      const isPositionOnly = isPositionOnlyUpdate(finalFilteredChanges)
+      
+      if (isPositionOnly && positionUpdateQueue === null) {
+        // Start a new queue for position updates
+        positionUpdateQueue = finalFilteredChanges
+        
+        // Clear any existing timeout
+        if (positionUpdateTimeout) {
+          clearTimeout(positionUpdateTimeout)
+        }
+        
+        // Schedule flush after throttle period
+        positionUpdateTimeout = setTimeout(() => {
+          flushPositionUpdates()
+          positionUpdateTimeout = null
+        }, POSITION_UPDATE_THROTTLE_MS)
+        
+        return // Don't save immediately, wait for throttle
+      } else if (isPositionOnly && positionUpdateQueue !== null) {
+        // Merge with existing position update queue
+        // Merge added records
+        if (finalFilteredChanges.added) {
+          positionUpdateQueue.added = {
+            ...(positionUpdateQueue.added || {}),
+            ...finalFilteredChanges.added
+          }
+        }
+        // Merge updated records (keep latest)
+        if (finalFilteredChanges.updated) {
+          positionUpdateQueue.updated = {
+            ...(positionUpdateQueue.updated || {}),
+            ...finalFilteredChanges.updated
+          }
+        }
+        // Merge removed records
+        if (finalFilteredChanges.removed) {
+          positionUpdateQueue.removed = {
+            ...(positionUpdateQueue.removed || {}),
+            ...finalFilteredChanges.removed
+          }
+        }
+        
+        // Reset the timeout
+        if (positionUpdateTimeout) {
+          clearTimeout(positionUpdateTimeout)
+        }
+        positionUpdateTimeout = setTimeout(() => {
+          flushPositionUpdates()
+          positionUpdateTimeout = null
+        }, POSITION_UPDATE_THROTTLE_MS)
+        
+        return // Don't save immediately, wait for throttle
+      } else {
+        // Not a position-only update, or we have non-position changes
+        // Flush any queued position updates first
+        if (positionUpdateQueue) {
+          flushPositionUpdates()
+        }
+        
+        // CRITICAL: Don't skip changes - always save them to ensure consistency
+        // The isLocalChange flag is only used to prevent feedback loops from Automerge changes
+        // We should always save TLDraw changes, even if they came from Automerge sync
+        // This ensures that all shapes (notes, rectangles, etc.) are consistently persisted
+        
+        try {
+          // CRITICAL: Check if eraser is actively erasing - if so, defer the save
+          const eraserActive = isEraserActive()
+          
+          if (eraserActive) {
+            // Eraser is active - queue the changes and apply when eraser becomes inactive
+            // Merge with existing queued changes
+            if (eraserChangeQueue) {
+              // Merge added records
+              if (finalFilteredChanges.added) {
+                eraserChangeQueue.added = {
+                  ...(eraserChangeQueue.added || {}),
+                  ...finalFilteredChanges.added
+                }
+              }
+              // Merge updated records (keep latest)
+              if (finalFilteredChanges.updated) {
+                eraserChangeQueue.updated = {
+                  ...(eraserChangeQueue.updated || {}),
+                  ...finalFilteredChanges.updated
+                }
+              }
+              // Merge removed records
+              if (finalFilteredChanges.removed) {
+                eraserChangeQueue.removed = {
+                  ...(eraserChangeQueue.removed || {}),
+                  ...finalFilteredChanges.removed
+                }
+              }
+            } else {
+              eraserChangeQueue = finalFilteredChanges
+            }
+            
+            // Start checking for when eraser becomes inactive
+            if (!eraserCheckInterval) {
+              eraserCheckInterval = setInterval(() => {
+                const stillActive = isEraserActive()
+                if (!stillActive && eraserChangeQueue) {
+                  // Eraser is no longer active - flush queued changes
+                  const queuedChanges = eraserChangeQueue
+                  eraserChangeQueue = null
+                  
+                  if (eraserCheckInterval) {
+                    clearInterval(eraserCheckInterval)
+                    eraserCheckInterval = null
+                  }
+                  
+                  // Apply queued changes immediately
+                  try {
+                    isLocalChange = true
+                    handle.change((doc) => {
+                      applyTLStoreChangesToAutomerge(doc, queuedChanges)
+                    })
+                    setTimeout(() => {
+                      isLocalChange = false
+                    }, 100)
+                  } catch (error) {
+                    console.error('❌ Error applying queued eraser changes:', error)
+                    isLocalChange = false
+                  }
+                }
+              }, 50) // Check every 50ms for faster response
+            }
+            
+            return // Don't save immediately while eraser is active
+          } else {
+            // If eraser was active but now isn't, flush any queued changes first
+            if (eraserChangeQueue) {
+              const queuedChanges = eraserChangeQueue
+              eraserChangeQueue = null
+              
+              if (eraserCheckInterval) {
+                clearInterval(eraserCheckInterval)
+                eraserCheckInterval = null
+              }
+              
+              // Merge current changes with queued changes
+              const mergedChanges: RecordsDiff<TLRecord> = {
+                added: { ...(queuedChanges.added || {}), ...(finalFilteredChanges.added || {}) },
+                updated: { ...(queuedChanges.updated || {}), ...(finalFilteredChanges.updated || {}) },
+                removed: { ...(queuedChanges.removed || {}), ...(finalFilteredChanges.removed || {}) }
+              }
+              
+              requestAnimationFrame(() => {
+                isLocalChange = true
+                handle.change((doc) => {
+                  applyTLStoreChangesToAutomerge(doc, mergedChanges)
+                })
+                setTimeout(() => {
+                  isLocalChange = false
+                }, 100)
+              })
+              
+              return
+            }
+            // OPTIMIZED: Use requestIdleCallback to defer Automerge changes when browser is idle
+            // This prevents blocking mouse interactions without queuing changes
+            const applyChanges = () => {
+              // Set flag to prevent feedback loop when this change comes back from Automerge
+              isLocalChange = true
+              
+              handle.change((doc) => {
+                applyTLStoreChangesToAutomerge(doc, finalFilteredChanges)
+              })
+              
+              // Reset flag after a short delay to allow Automerge change handler to process
+              // This prevents feedback loops while ensuring all changes are saved
+              setTimeout(() => {
+                isLocalChange = false
+              }, 100)
+            }
+            
+            // Use requestIdleCallback if available to apply changes when browser is idle
+            if (typeof requestIdleCallback !== 'undefined') {
+              requestIdleCallback(applyChanges, { timeout: 100 })
+            } else {
+              // Fallback: use requestAnimationFrame for next frame
+              requestAnimationFrame(applyChanges)
+            }
+          }
+          
+          // Only log if there are many changes or if debugging is needed
+          if (filteredTotalChanges > 3) {
+            console.log(`✅ Applied ${filteredTotalChanges} TLDraw changes to Automerge document`)
+          } else if (filteredTotalChanges > 0) {
+            console.log(`✅ Applied ${filteredTotalChanges} TLDraw change(s) to Automerge document`)
+          }
+          
+          // Check if the document actually changed
+          const docAfter = handle.doc()
+        } catch (error) {
+          console.error("Error applying TLDraw changes to Automerge:", error)
+          // Reset flag on error to prevent getting stuck
+          isLocalChange = false
+        }
       }
     }, {
       // CRITICAL: Don't filter by source - listen to ALL changes
@@ -344,7 +1128,36 @@ export function useAutomergeStoreV2({
 
     unsubs.push(
       () => handle.off("change", automergeChangeHandler),
-      unsubscribeTLDraw
+      unsubscribeTLDraw,
+      () => {
+        // Cleanup: flush any pending position updates and clear timeout
+        if (positionUpdateTimeout) {
+          clearTimeout(positionUpdateTimeout)
+          positionUpdateTimeout = null
+        }
+        if (positionUpdateQueue) {
+          flushPositionUpdates()
+        }
+        // Cleanup: flush any pending eraser changes and clear interval
+        if (eraserCheckInterval) {
+          clearInterval(eraserCheckInterval)
+          eraserCheckInterval = null
+        }
+        if (eraserChangeQueue) {
+          // Flush queued eraser changes on unmount
+          const queuedChanges = eraserChangeQueue
+          eraserChangeQueue = null
+          if (handle) {
+            isLocalChange = true
+            handle.change((doc) => {
+              applyTLStoreChangesToAutomerge(doc, queuedChanges)
+            })
+            setTimeout(() => {
+              isLocalChange = false
+            }, 100)
+          }
+        }
+      }
     )
 
     // CRITICAL: Use patch-based loading exclusively (same as dev)
@@ -411,94 +1224,16 @@ export function useAutomergeStoreV2({
                 } else if (attempts < maxAttempts) {
                   setTimeout(checkForPatches, 200)
                 } else {
-                  // Patches didn't come through - handler may have missed them if data was written before handler was set up
-                  // This happens when Automerge doc is initialized with server data before the change handler is ready
-                  console.warn(`⚠️ No patches received after ${maxAttempts} attempts. Using fallback: loading records directly from Automerge doc.`)
-                  console.warn(`⚠️ This is expected when Automerge doc is initialized with server data before handler is ready.`)
+                  // Patches didn't come through - this should be rare if handler is set up before data load
+                  // Log a warning but don't show disruptive confirmation dialog
+                  console.warn(`⚠️ No patches received after ${maxAttempts} attempts for room initialization.`)
+                  console.warn(`⚠️ This may happen if Automerge doc was initialized with server data before handler was ready.`)
+                  console.warn(`⚠️ Store will remain empty - patches should handle data loading in normal operation.`)
                   
-                  try {
-                    // Read all records from Automerge doc and apply them directly to store
-                    // CRITICAL: This fallback preserves coordinates properly
-                    const allRecords: TLRecord[] = []
-                    Object.entries(doc.store).forEach(([id, record]: [string, any]) => {
-                      // Skip invalid records and custom record types (same as patch processing)
-                      if (!record || !record.typeName || !record.id) {
-                        return
-                      }
-                      
-                      // Skip obsidian_vault records - they're not TLDraw records
-                      if (record.typeName === 'obsidian_vault' || 
-                          (typeof record.id === 'string' && record.id.startsWith('obsidian_vault:'))) {
-                        return
-                      }
-                      
-                      try {
-                        // Create a clean copy of the record
-                        const cleanRecord = JSON.parse(JSON.stringify(record))
-                        
-                        // CRITICAL: For shapes, preserve x and y coordinates
-                        // We MUST preserve coordinates - they should never be reset to 0,0 unless truly missing
-                        if (cleanRecord.typeName === 'shape') {
-                          // Store original coordinates BEFORE any processing
-                          const originalX = cleanRecord.x
-                          const originalY = cleanRecord.y
-                          const hadValidX = typeof originalX === 'number' && !isNaN(originalX) && originalX !== null && originalX !== undefined
-                          const hadValidY = typeof originalY === 'number' && !isNaN(originalY) && originalY !== null && originalY !== undefined
-                          
-                          // Use the same sanitizeRecord function that patches use
-                          // This ensures consistency between dev and production
-                          const sanitized = sanitizeRecord(cleanRecord)
-                          
-                          // CRITICAL: ALWAYS restore original coordinates if they were valid
-                          // Even if sanitizeRecord preserved them, we ensure they're correct
-                          // This prevents any possibility of coordinates being reset
-                          if (hadValidX) {
-                            const beforeX = (sanitized as any).x
-                            (sanitized as any).x = originalX
-                            // Log if coordinates were changed during sanitization (for debugging)
-                            if (beforeX !== originalX) {
-                              console.warn(`⚠️ Coordinate X was changed during sanitization for shape ${cleanRecord.id}: ${originalX} -> ${beforeX}. Restored to ${originalX}.`)
-                            }
-                          }
-                          if (hadValidY) {
-                            const beforeY = (sanitized as any).y
-                            (sanitized as any).y = originalY
-                            // Log if coordinates were changed during sanitization (for debugging)
-                            if (beforeY !== originalY) {
-                              console.warn(`⚠️ Coordinate Y was changed during sanitization for shape ${cleanRecord.id}: ${originalY} -> ${beforeY}. Restored to ${originalY}.`)
-                            }
-                          }
-                          
-                          allRecords.push(sanitized)
-                        } else {
-                          // For non-shapes, just sanitize normally
-                          const sanitized = sanitizeRecord(cleanRecord)
-                          allRecords.push(sanitized)
-                        }
-                      } catch (e) {
-                        console.warn(`⚠️ Could not serialize/sanitize record ${id}:`, e)
-                      }
-                    })
-                    
-                    if (allRecords.length > 0) {
-                      // Apply records directly to store using mergeRemoteChanges
-                      // This bypasses patches but ensures data is loaded (works for both dev and production)
-                      // Use mergeRemoteChanges to mark as remote changes (prevents feedback loop)
-                      store.mergeRemoteChanges(() => {
-                        // Separate pages, shapes, and other records to ensure proper loading order
-                        const pageRecords = allRecords.filter(r => r.typeName === 'page')
-                        const shapeRecords = allRecords.filter(r => r.typeName === 'shape')
-                        const otherRecords = allRecords.filter(r => r.typeName !== 'page' && r.typeName !== 'shape')
-                        
-                        // Put pages first, then other records, then shapes (ensures pages exist before shapes reference them)
-                        const recordsToAdd = [...pageRecords, ...otherRecords, ...shapeRecords]
-                        store.put(recordsToAdd)
-                      })
-                      console.log(`✅ Applied ${allRecords.length} records directly to store (fallback for missed patches - coordinates preserved)`)
-                    }
-                  } catch (error) {
-                    console.error(`❌ Error applying records directly:`, error)
-                  }
+                  // Simplified fallback: Just log and continue with empty store
+                  // Patches should handle data loading, so if they don't come through,
+                  // it's likely the document is actually empty or there's a timing issue
+                  // that will resolve on next sync
                   
                   setStoreWithStatus({
                     store,
