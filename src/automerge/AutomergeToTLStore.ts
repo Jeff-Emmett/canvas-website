@@ -251,6 +251,12 @@ export function applyAutomergePatchesToTLStore(
       return // Skip - not a TLDraw record
     }
     
+    // Filter out SharedPiano shapes since they're no longer supported
+    if (record.typeName === 'shape' && (record as any).type === 'SharedPiano') {
+      console.log(`⚠️ Filtering out deprecated SharedPiano shape: ${record.id}`)
+      return // Skip - SharedPiano is deprecated
+    }
+    
     try {
       const sanitized = sanitizeRecord(record)
       toPut.push(sanitized)
@@ -402,6 +408,15 @@ export function sanitizeRecord(record: any): TLRecord {
   
   // For shapes, only ensure basic required fields exist
   if (sanitized.typeName === 'shape') {
+    // CRITICAL: Remove instance-only properties from shapes (these cause validation errors)
+    // These properties should only exist on instance records, not shape records
+    const instanceOnlyProperties = ['insets', 'brush', 'zoomBrush', 'scribbles', 'duplicateProps']
+    instanceOnlyProperties.forEach(prop => {
+      if (prop in sanitized) {
+        delete (sanitized as any)[prop]
+      }
+    })
+    
     // Ensure required shape fields exist
     // CRITICAL: Only set defaults if coordinates are truly missing or invalid
     // DO NOT overwrite valid coordinates (including 0, which is a valid position)
@@ -429,7 +444,37 @@ export function sanitizeRecord(record: any): TLRecord {
     // CRITICAL: Ensure props is a deep mutable copy to preserve all nested properties
     // This is essential for custom shapes like ObsNote and for preserving richText in geo shapes
     // Use JSON parse/stringify to create a deep copy of nested objects (like richText.content)
-    sanitized.props = JSON.parse(JSON.stringify(sanitized.props))
+    try {
+      sanitized.props = JSON.parse(JSON.stringify(sanitized.props))
+    } catch (e) {
+      // If JSON serialization fails (e.g., due to functions or circular references),
+      // create a shallow copy and recursively clean it
+      console.warn(`⚠️ Could not deep copy props for shape ${sanitized.id}, using shallow copy:`, e)
+      const propsCopy: any = {}
+      for (const key in sanitized.props) {
+        try {
+          const value = sanitized.props[key]
+          // Skip functions
+          if (typeof value === 'function') {
+            continue
+          }
+          // Try to serialize individual values
+          try {
+            propsCopy[key] = JSON.parse(JSON.stringify(value))
+          } catch (valueError) {
+            // If individual value can't be serialized, use it as-is if it's a primitive
+            if (value === null || value === undefined || typeof value !== 'object') {
+              propsCopy[key] = value
+            }
+            // Otherwise skip it
+          }
+        } catch (keyError) {
+          // Skip properties that can't be accessed
+          continue
+        }
+      }
+      sanitized.props = propsCopy
+    }
     
     // CRITICAL: Map old shape type names to new ones (migration support)
     // This handles renamed shape types from old data
@@ -628,10 +673,35 @@ export function sanitizeRecord(record: any): TLRecord {
       }
       // CRITICAL: Clean NaN values from richText content to prevent SVG export errors
       sanitized.props.richText = cleanRichTextNaN(sanitized.props.richText)
+      
+      // CRITICAL: Ensure required text shape properties exist (TLDraw validation requires these)
+      // color is REQUIRED and must be one of the valid color values
+      const validColors = ['black', 'grey', 'light-violet', 'violet', 'blue', 'light-blue', 'yellow', 'orange', 'green', 'light-green', 'light-red', 'red', 'white']
+      if (!sanitized.props.color || typeof sanitized.props.color !== 'string' || !validColors.includes(sanitized.props.color)) {
+        sanitized.props.color = 'black'
+      }
+      // Ensure other required properties have defaults
+      if (typeof sanitized.props.w !== 'number') sanitized.props.w = 300
+      if (!sanitized.props.size || typeof sanitized.props.size !== 'string') sanitized.props.size = 'm'
+      if (!sanitized.props.font || typeof sanitized.props.font !== 'string') sanitized.props.font = 'draw'
+      if (!sanitized.props.textAlign || typeof sanitized.props.textAlign !== 'string') sanitized.props.textAlign = 'start'
+      if (typeof sanitized.props.autoSize !== 'boolean') sanitized.props.autoSize = false
+      if (typeof sanitized.props.scale !== 'number') sanitized.props.scale = 1
+      
+      // Remove invalid properties for text shapes (these cause validation errors)
+      // Remove properties that are only valid for custom shapes, not standard TLDraw text shapes
+      // CRITICAL: 'text' property is NOT allowed - text shapes must use props.richText instead
+      const invalidTextProps = ['h', 'geo', 'text', 'isEditing', 'editingContent', 'isTranscribing', 'isPaused', 'fixedHeight', 'pinnedToView', 'isModified', 'originalContent', 'editingName', 'editingDescription', 'isConnected', 'holonId', 'noteId', 'title', 'content', 'tags', 'showPreview', 'backgroundColor', 'textColor']
+      invalidTextProps.forEach(prop => {
+        if (prop in sanitized.props) {
+          delete sanitized.props[prop]
+        }
+      })
     }
     
-    // CRITICAL: Remove invalid 'text' property from text shapes (TLDraw schema doesn't allow props.text)
+    // CRITICAL: Additional safety check - Remove invalid 'text' property from text shapes
     // Text shapes should only use props.richText, not props.text
+    // This is a redundant check to ensure text property is always removed
     if (sanitized.type === 'text' && 'text' in sanitized.props) {
       delete sanitized.props.text
     }
@@ -655,9 +725,28 @@ export function sanitizeRecord(record: any): TLRecord {
       // CRITICAL: Clean NaN values from richText content to prevent SVG export errors
       sanitized.props.richText = cleanRichTextNaN(sanitized.props.richText)
       
-      // Only remove properties that cause validation errors (not all "invalid" ones)
-      if ('h' in sanitized.props) delete sanitized.props.h
-      if ('geo' in sanitized.props) delete sanitized.props.geo
+      // CRITICAL: Ensure required text shape properties exist (TLDraw validation requires these)
+      // color is REQUIRED and must be one of the valid color values
+      const validColors = ['black', 'grey', 'light-violet', 'violet', 'blue', 'light-blue', 'yellow', 'orange', 'green', 'light-green', 'light-red', 'red', 'white']
+      if (!sanitized.props.color || typeof sanitized.props.color !== 'string' || !validColors.includes(sanitized.props.color)) {
+        sanitized.props.color = 'black'
+      }
+      // Ensure other required properties have defaults
+      if (typeof sanitized.props.w !== 'number') sanitized.props.w = 300
+      if (!sanitized.props.size || typeof sanitized.props.size !== 'string') sanitized.props.size = 'm'
+      if (!sanitized.props.font || typeof sanitized.props.font !== 'string') sanitized.props.font = 'draw'
+      if (!sanitized.props.textAlign || typeof sanitized.props.textAlign !== 'string') sanitized.props.textAlign = 'start'
+      if (typeof sanitized.props.autoSize !== 'boolean') sanitized.props.autoSize = false
+      if (typeof sanitized.props.scale !== 'number') sanitized.props.scale = 1
+      
+      // Remove invalid properties for text shapes (these cause validation errors)
+      // Remove properties that are only valid for custom shapes, not standard TLDraw text shapes
+      const invalidTextProps = ['h', 'geo', 'isEditing', 'editingContent', 'isTranscribing', 'isPaused', 'fixedHeight', 'pinnedToView', 'isModified', 'originalContent', 'editingName', 'editingDescription', 'isConnected', 'holonId', 'noteId', 'title', 'content', 'tags', 'showPreview', 'backgroundColor', 'textColor']
+      invalidTextProps.forEach(prop => {
+        if (prop in sanitized.props) {
+          delete sanitized.props[prop]
+        }
+      })
     }
   } else if (sanitized.typeName === 'instance') {
     // CRITICAL: Handle instance records - ensure required fields exist
@@ -700,6 +789,12 @@ export function sanitizeRecord(record: any): TLRecord {
     } else {
       sanitized.meta = { ...sanitized.meta }
     }
+  }
+  
+  // CRITICAL: Final safety check - ensure text shapes never have invalid 'text' property
+  // This is a last-resort check before returning to catch any edge cases
+  if (sanitized.typeName === 'shape' && sanitized.type === 'text' && sanitized.props && 'text' in sanitized.props) {
+    delete sanitized.props.text
   }
   
   return sanitized

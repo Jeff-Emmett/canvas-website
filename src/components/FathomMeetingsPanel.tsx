@@ -1,45 +1,67 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useContext, useRef } from 'react'
 import { useEditor } from 'tldraw'
 import { createShapeId } from 'tldraw'
 import { WORKER_URL, LOCAL_WORKER_URL } from '../constants/workerUrl'
+import { getFathomApiKey, saveFathomApiKey, removeFathomApiKey } from '../lib/fathomApiKey'
+import { AuthContext } from '../context/AuthContext'
 
 interface FathomMeeting {
-  id: string
+  recording_id: number
   title: string
+  meeting_title?: string
   url: string
+  share_url?: string
   created_at: string
-  duration: number
-  summary?: {
-    markdown_formatted: string
+  scheduled_start_time?: string
+  scheduled_end_time?: string
+  recording_start_time?: string
+  recording_end_time?: string
+  transcript?: any[]
+  transcript_language?: string
+  default_summary?: {
+    template_name?: string
+    markdown_formatted?: string
   }
+  action_items?: any[]
+  calendar_invitees?: Array<{
+    name: string
+    email: string
+    is_external: boolean
+  }>
+  recorded_by?: {
+    name: string
+    email: string
+    team?: string
+  }
+  call_id?: string | number
+  id?: string | number
 }
 
 interface FathomMeetingsPanelProps {
-  onClose: () => void
+  onClose?: () => void
+  onMeetingSelect?: (meeting: FathomMeeting, options: { summary: boolean; transcript: boolean; actionItems: boolean; video: boolean }, format: 'fathom' | 'note') => void
   shapeMode?: boolean
 }
 
-export function FathomMeetingsPanel({ onClose, shapeMode = false }: FathomMeetingsPanelProps) {
+export function FathomMeetingsPanel({ onClose, onMeetingSelect, shapeMode = false }: FathomMeetingsPanelProps) {
   const editor = useEditor()
+  // Safely get auth context - may not be available during SVG export
+  const authContext = useContext(AuthContext)
+  const fallbackSession = {
+    username: undefined as string | undefined,
+  }
+  const session = authContext?.session || fallbackSession
+  
   const [apiKey, setApiKey] = useState('')
   const [showApiKeyInput, setShowApiKeyInput] = useState(false)
   const [meetings, setMeetings] = useState<FathomMeeting[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Removed dropdown state - using buttons instead
 
-  useEffect(() => {
-    // Check if API key is already stored
-    const storedApiKey = localStorage.getItem('fathom_api_key')
-    if (storedApiKey) {
-      setApiKey(storedApiKey)
-      fetchMeetings()
-    } else {
-      setShowApiKeyInput(true)
-    }
-  }, [])
-
-  const fetchMeetings = async () => {
-    if (!apiKey) {
+  const fetchMeetings = async (keyToUse?: string) => {
+    const key = keyToUse || apiKey
+    if (!key) {
       setError('Please enter your Fathom API key')
       return
     }
@@ -53,7 +75,7 @@ export function FathomMeetingsPanel({ onClose, shapeMode = false }: FathomMeetin
       try {
         response = await fetch(`${WORKER_URL}/fathom/meetings`, {
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            'X-Api-Key': key,
             'Content-Type': 'application/json'
           }
         })
@@ -61,7 +83,7 @@ export function FathomMeetingsPanel({ onClose, shapeMode = false }: FathomMeetin
         console.log('Production worker failed, trying local worker...')
         response = await fetch(`${LOCAL_WORKER_URL}/fathom/meetings`, {
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            'X-Api-Key': key,
             'Content-Type': 'application/json'
           }
         })
@@ -91,28 +113,169 @@ export function FathomMeetingsPanel({ onClose, shapeMode = false }: FathomMeetin
 
   const saveApiKey = () => {
     if (apiKey) {
-      localStorage.setItem('fathom_api_key', apiKey)
+      saveFathomApiKey(apiKey, session.username)
       setShowApiKeyInput(false)
-      fetchMeetings()
+      fetchMeetings(apiKey)
     }
   }
 
-  const addMeetingToCanvas = async (meeting: FathomMeeting) => {
+  // Track if we've already loaded meetings for the current user to prevent multiple API calls
+  const hasLoadedRef = useRef<string | undefined>(undefined)
+  const hasMountedRef = useRef(false)
+  
+  useEffect(() => {
+    // Only run once on mount, don't re-fetch when session.username changes
+    if (hasMountedRef.current) {
+      return // Already loaded, don't refresh
+    }
+    hasMountedRef.current = true
+    
+    // Always check user profile first for API key, then fallback to global storage
+    const username = session.username
+    const storedApiKey = getFathomApiKey(username)
+    if (storedApiKey) {
+      setApiKey(storedApiKey)
+      setShowApiKeyInput(false)
+      // Automatically fetch meetings when API key is available
+      // Only fetch once per user to prevent unnecessary API calls
+      if (hasLoadedRef.current !== username) {
+        hasLoadedRef.current = username
+        fetchMeetings(storedApiKey)
+      }
+    } else {
+      setShowApiKeyInput(true)
+      hasLoadedRef.current = undefined
+    }
+  }, []) // Empty dependency array - only run once on mount
+
+  // Handler for individual data type buttons - creates shapes directly
+  const handleDataButtonClick = async (meeting: FathomMeeting, dataType: 'summary' | 'transcript' | 'actionItems' | 'video') => {
+    // Log to verify the correct meeting is being used
+    console.log('🔵 handleDataButtonClick called with meeting:', {
+      recording_id: meeting.recording_id,
+      title: meeting.title,
+      dataType
+    })
+    
+    if (!onMeetingSelect) {
+      // Fallback for non-browser mode
+      const options = {
+        summary: dataType === 'summary',
+        transcript: dataType === 'transcript',
+        actionItems: dataType === 'actionItems',
+        video: dataType === 'video',
+      }
+      await addMeetingToCanvas(meeting, options)
+      return
+    }
+
+    // Browser mode - use callback with specific data type
+    // IMPORTANT: Pass the meeting object directly to ensure each button uses its own meeting's data
+    const options = {
+      summary: dataType === 'summary',
+      transcript: dataType === 'transcript',
+      actionItems: dataType === 'actionItems',
+      video: dataType === 'video',
+    }
+    // Always use 'note' format for summary, transcript, and action items (same behavior)
+    // Video opens URL directly, so format doesn't matter for it
+    const format = 'note'
+    onMeetingSelect(meeting, options, format)
+  }
+
+  const formatMeetingDataAsMarkdown = (fullMeeting: any, meeting: FathomMeeting, options: { summary: boolean; transcript: boolean; actionItems: boolean; video: boolean }): string => {
+    const parts: string[] = []
+    
+    // Title
+    parts.push(`# ${fullMeeting.title || meeting.meeting_title || meeting.title || 'Meeting'}\n`)
+    
+    // Video link if selected
+    if (options.video && (fullMeeting.url || meeting.url)) {
+      parts.push(`**Video:** [Watch Recording](${fullMeeting.url || meeting.url})\n`)
+    }
+    
+    // Summary if selected
+    if (options.summary && fullMeeting.default_summary?.markdown_formatted) {
+      parts.push(`## Summary\n\n${fullMeeting.default_summary.markdown_formatted}\n`)
+    }
+    
+    // Action Items if selected
+    if (options.actionItems && fullMeeting.action_items && fullMeeting.action_items.length > 0) {
+      parts.push(`## Action Items\n\n`)
+      fullMeeting.action_items.forEach((item: any) => {
+        const description = item.description || item.text || ''
+        const assignee = item.assignee?.name || item.assignee || ''
+        const dueDate = item.due_date || ''
+        parts.push(`- [ ] ${description}`)
+        if (assignee) parts[parts.length - 1] += ` (@${assignee})`
+        if (dueDate) parts[parts.length - 1] += ` - Due: ${dueDate}`
+        parts[parts.length - 1] += '\n'
+      })
+      parts.push('\n')
+    }
+    
+    // Transcript if selected
+    if (options.transcript && fullMeeting.transcript && fullMeeting.transcript.length > 0) {
+      parts.push(`## Transcript\n\n`)
+      fullMeeting.transcript.forEach((entry: any) => {
+        const speaker = entry.speaker?.display_name || 'Unknown'
+        const text = entry.text || ''
+        const timestamp = entry.timestamp || ''
+        if (timestamp) {
+          parts.push(`**${speaker}** (${timestamp}): ${text}\n\n`)
+        } else {
+          parts.push(`**${speaker}**: ${text}\n\n`)
+        }
+      })
+    }
+    
+    return parts.join('')
+  }
+
+  const addMeetingToCanvas = async (meeting: FathomMeeting, options: { summary: boolean; transcript: boolean; actionItems: boolean; video: boolean }) => {
     try {
+      // If video is selected, just open the Fathom URL directly
+      if (options.video) {
+        // Try multiple sources for the correct video URL
+        // The Fathom API may provide url, share_url, or we may need to construct from call_id or id
+        const callId = meeting.call_id || 
+                      meeting.id || 
+                      meeting.recording_id
+        
+        // Check if URL fields contain valid meeting URLs (contain /calls/)
+        const isValidMeetingUrl = (url: string) => url && url.includes('/calls/')
+        
+        // Prioritize valid meeting URLs, then construct from call ID
+        const videoUrl = (meeting.url && isValidMeetingUrl(meeting.url)) ? meeting.url :
+                        (meeting.share_url && isValidMeetingUrl(meeting.share_url)) ? meeting.share_url :
+                        (callId ? `https://fathom.video/calls/${callId}` : null)
+        
+        if (videoUrl) {
+          console.log('Opening Fathom video URL:', videoUrl, 'for meeting:', { callId, recording_id: meeting.recording_id })
+          window.open(videoUrl, '_blank', 'noopener,noreferrer')
+        } else {
+          console.error('Could not determine Fathom video URL for meeting:', meeting)
+        }
+        return
+      }
+
+      // Only fetch transcript if transcript is selected
+      const includeTranscript = options.transcript
+      
       // Fetch full meeting details
       let response
       try {
-        response = await fetch(`${WORKER_URL}/fathom/meetings/${meeting.id}`, {
+        response = await fetch(`${WORKER_URL}/fathom/meetings/${meeting.recording_id}${includeTranscript ? '?include_transcript=true' : ''}`, {
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            'X-Api-Key': apiKey,
             'Content-Type': 'application/json'
           }
         })
       } catch (error) {
         console.log('Production worker failed, trying local worker...')
-        response = await fetch(`${LOCAL_WORKER_URL}/fathom/meetings/${meeting.id}`, {
+        response = await fetch(`${LOCAL_WORKER_URL}/fathom/meetings/${meeting.recording_id}${includeTranscript ? '?include_transcript=true' : ''}`, {
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            'X-Api-Key': apiKey,
             'Content-Type': 'application/json'
           }
         })
@@ -125,40 +288,59 @@ export function FathomMeetingsPanel({ onClose, shapeMode = false }: FathomMeetin
 
       const fullMeeting = await response.json() as any
       
-      // Create Fathom transcript shape
+      // If onMeetingSelect callback is provided, use it (browser mode - creates separate shapes)
+      if (onMeetingSelect) {
+        // Default to 'note' format for text data
+        onMeetingSelect(meeting, options, 'note')
+        // Browser stays open, don't close
+        return
+      }
+      
+      // Fallback: create shape directly (for non-browser mode, like modal)
+      // Default to note format
+      const markdownContent = formatMeetingDataAsMarkdown(fullMeeting, meeting, options)
+      const title = fullMeeting.title || meeting.meeting_title || meeting.title || 'Fathom Meeting'
+      
       const shapeId = createShapeId()
       editor.createShape({
         id: shapeId,
-        type: 'FathomTranscript',
+        type: 'ObsNote',
         x: 100,
         y: 100,
         props: {
-          meetingId: fullMeeting.id || '',
-          meetingTitle: fullMeeting.title || '',
-          meetingUrl: fullMeeting.url || '',
-          summary: fullMeeting.default_summary?.markdown_formatted || '',
-          transcript: fullMeeting.transcript?.map((entry: any) => ({
-            speaker: entry.speaker?.display_name || 'Unknown',
-            text: entry.text,
-            timestamp: entry.timestamp
-          })) || [],
-          actionItems: fullMeeting.action_items?.map((item: any) => ({
-            text: item.text,
-            assignee: item.assignee,
-            dueDate: item.due_date
-          })) || [],
-          isExpanded: false,
-          showTranscript: true,
-          showActionItems: true,
+          w: 400,
+          h: 500,
+          color: 'black',
+          size: 'm',
+          font: 'sans',
+          textAlign: 'start',
+          scale: 1,
+          noteId: `fathom-${meeting.recording_id}`,
+          title: title,
+          content: markdownContent,
+          tags: ['fathom', 'meeting'],
+          showPreview: true,
+          backgroundColor: '#ffffff',
+          textColor: '#000000',
+          isEditing: false,
+          editingContent: '',
+          isModified: false,
+          originalContent: markdownContent,
+          pinnedToView: false,
         }
       })
-
-      onClose()
+      
+      // Only close if not in shape mode (browser stays open)
+      if (!shapeMode && onClose) {
+        onClose()
+      }
     } catch (error) {
       console.error('Error adding meeting to canvas:', error)
       setError(`Failed to add meeting: ${(error as Error).message}`)
     }
   }
+
+  // Removed dropdown click-outside handler - no longer needed with button-based interface
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString()
@@ -196,38 +378,22 @@ export function FathomMeetingsPanel({ onClose, shapeMode = false }: FathomMeetin
   }
 
   const content = (
-    <div style={contentStyle} onClick={(e) => shapeMode ? undefined : e.stopPropagation()}>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '20px',
-        paddingBottom: '10px',
-        borderBottom: '1px solid #eee'
-      }}>
-        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>
-          🎥 Fathom Meetings
-        </h2>
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onClose()
-          }}
-          style={{
-            background: 'none',
-            border: 'none',
-            fontSize: '20px',
-            cursor: 'pointer',
-            padding: '5px',
-            position: 'relative',
-            zIndex: 10002,
-            pointerEvents: 'auto'
-          }}
-        >
-          ✕
-        </button>
-      </div>
-
+    <div 
+      style={contentStyle} 
+      onClick={(e) => {
+        // Prevent clicks from interfering with shape selection or resetting data
+        if (!shapeMode) {
+          e.stopPropagation()
+        }
+        // In shape mode, allow normal interaction but don't reset data
+      }}
+      onMouseDown={(e) => {
+        // Prevent shape deselection when clicking inside the browser content
+        if (shapeMode) {
+          e.stopPropagation()
+        }
+      }}
+    >
         {showApiKeyInput ? (
           <div>
             <p style={{ 
@@ -296,7 +462,7 @@ export function FathomMeetingsPanel({ onClose, shapeMode = false }: FathomMeetin
           <>
             <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
               <button
-                onClick={fetchMeetings}
+                onClick={() => fetchMeetings(apiKey)}
                 disabled={loading}
                 style={{
                   padding: '8px 16px',
@@ -314,9 +480,12 @@ export function FathomMeetingsPanel({ onClose, shapeMode = false }: FathomMeetin
               </button>
               <button
                 onClick={() => {
-                  localStorage.removeItem('fathom_api_key')
+                  // Remove API key from user-specific storage
+                  removeFathomApiKey(session.username)
                   setApiKey('')
+                  setMeetings([])
                   setShowApiKeyInput(true)
+                  hasLoadedRef.current = undefined
                 }}
                 style={{
                   padding: '8px 16px',
@@ -363,7 +532,7 @@ export function FathomMeetingsPanel({ onClose, shapeMode = false }: FathomMeetin
               ) : (
                 meetings.map((meeting) => (
                   <div
-                    key={meeting.id}
+                    key={meeting.recording_id}
                     style={{
                       border: '1px solid #e0e0e0',
                       borderRadius: '6px',
@@ -393,9 +562,11 @@ export function FathomMeetingsPanel({ onClose, shapeMode = false }: FathomMeetin
                           cursor: 'text'
                         }}>
                           <div>📅 {formatDate(meeting.created_at)}</div>
-                          <div>⏱️ Duration: {formatDuration(meeting.duration)}</div>
+                          <div>⏱️ Duration: {meeting.recording_start_time && meeting.recording_end_time 
+                            ? formatDuration(Math.floor((new Date(meeting.recording_end_time).getTime() - new Date(meeting.recording_start_time).getTime()) / 1000))
+                            : 'N/A'}</div>
                         </div>
-                        {meeting.summary && (
+                        {meeting.default_summary?.markdown_formatted && (
                           <div style={{ 
                             fontSize: '11px', 
                             color: '#333', 
@@ -403,28 +574,91 @@ export function FathomMeetingsPanel({ onClose, shapeMode = false }: FathomMeetin
                             userSelect: 'text',
                             cursor: 'text'
                           }}>
-                            <strong>Summary:</strong> {meeting.summary.markdown_formatted.substring(0, 100)}...
+                            <strong>Summary:</strong> {meeting.default_summary.markdown_formatted.substring(0, 100)}...
                           </div>
                         )}
                       </div>
-                      <button
-                        onClick={() => addMeetingToCanvas(meeting)}
-                        style={{
-                          padding: '6px 12px',
-                          backgroundColor: '#28a745',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                          marginLeft: '10px',
-                          position: 'relative',
-                          zIndex: 10002,
-                          pointerEvents: 'auto'
-                        }}
-                      >
-                        Add to Canvas
-                      </button>
+                      <div style={{ 
+                        display: 'flex', 
+                        flexDirection: 'row', 
+                        gap: '6px',
+                        marginLeft: '10px',
+                        alignItems: 'center',
+                        flexWrap: 'wrap'
+                      }}>
+                        <button
+                          onClick={() => handleDataButtonClick(meeting, 'summary')}
+                          disabled={loading}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: '#3b82f6',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: loading ? 'not-allowed' : 'pointer',
+                            fontSize: '11px',
+                            whiteSpace: 'nowrap',
+                            opacity: loading ? 0.6 : 1
+                          }}
+                          title="Add Summary as Note"
+                        >
+                          📄 Summary
+                        </button>
+                        <button
+                          onClick={() => handleDataButtonClick(meeting, 'transcript')}
+                          disabled={loading}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: '#2563eb',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: loading ? 'not-allowed' : 'pointer',
+                            fontSize: '11px',
+                            whiteSpace: 'nowrap',
+                            opacity: loading ? 0.6 : 1
+                          }}
+                          title="Add Transcript as Note"
+                        >
+                          📝 Transcript
+                        </button>
+                        <button
+                          onClick={() => handleDataButtonClick(meeting, 'actionItems')}
+                          disabled={loading}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: '#1d4ed8',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: loading ? 'not-allowed' : 'pointer',
+                            fontSize: '11px',
+                            whiteSpace: 'nowrap',
+                            opacity: loading ? 0.6 : 1
+                          }}
+                          title="Add Action Items as Note"
+                        >
+                          ✅ Actions
+                        </button>
+                        <button
+                          onClick={() => handleDataButtonClick(meeting, 'video')}
+                          disabled={loading}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: '#1e40af',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: loading ? 'not-allowed' : 'pointer',
+                            fontSize: '11px',
+                            whiteSpace: 'nowrap',
+                            opacity: loading ? 0.6 : 1
+                          }}
+                          title="Add Video as Embed"
+                        >
+                          🎥 Video
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))
@@ -461,6 +695,7 @@ export function FathomMeetingsPanel({ onClose, shapeMode = false }: FathomMeetin
     </div>
   )
 }
+
 
 
 

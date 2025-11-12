@@ -29,7 +29,7 @@ export function CustomMainMenu() {
                     const validateAndNormalizeShapeType = (shape: any): string => {
                         if (!shape || !shape.type) return 'text'
                         
-                        const validCustomShapes = ['ObsNote', 'VideoChat', 'Transcription', 'SharedPiano', 'Prompt', 'ChatBox', 'Embed', 'Markdown', 'MycrozineTemplate', 'Slide', 'FathomTranscript', 'Holon', 'ObsidianBrowser', 'HolonBrowser', 'FathomMeetingsBrowser', 'LocationShare']
+                        const validCustomShapes = ['ObsNote', 'VideoChat', 'Transcription', 'Prompt', 'ChatBox', 'Embed', 'Markdown', 'MycrozineTemplate', 'Slide', 'Holon', 'ObsidianBrowser', 'HolonBrowser', 'FathomMeetingsBrowser', 'LocationShare']
                         const validDefaultShapes = ['arrow', 'bookmark', 'draw', 'embed', 'frame', 'geo', 'group', 'highlight', 'image', 'line', 'note', 'text', 'video']
                         const allValidShapes = [...validCustomShapes, ...validDefaultShapes]
                         
@@ -726,107 +726,6 @@ export function CustomMainMenu() {
         editor.setCamera({ x: centerX, y: centerY, z: zoom })
     };
 
-    const testIncompleteData = (editor: Editor) => {
-        // Test function to demonstrate fixing incomplete shape data
-        const testData = {
-            documents: [
-                { id: "document:document", typeName: "document", type: undefined },
-                { id: "page:dt0NcJ3xCkZPVsyvmA6_5", typeName: "page", type: undefined },
-                { id: "shape:IhBti_jyuXFfGeoEhTzst", type: "geo", typeName: "shape" },
-                { id: "shape:dif5y2vQfGRZMlWRC1GWv", type: "VideoChat", typeName: "shape" },
-                { id: "shape:n15Zcn2dC1K82I8NVueiH", type: "geo", typeName: "shape" }
-            ]
-        };
-        
-        console.log('Testing incomplete data fix:', testData);
-        
-        // Simulate the import process
-        const pageId = testData.documents.find((doc: any) => doc.typeName === 'page')?.id || 'page:default';
-        const shapes = testData.documents
-            .filter((doc: any) => doc.typeName === 'shape')
-            .map((doc: any) => {
-                const fixedShape = { ...doc };
-                
-                // Add missing required properties
-                if (!fixedShape.x) fixedShape.x = Math.random() * 400 + 50;
-                if (!fixedShape.y) fixedShape.y = Math.random() * 300 + 50;
-                if (!fixedShape.rotation) fixedShape.rotation = 0;
-                if (!fixedShape.isLocked) fixedShape.isLocked = false;
-                if (!fixedShape.opacity) fixedShape.opacity = 1;
-                if (!fixedShape.meta) fixedShape.meta = {};
-                if (!fixedShape.parentId) fixedShape.parentId = pageId;
-                
-                // CRITICAL: For geo shapes, w/h/geo MUST be in props, NOT at top level
-                if (fixedShape.type === 'geo') {
-                    // Store w/h/geo values if they exist at top level
-                    const wValue = fixedShape.w !== undefined ? fixedShape.w : 100
-                    const hValue = fixedShape.h !== undefined ? fixedShape.h : 100
-                    const geoValue = fixedShape.geo !== undefined ? fixedShape.geo : 'rectangle'
-                    
-                    // Remove w/h/geo from top level (TLDraw validation requires they be in props only)
-                    delete fixedShape.w
-                    delete fixedShape.h
-                    delete fixedShape.geo
-                    
-                    // Ensure props exists and has the correct values
-                    if (!fixedShape.props) fixedShape.props = {}
-                    if (fixedShape.props.w === undefined) fixedShape.props.w = wValue
-                    if (fixedShape.props.h === undefined) fixedShape.props.h = hValue
-                    if (fixedShape.props.geo === undefined) fixedShape.props.geo = geoValue
-                    
-                    // Set default props if missing
-                    if (!fixedShape.props.color) fixedShape.props.color = 'black'
-                    if (!fixedShape.props.fill) fixedShape.props.fill = 'none'
-                    if (!fixedShape.props.dash) fixedShape.props.dash = 'draw'
-                    if (!fixedShape.props.size) fixedShape.props.size = 'm'
-                    if (!fixedShape.props.font) fixedShape.props.font = 'draw'
-                    if (!fixedShape.props.align) fixedShape.props.align = 'middle'
-                    if (!fixedShape.props.verticalAlign) fixedShape.props.verticalAlign = 'middle'
-                    if (fixedShape.props.growY === undefined) fixedShape.props.growY = 0
-                    if (!fixedShape.props.url) fixedShape.props.url = ''
-                    if (fixedShape.props.scale === undefined) fixedShape.props.scale = 1
-                    if (!fixedShape.props.labelColor) fixedShape.props.labelColor = 'black'
-                    if (!fixedShape.props.richText) fixedShape.props.richText = [] as any
-                } else if (fixedShape.type === 'VideoChat') {
-                    // VideoChat shapes also need w/h in props, not top level
-                    const wValue = fixedShape.w !== undefined ? fixedShape.w : 200
-                    const hValue = fixedShape.h !== undefined ? fixedShape.h : 150
-                    
-                    delete fixedShape.w
-                    delete fixedShape.h
-                    
-                    if (!fixedShape.props) fixedShape.props = {}
-                    if (fixedShape.props.w === undefined) fixedShape.props.w = wValue
-                    if (fixedShape.props.h === undefined) fixedShape.props.h = hValue
-                    if (!fixedShape.props.color) fixedShape.props.color = 'black'
-                    if (!fixedShape.props.fill) fixedShape.props.fill = 'none'
-                    if (!fixedShape.props.dash) fixedShape.props.dash = 'draw'
-                    if (!fixedShape.props.size) fixedShape.props.size = 'm'
-                    if (!fixedShape.props.font) fixedShape.props.font = 'draw'
-                }
-                
-                return fixedShape;
-            });
-        
-        console.log('Fixed shapes:', shapes);
-        
-        // Import the fixed data
-        const contentToImport: TLContent = {
-            rootShapeIds: shapes.map((shape: any) => shape.id).filter(Boolean),
-            schema: { schemaVersion: 1, storeVersion: 4, recordVersions: {} },
-            shapes: shapes,
-            bindings: [],
-            assets: [],
-        };
-        
-        try {
-            editor.putContentOntoCurrentPage(contentToImport, { select: true });
-            console.log('Successfully imported test data!');
-        } catch (error) {
-            console.error('Failed to import test data:', error);
-        }
-    };
-
     return (
         <DefaultMainMenu>
             <DefaultMainMenuContent />
@@ -843,13 +742,6 @@ export function CustomMainMenu() {
                 icon="external-link"
                 readonlyOk
                 onSelect={() => importJSON(editor)}
-            />
-            <TldrawUiMenuItem
-                id="test-incomplete"
-                label="Test Incomplete Data Fix"
-                icon="external-link"
-                readonlyOk
-                onSelect={() => testIncompleteData(editor)}
             />
             <TldrawUiMenuItem
                 id="fit-to-content"
