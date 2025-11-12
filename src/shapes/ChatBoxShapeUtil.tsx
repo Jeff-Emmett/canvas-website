@@ -95,6 +95,8 @@ export class ChatBoxShape extends BaseBoxShapeUtil<IChatBoxShape> {
             w={shape.props.w}
             h={shape.props.h - 40} // Subtract header height
             userName=""
+            pinnedToView={shape.props.pinnedToView}
+            tags={shape.props.tags}
           />
         </StandardizedToolWrapper>
       </HTMLContainer>

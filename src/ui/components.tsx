@@ -53,12 +53,26 @@ export const components: TLComponents = {
       <DefaultKeyboardShortcutsDialog {...props}>
         {/* Custom Tools */}
         {customTools.map(tool => (
-          <TldrawUiMenuItem key={tool.id} {...tool} />
+          <TldrawUiMenuItem 
+            key={tool.id} 
+            id={tool.id}
+            label={tool.label}
+            icon={typeof tool.icon === 'string' ? tool.icon : undefined}
+            kbd={tool.kbd}
+            onSelect={tool.onSelect}
+          />
         ))}
         
         {/* Custom Actions */}
         {customActions.map(action => (
-          <TldrawUiMenuItem key={action.id} {...action} />
+          <TldrawUiMenuItem 
+            key={action.id} 
+            id={action.id}
+            label={action.label}
+            icon={typeof action.icon === 'string' ? action.icon : undefined}
+            kbd={action.kbd}
+            onSelect={action.onSelect}
+          />
         ))}
         
         {/* Default content (includes standard TLDraw shortcuts) */}

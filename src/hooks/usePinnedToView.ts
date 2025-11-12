@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Editor } from 'tldraw'
+import { Editor, TLShapeId } from 'tldraw'
 
 /**
  * Hook to manage shapes pinned to the viewport.
@@ -23,7 +23,7 @@ export function usePinnedToView(editor: Editor | null, shapeId: string | undefin
       return
     }
 
-    const shape = editor.getShape(shapeId)
+    const shape = editor.getShape(shapeId as TLShapeId)
     if (!shape) return
 
     // If just became pinned (transition from false to true), capture the current screen position
@@ -63,12 +63,10 @@ export function usePinnedToView(editor: Editor | null, shapeId: string | undefin
           }
         }
         
-        // Bring the shape to the front using editor's sendToFront method
-        // This is safer than manually setting index values
+        // Bring the shape to the front by manually setting index
+        // Note: sendToFront doesn't exist in this version of tldraw, so we use manual index setting
         try {
-          editor.sendToFront([shapeId])
-        } catch (frontError) {
-          // Fallback: try to set a safe index value
+          // Try to set a safe index value
           // Use conservative values that are known to work (a1, a2, b1, etc.)
           let newIndex: string = 'a2' // Safe default
           
@@ -100,7 +98,7 @@ export function usePinnedToView(editor: Editor | null, shapeId: string | undefin
           // Validate before using
           if (/^[a-z]\d+$/.test(newIndex)) {
             editor.updateShape({
-              id: shapeId,
+              id: shapeId as TLShapeId,
               type: shape.type,
               index: newIndex as any,
             })
@@ -121,7 +119,7 @@ export function usePinnedToView(editor: Editor | null, shapeId: string | undefin
       
       // Animate back to original coordinates and size with a calm drift
       if (originalCoordinatesRef.current && originalSizeRef.current && originalZoomRef.current !== null) {
-        const currentShape = editor.getShape(shapeId)
+        const currentShape = editor.getShape(shapeId as TLShapeId)
         if (currentShape) {
           const startX = currentShape.x
           const startY = currentShape.y
@@ -173,7 +171,7 @@ export function usePinnedToView(editor: Editor | null, shapeId: string | undefin
               
               try {
                 editor.updateShape({
-                  id: shapeId,
+                  id: shapeId as TLShapeId,
                   type: currentShape.type,
                   x: currentX,
                   y: currentY,
@@ -266,7 +264,7 @@ export function usePinnedToView(editor: Editor | null, shapeId: string | undefin
         return
       }
       
-      const currentShape = editor.getShape(shapeId)
+      const currentShape = editor.getShape(shapeId as TLShapeId)
       if (!currentShape) {
         animationFrameRef.current = requestAnimationFrame(updatePinnedPosition)
         return
@@ -381,11 +379,11 @@ export function usePinnedToView(editor: Editor | null, shapeId: string | undefin
       
       // Only respond to changes that affect this specific shape
       const changedShapes = event?.changedShapes || event?.shapes || []
-      const shapeChanged = changedShapes.some((s: any) => s?.id === shapeId)
+      const shapeChanged = changedShapes.some((s: any) => s?.id === (shapeId as TLShapeId))
       
       if (!shapeChanged) return
       
-      const currentShape = editor.getShape(shapeId)
+      const currentShape = editor.getShape(shapeId as TLShapeId)
       if (!currentShape) return
 
       // Update the pinned screen position to the shape's current screen position

@@ -3,6 +3,7 @@ import {
   TLStoreWithStatus,
   createTLStore,
   TLStoreSnapshot,
+  RecordsDiff,
 } from "@tldraw/tldraw"
 import { createTLSchema, defaultBindingSchemas, defaultShapeSchemas } from "@tldraw/tlschema"
 import { useEffect, useState } from "react"
