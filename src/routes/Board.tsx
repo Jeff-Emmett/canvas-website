@@ -235,8 +235,30 @@ export function Board() {
       
       if (selectionChanged && selectedShapeIds.length > 0) {
         try {
-          // Bring all selected shapes to the front
-          editor.sendToFront(selectedShapeIds)
+          // Bring all selected shapes to the front by updating their index
+          // Note: sendToFront doesn't exist in this version of tldraw
+          const allShapes = editor.getCurrentPageShapes()
+          let highestIndex = 'a0'
+          for (const s of allShapes) {
+            if (s.index && typeof s.index === 'string' && s.index > highestIndex) {
+              highestIndex = s.index
+            }
+          }
+          // Update each selected shape's index
+          for (const id of selectedShapeIds) {
+            const shape = editor.getShape(id)
+            if (shape) {
+              const match = highestIndex.match(/^([a-z])(\d+)$/)
+              if (match) {
+                const letter = match[1]
+                const num = parseInt(match[2], 10)
+                const newIndex = num < 100 ? `${letter}${num + 1}` : `${String.fromCharCode(letter.charCodeAt(0) + 1)}1`
+                if (/^[a-z]\d+$/.test(newIndex)) {
+                  editor.updateShape({ id, type: shape.type, index: newIndex as any })
+                }
+              }
+            }
+          }
           lastSelectedIds = [...selectedShapeIds]
         } catch (error) {
           // Silently fail if shapes don't exist or operation fails
@@ -253,7 +275,7 @@ export function Board() {
 
     return () => {
       if (typeof unsubscribe === 'function') {
-        unsubscribe()
+        ;(unsubscribe as () => void)()
       }
     }
   }, [editor])

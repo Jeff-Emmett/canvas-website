@@ -33,6 +33,8 @@ interface FathomMeeting {
     email: string
     team?: string
   }
+  call_id?: string | number
+  id?: string | number
 }
 
 interface FathomMeetingsPanelProps {

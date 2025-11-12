@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { BaseBoxShapeUtil, TLBaseShape, createShapeId, IndexKey, TLParentId, HTMLContainer } from '@tldraw/tldraw'
+import type { JSX } from 'react'
 import { StandardizedToolWrapper } from '../components/StandardizedToolWrapper'
 import { usePinnedToView } from '../hooks/usePinnedToView'
 

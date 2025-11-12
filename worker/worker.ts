@@ -550,7 +550,7 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     // Support both Authorization: Bearer and X-Api-Key headers for backward compatibility
     let apiKey = req.headers.get('X-Api-Key')
     if (!apiKey) {
-      apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+      apiKey = req.headers.get('Authorization')?.split('Bearer ')[1] || null
     }
     console.log('API key present:', !!apiKey)
     
@@ -648,7 +648,7 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     // Support both Authorization: Bearer and X-Api-Key headers
     let apiKey = req.headers.get('X-Api-Key')
     if (!apiKey) {
-      apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+      apiKey = req.headers.get('Authorization')?.split('Bearer ')[1] || null
     }
     const { meetingId } = req.params
     

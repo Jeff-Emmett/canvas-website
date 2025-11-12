@@ -69,8 +69,27 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
   useEffect(() => {
     if (editor && shapeId && isSelected) {
       try {
-        // Use sendToFront to bring the shape to the top of the z-order
-        editor.sendToFront([shapeId])
+        // Bring the shape to the front by updating its index
+        // Note: sendToFront doesn't exist in this version of tldraw
+        const allShapes = editor.getCurrentPageShapes()
+        let highestIndex = 'a0'
+        for (const s of allShapes) {
+          if (s.index && typeof s.index === 'string' && s.index > highestIndex) {
+            highestIndex = s.index
+          }
+        }
+        const shape = editor.getShape(shapeId)
+        if (shape) {
+          const match = highestIndex.match(/^([a-z])(\d+)$/)
+          if (match) {
+            const letter = match[1]
+            const num = parseInt(match[2], 10)
+            const newIndex = num < 100 ? `${letter}${num + 1}` : `${String.fromCharCode(letter.charCodeAt(0) + 1)}1`
+            if (/^[a-z]\d+$/.test(newIndex)) {
+              editor.updateShape({ id: shapeId, type: shape.type, index: newIndex as any })
+            }
+          }
+        }
       } catch (error) {
         // Silently fail if shape doesn't exist or operation fails
         // This prevents console spam if shape is deleted during selection

@@ -210,7 +210,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         let isNewRoom: boolean = false;
 
         if (!response.ok) {
-          const error = await response.json()
+          const error = await response.json() as any
           console.error('🔧 Daily.co API error:', error);
           
           // Check if the room already exists
@@ -228,7 +228,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
               });
               
               if (getRoomResponse.ok) {
-                const roomData = await getRoomResponse.json();
+                const roomData = await getRoomResponse.json() as any;
                 url = roomData.url;
                 console.log('🔧 Retrieved existing room URL:', url);
               } else {
