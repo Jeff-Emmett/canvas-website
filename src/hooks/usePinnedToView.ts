@@ -72,7 +72,7 @@ export function usePinnedToView(editor: Editor | null, shapeId: string | undefin
         // Try to find a valid index higher than existing ones
         const allIndices = allShapes
           .map(s => s.index)
-          .filter((idx): idx is string => typeof idx === 'string' && /^[a-z]\d+$/.test(idx))
+          .filter((idx): idx is any => typeof idx === 'string' && /^[a-z]\d+$/.test(idx))
           .sort()
         
         if (allIndices.length > 0) {
@@ -192,7 +192,7 @@ export function usePinnedToView(editor: Editor | null, shapeId: string | undefin
                 // Animation complete - ensure we're exactly at target
                 try {
                   editor.updateShape({
-                    id: shapeId,
+                    id: shapeId as TLShapeId,
                     type: currentShape.type,
                     x: targetX,
                     y: targetY,
@@ -216,7 +216,7 @@ export function usePinnedToView(editor: Editor | null, shapeId: string | undefin
             // Distance is too small, just set directly
             try {
               editor.updateShape({
-                id: shapeId,
+                id: shapeId as TLShapeId,
                 type: currentShape.type,
                 x: targetX,
                 y: targetY,

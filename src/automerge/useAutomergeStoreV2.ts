@@ -432,29 +432,32 @@ export function useAutomergeStoreV2({
           const newRecord = isTuple ? recordTuple[1] : recordTuple
           
           if (!oldRecord || !newRecord) return false
-          if (newRecord.typeName !== 'shape') return false
+          // Check if it's a shape record (not a tuple)
+          const record = newRecord as any
+          if (!record || typeof record !== 'object' || !('typeName' in record)) return false
+          if (record.typeName !== 'shape') return false
           
           // Check if only x/y changed
           const oldX = (oldRecord as any).x
           const oldY = (oldRecord as any).y
-          const newX = (newRecord as any).x
-          const newY = (newRecord as any).y
+          const newX = record.x
+          const newY = record.y
           
           // If x/y didn't change, it's not a position update
           if (oldX === newX && oldY === newY) return false
           
           // Check if any other properties changed
-          for (const key of Object.keys(newRecord)) {
+          for (const key of Object.keys(record)) {
             if (key === 'x' || key === 'y') continue
             if (key === 'props') {
-              // Deep compare props
-              const oldProps = oldRecord.props || {}
-              const newProps = newRecord.props || {}
+              // Deep compare props - only if both records have props
+              const oldProps = (oldRecord as any)?.props || {}
+              const newProps = record?.props || {}
               if (JSON.stringify(oldProps) !== JSON.stringify(newProps)) {
                 return false // Props changed, not just position
               }
             } else {
-              if ((oldRecord as any)[key] !== (newRecord as any)[key]) {
+              if ((oldRecord as any)[key] !== record[key]) {
                 return false // Other property changed
               }
             }
@@ -641,13 +644,13 @@ export function useAutomergeStoreV2({
           recordDetails: allChangedRecords.map(r => {
             let record: any = null
             if (r.changeType === 'added' && changes.added) {
-              const rec = changes.added[r.id]
+              const rec = (changes.added as any)[r.id]
               record = Array.isArray(rec) ? rec[1] : rec
             } else if (r.changeType === 'updated' && changes.updated) {
-              const rec = changes.updated[r.id]
+              const rec = (changes.updated as any)[r.id]
               record = Array.isArray(rec) ? rec[1] : rec
             } else if (r.changeType === 'removed' && changes.removed) {
-              const rec = changes.removed[r.id]
+              const rec = (changes.removed as any)[r.id]
               record = Array.isArray(rec) ? rec[1] : rec
             }
             return {
@@ -709,8 +712,9 @@ export function useAutomergeStoreV2({
           })
         }
         if (filteredChanges.updated) {
-          Object.entries(filteredChanges.updated).forEach(([id, [_, record]]: [string, [any, any]]) => {
-            passingRecords.push({ id, typeName: record?.typeName || 'unknown', changeType: 'updated' })
+          Object.entries(filteredChanges.updated).forEach(([id, recordTuple]: [string, any]) => {
+            const record = Array.isArray(recordTuple) && recordTuple.length === 2 ? recordTuple[1] : recordTuple
+            passingRecords.push({ id, typeName: (record as any)?.typeName || 'unknown', changeType: 'updated' })
           })
         }
         if (filteredChanges.removed) {
@@ -730,36 +734,38 @@ export function useAutomergeStoreV2({
         
         // DEBUG: Check for richText/text changes in updated records
         if (filteredChanges.updated) {
-          Object.values(filteredChanges.updated).forEach(([_, record]) => {
-            if (record.typeName === 'shape') {
-              if (record.type === 'geo' && (record.props as any)?.richText) {
-                console.log(`🔍 Geo shape ${record.id} richText change detected:`, {
-                  hasRichText: !!(record.props as any).richText,
-                  richTextType: typeof (record.props as any).richText,
+          Object.values(filteredChanges.updated).forEach((recordTuple: any) => {
+            const record = Array.isArray(recordTuple) && recordTuple.length === 2 ? recordTuple[1] : recordTuple
+            if ((record as any)?.typeName === 'shape') {
+              const rec = record as any
+              if (rec.type === 'geo' && rec.props?.richText) {
+                console.log(`🔍 Geo shape ${rec.id} richText change detected:`, {
+                  hasRichText: !!rec.props.richText,
+                  richTextType: typeof rec.props.richText,
                   source: source
                 })
               }
-              if (record.type === 'note' && (record.props as any)?.richText) {
-                console.log(`🔍 Note shape ${record.id} richText change detected:`, {
-                  hasRichText: !!(record.props as any).richText,
-                  richTextType: typeof (record.props as any).richText,
-                  richTextContentLength: Array.isArray((record.props as any).richText?.content) 
-                    ? (record.props as any).richText.content.length 
+              if (rec.type === 'note' && rec.props?.richText) {
+                console.log(`🔍 Note shape ${rec.id} richText change detected:`, {
+                  hasRichText: !!rec.props.richText,
+                  richTextType: typeof rec.props.richText,
+                  richTextContentLength: Array.isArray(rec.props.richText?.content) 
+                    ? rec.props.richText.content.length 
                     : 'not array',
                   source: source
                 })
               }
-              if (record.type === 'arrow' && (record.props as any)?.text !== undefined) {
-                console.log(`🔍 Arrow shape ${record.id} text change detected:`, {
-                  hasText: !!(record.props as any).text,
-                  textValue: (record.props as any).text,
+              if (rec.type === 'arrow' && rec.props?.text !== undefined) {
+                console.log(`🔍 Arrow shape ${rec.id} text change detected:`, {
+                  hasText: !!rec.props.text,
+                  textValue: rec.props.text,
                   source: source
                 })
               }
-              if (record.type === 'text' && (record.props as any)?.richText) {
-                console.log(`🔍 Text shape ${record.id} richText change detected:`, {
-                  hasRichText: !!(record.props as any).richText,
-                  richTextType: typeof (record.props as any).richText,
+              if (rec.type === 'text' && rec.props?.richText) {
+                console.log(`🔍 Text shape ${rec.id} richText change detected:`, {
+                  hasRichText: !!rec.props.richText,
+                  richTextType: typeof rec.props.richText,
                   source: source
                 })
               }
@@ -769,13 +775,14 @@ export function useAutomergeStoreV2({
         
         // DEBUG: Log added shapes to track what's being created
         if (filteredChanges.added) {
-          Object.values(filteredChanges.added).forEach((record) => {
-            if (record.typeName === 'shape') {
-              console.log(`🔍 Shape added: ${record.type} (${record.id})`, {
-                type: record.type,
-                id: record.id,
-                hasRichText: !!(record.props as any)?.richText,
-                hasText: !!(record.props as any)?.text,
+          Object.values(filteredChanges.added).forEach((record: any) => {
+            const rec = Array.isArray(record) ? record[1] : record
+            if (rec?.typeName === 'shape') {
+              console.log(`🔍 Shape added: ${rec.type} (${rec.id})`, {
+                type: rec.type,
+                id: rec.id,
+                hasRichText: !!rec.props?.richText,
+                hasText: !!rec.props?.text,
                 source: source
               })
             }
