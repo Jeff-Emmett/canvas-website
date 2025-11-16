@@ -33,6 +33,7 @@ export const components: TLComponents = {
       tools["Transcription"],
       tools["Holon"],
       tools["FathomMeetings"],
+      tools["ImageGen"],
     ].filter(tool => tool && tool.kbd)
     
     // Get all custom actions with keyboard shortcuts

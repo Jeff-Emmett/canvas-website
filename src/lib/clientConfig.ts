@@ -14,6 +14,8 @@ export interface ClientConfig {
   webhookUrl?: string
   webhookSecret?: string
   openaiApiKey?: string
+  runpodApiKey?: string
+  runpodEndpointId?: string
 }
 
 /**
@@ -38,6 +40,8 @@ export function getClientConfig(): ClientConfig {
         webhookUrl: import.meta.env.VITE_QUARTZ_WEBHOOK_URL || import.meta.env.NEXT_PUBLIC_QUARTZ_WEBHOOK_URL,
         webhookSecret: import.meta.env.VITE_QUARTZ_WEBHOOK_SECRET || import.meta.env.NEXT_PUBLIC_QUARTZ_WEBHOOK_SECRET,
         openaiApiKey: import.meta.env.VITE_OPENAI_API_KEY || import.meta.env.NEXT_PUBLIC_OPENAI_API_KEY,
+        runpodApiKey: import.meta.env.VITE_RUNPOD_API_KEY || import.meta.env.NEXT_PUBLIC_RUNPOD_API_KEY,
+        runpodEndpointId: import.meta.env.VITE_RUNPOD_ENDPOINT_ID || import.meta.env.NEXT_PUBLIC_RUNPOD_ENDPOINT_ID,
       }
     } else {
       // Next.js environment
@@ -52,6 +56,8 @@ export function getClientConfig(): ClientConfig {
         webhookUrl: (window as any).__NEXT_DATA__?.env?.NEXT_PUBLIC_QUARTZ_WEBHOOK_URL,
         webhookSecret: (window as any).__NEXT_DATA__?.env?.NEXT_PUBLIC_QUARTZ_WEBHOOK_SECRET,
         openaiApiKey: (window as any).__NEXT_DATA__?.env?.NEXT_PUBLIC_OPENAI_API_KEY,
+        runpodApiKey: (window as any).__NEXT_DATA__?.env?.NEXT_PUBLIC_RUNPOD_API_KEY,
+        runpodEndpointId: (window as any).__NEXT_DATA__?.env?.NEXT_PUBLIC_RUNPOD_ENDPOINT_ID,
       }
     }
   } else {
@@ -66,8 +72,34 @@ export function getClientConfig(): ClientConfig {
       quartzApiKey: process.env.VITE_QUARTZ_API_KEY || process.env.NEXT_PUBLIC_QUARTZ_API_KEY,
       webhookUrl: process.env.VITE_QUARTZ_WEBHOOK_URL || process.env.NEXT_PUBLIC_QUARTZ_WEBHOOK_URL,
       webhookSecret: process.env.VITE_QUARTZ_WEBHOOK_SECRET || process.env.NEXT_PUBLIC_QUARTZ_WEBHOOK_SECRET,
+      runpodApiKey: process.env.VITE_RUNPOD_API_KEY || process.env.NEXT_PUBLIC_RUNPOD_API_KEY,
+      runpodEndpointId: process.env.VITE_RUNPOD_ENDPOINT_ID || process.env.NEXT_PUBLIC_RUNPOD_ENDPOINT_ID,
     }
   }
+}
+
+/**
+ * Get RunPod configuration for API calls
+ */
+export function getRunPodConfig(): { apiKey: string; endpointId: string } | null {
+  const config = getClientConfig()
+  
+  if (!config.runpodApiKey || !config.runpodEndpointId) {
+    return null
+  }
+  
+  return {
+    apiKey: config.runpodApiKey,
+    endpointId: config.runpodEndpointId
+  }
+}
+
+/**
+ * Check if RunPod integration is configured
+ */
+export function isRunPodConfigured(): boolean {
+  const config = getClientConfig()
+  return !!(config.runpodApiKey && config.runpodEndpointId)
 }
 
 /**
