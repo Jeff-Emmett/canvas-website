@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
-import CryptoLogin from './CryptoLogin';
+import CryptID from './CryptID';
 
 interface LoginButtonProps {
   className?: string;
@@ -42,7 +42,7 @@ const LoginButton: React.FC<LoginButtonProps> = ({ className = '' }) => {
       {showLogin && (
         <div className="login-overlay">
           <div className="login-modal">
-            <CryptoLogin 
+            <CryptID
               onSuccess={handleLoginSuccess}
               onCancel={handleLoginCancel}
             />
