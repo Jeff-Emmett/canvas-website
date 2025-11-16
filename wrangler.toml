@@ -28,6 +28,15 @@ bindings = [
 tag = "v1"
 new_classes = ["AutomergeDurableObject"]
 
+# Migration to handle transition from TldrawDurableObject to AutomergeDurableObject
+# This ensures existing TldrawDurableObject instances can continue working
+# while new connections use AutomergeDurableObject
+[[migrations]]
+tag = "v2"
+# Note: We keep TldrawDurableObject as a stub (extends AutomergeDurableObject)
+# so existing instances continue to work. New instances will use AutomergeDurableObject.
+# The stub class ensures backward compatibility during the transition period.
+
 [[r2_buckets]]
 binding = 'TLDRAW_BUCKET'
 bucket_name = 'jeffemmett-canvas'

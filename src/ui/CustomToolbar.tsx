@@ -59,43 +59,8 @@ export function CustomToolbar() {
     }
   }, [showProfilePopup])
 
-  // Keyboard shortcut for Alt+O to open Obsidian vault browser
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      // Check for Alt+O (keyCode 79 for 'O')
-      if (event.altKey && event.key === 'o') {
-        event.preventDefault()
-        
-        // If vault browser is already open, close it
-        if (showVaultBrowser) {
-          console.log('🔧 Alt+O pressed, vault browser already open, closing it')
-          setShowVaultBrowser(false)
-          return
-        }
-        
-        // Check if user already has a vault selected
-        if (session.obsidianVaultPath && session.obsidianVaultPath !== 'folder-selected') {
-          console.log('🔧 Alt+O pressed, vault already selected, opening search interface')
-          setVaultBrowserMode('keyboard')
-          setShowVaultBrowser(true)
-        } else if (session.obsidianVaultPath === 'folder-selected' && session.obsidianVaultName) {
-          console.log('🔧 Alt+O pressed, folder-selected vault exists, opening search interface')
-          setVaultBrowserMode('keyboard')
-          setShowVaultBrowser(true)
-        } else {
-          console.log('🔧 Alt+O pressed, no vault selected, opening vault selection')
-          setVaultBrowserMode('keyboard')
-          setShowVaultBrowser(true)
-        }
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [session.obsidianVaultPath, session.obsidianVaultName, showVaultBrowser])
+  // Alt+O is now handled by the tool system via overrides.tsx
+  // It selects the ObsidianNote tool, which waits for canvas click before deploying
 
   // Listen for open-fathom-meetings event - now creates a shape instead of modal
   useEffect(() => {
