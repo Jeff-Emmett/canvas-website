@@ -1,0 +1,7 @@
+# Ignore Cloudflare Worker configuration files during Pages deployment
+# These are only used for separate Worker deployments
+wrangler.toml
+wrangler.dev.toml
+worker/wrangler.toml
+worker/
+*.toml
