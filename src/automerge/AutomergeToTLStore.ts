@@ -3,7 +3,8 @@ import * as Automerge from "@automerge/automerge"
 
 export function applyAutomergePatchesToTLStore(
   patches: Automerge.Patch[],
-  store: TLStore
+  store: TLStore,
+  automergeDoc?: any // Optional Automerge document to read full records from
 ) {
   const toRemove: TLRecord["id"][] = []
   const updatedObjects: { [id: string]: TLRecord } = {}
@@ -39,6 +40,29 @@ export function applyAutomergePatchesToTLStore(
       }
       if (typeof storeY === 'number' && !isNaN(storeY) && storeY !== null && storeY !== undefined) {
         storeCoordinates.y = storeY
+      }
+    }
+    
+    // CRITICAL: If record doesn't exist in store yet, try to get it from Automerge document
+    // This prevents coordinates from defaulting to 0,0 when patches create new records
+    let automergeRecord: any = null
+    if (!existingRecord && automergeDoc && automergeDoc.store && automergeDoc.store[id]) {
+      try {
+        automergeRecord = automergeDoc.store[id]
+        // Extract coordinates from Automerge record if it's a shape
+        if (automergeRecord && automergeRecord.typeName === 'shape') {
+          const docX = automergeRecord.x
+          const docY = automergeRecord.y
+          if (typeof docX === 'number' && !isNaN(docX) && docX !== null && docX !== undefined) {
+            storeCoordinates.x = docX
+          }
+          if (typeof docY === 'number' && !isNaN(docY) && docY !== null && docY !== undefined) {
+            storeCoordinates.y = docY
+          }
+        }
+      } catch (e) {
+        // If we can't read from Automerge doc, continue without it
+        console.warn(`Could not read record ${id} from Automerge document:`, e)
       }
     }
     
@@ -112,7 +136,20 @@ export function applyAutomergePatchesToTLStore(
       }
     }
     
-    let record = updatedObjects[id] || (existingRecord ? JSON.parse(JSON.stringify(existingRecord)) : defaultRecord)
+    // CRITICAL: When creating a new record, prefer using the full record from Automerge document
+    // This ensures we get all properties including coordinates, not just defaults
+    let record: any
+    if (updatedObjects[id]) {
+      record = updatedObjects[id]
+    } else if (existingRecord) {
+      record = JSON.parse(JSON.stringify(existingRecord))
+    } else if (automergeRecord) {
+      // Use the full record from Automerge document - this has all properties including coordinates
+      record = JSON.parse(JSON.stringify(automergeRecord))
+    } else {
+      // Fallback to default record only if we can't get it from anywhere else
+      record = defaultRecord
+    }
     
     // CRITICAL: For shapes, ensure x and y are always present (even if record came from updatedObjects)
     // This prevents coordinates from being lost when records are created from patches
@@ -157,6 +194,28 @@ export function applyAutomergePatchesToTLStore(
     const originalX = storeCoordinates.x !== undefined ? storeCoordinates.x : recordX
     const originalY = storeCoordinates.y !== undefined ? storeCoordinates.y : recordY
     const hadOriginalCoordinates = originalX !== undefined && originalY !== undefined
+    
+    // CRITICAL: Store original richText and arrow text before patch application to preserve them
+    // This ensures richText and arrow text aren't lost when patches only update other properties
+    let originalRichText: any = undefined
+    let originalArrowText: any = undefined
+    if (record.typeName === 'shape') {
+      // Get richText from store's current state (most reliable)
+      if (existingRecord && (existingRecord as any).props && (existingRecord as any).props.richText) {
+        originalRichText = (existingRecord as any).props.richText
+      } else if ((record as any).props && (record as any).props.richText) {
+        originalRichText = (record as any).props.richText
+      }
+      
+      // Get arrow text from store's current state (most reliable)
+      if ((record as any).type === 'arrow') {
+        if (existingRecord && (existingRecord as any).props && (existingRecord as any).props.text !== undefined) {
+          originalArrowText = (existingRecord as any).props.text
+        } else if ((record as any).props && (record as any).props.text !== undefined) {
+          originalArrowText = (record as any).props.text
+        }
+      }
+    }
 
     switch (patch.action) {
       case "insert": {
@@ -227,6 +286,42 @@ export function applyAutomergePatchesToTLStore(
         }
         if (!patchedHasValidY) {
           updatedObjects[id] = { ...updatedObjects[id], y: defaultRecord.y || 0 } as TLRecord
+        }
+      }
+      
+      // CRITICAL: Preserve richText and arrow text after patch application
+      // This prevents richText and arrow text from being lost when patches only update other properties
+      const currentRecord = updatedObjects[id]
+      
+      // Preserve richText for geo/note/text shapes
+      if (originalRichText !== undefined && (currentRecord as any).type !== 'arrow') {
+        const patchedProps = (currentRecord as any).props || {}
+        const patchedRichText = patchedProps.richText
+        // If patch didn't include richText, preserve the original
+        if (patchedRichText === undefined || patchedRichText === null) {
+          updatedObjects[id] = {
+            ...currentRecord,
+            props: {
+              ...patchedProps,
+              richText: originalRichText
+            }
+          } as TLRecord
+        }
+      }
+      
+      // Preserve arrow text for arrow shapes
+      if (originalArrowText !== undefined && (currentRecord as any).type === 'arrow') {
+        const patchedProps = (currentRecord as any).props || {}
+        const patchedText = patchedProps.text
+        // If patch didn't include text, preserve the original
+        if (patchedText === undefined || patchedText === null) {
+          updatedObjects[id] = {
+            ...currentRecord,
+            props: {
+              ...patchedProps,
+              text: originalArrowText
+            }
+          } as TLRecord
         }
       }
     }
@@ -658,6 +753,46 @@ export function sanitizeRecord(record: any): TLRecord {
       }
       // CRITICAL: Clean NaN values from richText content to prevent SVG export errors
       sanitized.props.richText = cleanRichTextNaN(sanitized.props.richText)
+    }
+    
+    // CRITICAL: Preserve arrow text property (ensure it's a string)
+    if (sanitized.type === 'arrow') {
+      // Ensure text property exists and is a string
+      if (sanitized.props.text === undefined || sanitized.props.text === null) {
+        sanitized.props.text = ''
+      } else if (typeof sanitized.props.text !== 'string') {
+        // If text is not a string (e.g., RichText object), convert it to string
+        try {
+          if (typeof sanitized.props.text === 'object' && sanitized.props.text !== null) {
+            // Try to extract text from RichText object
+            const textObj = sanitized.props.text as any
+            if (Array.isArray(textObj.content)) {
+              // Extract text from RichText content
+              const extractText = (content: any[]): string => {
+                return content.map((item: any) => {
+                  if (item.type === 'text' && item.text) {
+                    return item.text
+                  } else if (item.content && Array.isArray(item.content)) {
+                    return extractText(item.content)
+                  }
+                  return ''
+                }).join('')
+              }
+              sanitized.props.text = extractText(textObj.content)
+            } else if (textObj.text && typeof textObj.text === 'string') {
+              sanitized.props.text = textObj.text
+            } else {
+              sanitized.props.text = String(sanitized.props.text)
+            }
+          } else {
+            sanitized.props.text = String(sanitized.props.text)
+          }
+        } catch (e) {
+          console.warn(`⚠️ AutomergeToTLStore: Error converting arrow text to string for ${sanitized.id}:`, e)
+          sanitized.props.text = String(sanitized.props.text)
+        }
+      }
+      // Note: We preserve text even if it's an empty string - that's a valid value
     }
     
     // CRITICAL: Fix richText structure for text shapes - REQUIRED field
