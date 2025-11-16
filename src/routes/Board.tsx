@@ -42,6 +42,8 @@ import { HolonBrowserShape } from "@/shapes/HolonBrowserShapeUtil"
 import { ObsidianBrowserShape } from "@/shapes/ObsidianBrowserShapeUtil"
 import { FathomMeetingsBrowserShape } from "@/shapes/FathomMeetingsBrowserShapeUtil"
 import { LocationShareShape } from "@/shapes/LocationShareShapeUtil"
+import { ImageGenShape } from "@/shapes/ImageGenShapeUtil"
+import { ImageGenTool } from "@/tools/ImageGenTool"
 import {
   lockElement,
   unlockElement,
@@ -82,6 +84,7 @@ const customShapeUtils = [
   ObsidianBrowserShape,
   FathomMeetingsBrowserShape,
   LocationShareShape,
+  ImageGenShape,
 ]
 const customTools = [
   ChatBoxTool,
@@ -96,6 +99,7 @@ const customTools = [
   TranscriptionTool,
   HolonTool,
   FathomMeetingsTool,
+  ImageGenTool,
 ]
 
 export function Board() {
