@@ -124,6 +124,7 @@ import { HolonShape } from "@/shapes/HolonShapeUtil"
 import { ObsidianBrowserShape } from "@/shapes/ObsidianBrowserShapeUtil"
 import { FathomMeetingsBrowserShape } from "@/shapes/FathomMeetingsBrowserShapeUtil"
 import { LocationShareShape } from "@/shapes/LocationShareShapeUtil"
+import { ImageGenShape } from "@/shapes/ImageGenShapeUtil"
 
 export function useAutomergeStoreV2({
   handle,
@@ -152,6 +153,7 @@ export function useAutomergeStoreV2({
       ObsidianBrowser: {} as any,
       FathomMeetingsBrowser: {} as any,
       LocationShare: {} as any,
+      ImageGen: {} as any,
     },
     bindings: defaultBindingSchemas,
   })
@@ -174,6 +176,7 @@ export function useAutomergeStoreV2({
         ObsidianBrowserShape,
         FathomMeetingsBrowserShape,
         LocationShareShape,
+        ImageGenShape,
       ],
     })
     return store
@@ -207,6 +210,49 @@ export function useAutomergeStoreV2({
     // once into the automerge doc and then back again.
     let isLocalChange = false
 
+    // Helper function to manually trigger sync after document changes
+    // The Automerge Repo doesn't auto-broadcast because our WebSocket setup doesn't use peer discovery
+    const triggerSync = () => {
+      try {
+        const repo = (handle as any).repo
+        if (repo) {
+          // Try multiple approaches to trigger sync
+
+          // Approach 1: Use networkSubsystem.syncDoc if available
+          if (repo.networkSubsystem && typeof repo.networkSubsystem.syncDoc === 'function') {
+            console.log('🔄 Triggering sync via networkSubsystem.syncDoc()')
+            repo.networkSubsystem.syncDoc(handle.documentId)
+          }
+          // Approach 2: Broadcast to all network adapters directly
+          else if (repo.networkSubsystem && repo.networkSubsystem.adapters) {
+            console.log('🔄 Broadcasting sync to all network adapters')
+            const adapters = Array.from(repo.networkSubsystem.adapters.values())
+            adapters.forEach((adapter: any) => {
+              if (adapter && typeof adapter.send === 'function') {
+                // Send a sync message via the adapter
+                // The adapter should handle converting this to the right format
+                adapter.send({
+                  type: 'sync',
+                  documentId: handle.documentId,
+                  data: handle.doc()
+                })
+              }
+            })
+          }
+          // Approach 3: Emit an event to trigger sync
+          else if (repo.emit && typeof repo.emit === 'function') {
+            console.log('🔄 Emitting document change event')
+            repo.emit('change', { documentId: handle.documentId, doc: handle.doc() })
+          }
+          else {
+            console.warn('⚠️ No known method to trigger sync broadcast found')
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error triggering manual sync:', error)
+      }
+    }
+
     // Listen for changes from Automerge and apply them to TLDraw
     const automergeChangeHandler = (payload: DocHandleChangePayload<any>) => {
       if (isLocalChange) {
@@ -230,7 +276,10 @@ export function useAutomergeStoreV2({
             const recordsBefore = store.allRecords()
             const shapesBefore = recordsBefore.filter((r: any) => r.typeName === 'shape')
             
-            applyAutomergePatchesToTLStore(payload.patches, store)
+            // CRITICAL: Pass Automerge document to patch handler so it can read full records
+            // This prevents coordinates from defaulting to 0,0 when patches create new records
+            const automergeDoc = handle.doc()
+            applyAutomergePatchesToTLStore(payload.patches, store, automergeDoc)
             
             const recordsAfter = store.allRecords()
             const shapesAfter = recordsAfter.filter((r: any) => r.typeName === 'shape')
@@ -249,9 +298,11 @@ export function useAutomergeStoreV2({
             // This is a fallback - ideally we should fix the data at the source
             let successCount = 0
             let failedPatches: any[] = []
+            // CRITICAL: Pass Automerge document to patch handler so it can read full records
+            const automergeDoc = handle.doc()
             for (const patch of payload.patches) {
               try {
-                applyAutomergePatchesToTLStore([patch], store)
+                applyAutomergePatchesToTLStore([patch], store, automergeDoc)
                 successCount++
               } catch (individualPatchError) {
                 failedPatches.push({ patch, error: individualPatchError })
@@ -404,6 +455,8 @@ export function useAutomergeStoreV2({
             handle.change((doc) => {
               applyTLStoreChangesToAutomerge(doc, queuedChanges)
             })
+            // Trigger sync to broadcast position updates
+            triggerSync()
             setTimeout(() => {
               isLocalChange = false
             }, 100)
@@ -1044,6 +1097,8 @@ export function useAutomergeStoreV2({
                     handle.change((doc) => {
                       applyTLStoreChangesToAutomerge(doc, queuedChanges)
                     })
+                    // Trigger sync to broadcast eraser changes
+                    triggerSync()
                     setTimeout(() => {
                       isLocalChange = false
                     }, 100)
@@ -1079,6 +1134,8 @@ export function useAutomergeStoreV2({
                 handle.change((doc) => {
                   applyTLStoreChangesToAutomerge(doc, mergedChanges)
                 })
+                // Trigger sync to broadcast merged changes
+                triggerSync()
                 setTimeout(() => {
                   isLocalChange = false
                 }, 100)
@@ -1091,11 +1148,15 @@ export function useAutomergeStoreV2({
             const applyChanges = () => {
               // Set flag to prevent feedback loop when this change comes back from Automerge
               isLocalChange = true
-              
+
               handle.change((doc) => {
                 applyTLStoreChangesToAutomerge(doc, finalFilteredChanges)
               })
-              
+
+              // CRITICAL: Manually trigger Automerge Repo to broadcast changes
+              // Use requestAnimationFrame to defer this slightly so the change is fully processed
+              requestAnimationFrame(triggerSync)
+
               // Reset flag after a short delay to allow Automerge change handler to process
               // This prevents feedback loops while ensuring all changes are saved
               setTimeout(() => {
