@@ -1,3 +1,6 @@
+# Worker configuration
+# Note: This wrangler.toml is for the Worker backend only.
+# Pages deployment is configured separately in the Cloudflare dashboard.
 main = "worker/worker.ts"
 compatibility_date = "2024-07-01"
 name = "jeffemmett-canvas"
