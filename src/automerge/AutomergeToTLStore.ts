@@ -576,7 +576,33 @@ export function sanitizeRecord(record: any): TLRecord {
     if (sanitized.type === 'Transcribe') {
       sanitized.type = 'Transcription'
     }
-    
+
+    // CRITICAL: Normalize case for custom shape types (lowercase → PascalCase)
+    // The schema expects PascalCase (e.g., "ChatBox" not "chatBox")
+    const customShapeTypeMap: Record<string, string> = {
+      'chatBox': 'ChatBox',
+      'videoChat': 'VideoChat',
+      'embed': 'Embed',
+      'markdown': 'Markdown',
+      'mycrozineTemplate': 'MycrozineTemplate',
+      'slide': 'Slide',
+      'prompt': 'Prompt',
+      'transcription': 'Transcription',
+      'obsNote': 'ObsNote',
+      'fathomNote': 'FathomNote',
+      'holon': 'Holon',
+      'obsidianBrowser': 'ObsidianBrowser',
+      'fathomMeetingsBrowser': 'FathomMeetingsBrowser',
+      'locationShare': 'LocationShare',
+      'imageGen': 'ImageGen',
+    }
+
+    // Normalize the shape type if it's a custom type with incorrect case
+    if (sanitized.type && typeof sanitized.type === 'string' && customShapeTypeMap[sanitized.type]) {
+      console.log(`🔧 Normalizing shape type: "${sanitized.type}" → "${customShapeTypeMap[sanitized.type]}"`)
+      sanitized.type = customShapeTypeMap[sanitized.type]
+    }
+
     // CRITICAL: Infer type from properties BEFORE defaulting to 'geo'
     // This ensures arrows and other shapes are properly recognized
     if (!sanitized.type || typeof sanitized.type !== 'string') {
