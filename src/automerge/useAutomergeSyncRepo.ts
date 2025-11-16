@@ -116,59 +116,66 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
         console.log("🔌 Initializing Automerge Repo with NetworkAdapter for room:", roomId)
         
         if (mounted) {
-          // CRITICAL: Create a new Automerge document (repo.create() generates a proper document ID)
-          // We can't use repo.find() with a custom ID because Automerge requires specific document ID formats
-          // Instead, we'll create a new document and load initial data from the server
-          const handle = repo.create()
-          
-          console.log("Created Automerge handle via Repo:", {
+          // CRITICAL: Use repo.find() with a consistent document ID based on roomId
+          // This ensures all windows/tabs share the same Automerge document and can sync properly
+          // Format: automerge:${roomId} matches what the server expects (see AutomergeDurableObject.ts line 327)
+          const documentId = `automerge:${roomId}` as any
+          console.log(`🔌 Finding or creating Automerge document with ID: ${documentId}`)
+
+          // Use repo.find() to get or create the document with this ID
+          // This ensures all windows share the same document instance
+          // Note: repo.find() returns a Promise, so we await it
+          const handle = await repo.find(documentId)
+
+          console.log("Found/Created Automerge handle via Repo:", {
             handleId: handle.documentId,
-            isReady: handle.isReady()
+            isReady: handle.isReady(),
+            roomId: roomId
           })
-          
+
           // Wait for the handle to be ready
           await handle.whenReady()
           
-          // CRITICAL: Always load initial data from the server
-          // The server stores documents in R2 as JSON, so we need to load and initialize the Automerge document
-          console.log("📥 Loading initial data from server...")
-          try {
-            const response = await fetch(`${workerUrl}/room/${roomId}`)
-            if (response.ok) {
-              const serverDoc = await response.json() as TLStoreSnapshot
-              const serverShapeCount = serverDoc.store ? Object.values(serverDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
-              const serverRecordCount = Object.keys(serverDoc.store || {}).length
-              
-              console.log(`📥 Loaded document from server: ${serverRecordCount} records, ${serverShapeCount} shapes`)
-              
-              // Initialize the Automerge document with server data
-              // CRITICAL: This will generate patches that should be caught by the handler in useAutomergeStoreV2
-              // The handler is set up before initializeStore() runs, so patches should be processed automatically
-              if (serverDoc.store && serverRecordCount > 0) {
-                handle.change((doc: any) => {
-                  // Initialize store if it doesn't exist
-                  if (!doc.store) {
-                    doc.store = {}
-                  }
-                  // Copy all records from server document
-                  Object.entries(serverDoc.store).forEach(([id, record]) => {
-                    doc.store[id] = record
-                  })
-                })
+          // Initialize document with default store if it's new/empty
+          const currentDoc = handle.doc() as any
+          if (!currentDoc || !currentDoc.store || Object.keys(currentDoc.store).length === 0) {
+            console.log("📝 Document is new/empty - initializing with default store")
+            
+            // Try to load initial data from server for new documents
+            try {
+              const response = await fetch(`${workerUrl}/room/${roomId}`)
+              if (response.ok) {
+                const serverDoc = await response.json() as TLStoreSnapshot
+                const serverRecordCount = Object.keys(serverDoc.store || {}).length
                 
-                console.log(`✅ Initialized Automerge document with ${serverRecordCount} records from server`)
-                console.log(`📝 Patches should be generated and caught by handler in useAutomergeStoreV2`)
+                if (serverDoc.store && serverRecordCount > 0) {
+                  console.log(`📥 Loading ${serverRecordCount} records from server into new document`)
+                  handle.change((doc: any) => {
+                    // Initialize store if it doesn't exist
+                    if (!doc.store) {
+                      doc.store = {}
+                    }
+                    // Copy all records from server document
+                    Object.entries(serverDoc.store).forEach(([id, record]) => {
+                      doc.store[id] = record
+                    })
+                  })
+                  console.log(`✅ Initialized Automerge document with ${serverRecordCount} records from server`)
+                } else {
+                  console.log("📥 Server document is empty - document will start empty")
+                }
+              } else if (response.status === 404) {
+                console.log("📥 No document found on server (404) - starting with empty document")
               } else {
-                console.log("📥 Server document is empty - starting with empty Automerge document")
+                console.warn(`⚠️ Failed to load document from server: ${response.status} ${response.statusText}`)
               }
-            } else if (response.status === 404) {
-              console.log("📥 No document found on server (404) - starting with empty document")
-            } else {
-              console.warn(`⚠️ Failed to load document from server: ${response.status} ${response.statusText}`)
+            } catch (error) {
+              console.error("❌ Error loading initial document from server:", error)
+              // Continue anyway - document will start empty and sync via WebSocket
             }
-          } catch (error) {
-            console.error("❌ Error loading initial document from server:", error)
-            // Continue anyway - user can still create new content
+          } else {
+            const existingRecordCount = Object.keys(currentDoc.store || {}).length
+            console.log(`✅ Document already has ${existingRecordCount} records - ready to sync`)
           }
           
           const finalDoc = handle.doc() as any
@@ -302,11 +309,9 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
           }
         })
         
-        // Only log in dev mode to reduce overhead
-        if (process.env.NODE_ENV === 'development') {
-          const shapeCount = Object.values(doc.store).filter((r: any) => r?.typeName === 'shape').length
-          console.log(`💾 Persisting document to worker for R2 storage: ${storeKeys} records, ${shapeCount} shapes`)
-        }
+        // CRITICAL: Always log saves to help debug persistence issues
+        const shapeCount = Object.values(doc.store).filter((r: any) => r?.typeName === 'shape').length
+        console.log(`💾 Persisting document to worker for R2 storage: ${storeKeys} records, ${shapeCount} shapes`)
         
         // Send document state to worker via POST /room/:roomId
         // This updates the worker's currentDoc so it can be persisted to R2
@@ -325,10 +330,9 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
         // Update last sent hash only after successful save
         lastSentHashRef.current = currentHash
         pendingSaveRef.current = false
-        if (process.env.NODE_ENV === 'development') {
-          const shapeCount = Object.values(doc.store).filter((r: any) => r?.typeName === 'shape').length
-          console.log(`✅ Successfully sent document state to worker for persistence (${shapeCount} shapes)`)
-        }
+        // CRITICAL: Always log successful saves
+        const finalShapeCount = Object.values(doc.store).filter((r: any) => r?.typeName === 'shape').length
+        console.log(`✅ Successfully sent document state to worker for persistence (${finalShapeCount} shapes)`)
       } catch (error) {
         console.error('❌ Error saving document to worker:', error)
         pendingSaveRef.current = false
@@ -419,12 +423,9 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
         
         // If all patches are for ephemeral records, skip persistence
         if (hasOnlyEphemeralChanges) {
-          // Only log in dev mode to reduce overhead
-          if (process.env.NODE_ENV === 'development') {
-            console.log('🚫 Skipping persistence - only ephemeral changes detected:', {
-              patchCount
-            })
-          }
+          console.log('🚫 Skipping persistence - only ephemeral changes detected:', {
+            patchCount
+          })
           return
         }
         
@@ -476,11 +477,9 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
               })
               
               if (allPinned) {
-                if (process.env.NODE_ENV === 'development') {
-                  console.log('🚫 Skipping persistence - only pinned-to-view position updates detected:', {
-                    patchCount: payload.patches.length
-                  })
-                }
+                console.log('🚫 Skipping persistence - only pinned-to-view position updates detected:', {
+                  patchCount: payload.patches.length
+                })
                 return
               }
               
@@ -495,8 +494,8 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
             return id && typeof id === 'string' && id.startsWith('shape:')
           })
           
-          // Only log in dev mode and reduce logging frequency
-          if (process.env.NODE_ENV === 'development' && shapePatches.length > 0) {
+          // CRITICAL: Always log shape changes to debug persistence
+          if (shapePatches.length > 0) {
             console.log('🔍 Automerge document changed with shape patches:', {
               patchCount: patchCount,
               shapePatches: shapePatches.length
