@@ -4,15 +4,15 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { checkBrowserSupport, isSecureContext } from '../../lib/utils/browser';
 
-interface CryptoLoginProps {
+interface CryptIDProps {
   onSuccess?: () => void;
   onCancel?: () => void;
 }
 
 /**
- * WebCryptoAPI-based authentication component
+ * CryptID - WebCryptoAPI-based authentication component
  */
-const CryptoLogin: React.FC<CryptoLoginProps> = ({ onSuccess, onCancel }) => {
+const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
   const [username, setUsername] = useState('');
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -178,7 +178,7 @@ const CryptoLogin: React.FC<CryptoLoginProps> = ({ onSuccess, onCancel }) => {
 
   return (
     <div className="crypto-login-container">
-      <h2>{isRegistering ? 'Create Cryptographic Account' : 'Cryptographic Sign In'}</h2>
+      <h2>{isRegistering ? 'Create CryptID Account' : 'CryptID Sign In'}</h2>
       
       {/* Show existing users if available */}
       {existingUsers.length > 0 && !isRegistering && (
@@ -206,11 +206,11 @@ const CryptoLogin: React.FC<CryptoLoginProps> = ({ onSuccess, onCancel }) => {
       
       <div className="crypto-info">
         <p>
-          {isRegistering 
-            ? 'Create a new account using WebCryptoAPI for secure authentication.'
-            : existingUsers.length > 0 
+          {isRegistering
+            ? 'Create a new CryptID account using WebCryptoAPI for secure authentication.'
+            : existingUsers.length > 0
               ? 'Select an account above or enter a different username to sign in.'
-              : 'Sign in using your cryptographic credentials.'
+              : 'Sign in using your CryptID credentials.'
           }
         </p>
         <div className="crypto-features">
@@ -276,4 +276,4 @@ const CryptoLogin: React.FC<CryptoLoginProps> = ({ onSuccess, onCancel }) => {
   );
 };
 
-export default CryptoLogin; 
+export default CryptID; 

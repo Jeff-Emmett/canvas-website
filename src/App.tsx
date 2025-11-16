@@ -31,7 +31,7 @@ import NotificationsDisplay from './components/NotificationsDisplay';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Import auth components
-import CryptoLogin from './components/auth/CryptoLogin';
+import CryptID from './components/auth/CryptID';
 import CryptoDebug from './components/auth/CryptoDebug';
 
 // Initialize Daily.co call object with error handling
@@ -89,7 +89,7 @@ const AppWithProviders = () => {
 
     return (
       <div className="auth-page">
-        <CryptoLogin onSuccess={() => window.location.href = '/'} />
+        <CryptID onSuccess={() => window.location.href = '/'} />
       </div>
     );
   };
