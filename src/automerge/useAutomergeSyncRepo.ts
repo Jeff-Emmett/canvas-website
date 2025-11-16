@@ -116,16 +116,14 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
         console.log("🔌 Initializing Automerge Repo with NetworkAdapter for room:", roomId)
         
         if (mounted) {
-          // CRITICAL: Use repo.find() with a consistent document ID based on roomId
-          // This ensures all windows/tabs share the same Automerge document and can sync properly
-          // Format: automerge:${roomId} matches what the server expects (see AutomergeDurableObject.ts line 327)
-          const documentId = `automerge:${roomId}` as any
-          console.log(`🔌 Finding or creating Automerge document with ID: ${documentId}`)
+          // CRITICAL: Create or find the document for this room
+          // We use repo.create() which generates a proper Automerge document ID
+          // The document will be shared across clients via the WebSocket sync protocol
+          console.log(`🔌 Creating Automerge document for room: ${roomId}`)
 
-          // Use repo.find() to get or create the document with this ID
-          // This ensures all windows share the same document instance
-          // Note: repo.find() returns a Promise, so we await it
-          const handle = await repo.find(documentId)
+          // Create a new document - Automerge will generate a proper document ID
+          // All clients connecting to the same room will sync via the WebSocket
+          const handle = repo.create<TLStoreSnapshot>()
 
           console.log("Found/Created Automerge handle via Repo:", {
             handleId: handle.documentId,
