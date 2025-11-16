@@ -119,19 +119,20 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
           // CRITICAL: Use repo.find() with a consistent document ID based on roomId
           // This ensures all windows/tabs share the same Automerge document and can sync properly
           // Format: automerge:${roomId} matches what the server expects (see AutomergeDurableObject.ts line 327)
-          const documentId = `automerge:${roomId}`
+          const documentId = `automerge:${roomId}` as any
           console.log(`🔌 Finding or creating Automerge document with ID: ${documentId}`)
-          
+
           // Use repo.find() to get or create the document with this ID
           // This ensures all windows share the same document instance
-          const handle = repo.find(documentId)
-          
+          // Note: repo.find() returns a Promise, so we await it
+          const handle = await repo.find(documentId)
+
           console.log("Found/Created Automerge handle via Repo:", {
             handleId: handle.documentId,
             isReady: handle.isReady(),
             roomId: roomId
           })
-          
+
           // Wait for the handle to be ready
           await handle.whenReady()
           
