@@ -137,7 +137,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
           await handle.whenReady()
           
           // Initialize document with default store if it's new/empty
-          const currentDoc = handle.doc()
+          const currentDoc = handle.doc() as any
           if (!currentDoc || !currentDoc.store || Object.keys(currentDoc.store).length === 0) {
             console.log("📝 Document is new/empty - initializing with default store")
             
