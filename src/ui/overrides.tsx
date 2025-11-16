@@ -478,7 +478,7 @@ export const overrides: TLUiOverrides = {
       openObsidianBrowser: {
         id: "open-obsidian-browser",
         label: "Open Obsidian Browser",
-        kbd: "alt+o",
+        // Removed kbd: "alt+o" - Alt+O now selects the ObsidianNote tool instead
         readonlyOk: true,
         onSelect: () => {
           // Trigger the Obsidian browser to open

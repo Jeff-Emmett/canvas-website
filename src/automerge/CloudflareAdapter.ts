@@ -48,7 +48,15 @@ export class CloudflareAdapter {
     // Focus on the store data which is what actually changes
     const storeData = doc.store || {}
     const storeKeys = Object.keys(storeData).sort()
-    const storeString = JSON.stringify(storeData, storeKeys)
+    
+    // CRITICAL FIX: JSON.stringify's second parameter when it's an array is a replacer
+    // that only includes those properties. We need to stringify the entire store object.
+    // To ensure stable ordering, create a new object with sorted keys
+    const sortedStore: any = {}
+    for (const key of storeKeys) {
+      sortedStore[key] = storeData[key]
+    }
+    const storeString = JSON.stringify(sortedStore)
     
     // Simple hash function (you could use a more sophisticated one if needed)
     let hash = 0
