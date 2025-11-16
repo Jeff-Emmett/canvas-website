@@ -124,7 +124,6 @@ import { HolonShape } from "@/shapes/HolonShapeUtil"
 import { ObsidianBrowserShape } from "@/shapes/ObsidianBrowserShapeUtil"
 import { FathomMeetingsBrowserShape } from "@/shapes/FathomMeetingsBrowserShapeUtil"
 import { LocationShareShape } from "@/shapes/LocationShareShapeUtil"
-import { ImageGenShape } from "@/shapes/ImageGenShapeUtil"
 
 export function useAutomergeStoreV2({
   handle,
@@ -153,7 +152,6 @@ export function useAutomergeStoreV2({
       ObsidianBrowser: {} as any,
       FathomMeetingsBrowser: {} as any,
       LocationShare: {} as any,
-      ImageGen: {} as any,
     },
     bindings: defaultBindingSchemas,
   })
@@ -176,7 +174,6 @@ export function useAutomergeStoreV2({
         ObsidianBrowserShape,
         FathomMeetingsBrowserShape,
         LocationShareShape,
-        ImageGenShape,
       ],
     })
     return store
