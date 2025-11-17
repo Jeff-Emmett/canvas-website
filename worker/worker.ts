@@ -212,6 +212,27 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     })
   })
 
+  // Get the Automerge document ID for a room
+  .get("/room/:roomId/documentId", async (request, env) => {
+    const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
+    const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
+    return room.fetch(request.url, {
+      headers: request.headers,
+      method: "GET",
+    })
+  })
+
+  // Set the Automerge document ID for a room
+  .post("/room/:roomId/documentId", async (request, env) => {
+    const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
+    const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
+    return room.fetch(request.url, {
+      method: "POST",
+      body: request.body,
+      headers: request.headers,
+    })
+  })
+
   .post("/daily/rooms", async (req) => {
     const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
     

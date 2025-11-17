@@ -379,16 +379,24 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
     if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
       // Check if this is a binary sync message from Automerge Repo
       if (message.type === 'sync' && (message as any).data instanceof ArrayBuffer) {
-        console.log('🔌 CloudflareAdapter: Sending binary sync message (Automerge protocol)')
+        console.log('📤 CloudflareAdapter: Sending binary sync message (Automerge protocol)', {
+          dataLength: (message as any).data.byteLength,
+          documentId: (message as any).documentId,
+          targetId: message.targetId
+        })
         // Send binary data directly for Automerge's native sync protocol
         this.websocket.send((message as any).data)
       } else if (message.type === 'sync' && (message as any).data instanceof Uint8Array) {
-        console.log('🔌 CloudflareAdapter: Sending Uint8Array sync message (Automerge protocol)')
+        console.log('📤 CloudflareAdapter: Sending Uint8Array sync message (Automerge protocol)', {
+          dataLength: (message as any).data.length,
+          documentId: (message as any).documentId,
+          targetId: message.targetId
+        })
         // Convert Uint8Array to ArrayBuffer and send
         this.websocket.send((message as any).data.buffer)
       } else {
         // Handle text-based messages (backward compatibility and control messages)
-        console.log('Sending WebSocket message:', message.type)
+        console.log('📤 Sending WebSocket message:', message.type)
         // Debug: Log patch content if it's a patch message
         if (message.type === 'patch' && (message as any).patches) {
           console.log('🔍 Sending patches:', (message as any).patches.length, 'patches')
@@ -402,6 +410,11 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
         }
         this.websocket.send(JSON.stringify(message))
       }
+    } else {
+      console.warn('⚠️ CloudflareAdapter: Cannot send message - WebSocket not open', {
+        messageType: message.type,
+        readyState: this.websocket?.readyState
+      })
     }
   }
 

@@ -102,9 +102,18 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
   
   const [repo] = useState(() => {
     const adapter = new CloudflareNetworkAdapter(workerUrl, roomId, applyJsonSyncData)
-    return new Repo({
-      network: [adapter]
+    const repo = new Repo({
+      network: [adapter],
+      // Enable sharing of all documents with all peers
+      sharePolicy: async () => true
     })
+
+    // Log when sync messages are sent/received
+    adapter.on('message', (msg: any) => {
+      console.log('🔄 CloudflareAdapter received message from network:', msg.type)
+    })
+
+    return repo
   })
 
   // Initialize Automerge document handle
@@ -114,16 +123,56 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
     const initializeHandle = async () => {
       try {
         console.log("🔌 Initializing Automerge Repo with NetworkAdapter for room:", roomId)
-        
-        if (mounted) {
-          // CRITICAL: Create or find the document for this room
-          // We use repo.create() which generates a proper Automerge document ID
-          // The document will be shared across clients via the WebSocket sync protocol
-          console.log(`🔌 Creating Automerge document for room: ${roomId}`)
 
-          // Create a new document - Automerge will generate a proper document ID
-          // All clients connecting to the same room will sync via the WebSocket
-          const handle = repo.create<TLStoreSnapshot>()
+        if (mounted) {
+          // CRITICAL FIX: Get or create a consistent document ID for this room
+          // All clients in the same room MUST use the same document ID for sync to work
+          let documentId: string | null = null
+
+          try {
+            // First, try to get the document ID from the server
+            const response = await fetch(`${workerUrl}/room/${roomId}/documentId`)
+            if (response.ok) {
+              const data = await response.json() as { documentId: string }
+              documentId = data.documentId
+              console.log(`📥 Got existing document ID from server: ${documentId}`)
+            } else if (response.status === 404) {
+              console.log(`📝 No document ID found on server for room ${roomId}, will create new one`)
+            }
+          } catch (error) {
+            console.warn(`⚠️ Could not fetch document ID from server:`, error)
+          }
+
+          let handle: DocHandle<TLStoreSnapshot>
+
+          if (documentId) {
+            // Try to find the existing document
+            const foundHandle = await repo.find<TLStoreSnapshot>(documentId as any)
+            if (!foundHandle) {
+              console.log(`📝 Document ${documentId} not in local repo, creating handle`)
+              handle = repo.create<TLStoreSnapshot>()
+            } else {
+              console.log(`✅ Found existing document in local repo: ${documentId}`)
+              handle = foundHandle
+            }
+          } else {
+            // Create a new document and register its ID with the server
+            handle = repo.create<TLStoreSnapshot>()
+            documentId = handle.documentId
+            console.log(`📝 Created new document with ID: ${documentId}`)
+
+            // Register this document ID with the server so other clients use the same one
+            try {
+              await fetch(`${workerUrl}/room/${roomId}/documentId`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ documentId })
+              })
+              console.log(`✅ Registered document ID with server: ${documentId}`)
+            } catch (error) {
+              console.error(`❌ Failed to register document ID with server:`, error)
+            }
+          }
 
           console.log("Found/Created Automerge handle via Repo:", {
             handleId: handle.documentId,
@@ -133,19 +182,19 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
 
           // Wait for the handle to be ready
           await handle.whenReady()
-          
+
           // Initialize document with default store if it's new/empty
           const currentDoc = handle.doc() as any
           if (!currentDoc || !currentDoc.store || Object.keys(currentDoc.store).length === 0) {
             console.log("📝 Document is new/empty - initializing with default store")
-            
+
             // Try to load initial data from server for new documents
             try {
               const response = await fetch(`${workerUrl}/room/${roomId}`)
               if (response.ok) {
                 const serverDoc = await response.json() as TLStoreSnapshot
                 const serverRecordCount = Object.keys(serverDoc.store || {}).length
-                
+
                 if (serverDoc.store && serverRecordCount > 0) {
                   console.log(`📥 Loading ${serverRecordCount} records from server into new document`)
                   handle.change((doc: any) => {
