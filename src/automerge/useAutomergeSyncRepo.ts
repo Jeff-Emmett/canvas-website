@@ -125,76 +125,11 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
         console.log("🔌 Initializing Automerge Repo with NetworkAdapter for room:", roomId)
 
         if (mounted) {
-          // CRITICAL FIX: Get or create a consistent document ID for this room
-          // All clients in the same room MUST use the same document ID for sync to work
-          let documentId: string | null = null
-
-          try {
-            // First, try to get the document ID from the server
-            const response = await fetch(`${workerUrl}/room/${roomId}/documentId`)
-            if (response.ok) {
-              const data = await response.json() as { documentId: string }
-              documentId = data.documentId
-              console.log(`📥 Got existing document ID from server: ${documentId}`)
-            } else if (response.status === 404) {
-              console.log(`📝 No document ID found on server for room ${roomId}, will create new one`)
-            }
-          } catch (error) {
-            console.warn(`⚠️ Could not fetch document ID from server:`, error)
-          }
-
-          let handle: DocHandle<TLStoreSnapshot>
-
-          if (documentId) {
-            // FIXED: Use repo.find() but wrap in try-catch for concurrent access
-            // repo.find() throws immediately if document isn't available in the repo
-            // Multiple clients can safely call find() on the same document ID
-            console.log(`🔍 Finding or creating document ${documentId} via network sync`)
-            const docUrl = `automerge:${documentId}` as const
-
-            try {
-              // Try to find the existing document
-              // It will throw if the document isn't in the repo yet
-              handle = await repo.find<TLStoreSnapshot>(docUrl as any)
-              console.log(`✅ Found existing document handle: ${handle.documentId}, isReady: ${handle.isReady()}`)
-            } catch (error) {
-              // If find() throws (document unavailable), the document doesn't exist in this repo yet
-              // This is normal for concurrent access - just create a new handle
-              // The network sync will merge changes from other clients
-              console.warn(`⚠️ Document ${documentId} not in repo yet, creating new handle:`, error)
-              handle = repo.create<TLStoreSnapshot>()
-              console.log(`📝 Created new document handle with ID: ${handle.documentId}`)
-
-              // Update the server with this new document ID for future clients
-              try {
-                await fetch(`${workerUrl}/room/${roomId}/documentId`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ documentId: handle.documentId })
-                })
-                console.log(`✅ Updated document ID on server: ${handle.documentId}`)
-              } catch (updateError) {
-                console.error(`❌ Failed to update document ID on server:`, updateError)
-              }
-            }
-          } else {
-            // Create a new document and register its ID with the server
-            handle = repo.create<TLStoreSnapshot>()
-            documentId = handle.documentId
-            console.log(`📝 Created new document with ID: ${documentId}`)
-
-            // Register this document ID with the server so other clients use the same one
-            try {
-              await fetch(`${workerUrl}/room/${roomId}/documentId`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ documentId })
-              })
-              console.log(`✅ Registered document ID with server: ${documentId}`)
-            } catch (error) {
-              console.error(`❌ Failed to register document ID with server:`, error)
-            }
-          }
+          // SIMPLIFIED: Each client creates its own Automerge document
+          // Content sync happens via WebSocket (binary Automerge sync protocol)
+          // Initial content is loaded from server via HTTP below
+          const handle = repo.create<TLStoreSnapshot>()
+          console.log(`📝 Created Automerge document handle: ${handle.documentId}`)
 
           console.log("Found/Created Automerge handle via Repo:", {
             handleId: handle.documentId,
