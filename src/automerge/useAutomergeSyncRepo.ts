@@ -100,7 +100,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
     return
   }, [])
   
-  const [repo] = useState(() => {
+  const [repo, adapter] = useState(() => {
     const adapter = new CloudflareNetworkAdapter(workerUrl, roomId, applyJsonSyncData)
     const repo = new Repo({
       network: [adapter],
@@ -113,7 +113,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
       console.log('🔄 CloudflareAdapter received message from network:', msg.type)
     })
 
-    return repo
+    return [repo, adapter] as const
   })
 
   // Initialize Automerge document handle
@@ -123,6 +123,12 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
     const initializeHandle = async () => {
       try {
         console.log("🔌 Initializing Automerge Repo with NetworkAdapter for room:", roomId)
+
+        // CRITICAL: Wait for the network adapter to be ready before creating document
+        // This ensures the WebSocket connection is established for sync
+        console.log("⏳ Waiting for network adapter to be ready...")
+        await adapter.whenReady()
+        console.log("✅ Network adapter is ready, WebSocket connected")
 
         if (mounted) {
           // CRITICAL: Create a new Automerge document (repo.create() generates a proper document ID)
@@ -255,7 +261,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
     return () => {
       mounted = false
     }
-  }, [repo, roomId])
+  }, [repo, roomId, adapter, workerUrl])
 
   // Track mouse state to prevent persistence during active mouse interactions
   useEffect(() => {
