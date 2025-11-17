@@ -27,12 +27,17 @@ export class AutomergeDurableObject {
   // Cache R2 document hash to avoid reloading when unchanged
   private cachedR2Hash: string | null = null
   private cachedR2Doc: any = null
+  // Store the Automerge document ID for this room
+  private automergeDocumentId: string | null = null
 
   constructor(private readonly ctx: DurableObjectState, env: Environment) {
     this.r2 = env.TLDRAW_BUCKET
 
     ctx.blockConcurrencyWhile(async () => {
       this.roomId = ((await this.ctx.storage.get("roomId")) ?? null) as
+        | string
+        | null
+      this.automergeDocumentId = ((await this.ctx.storage.get("automergeDocumentId")) ?? null) as
         | string
         | null
     })
@@ -82,7 +87,7 @@ export class AutomergeDurableObject {
           this.roomId = request.params.roomId
         })
       }
-      
+
       const doc = (await request.json()) as any
       await this.updateDocument(doc)
 
@@ -93,6 +98,57 @@ export class AutomergeDurableObject {
           "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type",
           "Access-Control-Max-Age": "86400",
+        },
+      })
+    })
+    .get("/room/:roomId/documentId", async (request) => {
+      // Initialize roomId if not already set
+      if (!this.roomId) {
+        await this.ctx.blockConcurrencyWhile(async () => {
+          await this.ctx.storage.put("roomId", request.params.roomId)
+          this.roomId = request.params.roomId
+        })
+      }
+
+      if (!this.automergeDocumentId) {
+        return new Response(JSON.stringify({ error: "No document ID found" }), {
+          status: 404,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": request.headers.get("Origin") || "*",
+          },
+        })
+      }
+
+      return new Response(JSON.stringify({ documentId: this.automergeDocumentId }), {
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": request.headers.get("Origin") || "*",
+        },
+      })
+    })
+    .post("/room/:roomId/documentId", async (request) => {
+      // Initialize roomId if not already set
+      if (!this.roomId) {
+        await this.ctx.blockConcurrencyWhile(async () => {
+          await this.ctx.storage.put("roomId", request.params.roomId)
+          this.roomId = request.params.roomId
+        })
+      }
+
+      const { documentId } = (await request.json()) as { documentId: string }
+
+      await this.ctx.blockConcurrencyWhile(async () => {
+        await this.ctx.storage.put("automergeDocumentId", documentId)
+        this.automergeDocumentId = documentId
+      })
+
+      console.log(`📝 Stored document ID ${documentId} for room ${this.roomId}`)
+
+      return new Response(JSON.stringify({ success: true, documentId }), {
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": request.headers.get("Origin") || "*",
         },
       })
     })
