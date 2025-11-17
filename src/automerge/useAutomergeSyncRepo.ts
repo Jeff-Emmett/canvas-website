@@ -125,11 +125,58 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
         console.log("🔌 Initializing Automerge Repo with NetworkAdapter for room:", roomId)
 
         if (mounted) {
-          // SIMPLIFIED: Each client creates its own Automerge document
-          // Content sync happens via WebSocket (binary Automerge sync protocol)
-          // Initial content is loaded from server via HTTP below
+          // CRITICAL: Create a new Automerge document (repo.create() generates a proper document ID)
+          // Each client gets its own document, but Automerge sync protocol keeps them in sync
+          // The network adapter broadcasts sync messages between all clients in the same room
           const handle = repo.create<TLStoreSnapshot>()
-          console.log(`📝 Created Automerge document handle: ${handle.documentId}`)
+
+          console.log("Created Automerge handle via Repo:", {
+            handleId: handle.documentId,
+            isReady: handle.isReady(),
+            roomId: roomId
+          })
+
+          // Wait for the handle to be ready
+          await handle.whenReady()
+
+          // CRITICAL: Always load initial data from the server
+          // The server stores documents in R2 as JSON, so we need to load and initialize the Automerge document
+          console.log("📥 Loading initial data from server...")
+          try {
+            const response = await fetch(`${workerUrl}/room/${roomId}`)
+            if (response.ok) {
+              const serverDoc = await response.json() as TLStoreSnapshot
+              const serverShapeCount = serverDoc.store ? Object.values(serverDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
+              const serverRecordCount = Object.keys(serverDoc.store || {}).length
+
+              console.log(`📥 Loaded document from server: ${serverRecordCount} records, ${serverShapeCount} shapes`)
+
+              // Initialize the Automerge document with server data
+              if (serverDoc.store && serverRecordCount > 0) {
+                handle.change((doc: any) => {
+                  // Initialize store if it doesn't exist
+                  if (!doc.store) {
+                    doc.store = {}
+                  }
+                  // Copy all records from server document
+                  Object.entries(serverDoc.store).forEach(([id, record]) => {
+                    doc.store[id] = record
+                  })
+                })
+
+                console.log(`✅ Initialized Automerge document with ${serverRecordCount} records from server`)
+              } else {
+                console.log("📥 Server document is empty - starting with empty Automerge document")
+              }
+            } else if (response.status === 404) {
+              console.log("📥 No document found on server (404) - starting with empty document")
+            } else {
+              console.warn(`⚠️ Failed to load document from server: ${response.status} ${response.statusText}`)
+            }
+          } catch (error) {
+            console.error("❌ Error loading initial document from server:", error)
+            // Continue anyway - user can still create new content
+          }
 
           console.log("Found/Created Automerge handle via Repo:", {
             handleId: handle.documentId,
