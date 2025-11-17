@@ -583,7 +583,7 @@ export function CustomToolbar() {
               <span style={{ fontSize: "12px" }}>
                 {hasApiKey ? "🔑" : "❌"}
               </span>
-              <span>{session.username}</span>
+              <span>CryptID: {session.username}</span>
             </button>
           
             {showProfilePopup && (
@@ -602,7 +602,7 @@ export function CustomToolbar() {
                 }}
               >
                 <div style={{ marginBottom: "12px", fontWeight: "bold" }}>
-                  Hello, {session.username}!
+                  CryptID: {session.username}
                 </div>
                 
                 {/* API Key Status */}
@@ -1042,6 +1042,14 @@ export function CustomToolbar() {
             icon="globe"
             label="Holon"
             isSelected={tools["Holon"].id === editor.getCurrentToolId()}
+          />
+        )}
+        {tools["ImageGen"] && (
+          <TldrawUiMenuItem
+            {...tools["ImageGen"]}
+            icon="image"
+            label="Image Generation"
+            isSelected={tools["ImageGen"].id === editor.getCurrentToolId()}
           />
         )}
         {/* Share Location tool removed for now */}
