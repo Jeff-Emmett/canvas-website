@@ -146,15 +146,10 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
           let handle: DocHandle<TLStoreSnapshot>
 
           if (documentId) {
-            // Try to find the existing document
-            const foundHandle = await repo.find<TLStoreSnapshot>(documentId as any)
-            if (!foundHandle) {
-              console.log(`📝 Document ${documentId} not in local repo, creating handle`)
-              handle = repo.create<TLStoreSnapshot>()
-            } else {
-              console.log(`✅ Found existing document in local repo: ${documentId}`)
-              handle = foundHandle
-            }
+            // Find the existing document (will sync from network if not available locally)
+            console.log(`🔍 Finding document ${documentId} (will sync from network if needed)`)
+            handle = await repo.find<TLStoreSnapshot>(documentId as any)
+            console.log(`✅ Got handle for document: ${documentId}`)
           } else {
             // Create a new document and register its ID with the server
             handle = repo.create<TLStoreSnapshot>()

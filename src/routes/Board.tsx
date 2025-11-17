@@ -41,7 +41,7 @@ import { FathomMeetingsTool } from "@/tools/FathomMeetingsTool"
 import { HolonBrowserShape } from "@/shapes/HolonBrowserShapeUtil"
 import { ObsidianBrowserShape } from "@/shapes/ObsidianBrowserShapeUtil"
 import { FathomMeetingsBrowserShape } from "@/shapes/FathomMeetingsBrowserShapeUtil"
-import { LocationShareShape } from "@/shapes/LocationShareShapeUtil"
+// Location shape removed - no longer needed
 import {
   lockElement,
   unlockElement,
@@ -81,7 +81,6 @@ const customShapeUtils = [
   HolonBrowserShape,
   ObsidianBrowserShape,
   FathomMeetingsBrowserShape,
-  LocationShareShape,
 ]
 const customTools = [
   ChatBoxTool,

@@ -29,7 +29,7 @@ export function CustomMainMenu() {
                     const validateAndNormalizeShapeType = (shape: any): string => {
                         if (!shape || !shape.type) return 'text'
                         
-                        const validCustomShapes = ['ObsNote', 'VideoChat', 'Transcription', 'Prompt', 'ChatBox', 'Embed', 'Markdown', 'MycrozineTemplate', 'Slide', 'Holon', 'ObsidianBrowser', 'HolonBrowser', 'FathomMeetingsBrowser', 'LocationShare']
+                        const validCustomShapes = ['ObsNote', 'VideoChat', 'Transcription', 'Prompt', 'ChatBox', 'Embed', 'Markdown', 'MycrozineTemplate', 'Slide', 'Holon', 'ObsidianBrowser', 'HolonBrowser', 'FathomMeetingsBrowser']
                         const validDefaultShapes = ['arrow', 'bookmark', 'draw', 'embed', 'frame', 'geo', 'group', 'highlight', 'image', 'line', 'note', 'text', 'video']
                         const allValidShapes = [...validCustomShapes, ...validDefaultShapes]
                         

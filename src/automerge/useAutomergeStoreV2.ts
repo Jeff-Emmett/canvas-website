@@ -123,7 +123,7 @@ import { FathomNoteShape } from "@/shapes/FathomNoteShapeUtil"
 import { HolonShape } from "@/shapes/HolonShapeUtil"
 import { ObsidianBrowserShape } from "@/shapes/ObsidianBrowserShapeUtil"
 import { FathomMeetingsBrowserShape } from "@/shapes/FathomMeetingsBrowserShapeUtil"
-import { LocationShareShape } from "@/shapes/LocationShareShapeUtil"
+// Location shape removed - no longer needed
 
 export function useAutomergeStoreV2({
   handle,
@@ -173,7 +173,6 @@ export function useAutomergeStoreV2({
         HolonShape,
         ObsidianBrowserShape,
         FathomMeetingsBrowserShape,
-        LocationShareShape,
       ],
     })
     return store
