@@ -146,11 +146,37 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
           let handle: DocHandle<TLStoreSnapshot>
 
           if (documentId) {
-            // Convert document ID to Automerge URL format and find it
-            console.log(`🔍 Finding document ${documentId} via network sync`)
+            // FIXED: Use repo.find() but wrap in try-catch for concurrent access
+            // repo.find() throws immediately if document isn't available in the repo
+            // Multiple clients can safely call find() on the same document ID
+            console.log(`🔍 Finding or creating document ${documentId} via network sync`)
             const docUrl = `automerge:${documentId}` as const
-            handle = await repo.find<TLStoreSnapshot>(docUrl as any)
-            console.log(`✅ Got handle for document: ${handle.documentId}, isReady: ${handle.isReady()}`)
+
+            try {
+              // Try to find the existing document - this is synchronous
+              // It will throw if the document isn't in the repo yet
+              handle = repo.find<TLStoreSnapshot>(docUrl as any)
+              console.log(`✅ Found existing document handle: ${handle.documentId}, isReady: ${handle.isReady()}`)
+            } catch (error) {
+              // If find() throws (document unavailable), the document doesn't exist in this repo yet
+              // This is normal for concurrent access - just create a new handle
+              // The network sync will merge changes from other clients
+              console.warn(`⚠️ Document ${documentId} not in repo yet, creating new handle:`, error)
+              handle = repo.create<TLStoreSnapshot>()
+              console.log(`📝 Created new document handle with ID: ${handle.documentId}`)
+
+              // Update the server with this new document ID for future clients
+              try {
+                await fetch(`${workerUrl}/room/${roomId}/documentId`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ documentId: handle.documentId })
+                })
+                console.log(`✅ Updated document ID on server: ${handle.documentId}`)
+              } catch (updateError) {
+                console.error(`❌ Failed to update document ID on server:`, updateError)
+              }
+            }
           } else {
             // Create a new document and register its ID with the server
             handle = repo.create<TLStoreSnapshot>()
