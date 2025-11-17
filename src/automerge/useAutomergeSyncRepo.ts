@@ -3,7 +3,7 @@ import { TLStoreSnapshot } from "@tldraw/tldraw"
 import { CloudflareNetworkAdapter } from "./CloudflareAdapter"
 import { useAutomergeStoreV2, useAutomergePresence } from "./useAutomergeStoreV2"
 import { TLStoreWithStatus } from "@tldraw/tldraw"
-import { Repo } from "@automerge/automerge-repo"
+import { Repo, parseAutomergeUrl, stringifyAutomergeUrl } from "@automerge/automerge-repo"
 import { DocHandle } from "@automerge/automerge-repo"
 
 interface AutomergeSyncConfig {
@@ -146,18 +146,11 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
           let handle: DocHandle<TLStoreSnapshot>
 
           if (documentId) {
-            // Try to find the existing document
-            console.log(`🔍 Attempting to find document ${documentId}`)
-            try {
-              handle = await repo.find<TLStoreSnapshot>(documentId as any)
-              console.log(`✅ Found document handle: ${documentId}`)
-            } catch (error) {
-              // Document not available yet - this can happen when it exists on server but not locally
-              console.log(`📝 Document ${documentId} not immediately available, creating new handle`)
-              // Create a new handle - the sync will handle merging with server state
-              handle = repo.create<TLStoreSnapshot>()
-              console.log(`📝 Created new handle ${handle.documentId}, will sync with server`)
-            }
+            // Convert document ID to Automerge URL format and find it
+            console.log(`🔍 Finding document ${documentId} via network sync`)
+            const docUrl = `automerge:${documentId}` as const
+            handle = await repo.find<TLStoreSnapshot>(docUrl as any)
+            console.log(`✅ Got handle for document: ${handle.documentId}, isReady: ${handle.isReady()}`)
           } else {
             // Create a new document and register its ID with the server
             handle = repo.create<TLStoreSnapshot>()
