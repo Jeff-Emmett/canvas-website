@@ -153,9 +153,9 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
             const docUrl = `automerge:${documentId}` as const
 
             try {
-              // Try to find the existing document - this is synchronous
+              // Try to find the existing document
               // It will throw if the document isn't in the repo yet
-              handle = repo.find<TLStoreSnapshot>(docUrl as any)
+              handle = await repo.find<TLStoreSnapshot>(docUrl as any)
               console.log(`✅ Found existing document handle: ${handle.documentId}, isReady: ${handle.isReady()}`)
             } catch (error) {
               // If find() throws (document unavailable), the document doesn't exist in this repo yet
