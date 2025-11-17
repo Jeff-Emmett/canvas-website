@@ -100,7 +100,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
     return
   }, [])
   
-  const [repo, adapter] = useState(() => {
+  const { repo, adapter } = useMemo(() => {
     const adapter = new CloudflareNetworkAdapter(workerUrl, roomId, applyJsonSyncData)
     const repo = new Repo({
       network: [adapter],
@@ -113,8 +113,8 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
       console.log('🔄 CloudflareAdapter received message from network:', msg.type)
     })
 
-    return [repo, adapter] as const
-  })
+    return { repo, adapter }
+  }, [workerUrl, roomId, applyJsonSyncData])
 
   // Initialize Automerge document handle
   useEffect(() => {
@@ -261,7 +261,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
     return () => {
       mounted = false
     }
-  }, [repo, roomId, adapter, workerUrl])
+  }, [repo, adapter, roomId, workerUrl])
 
   // Track mouse state to prevent persistence during active mouse interactions
   useEffect(() => {
