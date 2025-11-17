@@ -7,7 +7,6 @@ import { Board } from "./routes/Board"
 import { Inbox } from "./routes/Inbox"
 import { Presentations } from "./routes/Presentations"
 import { Resilience } from "./routes/Resilience"
-import { inject } from "@vercel/analytics"
 import { createRoot } from "react-dom/client"
 import { DailyProvider } from "@daily-co/daily-react"
 import Daily from "@daily-co/daily-js"
@@ -34,8 +33,6 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 // Import auth components
 import CryptoLogin from './components/auth/CryptoLogin';
 import CryptoDebug from './components/auth/CryptoDebug';
-
-inject();
 
 // Initialize Daily.co call object with error handling
 let callObject: any = null;
