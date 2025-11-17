@@ -32,7 +32,7 @@ export function resolveOverlaps(editor: Editor, shapeId: string): void {
   const allShapes = editor.getCurrentPageShapes()
   const customShapeTypes = [
     'ObsNote', 'ObsidianBrowser', 'HolonBrowser', 'VideoChat',
-    'Transcription', 'Holon', 'LocationShare', 'FathomMeetingsBrowser', 'Prompt',
+    'Transcription', 'Holon', 'FathomMeetingsBrowser', 'Prompt',
     'Embed', 'Slide', 'Markdown', 'MycrozineTemplate', 'ChatBox'
   ]
   
@@ -119,7 +119,7 @@ export function findNonOverlappingPosition(
   const allShapes = editor.getCurrentPageShapes()
   const customShapeTypes = [
     'ObsNote', 'ObsidianBrowser', 'HolonBrowser', 'VideoChat',
-    'Transcription', 'Holon', 'LocationShare', 'FathomMeetingsBrowser', 'Prompt',
+    'Transcription', 'Holon', 'FathomMeetingsBrowser', 'Prompt',
     'Embed', 'Slide', 'Markdown', 'MycrozineTemplate', 'ChatBox'
   ]
   

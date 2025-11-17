@@ -15,7 +15,6 @@ import { createShapeId } from "tldraw"
 import type { ObsidianObsNote } from "../lib/obsidianImporter"
 import { HolonData } from "../lib/HoloSphereService"
 import { FathomMeetingsPanel } from "../components/FathomMeetingsPanel"
-import { LocationShareDialog } from "../components/location/LocationShareDialog"
 import { getFathomApiKey, saveFathomApiKey, removeFathomApiKey, isFathomApiKeyConfigured } from "../lib/fathomApiKey"
 
 export function CustomToolbar() {

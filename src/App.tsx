@@ -16,11 +16,7 @@ import "@/css/auth.css"; // Import auth styles
 import "@/css/crypto-auth.css"; // Import crypto auth styles
 import "@/css/starred-boards.css"; // Import starred boards styles
 import "@/css/user-profile.css"; // Import user profile styles
-import "@/css/location.css"; // Import location sharing styles
 import { Dashboard } from "./routes/Dashboard";
-import { LocationShareCreate } from "./routes/LocationShareCreate";
-import { LocationShareView } from "./routes/LocationShareView";
-import { LocationDashboardRoute } from "./routes/LocationDashboardRoute";
 import { useState, useEffect } from 'react';
 
 // Import React Context providers
@@ -147,22 +143,6 @@ const AppWithProviders = () => {
                   <Route path="/presentations/resilience" element={
                     <OptionalAuthRoute>
                       <Resilience />
-                    </OptionalAuthRoute>
-                  } />
-                  {/* Location sharing routes */}
-                  <Route path="/share-location" element={
-                    <OptionalAuthRoute>
-                      <LocationShareCreate />
-                    </OptionalAuthRoute>
-                  } />
-                  <Route path="/location/:token" element={
-                    <OptionalAuthRoute>
-                      <LocationShareView />
-                    </OptionalAuthRoute>
-                  } />
-                  <Route path="/location-dashboard" element={
-                    <OptionalAuthRoute>
-                      <LocationDashboardRoute />
                     </OptionalAuthRoute>
                   } />
                 </Routes>

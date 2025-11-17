@@ -593,7 +593,7 @@ export function sanitizeRecord(record: any): TLRecord {
       'holon': 'Holon',
       'obsidianBrowser': 'ObsidianBrowser',
       'fathomMeetingsBrowser': 'FathomMeetingsBrowser',
-      'locationShare': 'LocationShare',
+      // locationShare removed
       'imageGen': 'ImageGen',
     }
 
