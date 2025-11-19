@@ -210,8 +210,15 @@ export function useAutomergeStoreV2({
     // The Automerge Repo doesn't auto-broadcast because our WebSocket setup doesn't use peer discovery
     const triggerSync = () => {
       try {
+        console.log('🔄 triggerSync() called')
         const repo = (handle as any).repo
+        console.log('🔍 repo:', !!repo, 'handle:', !!handle, 'documentId:', handle?.documentId)
+
         if (repo) {
+          console.log('🔍 repo.networkSubsystem:', !!repo.networkSubsystem)
+          console.log('🔍 repo.networkSubsystem.syncDoc:', typeof repo.networkSubsystem?.syncDoc)
+          console.log('🔍 repo.networkSubsystem.adapters:', !!repo.networkSubsystem?.adapters)
+
           // Try multiple approaches to trigger sync
 
           // Approach 1: Use networkSubsystem.syncDoc if available
@@ -223,10 +230,13 @@ export function useAutomergeStoreV2({
           else if (repo.networkSubsystem && repo.networkSubsystem.adapters) {
             console.log('🔄 Broadcasting sync to all network adapters')
             const adapters = Array.from(repo.networkSubsystem.adapters.values())
+            console.log('🔍 Found adapters:', adapters.length)
             adapters.forEach((adapter: any) => {
+              console.log('🔍 Adapter has send:', typeof adapter?.send)
               if (adapter && typeof adapter.send === 'function') {
                 // Send a sync message via the adapter
                 // The adapter should handle converting this to the right format
+                console.log('📤 Sending sync via adapter')
                 adapter.send({
                   type: 'sync',
                   documentId: handle.documentId,
@@ -243,6 +253,8 @@ export function useAutomergeStoreV2({
           else {
             console.warn('⚠️ No known method to trigger sync broadcast found')
           }
+        } else {
+          console.warn('⚠️ No repo found on handle')
         }
       } catch (error) {
         console.error('❌ Error triggering manual sync:', error)
