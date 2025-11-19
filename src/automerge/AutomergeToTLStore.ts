@@ -769,6 +769,33 @@ export function sanitizeRecord(record: any): TLRecord {
       }
     }
     
+    // CRITICAL: Convert props.text to props.richText for geo shapes (tldraw schema change)
+    // tldraw no longer accepts props.text on geo shapes - must use richText
+    // This migration handles shapes that were saved before the schema change
+    if (sanitized.type === 'geo' && 'text' in sanitized.props && typeof sanitized.props.text === 'string') {
+      const textContent = sanitized.props.text
+
+      // Convert text string to richText format for tldraw
+      sanitized.props.richText = {
+        type: 'doc',
+        content: textContent ? [{
+          type: 'paragraph',
+          content: [{
+            type: 'text',
+            text: textContent
+          }]
+        }] : []
+      }
+
+      // CRITICAL: Preserve original text in meta.text for backward compatibility
+      // This is used by search (src/utils/searchUtils.ts) and other legacy code
+      if (!sanitized.meta) sanitized.meta = {}
+      sanitized.meta.text = textContent
+
+      // Remove invalid props.text
+      delete sanitized.props.text
+    }
+
     // CRITICAL: Fix richText structure for geo shapes (preserve content)
     if (sanitized.type === 'geo' && sanitized.props.richText) {
       if (Array.isArray(sanitized.props.richText)) {
