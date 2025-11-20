@@ -1,0 +1,105 @@
+{
+  "version": "1.0",
+  "default_connection": "primary",
+  "connections": {
+    "primary": {
+      "name": "Primary Droplet",
+      "host": "165.227.XXX.XXX",
+      "port": 22,
+      "user": "root",
+      "auth": {
+        "type": "privateKey",
+        "keyPath": "~/.ssh/id_ed25519",
+        "comment": "Path to your SSH private key. Use absolute path or ~ for home directory."
+      },
+      "tmux": {
+        "default_session": "canvas-main",
+        "socket_name": null,
+        "comment": "Optional: specify tmux socket name if using non-default"
+      }
+    },
+    "staging": {
+      "name": "Staging Droplet",
+      "host": "192.168.XXX.XXX",
+      "port": 22,
+      "user": "deploy",
+      "auth": {
+        "type": "privateKey",
+        "keyPath": "~/.ssh/staging_key"
+      },
+      "tmux": {
+        "default_session": null
+      }
+    }
+  },
+  "terminal": {
+    "default_font_family": "Monaco, Menlo, 'Courier New', monospace",
+    "default_font_size": 13,
+    "default_theme": "dark",
+    "themes": {
+      "dark": {
+        "background": "#1e1e1e",
+        "foreground": "#d4d4d4",
+        "cursor": "#ffffff",
+        "cursorAccent": "#1e1e1e",
+        "selection": "#264f78",
+        "black": "#000000",
+        "red": "#cd3131",
+        "green": "#0dbc79",
+        "yellow": "#e5e510",
+        "blue": "#2472c8",
+        "magenta": "#bc3fbc",
+        "cyan": "#11a8cd",
+        "white": "#e5e5e5",
+        "brightBlack": "#666666",
+        "brightRed": "#f14c4c",
+        "brightGreen": "#23d18b",
+        "brightYellow": "#f5f543",
+        "brightBlue": "#3b8eea",
+        "brightMagenta": "#d670d6",
+        "brightCyan": "#29b8db",
+        "brightWhite": "#e5e5e5"
+      },
+      "light": {
+        "background": "#ffffff",
+        "foreground": "#333333",
+        "cursor": "#000000",
+        "cursorAccent": "#ffffff",
+        "selection": "#add6ff",
+        "black": "#000000",
+        "red": "#cd3131",
+        "green": "#00bc00",
+        "yellow": "#949800",
+        "blue": "#0451a5",
+        "magenta": "#bc05bc",
+        "cyan": "#0598bc",
+        "white": "#555555",
+        "brightBlack": "#666666",
+        "brightRed": "#cd3131",
+        "brightGreen": "#14ce14",
+        "brightYellow": "#b5ba00",
+        "brightBlue": "#0451a5",
+        "brightMagenta": "#bc05bc",
+        "brightCyan": "#0598bc",
+        "brightWhite": "#a5a5a5"
+      }
+    }
+  },
+  "security": {
+    "allowed_users": [],
+    "comment_allowed_users": "Optional: List of user IDs allowed to use terminals. Empty array = all authenticated users.",
+    "read_only_default": true,
+    "comment_read_only": "When true, only the terminal creator can send input by default.",
+    "collaboration_requires_permission": true,
+    "comment_collaboration": "When true, collaboration mode must be explicitly enabled by the terminal owner."
+  },
+  "performance": {
+    "ssh_connection_pool_size": 5,
+    "comment_pool_size": "Maximum number of SSH connections to maintain per user",
+    "idle_timeout_minutes": 30,
+    "comment_idle_timeout": "Close SSH connection after N minutes of inactivity",
+    "output_buffer_interval_ms": 16,
+    "comment_buffer": "Batch terminal output every N milliseconds (16ms = 60 FPS)"
+  },
+  "_comment": "Copy this file to terminal-config.json and customize with your settings. The terminal-config.json file is gitignored for security."
+}

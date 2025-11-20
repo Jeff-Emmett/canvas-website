@@ -41,6 +41,8 @@ import { FathomMeetingsTool } from "@/tools/FathomMeetingsTool"
 import { HolonBrowserShape } from "@/shapes/HolonBrowserShapeUtil"
 import { ObsidianBrowserShape } from "@/shapes/ObsidianBrowserShapeUtil"
 import { FathomMeetingsBrowserShape } from "@/shapes/FathomMeetingsBrowserShapeUtil"
+import { TerminalTool } from "@/tools/TerminalTool"
+import { TerminalShape } from "@/shapes/TerminalShapeUtil"
 // Location shape removed - no longer needed
 import {
   lockElement,
@@ -81,6 +83,7 @@ const customShapeUtils = [
   HolonBrowserShape,
   ObsidianBrowserShape,
   FathomMeetingsBrowserShape,
+  TerminalShape,
 ]
 const customTools = [
   ChatBoxTool,
@@ -95,6 +98,7 @@ const customTools = [
   TranscriptionTool,
   HolonTool,
   FathomMeetingsTool,
+  TerminalTool,
 ]
 
 export function Board() {

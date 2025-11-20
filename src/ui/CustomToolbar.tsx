@@ -1051,6 +1051,14 @@ export function CustomToolbar() {
             isSelected={tools["ImageGen"].id === editor.getCurrentToolId()}
           />
         )}
+        {tools["Terminal"] && (
+          <TldrawUiMenuItem
+            {...tools["Terminal"]}
+            icon="code"
+            label="Terminal"
+            isSelected={tools["Terminal"].id === editor.getCurrentToolId()}
+          />
+        )}
         {/* Share Location tool removed for now */}
         {/* Refresh All ObsNotes Button */}
         {(() => {
