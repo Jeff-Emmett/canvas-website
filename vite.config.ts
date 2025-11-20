@@ -39,7 +39,39 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
-      sourcemap: true,
+      sourcemap: false, // Disable sourcemaps in production to reduce bundle size
+      rollupOptions: {
+        output: {
+          // Manual chunk splitting for large libraries to improve load times
+          manualChunks: {
+            // Core React libraries
+            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+
+            // tldraw - large drawing library (split into separate chunk)
+            'tldraw': ['tldraw', '@tldraw/tldraw', '@tldraw/tlschema'],
+
+            // Automerge - CRDT sync library
+            'automerge': [
+              '@automerge/automerge',
+              '@automerge/automerge-repo',
+              '@automerge/automerge-repo-react-hooks'
+            ],
+
+            // AI SDKs (lazy load)
+            'ai-sdks': ['@anthropic-ai/sdk', 'openai', 'ai'],
+
+            // ML/transformers (VERY large, lazy loaded)
+            'ml-libs': ['@xenova/transformers'],
+
+            // Markdown editors
+            'markdown': ['@uiw/react-md-editor', 'cherry-markdown', 'marked', 'react-markdown'],
+
+            // Large P2P utilities
+            'large-utils': ['gun', 'webnative', 'holosphere'],
+          },
+        },
+      },
+      chunkSizeWarningLimit: 1000, // Warn on chunks larger than 1MB
     },
     base: "/",
     publicDir: "src/public",
