@@ -517,9 +517,11 @@ export function sanitizeRecord(record: any): TLRecord {
     // DO NOT overwrite valid coordinates (including 0, which is a valid position)
     // Only set to 0 if the value is undefined, null, or NaN
     if (sanitized.x === undefined || sanitized.x === null || (typeof sanitized.x === 'number' && isNaN(sanitized.x))) {
+      console.warn(`⚠️ Shape ${sanitized.id} (${sanitized.type}) has invalid x coordinate, defaulting to 0. Original value:`, sanitized.x)
       sanitized.x = 0
     }
     if (sanitized.y === undefined || sanitized.y === null || (typeof sanitized.y === 'number' && isNaN(sanitized.y))) {
+      console.warn(`⚠️ Shape ${sanitized.id} (${sanitized.type}) has invalid y coordinate, defaulting to 0. Original value:`, sanitized.y)
       sanitized.y = 0
     }
     if (typeof sanitized.rotation !== 'number') sanitized.rotation = 0
