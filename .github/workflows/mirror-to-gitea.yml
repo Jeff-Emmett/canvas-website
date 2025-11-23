@@ -1,0 +1,28 @@
+name: Mirror to Gitea
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Mirror to Gitea
+        env:
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          GITEA_USERNAME: ${{ secrets.GITEA_USERNAME }}
+        run: |
+          REPO_NAME=$(basename $GITHUB_REPOSITORY)
+          git remote add gitea https://$GITEA_USERNAME:$GITEA_TOKEN@gitea.jeffemmett.com/jeffemmett/$REPO_NAME.git || true
+          git push gitea --all --force
+          git push gitea --tags --force
+
