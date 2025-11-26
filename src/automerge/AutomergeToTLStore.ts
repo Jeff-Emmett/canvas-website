@@ -28,10 +28,11 @@ export function applyAutomergePatchesToTLStore(
     
     const existingRecord = getRecordFromStore(store, id)
     
-    // CRITICAL: For shapes, get coordinates from store's current state BEFORE any patch processing
-    // This ensures we preserve coordinates even if patches don't include them
+    // CRITICAL: For shapes, get coordinates and parentId from store's current state BEFORE any patch processing
+    // This ensures we preserve coordinates and parent relationships even if patches don't include them
     // This is especially important when patches come back after store.put operations
     let storeCoordinates: { x?: number; y?: number } = {}
+    let storeParentId: string | undefined = undefined
     if (existingRecord && existingRecord.typeName === 'shape') {
       const storeX = (existingRecord as any).x
       const storeY = (existingRecord as any).y
@@ -41,15 +42,21 @@ export function applyAutomergePatchesToTLStore(
       if (typeof storeY === 'number' && !isNaN(storeY) && storeY !== null && storeY !== undefined) {
         storeCoordinates.y = storeY
       }
+      // CRITICAL: Preserve parentId from store (might be a frame or group!)
+      const existingParentId = (existingRecord as any).parentId
+      if (existingParentId && typeof existingParentId === 'string') {
+        storeParentId = existingParentId
+      }
     }
     
     // CRITICAL: If record doesn't exist in store yet, try to get it from Automerge document
     // This prevents coordinates from defaulting to 0,0 when patches create new records
     let automergeRecord: any = null
+    let automergeParentId: string | undefined = undefined
     if (!existingRecord && automergeDoc && automergeDoc.store && automergeDoc.store[id]) {
       try {
         automergeRecord = automergeDoc.store[id]
-        // Extract coordinates from Automerge record if it's a shape
+        // Extract coordinates and parentId from Automerge record if it's a shape
         if (automergeRecord && automergeRecord.typeName === 'shape') {
           const docX = automergeRecord.x
           const docY = automergeRecord.y
@@ -58,6 +65,10 @@ export function applyAutomergePatchesToTLStore(
           }
           if (typeof docY === 'number' && !isNaN(docY) && docY !== null && docY !== undefined) {
             storeCoordinates.y = docY
+          }
+          // CRITICAL: Preserve parentId from Automerge document (might be a frame!)
+          if (automergeRecord.parentId && typeof automergeRecord.parentId === 'string') {
+            automergeParentId = automergeRecord.parentId
           }
         }
       } catch (e) {
@@ -324,6 +335,22 @@ export function applyAutomergePatchesToTLStore(
           } as TLRecord
         }
       }
+
+      // CRITICAL: Preserve parentId from store or Automerge document
+      // This prevents shapes from losing their frame/group parent relationships
+      // which causes them to reset to (0,0) on the page instead of maintaining their position in the frame
+      // Priority: store parentId (most reliable), then Automerge parentId, then patch value
+      const preservedParentId = storeParentId || automergeParentId
+      if (preservedParentId !== undefined) {
+        const patchedParentId = (currentRecord as any).parentId
+        // If patch didn't include parentId, or it's missing/default, use the preserved parentId
+        if (!patchedParentId || (patchedParentId === 'page:page' && preservedParentId !== 'page:page')) {
+          updatedObjects[id] = {
+            ...currentRecord,
+            parentId: preservedParentId
+          } as TLRecord
+        }
+      }
     }
     
     // CRITICAL: Re-check typeName after patch application to ensure it's still correct
@@ -371,6 +398,18 @@ export function applyAutomergePatchesToTLStore(
   // put / remove the records in the store
   // Log patch application for debugging
   console.log(`🔧 AutomergeToTLStore: Applying ${patches.length} patches, ${toPut.length} records to put, ${toRemove.length} records to remove`)
+
+  // DEBUG: Log shape updates being applied to store
+  toPut.forEach(record => {
+    if (record.typeName === 'shape' && (record as any).props?.w) {
+      console.log(`🔧 AutomergeToTLStore: Putting shape ${(record as any).type} ${record.id}:`, {
+        w: (record as any).props.w,
+        h: (record as any).props.h,
+        x: (record as any).x,
+        y: (record as any).y
+      })
+    }
+  })
   
   if (failedRecords.length > 0) {
     console.log({ patches, toPut: toPut.length, failed: failedRecords.length })
@@ -534,7 +573,13 @@ export function sanitizeRecord(record: any): TLRecord {
       // Ensure meta is a mutable copy to preserve all properties (including text for rectangles)
       sanitized.meta = { ...sanitized.meta }
     }
-    if (!sanitized.index) sanitized.index = 'a1'
+    // CRITICAL: IndexKey must follow tldraw's fractional indexing format
+    // Valid format: starts with 'a' followed by digits, optionally followed by uppercase letters
+    // Examples: "a1", "a2", "a10", "a1V" (fractional between a1 and a2)
+    // Invalid: "c1", "b1", "z999" (must start with 'a')
+    if (!sanitized.index || typeof sanitized.index !== 'string' || !/^a\d+[A-Z]*$/.test(sanitized.index)) {
+      sanitized.index = 'a1'
+    }
     if (!sanitized.parentId) sanitized.parentId = 'page:page'
     if (!sanitized.props || typeof sanitized.props !== 'object') sanitized.props = {}
     

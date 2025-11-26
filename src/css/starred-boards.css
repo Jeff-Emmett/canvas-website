@@ -484,15 +484,15 @@
 }
 
 /* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .dashboard-container {
+
+html.dark .dashboard-container {
     background: #1a1a1a;
   }
   
   .dashboard-header,
   .starred-boards-section,
   .quick-actions-section,
-  .auth-required {
+html.dark .auth-required {
     background: #2d2d2d;
     color: #e9ecef;
   }
@@ -501,53 +501,53 @@
   .section-header h2,
   .quick-actions-section h2,
   .board-title,
-  .action-card h3 {
+html.dark .action-card h3 {
     color: #e9ecef;
   }
   
   .dashboard-header p,
   .empty-state,
   .board-meta,
-  .action-card p {
+html.dark .action-card p {
     color: #adb5bd;
   }
   
   .board-card,
-  .action-card {
+html.dark .action-card {
     background: #3a3a3a;
     border-color: #495057;
   }
   
   .board-card:hover,
-  .action-card:hover {
+html.dark .action-card:hover {
     border-color: #6c757d;
   }
   
-  .board-slug {
+html.dark .board-slug {
     background: #495057;
     color: #adb5bd;
   }
   
-  .star-board-button {
+html.dark .star-board-button {
     background: linear-gradient(135deg, #63b3ed 0%, #3182ce 100%);
     color: white;
     border: none;
   }
   
-  .star-board-button:hover {
+html.dark .star-board-button:hover {
     background: linear-gradient(135deg, #3182ce 0%, #2c5282 100%);
     color: white;
     transform: translateY(-1px);
     box-shadow: 0 2px 8px rgba(99, 179, 237, 0.3);
   }
   
-  .star-board-button.starred {
+html.dark .star-board-button.starred {
     background: #6B7280;
     color: white;
     border: none;
   }
   
-  .star-board-button.starred:hover {
+html.dark .star-board-button.starred:hover {
     background: #4B5563;
     color: white;
     transform: translateY(-1px);
@@ -555,33 +555,32 @@
   }
   
   /* Dark mode popup styles */
-  .star-popup-success {
+html.dark .star-popup-success {
     background: #1e4d2b;
     color: #d4edda;
     border: 1px solid #2d5a3d;
   }
   
-  .star-popup-error {
+html.dark .star-popup-error {
     background: #4a1e1e;
     color: #f8d7da;
     border: 1px solid #5a2d2d;
   }
   
-  .star-popup-info {
+html.dark .star-popup-info {
     background: #1e4a4a;
     color: #d1ecf1;
     border: 1px solid #2d5a5a;
   }
   
-  .board-screenshot {
+html.dark .board-screenshot {
     background: #495057;
     border-bottom-color: #6c757d;
   }
   
-  .screenshot-image {
+html.dark .screenshot-image {
     background: #495057;
   }
-}
 
 /* Responsive design */
 @media (max-width: 768px) {

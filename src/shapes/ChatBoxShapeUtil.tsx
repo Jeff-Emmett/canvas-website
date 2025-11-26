@@ -132,10 +132,11 @@ export const ChatBox: React.FC<IChatBoxShape["props"]> = ({
       setUsername(newUsername)
       localStorage.setItem("chatUsername", newUsername)
     }
-    fetchMessages(roomId)
-    const interval = setInterval(() => fetchMessages(roomId), 2000)
+    // DISABLED: Chat polling disabled until Telegram channels integration via Holons
+    // fetchMessages(roomId)
+    // const interval = setInterval(() => fetchMessages(roomId), 2000)
 
-    return () => clearInterval(interval)
+    // return () => clearInterval(interval)
   }, [roomId])
 
   useEffect(() => {

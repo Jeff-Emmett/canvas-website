@@ -1,7 +1,7 @@
 import "tldraw/tldraw.css"
 import "@/css/style.css"
 import { Default } from "@/routes/Default"
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom"
+import { BrowserRouter, Route, Routes, Navigate, useParams } from "react-router-dom"
 import { Contact } from "@/routes/Contact"
 import { Board } from "./routes/Board"
 import { Inbox } from "./routes/Inbox"
@@ -68,6 +68,14 @@ const OptionalAuthRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 /**
+ * Component to redirect board URLs without trailing slashes
+ */
+const RedirectBoardSlug = () => {
+  const { slug } = useParams<{ slug: string }>();
+  return <Navigate to={`/board/${slug}/`} replace />;
+};
+
+/**
  * Main App with context providers
  */
 const AppWithProviders = () => {
@@ -101,46 +109,56 @@ const AppWithProviders = () => {
                 <NotificationsDisplay />
                 
                 <Routes>
+                  {/* Redirect routes without trailing slashes to include them */}
+                  <Route path="/login" element={<Navigate to="/login/" replace />} />
+                  <Route path="/contact" element={<Navigate to="/contact/" replace />} />
+                  <Route path="/board/:slug" element={<RedirectBoardSlug />} />
+                  <Route path="/inbox" element={<Navigate to="/inbox/" replace />} />
+                  <Route path="/debug" element={<Navigate to="/debug/" replace />} />
+                  <Route path="/dashboard" element={<Navigate to="/dashboard/" replace />} />
+                  <Route path="/presentations" element={<Navigate to="/presentations/" replace />} />
+                  <Route path="/presentations/resilience" element={<Navigate to="/presentations/resilience/" replace />} />
+
                   {/* Auth routes */}
-                  <Route path="/login" element={<AuthPage />} />
-                  
+                  <Route path="/login/" element={<AuthPage />} />
+
                   {/* Optional auth routes */}
                   <Route path="/" element={
                     <OptionalAuthRoute>
                       <Default />
                     </OptionalAuthRoute>
                   } />
-                  <Route path="/contact" element={
+                  <Route path="/contact/" element={
                     <OptionalAuthRoute>
                       <Contact />
                     </OptionalAuthRoute>
                   } />
-                  <Route path="/board/:slug" element={
+                  <Route path="/board/:slug/" element={
                     <OptionalAuthRoute>
                       <Board />
                     </OptionalAuthRoute>
                   } />
-                  <Route path="/inbox" element={
+                  <Route path="/inbox/" element={
                     <OptionalAuthRoute>
                       <Inbox />
                     </OptionalAuthRoute>
                   } />
-                  <Route path="/debug" element={
+                  <Route path="/debug/" element={
                     <OptionalAuthRoute>
                       <CryptoDebug />
                     </OptionalAuthRoute>
                   } />
-                  <Route path="/dashboard" element={
+                  <Route path="/dashboard/" element={
                     <OptionalAuthRoute>
                       <Dashboard />
                     </OptionalAuthRoute>
                   } />
-                  <Route path="/presentations" element={
+                  <Route path="/presentations/" element={
                     <OptionalAuthRoute>
                       <Presentations />
                     </OptionalAuthRoute>
                   } />
-                  <Route path="/presentations/resilience" element={
+                  <Route path="/presentations/resilience/" element={
                     <OptionalAuthRoute>
                       <Resilience />
                     </OptionalAuthRoute>

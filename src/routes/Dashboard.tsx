@@ -130,8 +130,8 @@ export function Dashboard() {
                     </div>
                     
                     <div className="board-card-actions">
-                      <Link 
-                        to={`/board/${board.slug}`} 
+                      <Link
+                        to={`/board/${board.slug}/`}
                         className="open-board-button"
                       >
                         Open Board

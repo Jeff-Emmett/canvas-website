@@ -169,6 +169,9 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
     transition: 'background-color 0.15s ease, color 0.15s ease',
     pointerEvents: 'auto',
     flexShrink: 0,
+    touchAction: 'manipulation', // Prevent double-tap zoom, improve touch responsiveness
+    padding: '8px', // Increase touch target size without changing visual size
+    margin: '-8px', // Negative margin to maintain visual spacing
   }
 
   const minimizeButtonStyle: React.CSSProperties = {
@@ -215,12 +218,13 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
     minHeight: '32px',
     backgroundColor: '#f8f9fa',
     flexShrink: 0,
+    touchAction: 'manipulation', // Improve touch responsiveness
   }
 
   const tagStyle: React.CSSProperties = {
     backgroundColor: '#007acc',
     color: 'white',
-    padding: '2px 6px',
+    padding: '4px 8px', // Increased padding for better touch target
     borderRadius: '12px',
     fontSize: '10px',
     fontWeight: '500',
@@ -228,6 +232,8 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
     alignItems: 'center',
     gap: '4px',
     cursor: tagsEditable ? 'pointer' : 'default',
+    touchAction: 'manipulation', // Improve touch responsiveness
+    minHeight: '24px', // Ensure adequate touch target height
   }
 
   const tagInputStyle: React.CSSProperties = {
@@ -245,13 +251,15 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
     color: 'white',
     border: 'none',
     borderRadius: '12px',
-    padding: '2px 8px',
+    padding: '4px 10px', // Increased padding for better touch target
     fontSize: '10px',
     fontWeight: '500',
     cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
     gap: '4px',
+    touchAction: 'manipulation', // Improve touch responsiveness
+    minHeight: '24px', // Ensure adequate touch target height
   }
 
   const handleTagClick = (tag: string) => {
@@ -318,6 +326,13 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
 
   const handleButtonClick = (e: React.MouseEvent, action: () => void) => {
     e.stopPropagation()
+    e.preventDefault()
+    action()
+  }
+
+  const handleButtonTouch = (e: React.TouchEvent, action: () => void) => {
+    e.stopPropagation()
+    e.preventDefault()
     action()
   }
 
@@ -380,6 +395,8 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
               onClick={(e) => handleButtonClick(e, onPinToggle)}
               onPointerDown={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => handleButtonTouch(e, onPinToggle)}
+              onTouchEnd={(e) => e.stopPropagation()}
               title={isPinnedToView ? "Unpin from view" : "Pin to view"}
               aria-label={isPinnedToView ? "Unpin from view" : "Pin to view"}
             >
@@ -398,6 +415,12 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
             }}
             onPointerDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => {
+              if (onMinimize) {
+                handleButtonTouch(e, onMinimize)
+              }
+            }}
+            onTouchEnd={(e) => e.stopPropagation()}
             title="Minimize"
             aria-label="Minimize"
             disabled={!onMinimize}
@@ -409,6 +432,8 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
             onClick={(e) => handleButtonClick(e, onClose)}
             onPointerDown={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => handleButtonTouch(e, onClose)}
+            onTouchEnd={(e) => e.stopPropagation()}
             title="Close"
             aria-label="Close"
           >
@@ -429,9 +454,10 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
           
           {/* Tags at the bottom */}
           {(tags.length > 0 || (tagsEditable && isSelected)) && (
-            <div 
+            <div
               style={tagsContainerStyle}
               onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
               onClick={(e) => {
                 if (tagsEditable && !isEditingTags && e.target === e.currentTarget) {
                   setIsEditingTags(true)
@@ -444,6 +470,11 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
                   style={tagStyle}
                   onClick={(e) => {
                     e.stopPropagation()
+                    handleTagClick(tag)
+                  }}
+                  onTouchEnd={(e) => {
+                    e.stopPropagation()
+                    e.preventDefault()
                     handleTagClick(tag)
                   }}
                   title={tagsEditable ? "Click to remove tag" : undefined}
@@ -480,6 +511,12 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
                     setIsEditingTags(true)
                   }}
                   onPointerDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => {
+                    e.stopPropagation()
+                    e.preventDefault()
+                    setIsEditingTags(true)
+                  }}
+                  onTouchEnd={(e) => e.stopPropagation()}
                   title="Add tag"
                 >
                   + Add
