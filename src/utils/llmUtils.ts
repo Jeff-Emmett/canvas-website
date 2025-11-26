@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { makeRealSettings, AI_PERSONALITIES } from "@/lib/settings";
+import { getRunPodConfig } from "@/lib/clientConfig";
 
 export async function llm(
 	userPrompt: string,
@@ -59,7 +60,12 @@ export async function llm(
 		availableProviders.map(p => `${p.provider} (${p.model})`).join(', '));
 	
 	if (availableProviders.length === 0) {
-		throw new Error("No valid API key found for any provider")
+		const runpodConfig = getRunPodConfig();
+		if (runpodConfig && runpodConfig.apiKey && runpodConfig.endpointId) {
+			// RunPod should have been added, but if not, try one more time
+			console.log('⚠️ No user API keys found, but RunPod is configured - this should not happen');
+		}
+		throw new Error("No valid API key found for any provider. Please configure API keys in settings or set up RunPod environment variables (VITE_RUNPOD_API_KEY and VITE_RUNPOD_ENDPOINT_ID).")
 	}
 	
 	// Try each provider/key combination in order until one succeeds
@@ -76,13 +82,14 @@ export async function llm(
 		'claude-3-haiku-20240307',
 	];
 	
-	for (const { provider, apiKey, model } of availableProviders) {
+	for (const providerInfo of availableProviders) {
+		const { provider, apiKey, model, endpointId } = providerInfo as any;
 		try {
 			console.log(`🔄 Attempting to use ${provider} API (${model})...`);
 			attemptedProviders.push(`${provider} (${model})`);
 			
 			// Add retry logic for temporary failures
-			await callProviderAPIWithRetry(provider, apiKey, model, userPrompt, onToken, settings);
+			await callProviderAPIWithRetry(provider, apiKey, model, userPrompt, onToken, settings, endpointId);
 			console.log(`✅ Successfully used ${provider} API (${model})`);
 			return; // Success, exit the function
 		} catch (error) {
@@ -100,7 +107,9 @@ export async function llm(
 					try {
 						console.log(`🔄 Trying fallback model: ${fallbackModel}...`);
 						attemptedProviders.push(`${provider} (${fallbackModel})`);
-						await callProviderAPIWithRetry(provider, apiKey, fallbackModel, userPrompt, onToken, settings);
+						const providerInfo = availableProviders.find(p => p.provider === provider);
+						const endpointId = (providerInfo as any)?.endpointId;
+						await callProviderAPIWithRetry(provider, apiKey, fallbackModel, userPrompt, onToken, settings, endpointId);
 						console.log(`✅ Successfully used ${provider} API with fallback model ${fallbackModel}`);
 						fallbackSucceeded = true;
 						return; // Success, exit the function
@@ -142,13 +151,17 @@ function getAvailableProviders(availableKeys: Record<string, string>, settings: 
 	const providers = [];
 	
 	// Helper to add a provider key if valid
-	const addProviderKey = (provider: string, apiKey: string, model?: string) => {
+	const addProviderKey = (provider: string, apiKey: string, model?: string, endpointId?: string) => {
 		if (isValidApiKey(provider, apiKey) && !isApiKeyInvalid(provider, apiKey)) {
-			providers.push({
+			const providerInfo: any = {
 				provider: provider,
 				apiKey: apiKey,
 				model: model || settings.models[provider] || getDefaultModel(provider)
-			});
+			};
+			if (endpointId) {
+				providerInfo.endpointId = endpointId;
+			}
+			providers.push(providerInfo);
 			return true;
 		} else if (isApiKeyInvalid(provider, apiKey)) {
 			console.log(`⏭️ Skipping ${provider} API key (marked as invalid)`);
@@ -156,6 +169,20 @@ function getAvailableProviders(availableKeys: Record<string, string>, settings: 
 		return false;
 	};
 	
+	// PRIORITY 1: Check for RunPod configuration from environment variables FIRST
+	// RunPod takes priority over user-configured keys
+	const runpodConfig = getRunPodConfig();
+	if (runpodConfig && runpodConfig.apiKey && runpodConfig.endpointId) {
+		console.log('🔑 Found RunPod configuration from environment variables - using as primary AI provider');
+		providers.push({
+			provider: 'runpod',
+			apiKey: runpodConfig.apiKey,
+			endpointId: runpodConfig.endpointId,
+			model: 'default' // RunPod doesn't use model selection in the same way
+		});
+	}
+	
+	// PRIORITY 2: Then add user-configured keys (they will be tried after RunPod)
 	// First, try the preferred provider - support multiple keys if stored as comma-separated
 	if (settings.provider && availableKeys[settings.provider]) {
 		const keyValue = availableKeys[settings.provider];
@@ -239,8 +266,10 @@ function getAvailableProviders(availableKeys: Record<string, string>, settings: 
 	}
 	
 	// Additional fallback: Check for user-specific API keys from profile dashboard
-	if (providers.length === 0) {
-		providers.push(...getUserSpecificApiKeys());
+	// These will be tried after RunPod (if RunPod was added)
+	const userSpecificKeys = getUserSpecificApiKeys();
+	if (userSpecificKeys.length > 0) {
+		providers.push(...userSpecificKeys);
 	}
 	
 	return providers;
@@ -372,13 +401,14 @@ async function callProviderAPIWithRetry(
 	userPrompt: string, 
 	onToken: (partialResponse: string, done?: boolean) => void,
 	settings?: any,
+	endpointId?: string,
 	maxRetries: number = 2
 ) {
 	let lastError: Error | null = null;
 	
 	for (let attempt = 1; attempt <= maxRetries; attempt++) {
 		try {
-			await callProviderAPI(provider, apiKey, model, userPrompt, onToken, settings);
+			await callProviderAPI(provider, apiKey, model, userPrompt, onToken, settings, endpointId);
 			return; // Success
 		} catch (error) {
 			lastError = error as Error;
@@ -471,12 +501,226 @@ async function callProviderAPI(
 	model: string, 
 	userPrompt: string, 
 	onToken: (partialResponse: string, done?: boolean) => void,
-	settings?: any
+	settings?: any,
+	endpointId?: string
 ) {
 	let partial = "";
 	const systemPrompt = settings ? getSystemPrompt(settings) : 'You are a helpful assistant.';
 	
-	if (provider === 'openai') {
+	if (provider === 'runpod') {
+		// RunPod API integration - uses environment variables for automatic setup
+		// Get endpointId from parameter or from config
+		let runpodEndpointId = endpointId;
+		if (!runpodEndpointId) {
+			const runpodConfig = getRunPodConfig();
+			if (runpodConfig) {
+				runpodEndpointId = runpodConfig.endpointId;
+			}
+		}
+		
+		if (!runpodEndpointId) {
+			throw new Error('RunPod endpoint ID not configured');
+		}
+		
+		// Try /runsync first for synchronous execution (returns output immediately)
+		// Fall back to /run + polling if /runsync is not available
+		const syncUrl = `https://api.runpod.ai/v2/${runpodEndpointId}/runsync`;
+		const asyncUrl = `https://api.runpod.ai/v2/${runpodEndpointId}/run`;
+		
+		// vLLM endpoints typically expect OpenAI-compatible format with messages array
+		// But some endpoints might accept simple prompt format
+		// Try OpenAI-compatible format first, as it's more standard for vLLM
+		const messages = [];
+		if (systemPrompt) {
+			messages.push({ role: 'system', content: systemPrompt });
+		}
+		messages.push({ role: 'user', content: userPrompt });
+		
+		// Combine system prompt and user prompt for simple prompt format (fallback)
+		const fullPrompt = systemPrompt ? `${systemPrompt}\n\nUser: ${userPrompt}` : userPrompt;
+		
+		const requestBody = {
+			input: {
+				messages: messages,
+				stream: false  // vLLM can handle streaming, but we'll process it synchronously for now
+			}
+		};
+		
+		console.log('📤 RunPod API: Trying synchronous endpoint first:', syncUrl);
+		console.log('📤 RunPod API: Using OpenAI-compatible messages format');
+		
+		try {
+			// First, try synchronous endpoint (/runsync) - this returns output immediately
+			try {
+				const syncResponse = await fetch(syncUrl, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						'Authorization': `Bearer ${apiKey}`
+					},
+					body: JSON.stringify(requestBody)
+				});
+				
+				if (syncResponse.ok) {
+					const syncData = await syncResponse.json();
+					console.log('📥 RunPod API: Synchronous response:', JSON.stringify(syncData, null, 2));
+					
+					// Check if we got output directly
+					if (syncData.output) {
+						let responseText = '';
+						if (syncData.output.choices && Array.isArray(syncData.output.choices)) {
+							const choice = syncData.output.choices[0];
+							if (choice && choice.message && choice.message.content) {
+								responseText = choice.message.content;
+							}
+						} else if (typeof syncData.output === 'string') {
+							responseText = syncData.output;
+						} else if (syncData.output.text) {
+							responseText = syncData.output.text;
+						} else if (syncData.output.response) {
+							responseText = syncData.output.response;
+						}
+						
+						if (responseText) {
+							console.log('✅ RunPod API: Got output from synchronous endpoint, length:', responseText.length);
+							// Stream the response character by character to simulate streaming
+							for (let i = 0; i < responseText.length; i++) {
+								partial += responseText[i];
+								onToken(partial, false);
+								await new Promise(resolve => setTimeout(resolve, 10));
+							}
+							onToken(partial, true);
+							return;
+						}
+					}
+					
+					// If sync endpoint returned a job ID, fall through to async polling
+					if (syncData.id && (syncData.status === 'IN_QUEUE' || syncData.status === 'IN_PROGRESS')) {
+						console.log('⏳ RunPod API: Sync endpoint returned job ID, polling:', syncData.id);
+						const result = await pollRunPodJob(syncData.id, apiKey, runpodEndpointId);
+						console.log('✅ RunPod API: Job completed, result length:', result.length);
+						partial = result;
+						onToken(partial, true);
+						return;
+					}
+				}
+			} catch (syncError) {
+				console.log('⚠️ RunPod API: Synchronous endpoint not available, trying async:', syncError);
+			}
+			
+			// Fall back to async endpoint (/run) if sync didn't work
+			console.log('📤 RunPod API: Using async endpoint:', asyncUrl);
+			const response = await fetch(asyncUrl, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${apiKey}`
+				},
+				body: JSON.stringify(requestBody)
+			});
+			
+			console.log('📥 RunPod API: Response status:', response.status, response.statusText);
+			
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error('❌ RunPod API: Error response:', errorText);
+				throw new Error(`RunPod API error: ${response.status} - ${errorText}`);
+			}
+			
+			const data = await response.json();
+			console.log('📥 RunPod API: Response data:', JSON.stringify(data, null, 2));
+			
+			// Handle async job pattern (RunPod often returns job IDs)
+			if (data.id && (data.status === 'IN_QUEUE' || data.status === 'IN_PROGRESS')) {
+				console.log('⏳ RunPod API: Job queued/in progress, polling job ID:', data.id);
+				const result = await pollRunPodJob(data.id, apiKey, runpodEndpointId);
+				console.log('✅ RunPod API: Job completed, result length:', result.length);
+				partial = result;
+				onToken(partial, true);
+				return;
+			}
+			
+			// Handle OpenAI-compatible response format (vLLM endpoints)
+			if (data.output && data.output.choices && Array.isArray(data.output.choices)) {
+				console.log('📥 RunPod API: Detected OpenAI-compatible response format');
+				const choice = data.output.choices[0];
+				if (choice && choice.message && choice.message.content) {
+					const responseText = choice.message.content;
+					console.log('✅ RunPod API: Extracted content from OpenAI-compatible format, length:', responseText.length);
+					
+					// Stream the response character by character to simulate streaming
+					for (let i = 0; i < responseText.length; i++) {
+						partial += responseText[i];
+						onToken(partial, false);
+						// Small delay to simulate streaming
+						await new Promise(resolve => setTimeout(resolve, 10));
+					}
+					onToken(partial, true);
+					return;
+				}
+			}
+			
+			// Handle direct response
+			if (data.output) {
+				console.log('📥 RunPod API: Processing output:', typeof data.output, Array.isArray(data.output) ? 'array' : 'object');
+				// Try to extract text from various possible response formats
+				let responseText = '';
+				if (typeof data.output === 'string') {
+					responseText = data.output;
+					console.log('✅ RunPod API: Extracted string output, length:', responseText.length);
+				} else if (data.output.text) {
+					responseText = data.output.text;
+					console.log('✅ RunPod API: Extracted text from output.text, length:', responseText.length);
+				} else if (data.output.response) {
+					responseText = data.output.response;
+					console.log('✅ RunPod API: Extracted response from output.response, length:', responseText.length);
+				} else if (data.output.content) {
+					responseText = data.output.content;
+					console.log('✅ RunPod API: Extracted content from output.content, length:', responseText.length);
+				} else if (Array.isArray(data.output.segments)) {
+					responseText = data.output.segments.map((seg: any) => seg.text || seg).join(' ');
+					console.log('✅ RunPod API: Extracted text from segments, length:', responseText.length);
+				} else {
+					// Fallback: stringify the output
+					console.warn('⚠️ RunPod API: Unknown output format, stringifying:', Object.keys(data.output));
+					responseText = JSON.stringify(data.output);
+				}
+				
+				// Stream the response character by character to simulate streaming
+				for (let i = 0; i < responseText.length; i++) {
+					partial += responseText[i];
+					onToken(partial, false);
+					// Small delay to simulate streaming
+					await new Promise(resolve => setTimeout(resolve, 10));
+				}
+				onToken(partial, true);
+				return;
+			}
+			
+			// Handle error response
+			if (data.error) {
+				console.error('❌ RunPod API: Error in response:', data.error);
+				throw new Error(`RunPod API error: ${data.error}`);
+			}
+			
+			// Check for status messages that might indicate endpoint is starting up
+			if (data.status) {
+				console.log('ℹ️ RunPod API: Response status:', data.status);
+				if (data.status === 'STARTING' || data.status === 'PENDING') {
+					console.log('⏳ RunPod API: Endpoint appears to be starting up, this may take a moment...');
+					// Wait a bit and retry
+					await new Promise(resolve => setTimeout(resolve, 2000));
+					throw new Error('RunPod endpoint is starting up. Please wait a moment and try again.');
+				}
+			}
+			
+			console.error('❌ RunPod API: No valid response format detected. Full response:', JSON.stringify(data, null, 2));
+			throw new Error('No valid response from RunPod API');
+		} catch (error) {
+			console.error('❌ RunPod API error:', error);
+			throw error;
+		}
+	} else if (provider === 'openai') {
 		const openai = new OpenAI({
 			apiKey,
 			dangerouslyAllowBrowser: true,
@@ -554,6 +798,185 @@ async function callProviderAPI(
 	}
 	
 	onToken(partial, true);
+}
+
+// Helper function to poll RunPod job status until completion
+async function pollRunPodJob(
+	jobId: string,
+	apiKey: string,
+	endpointId: string,
+	maxAttempts: number = 60,
+	pollInterval: number = 1000
+): Promise<string> {
+	const statusUrl = `https://api.runpod.ai/v2/${endpointId}/status/${jobId}`;
+	console.log('🔄 RunPod API: Starting to poll job:', jobId);
+	
+	for (let attempt = 0; attempt < maxAttempts; attempt++) {
+		try {
+			const response = await fetch(statusUrl, {
+				method: 'GET',
+				headers: {
+					'Authorization': `Bearer ${apiKey}`
+				}
+			});
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error(`❌ RunPod API: Poll error (attempt ${attempt + 1}/${maxAttempts}):`, response.status, errorText);
+				throw new Error(`Failed to check job status: ${response.status} - ${errorText}`);
+			}
+
+			const data = await response.json();
+			console.log(`🔄 RunPod API: Poll attempt ${attempt + 1}/${maxAttempts}, status:`, data.status);
+			console.log(`📥 RunPod API: Full poll response:`, JSON.stringify(data, null, 2));
+			
+			if (data.status === 'COMPLETED') {
+				console.log('✅ RunPod API: Job completed, processing output...');
+				console.log('📥 RunPod API: Output structure:', typeof data.output, data.output ? Object.keys(data.output) : 'null');
+				console.log('📥 RunPod API: Full data object keys:', Object.keys(data));
+				
+				// If no output after a couple of retries, try the stream endpoint as fallback
+				if (!data.output) {
+					if (attempt < 3) {
+						// Only retry 2-3 times, then try stream endpoint
+						console.log(`⏳ RunPod API: COMPLETED but no output yet, waiting briefly (attempt ${attempt + 1}/3)...`);
+						await new Promise(resolve => setTimeout(resolve, 500));
+						continue;
+					}
+					
+					// After a few retries, try the stream endpoint as fallback
+					console.log('⚠️ RunPod API: Status endpoint not returning output, trying stream endpoint...');
+					try {
+						const streamUrl = `https://api.runpod.ai/v2/${endpointId}/stream/${jobId}`;
+						const streamResponse = await fetch(streamUrl, {
+							method: 'GET',
+							headers: {
+								'Authorization': `Bearer ${apiKey}`
+							}
+						});
+						
+						if (streamResponse.ok) {
+							const streamData = await streamResponse.json();
+							console.log('📥 RunPod API: Stream endpoint response:', JSON.stringify(streamData, null, 2));
+							
+							if (streamData.output) {
+								// Use stream endpoint output
+								data.output = streamData.output;
+								console.log('✅ RunPod API: Found output via stream endpoint');
+							} else if (streamData.choices && Array.isArray(streamData.choices)) {
+								// Handle OpenAI-compatible format from stream endpoint
+								data.output = { choices: streamData.choices };
+								console.log('✅ RunPod API: Found choices via stream endpoint');
+							}
+						} else {
+							console.log(`⚠️ RunPod API: Stream endpoint returned ${streamResponse.status}`);
+						}
+					} catch (streamError) {
+						console.log('⚠️ RunPod API: Stream endpoint not available or failed:', streamError);
+					}
+				}
+				
+				// Extract text from various possible response formats
+				let result = '';
+				if (typeof data.output === 'string') {
+					result = data.output;
+					console.log('✅ RunPod API: Extracted string output from job, length:', result.length);
+				} else if (data.output?.text) {
+					result = data.output.text;
+					console.log('✅ RunPod API: Extracted text from output.text, length:', result.length);
+				} else if (data.output?.response) {
+					result = data.output.response;
+					console.log('✅ RunPod API: Extracted response from output.response, length:', result.length);
+				} else if (data.output?.content) {
+					result = data.output.content;
+					console.log('✅ RunPod API: Extracted content from output.content, length:', result.length);
+				} else if (data.output?.choices && Array.isArray(data.output.choices)) {
+					// Handle OpenAI-compatible response format (vLLM endpoints)
+					const choice = data.output.choices[0];
+					if (choice && choice.message && choice.message.content) {
+						result = choice.message.content;
+						console.log('✅ RunPod API: Extracted content from OpenAI-compatible format, length:', result.length);
+					}
+				} else if (data.output?.segments && Array.isArray(data.output.segments)) {
+					result = data.output.segments.map((seg: any) => seg.text || seg).join(' ');
+					console.log('✅ RunPod API: Extracted text from segments, length:', result.length);
+				} else if (Array.isArray(data.output)) {
+					// Handle array responses (some vLLM endpoints return arrays)
+					result = data.output.map((item: any) => {
+						if (typeof item === 'string') return item;
+						if (item.text) return item.text;
+						if (item.response) return item.response;
+						return JSON.stringify(item);
+					}).join('\n');
+					console.log('✅ RunPod API: Extracted text from array output, length:', result.length);
+					} else if (!data.output) {
+						// No output field - check alternative structures or return empty
+						console.warn('⚠️ RunPod API: No output field found, checking alternative structures...');
+						console.log('📥 RunPod API: Full data structure:', JSON.stringify(data, null, 2));
+						
+						// Try checking if output is directly in data (not data.output)
+						if (typeof data === 'string') {
+							result = data;
+							console.log('✅ RunPod API: Data itself is a string, length:', result.length);
+						} else if (data.text) {
+							result = data.text;
+							console.log('✅ RunPod API: Found text at top level, length:', result.length);
+						} else if (data.response) {
+							result = data.response;
+							console.log('✅ RunPod API: Found response at top level, length:', result.length);
+						} else if (data.content) {
+							result = data.content;
+							console.log('✅ RunPod API: Found content at top level, length:', result.length);
+						} else {
+							// Stream endpoint already tried above (around line 848), just log that we couldn't find output
+							if (attempt >= 3) {
+								console.warn('⚠️ RunPod API: Could not find output in status or stream endpoint after multiple attempts');
+							}
+							
+							// If still no result, return empty string instead of throwing error
+							// This allows the UI to render something instead of failing
+							if (!result) {
+								console.warn('⚠️ RunPod API: No output found in response. Returning empty result.');
+								console.log('📥 RunPod API: Available fields:', Object.keys(data));
+								result = ''; // Return empty string so UI can render
+							}
+						}
+					}
+				
+				// Return result even if empty - don't loop forever
+				if (result !== undefined) {
+					// Return empty string if no result found - allows UI to render
+					console.log('✅ RunPod API: Returning result (may be empty):', result ? `length ${result.length}` : 'empty');
+					return result || '';
+				}
+				
+				// If we get here, no output was found - return empty string instead of looping
+				console.warn('⚠️ RunPod API: No output found after checking all formats. Returning empty result.');
+				return '';
+			}
+			
+			if (data.status === 'FAILED') {
+				console.error('❌ RunPod API: Job failed:', data.error || 'Unknown error');
+				throw new Error(`Job failed: ${data.error || 'Unknown error'}`);
+			}
+			
+			// Check for starting/pending status
+			if (data.status === 'STARTING' || data.status === 'PENDING') {
+				console.log(`⏳ RunPod API: Endpoint still starting (attempt ${attempt + 1}/${maxAttempts})...`);
+			}
+			
+			// Job still in progress, wait and retry
+			await new Promise(resolve => setTimeout(resolve, pollInterval));
+		} catch (error) {
+			if (attempt === maxAttempts - 1) {
+				throw error;
+			}
+			// Wait before retrying
+			await new Promise(resolve => setTimeout(resolve, pollInterval));
+		}
+	}
+	
+	throw new Error('Job polling timeout - job did not complete in time');
 }
 
 // Auto-migration function that runs automatically
