@@ -44,6 +44,8 @@ import { FathomMeetingsBrowserShape } from "@/shapes/FathomMeetingsBrowserShapeU
 import { LocationShareShape } from "@/shapes/LocationShareShapeUtil"
 import { ImageGenShape } from "@/shapes/ImageGenShapeUtil"
 import { ImageGenTool } from "@/tools/ImageGenTool"
+import { VideoGenShape } from "@/shapes/VideoGenShapeUtil"
+import { VideoGenTool } from "@/tools/VideoGenTool"
 import {
   lockElement,
   unlockElement,
@@ -85,6 +87,7 @@ const customShapeUtils = [
   FathomMeetingsBrowserShape,
   LocationShareShape,
   ImageGenShape,
+  VideoGenShape,
 ]
 const customTools = [
   ChatBoxTool,
@@ -100,6 +103,7 @@ const customTools = [
   HolonTool,
   FathomMeetingsTool,
   ImageGenTool,
+  VideoGenTool,
 ]
 
 export function Board() {

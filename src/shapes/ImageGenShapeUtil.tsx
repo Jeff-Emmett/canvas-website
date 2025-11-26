@@ -7,9 +7,10 @@ import {
 } from "tldraw"
 import React, { useState } from "react"
 import { getRunPodConfig } from "@/lib/clientConfig"
+import { aiOrchestrator, isAIOrchestratorAvailable } from "@/lib/aiOrchestrator"
 
-// Feature flag: Set to false when RunPod API is ready for production
-const USE_MOCK_API = true
+// Feature flag: Set to false when AI Orchestrator or RunPod API is ready for production
+const USE_MOCK_API = false
 
 // Type definition for RunPod API responses
 interface RunPodJobResponse {
