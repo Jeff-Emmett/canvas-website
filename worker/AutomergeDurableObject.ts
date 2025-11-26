@@ -138,14 +138,25 @@ export class AutomergeDurableObject {
 
       const { documentId } = (await request.json()) as { documentId: string }
 
+      // CRITICAL: Only set the document ID if one doesn't already exist
+      // This prevents race conditions where multiple clients try to set different document IDs
+      let actualDocumentId: string = documentId
+
       await this.ctx.blockConcurrencyWhile(async () => {
-        await this.ctx.storage.put("automergeDocumentId", documentId)
-        this.automergeDocumentId = documentId
+        if (!this.automergeDocumentId) {
+          // No document ID exists yet, use the one provided by the client
+          await this.ctx.storage.put("automergeDocumentId", documentId)
+          this.automergeDocumentId = documentId
+          actualDocumentId = documentId
+          console.log(`📝 Stored NEW document ID ${documentId} for room ${this.roomId}`)
+        } else {
+          // Document ID already exists, return the existing one
+          actualDocumentId = this.automergeDocumentId
+          console.log(`⚠️ Document ID already exists for room ${this.roomId}, returning existing: ${actualDocumentId}`)
+        }
       })
 
-      console.log(`📝 Stored document ID ${documentId} for room ${this.roomId}`)
-
-      return new Response(JSON.stringify({ success: true, documentId }), {
+      return new Response(JSON.stringify({ success: true, documentId: actualDocumentId }), {
         headers: {
           "Content-Type": "application/json",
           "Access-Control-Allow-Origin": request.headers.get("Origin") || "*",
@@ -394,6 +405,18 @@ export class AutomergeDurableObject {
         // Handle document state request from worker (for persistence)
         await this.handleDocumentStateRequest(sessionId)
         break
+      case "presence":
+        // Handle presence updates (cursors, selections)
+        // Broadcast to all other clients but don't persist
+        console.log(`📍 Received presence update from ${sessionId}, user: ${message.userId}`)
+
+        // Add senderId so clients can filter out echoes
+        const presenceMessage = {
+          ...message,
+          senderId: sessionId
+        }
+        this.broadcastToOthers(sessionId, presenceMessage)
+        break
       default:
         console.log("Unknown message type:", message.type)
     }
@@ -477,32 +500,53 @@ export class AutomergeDurableObject {
     }
   }
 
-  // Generate a simple hash of the document state for change detection
+  // Generate a fast hash of the document state for change detection
+  // OPTIMIZED: Instead of JSON.stringify on entire document (expensive for large docs),
+  // we hash based on record IDs, types, and metadata only
   private generateDocHash(doc: any): string {
-    // Create a stable string representation of the document
-    // Focus on the store data which is what actually changes
     const storeData = doc.store || {}
     const storeKeys = Object.keys(storeData).sort()
-    
-    // CRITICAL FIX: JSON.stringify's second parameter when it's an array is a replacer
-    // that only includes those properties. We need to stringify the entire store object.
-    // To ensure stable ordering, create a new object with sorted keys
-    const sortedStore: any = {}
-    for (const key of storeKeys) {
-      sortedStore[key] = storeData[key]
+
+    // Fast hash: combine record count + sorted key fingerprint + metadata
+    let hash = storeKeys.length // Start with record count
+
+    // Hash the record IDs and key metadata (much faster than stringifying full records)
+    for (let i = 0; i < storeKeys.length; i++) {
+      const key = storeKeys[i]
+      const record = storeData[key]
+
+      // Hash the record ID
+      for (let j = 0; j < key.length; j++) {
+        const char = key.charCodeAt(j)
+        hash = ((hash << 5) - hash) + char
+        hash = hash & hash // Convert to 32-bit integer
+      }
+
+      // Include record type and metadata for better change detection
+      if (record) {
+        // Hash typeName if available
+        if (record.typeName) {
+          for (let j = 0; j < record.typeName.length; j++) {
+            hash = ((hash << 5) - hash) + record.typeName.charCodeAt(j)
+            hash = hash & hash
+          }
+        }
+
+        // Hash key properties for better collision resistance
+        // Use index, x/y for shapes, parentId for common records
+        if (record.index !== undefined) {
+          hash = ((hash << 5) - hash) + (typeof record.index === 'string' ? record.index.length : record.index)
+          hash = hash & hash
+        }
+        if (record.x !== undefined && record.y !== undefined) {
+          hash = ((hash << 5) - hash) + Math.floor(record.x + record.y)
+          hash = hash & hash
+        }
+      }
     }
-    const storeString = JSON.stringify(sortedStore)
-    
-    // Simple hash function (you could use a more sophisticated one if needed)
-    let hash = 0
-    for (let i = 0; i < storeString.length; i++) {
-      const char = storeString.charCodeAt(i)
-      hash = ((hash << 5) - hash) + char
-      hash = hash & hash // Convert to 32-bit integer
-    }
+
     const hashString = hash.toString()
-    console.log(`Server generated hash:`, {
-      storeStringLength: storeString.length,
+    console.log(`Server generated hash (optimized):`, {
       hash: hashString,
       storeKeys: storeKeys.length,
       sampleKeys: storeKeys.slice(0, 3)
@@ -1181,12 +1225,17 @@ export class AutomergeDurableObject {
           }
           
           // Ensure other required shape properties exist
-          // CRITICAL: Check for undefined, null, or non-number values (including NaN)
+          // CRITICAL: Preserve original coordinates - only reset if truly missing or invalid
+          // Log when coordinates are being reset to help debug frame children coordinate issues
+          const originalX = record.x
+          const originalY = record.y
           if (record.x === undefined || record.x === null || typeof record.x !== 'number' || isNaN(record.x)) {
+            console.log(`🔧 Server: Resetting X coordinate for shape ${record.id} (type: ${record.type}, parentId: ${record.parentId}). Original value:`, originalX)
             record.x = 0
             needsUpdate = true
           }
           if (record.y === undefined || record.y === null || typeof record.y !== 'number' || isNaN(record.y)) {
+            console.log(`🔧 Server: Resetting Y coordinate for shape ${record.id} (type: ${record.type}, parentId: ${record.parentId}). Original value:`, originalY)
             record.y = 0
             needsUpdate = true
           }
@@ -1202,8 +1251,12 @@ export class AutomergeDurableObject {
             record.meta = {}
             needsUpdate = true
           }
-          // Validate and fix index property - must be a valid IndexKey (like 'a1', 'a2', etc.)
-          if (!record.index || typeof record.index !== 'string' || !/^[a-z]\d+$/.test(record.index)) {
+          // CRITICAL: IndexKey must follow tldraw's fractional indexing format
+          // Valid format: starts with 'a' followed by digits, optionally followed by uppercase letters
+          // Examples: "a1", "a2", "a10", "a1V" (fractional between a1 and a2)
+          // Invalid: "c1", "b1", "z999" (must start with 'a')
+          if (!record.index || typeof record.index !== 'string' || !/^a\d+[A-Z]*$/.test(record.index)) {
+            console.log(`🔧 Server: Fixing invalid index "${record.index}" to "a1" for shape ${record.id}`)
             record.index = 'a1' // Required index property for all shapes - must be valid IndexKey format
             needsUpdate = true
           }

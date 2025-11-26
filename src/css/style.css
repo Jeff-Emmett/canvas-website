@@ -2,6 +2,27 @@
 
 :root {
   --border-radius: 10px;
+  --bg-color: #ffffff;
+  --text-color: #24292e;
+  --border-color: #e1e4e8;
+  --code-bg: #e4e9ee;
+  --code-color: #38424c;
+  --hover-bg: #f6f8fa;
+  --tool-bg: #f5f5f5;
+  --tool-text: #333333;
+  --tool-border: #d0d0d0;
+}
+
+html.dark {
+  --bg-color: #1a1a1a;
+  --text-color: #e4e4e4;
+  --border-color: #404040;
+  --code-bg: #2d2d2d;
+  --code-color: #e4e4e4;
+  --hover-bg: #2d2d2d;
+  --tool-bg: #3a3a3a;
+  --tool-text: #e0e0e0;
+  --tool-border: #555555;
 }
 
 html,
@@ -11,6 +32,9 @@ body {
   min-height: 100vh;
   min-height: -webkit-fill-available;
   height: 100%;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 video {
@@ -28,7 +52,7 @@ main {
   font-family: "Recursive";
   font-variation-settings: "MONO" 1;
   font-variation-settings: "CASL" 1;
-  color: #24292e;
+  color: var(--text-color);
 }
 
 h1 {
@@ -92,9 +116,9 @@ pre>code {
 }
 
 code {
-  background-color: #e4e9ee;
+  background-color: var(--code-bg);
   width: 100%;
-  color: #38424c;
+  color: var(--code-color);
   padding: 0.2em 0.4em;
   border-radius: 4px;
 }
@@ -809,4 +833,76 @@ p:has(+ ol) {
   padding-right: 0.1em;
   padding-left: 0.1em;
   color: #fc8958;
+}
+
+/* Mobile Touch Interaction Improvements */
+button,
+input[type="button"],
+input[type="submit"],
+[role="button"],
+.clickable {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Ensure adequate touch target sizes on mobile */
+@media (max-width: 768px) {
+  button,
+  input[type="button"],
+  input[type="submit"],
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* ========================================
+   Tool/Shape Consistent Grey Backgrounds
+   ======================================== */
+
+/* Apply consistent grey background to all custom shapes/tools */
+.chat-container,
+.embed-container,
+.markdown-container,
+.prompt-container,
+.obs-note-container,
+.transcription-container,
+.holon-container,
+.video-chat-container,
+.slide-container,
+.fathom-meetings-browser-container,
+.obsidian-browser-container,
+.holon-browser-container,
+.multmux-container {
+  background-color: var(--tool-bg) !important;
+  color: var(--tool-text) !important;
+  border: 1px solid var(--tool-border) !important;
+}
+
+/* Input fields within tools */
+.chat-container input,
+.chat-container textarea,
+.prompt-container input,
+.prompt-container textarea,
+.markdown-container input,
+.markdown-container textarea,
+.embed-container input {
+  background-color: var(--bg-color) !important;
+  color: var(--text-color) !important;
+  border: 1px solid var(--tool-border) !important;
+}
+
+/* Buttons within tools */
+.chat-container button,
+.prompt-container button,
+.embed-container button {
+  background-color: var(--code-bg) !important;
+  color: var(--code-color) !important;
+  border: 1px solid var(--tool-border) !important;
+}
+
+.chat-container button:hover,
+.prompt-container button:hover,
+.embed-container button:hover {
+  background-color: var(--hover-bg) !important;
 }
