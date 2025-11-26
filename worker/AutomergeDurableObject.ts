@@ -1209,7 +1209,7 @@ export class AutomergeDurableObject {
         migrationStats.shapeTypes[shapeType] = (migrationStats.shapeTypes[shapeType] || 0) + 1
         
         // Track custom shapes (non-standard TLDraw shapes)
-        const customShapeTypes = ['ObsNote', 'Holon', 'FathomMeetingsBrowser', 'FathomNote', 'HolonBrowser', 'LocationShare', 'ObsidianBrowser']
+        const customShapeTypes = ['ObsNote', 'Holon', 'FathomMeetingsBrowser', 'FathomNote', 'HolonBrowser', 'ObsidianBrowser', 'ImageGen', 'VideoGen', 'Multmux']
         if (customShapeTypes.includes(shapeType)) {
           migrationStats.customShapes.push(record.id)
         }

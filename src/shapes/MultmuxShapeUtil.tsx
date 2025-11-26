@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { BaseBoxShapeUtil, TLBaseShape, HTMLContainer } from '@tldraw/tldraw'
+import { BaseBoxShapeUtil, TLBaseShape, HTMLContainer, Geometry2d, Rectangle2d } from 'tldraw'
 import { StandardizedToolWrapper } from '../components/StandardizedToolWrapper'
 import { usePinnedToView } from '../hooks/usePinnedToView'
 
@@ -25,7 +25,7 @@ interface SessionResponse {
 }
 
 export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
-  static type = 'Multmux' as const
+  static override type = 'Multmux' as const
 
   // Terminal theme color: Dark purple/violet
   static readonly PRIMARY_COLOR = "#8b5cf6"
@@ -42,6 +42,14 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
       pinnedToView: false,
       tags: ['terminal', 'multmux'],
     }
+  }
+
+  getGeometry(shape: IMultmuxShape): Geometry2d {
+    return new Rectangle2d({
+      width: shape.props.w,
+      height: shape.props.h,
+      isFilled: true,
+    })
   }
 
   component(shape: IMultmuxShape) {
@@ -264,6 +272,8 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
                       fontFamily: 'monospace',
                     }}
                     placeholder="Canvas Terminal"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
                   />
                 </label>
 
@@ -293,6 +303,8 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
                       fontFamily: 'monospace',
                     }}
                     placeholder="http://localhost:3000"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
                   />
                 </label>
 
@@ -322,6 +334,8 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
                       fontFamily: 'monospace',
                     }}
                     placeholder="ws://localhost:3001"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
                   />
                 </label>
 
@@ -338,6 +352,7 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
                     fontFamily: 'monospace',
                   }}
                   onPointerDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
                 >
                   Create New Session
                 </button>
@@ -368,6 +383,8 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
                       color: '#cdd6f4',
                       fontFamily: 'monospace',
                     }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
                   />
                 </div>
               </div>

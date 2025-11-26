@@ -3,7 +3,7 @@ import { HolonShape } from "@/shapes/HolonShapeUtil"
 import { holosphereService } from "@/lib/HoloSphereService"
 
 export class HolonTool extends StateNode {
-  static override id = "holon"
+  static override id = "Holon"
   static override initial = "idle"
   static override children = () => [HolonIdle]
 }
