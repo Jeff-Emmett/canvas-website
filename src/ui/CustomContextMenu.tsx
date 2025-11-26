@@ -238,6 +238,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
         <TldrawUiMenuItem {...tools.Transcription} disabled={hasSelection} />
         <TldrawUiMenuItem {...tools.FathomMeetings} disabled={hasSelection} />
         <TldrawUiMenuItem {...tools.Holon} disabled={hasSelection} />
+        <TldrawUiMenuItem {...tools.ImageGen} disabled={hasSelection} />
       </TldrawUiMenuGroup>
 
       {/* Collections Group */}

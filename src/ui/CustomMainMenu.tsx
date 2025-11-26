@@ -29,7 +29,7 @@ export function CustomMainMenu() {
                     const validateAndNormalizeShapeType = (shape: any): string => {
                         if (!shape || !shape.type) return 'text'
                         
-                        const validCustomShapes = ['ObsNote', 'VideoChat', 'Transcription', 'Prompt', 'ChatBox', 'Embed', 'Markdown', 'MycrozineTemplate', 'Slide', 'Holon', 'ObsidianBrowser', 'HolonBrowser', 'FathomMeetingsBrowser']
+                        const validCustomShapes = ['ObsNote', 'VideoChat', 'Transcription', 'Prompt', 'ChatBox', 'Embed', 'Markdown', 'MycrozineTemplate', 'Slide', 'Holon', 'ObsidianBrowser', 'HolonBrowser', 'FathomMeetingsBrowser', 'LocationShare', 'ImageGen']
                         const validDefaultShapes = ['arrow', 'bookmark', 'draw', 'embed', 'frame', 'geo', 'group', 'highlight', 'image', 'line', 'note', 'text', 'video']
                         const allValidShapes = [...validCustomShapes, ...validDefaultShapes]
                         
@@ -63,24 +63,10 @@ export function CustomMainMenu() {
                     // Helper function to validate shape geometry data
                     const validateShapeGeometry = (shape: any): boolean => {
                         if (!shape || !shape.id) return false
-
-                        // CRITICAL: Only validate that x/y are valid numbers if they exist
-                        // DO NOT set default values here - let fixIncompleteShape handle that
-                        // This preserves original coordinates and prevents coordinate collapse
-                        if (shape.x !== undefined && shape.x !== null) {
-                            if (typeof shape.x !== 'number' || isNaN(shape.x) || !isFinite(shape.x)) {
-                                console.warn(`⚠️ Invalid x coordinate for shape ${shape.id}:`, shape.x)
-                                shape.x = undefined // Mark as invalid so fixIncompleteShape can handle it
-                            }
-                        }
-                        if (shape.y !== undefined && shape.y !== null) {
-                            if (typeof shape.y !== 'number' || isNaN(shape.y) || !isFinite(shape.y)) {
-                                console.warn(`⚠️ Invalid y coordinate for shape ${shape.id}:`, shape.y)
-                                shape.y = undefined // Mark as invalid so fixIncompleteShape can handle it
-                            }
-                        }
-
-                        // Validate rotation and opacity with defaults (these are safe to default)
+                        
+                        // Validate basic numeric properties
+                        shape.x = validateNumericValue(shape.x, 0, 'x')
+                        shape.y = validateNumericValue(shape.y, 0, 'y')
                         shape.rotation = validateNumericValue(shape.rotation, 0, 'rotation')
                         shape.opacity = validateNumericValue(shape.opacity, 1, 'opacity')
                         
@@ -178,20 +164,11 @@ export function CustomMainMenu() {
                     // Function to fix incomplete shape data for proper rendering
                     const fixIncompleteShape = (shape: any, pageId: string): any => {
                         const fixedShape = { ...shape }
-
-                        // DEBUG: Log coordinates before validation
-                        const originalX = fixedShape.x
-                        const originalY = fixedShape.y
-
+                        
                         // CRITICAL: Validate geometry first (fixes NaN/Infinity values)
                         if (!validateShapeGeometry(fixedShape)) {
                             console.warn(`⚠️ Shape failed geometry validation, skipping:`, fixedShape.id)
                             return null // Return null to indicate shape should be skipped
-                        }
-
-                        // DEBUG: Log if coordinates changed during validation
-                        if (originalX !== fixedShape.x || originalY !== fixedShape.y) {
-                            console.log(`🔍 Coordinates changed during validation for ${fixedShape.id}: (${originalX},${originalY}) → (${fixedShape.x},${fixedShape.y})`)
                         }
                         
                         // CRITICAL: Validate and normalize shape type
@@ -262,51 +239,24 @@ export function CustomMainMenu() {
                             const wValue = fixedShape.w !== undefined ? fixedShape.w : 100
                             const hValue = fixedShape.h !== undefined ? fixedShape.h : 100
                             const geoValue = fixedShape.geo !== undefined ? fixedShape.geo : 'rectangle'
-
+                            
                             // Remove w/h/geo from top level (TLDraw validation requires they be in props only)
                             delete fixedShape.w
                             delete fixedShape.h
                             delete fixedShape.geo
-
+                            
                             // Ensure props exists and has the correct values
                             if (!fixedShape.props) fixedShape.props = {}
                             if (fixedShape.props.w === undefined) fixedShape.props.w = wValue
                             if (fixedShape.props.h === undefined) fixedShape.props.h = hValue
                             if (fixedShape.props.geo === undefined) fixedShape.props.geo = geoValue
-
+                            
                             // Set default props if missing
                             if (!fixedShape.props.color) fixedShape.props.color = 'black'
                             if (!fixedShape.props.fill) fixedShape.props.fill = 'none'
                             if (!fixedShape.props.dash) fixedShape.props.dash = 'draw'
                             if (!fixedShape.props.size) fixedShape.props.size = 'm'
                             if (!fixedShape.props.font) fixedShape.props.font = 'draw'
-
-                            // CRITICAL: Convert props.text to props.richText for geo shapes (tldraw schema change)
-                            // tldraw no longer accepts props.text on geo shapes - must use richText
-                            // Also preserve in meta.text for backward compatibility (used by search and runLLMprompt)
-                            if ('text' in fixedShape.props && typeof fixedShape.props.text === 'string') {
-                                const textContent = fixedShape.props.text
-
-                                // Convert text string to richText format for tldraw
-                                fixedShape.props.richText = {
-                                    type: 'doc',
-                                    content: textContent ? [{
-                                        type: 'paragraph',
-                                        content: [{
-                                            type: 'text',
-                                            text: textContent
-                                        }]
-                                    }] : []
-                                }
-
-                                // CRITICAL: Preserve original text in meta.text for backward compatibility
-                                // This is used by search (src/utils/searchUtils.ts) and other legacy code
-                                if (!fixedShape.meta) fixedShape.meta = {}
-                                fixedShape.meta.text = textContent
-
-                                // Remove invalid props.text
-                                delete fixedShape.props.text
-                            }
                         } else if (fixedShape.type === 'VideoChat') {
                             // VideoChat shapes also need w/h in props, not top level
                             const wValue = fixedShape.w !== undefined ? fixedShape.w : 200
@@ -542,44 +492,17 @@ export function CustomMainMenu() {
                                 const wValue = 'w' in shape ? shape.w : undefined
                                 const hValue = 'h' in shape ? shape.h : undefined
                                 const geoValue = 'geo' in shape ? shape.geo : undefined
-
+                                
                                 // Remove from top level
                                 delete shape.w
                                 delete shape.h
                                 delete shape.geo
-
+                                
                                 // Ensure props exists and move values there
                                 if (!shape.props) shape.props = {}
                                 if (wValue !== undefined && !shape.props.w) shape.props.w = wValue
                                 if (hValue !== undefined && !shape.props.h) shape.props.h = hValue
                                 if (geoValue !== undefined && !shape.props.geo) shape.props.geo = geoValue
-
-                                // CRITICAL: Convert props.text to props.richText for geo shapes (tldraw schema change)
-                                // tldraw no longer accepts props.text on geo shapes - must use richText
-                                // Also preserve in meta.text for backward compatibility (used by search and runLLMprompt)
-                                if ('text' in shape.props && typeof shape.props.text === 'string') {
-                                    const textContent = shape.props.text
-
-                                    // Convert text string to richText format for tldraw
-                                    shape.props.richText = {
-                                        type: 'doc',
-                                        content: textContent ? [{
-                                            type: 'paragraph',
-                                            content: [{
-                                                type: 'text',
-                                                text: textContent
-                                            }]
-                                        }] : []
-                                    }
-
-                                    // CRITICAL: Preserve original text in meta.text for backward compatibility
-                                    // This is used by search (src/utils/searchUtils.ts) and other legacy code
-                                    if (!shape.meta) shape.meta = {}
-                                    shape.meta.text = textContent
-
-                                    // Remove invalid props.text
-                                    delete shape.props.text
-                                }
                             }
                             
                             // CRITICAL: Remove invalid 'text' property from text shapes (TLDraw schema doesn't allow props.text)
@@ -593,22 +516,9 @@ export function CustomMainMenu() {
                     }
                     
                     console.log('About to call putContentOntoCurrentPage with:', contentToImport)
-
-                    // DEBUG: Log first 5 shapes' coordinates before import
-                    console.log('🔍 Coordinates before putContentOntoCurrentPage:')
-                    contentToImport.shapes.slice(0, 5).forEach((shape: any) => {
-                        console.log(`  Shape ${shape.id} (${shape.type}): x=${shape.x}, y=${shape.y}`)
-                    })
-
+                    
                     try {
                         editor.putContentOntoCurrentPage(contentToImport, { select: true })
-
-                        // DEBUG: Log first 5 shapes' coordinates after import
-                        console.log('🔍 Coordinates after putContentOntoCurrentPage:')
-                        const importedShapes = editor.getCurrentPageShapes()
-                        importedShapes.slice(0, 5).forEach((shape: any) => {
-                            console.log(`  Shape ${shape.id} (${shape.type}): x=${shape.x}, y=${shape.y}`)
-                        })
                     } catch (putContentError) {
                         console.error('putContentOntoCurrentPage failed, trying alternative approach:', putContentError)
                         
@@ -672,44 +582,17 @@ export function CustomMainMenu() {
                                             const wValue = 'w' in shape ? shape.w : undefined
                                             const hValue = 'h' in shape ? shape.h : undefined
                                             const geoValue = 'geo' in shape ? shape.geo : undefined
-
+                                            
                                             // Remove from top level
                                             delete shape.w
                                             delete shape.h
                                             delete shape.geo
-
+                                            
                                             // Ensure props exists and move values there
                                             if (!shape.props) shape.props = {}
                                             if (wValue !== undefined && !shape.props.w) shape.props.w = wValue
                                             if (hValue !== undefined && !shape.props.h) shape.props.h = hValue
                                             if (geoValue !== undefined && !shape.props.geo) shape.props.geo = geoValue
-
-                                            // CRITICAL: Convert props.text to props.richText for geo shapes (tldraw schema change)
-                                            // tldraw no longer accepts props.text on geo shapes - must use richText
-                                            // Also preserve in meta.text for backward compatibility (used by search and runLLMprompt)
-                                            if ('text' in shape.props && typeof shape.props.text === 'string') {
-                                                const textContent = shape.props.text
-
-                                                // Convert text string to richText format for tldraw
-                                                shape.props.richText = {
-                                                    type: 'doc',
-                                                    content: textContent ? [{
-                                                        type: 'paragraph',
-                                                        content: [{
-                                                            type: 'text',
-                                                            text: textContent
-                                                        }]
-                                                    }] : []
-                                                }
-
-                                                // CRITICAL: Preserve original text in meta.text for backward compatibility
-                                                // This is used by search (src/utils/searchUtils.ts) and other legacy code
-                                                if (!shape.meta) shape.meta = {}
-                                                shape.meta.text = textContent
-
-                                                // Remove invalid props.text
-                                                delete shape.props.text
-                                            }
                                         }
                                         
                                         // CRITICAL: Remove invalid 'text' property from text shapes (TLDraw schema doesn't allow props.text)
