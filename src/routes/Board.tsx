@@ -56,6 +56,7 @@ import { Collection, initializeGlobalCollections } from "@/collections"
 import { GraphLayoutCollection } from "@/graph/GraphLayoutCollection"
 import { GestureTool } from "@/GestureTool"
 import { CmdK } from "@/CmdK"
+import { OfflineIndicator } from "@/components/OfflineIndicator"
 
 
 import "react-cmdk/dist/cmdk.css"
@@ -203,13 +204,14 @@ export function Board() {
 
   // Use Automerge sync for all environments
   const storeWithHandle = useAutomergeSync(storeConfig)
-  const store = { 
-    store: storeWithHandle.store, 
+  const store = {
+    store: storeWithHandle.store,
     status: storeWithHandle.status,
-    ...('connectionStatus' in storeWithHandle ? { connectionStatus: storeWithHandle.connectionStatus } : {}),
     error: storeWithHandle.error
   }
-  const automergeHandle = (storeWithHandle as any).handle
+  const automergeHandle = storeWithHandle.handle
+  const connectionStatus = storeWithHandle.connectionStatus
+  const isOfflineReady = storeWithHandle.isOfflineReady
   const [editor, setEditor] = useState<Editor | null>(null)
 
   useEffect(() => {
@@ -658,6 +660,7 @@ export function Board() {
         <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div>Loading canvas...</div>
         </div>
+        <OfflineIndicator connectionStatus={connectionStatus} isOfflineReady={isOfflineReady} />
       </AutomergeHandleProvider>
     )
   }
@@ -740,6 +743,7 @@ export function Board() {
       >
           <CmdK />
         </Tldraw>
+        <OfflineIndicator connectionStatus={connectionStatus} isOfflineReady={isOfflineReady} />
       </div>
     </AutomergeHandleProvider>
   )

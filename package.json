@@ -25,6 +25,7 @@
 		"@automerge/automerge": "^3.1.1",
 		"@automerge/automerge-repo": "^2.2.0",
 		"@automerge/automerge-repo-react-hooks": "^2.2.0",
+		"@automerge/automerge-repo-storage-indexeddb": "^2.5.0",
 		"@chengsokdara/use-whisper": "^0.2.0",
 		"@daily-co/daily-js": "^0.60.0",
 		"@daily-co/daily-react": "^0.20.0",
