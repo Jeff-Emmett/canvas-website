@@ -34,14 +34,12 @@ import { ObsNoteTool } from "@/tools/ObsNoteTool"
 import { ObsNoteShape } from "@/shapes/ObsNoteShapeUtil"
 import { TranscriptionTool } from "@/tools/TranscriptionTool"
 import { TranscriptionShape } from "@/shapes/TranscriptionShapeUtil"
-import { FathomNoteShape } from "@/shapes/FathomNoteShapeUtil"
 import { HolonTool } from "@/tools/HolonTool"
 import { HolonShape } from "@/shapes/HolonShapeUtil"
 import { FathomMeetingsTool } from "@/tools/FathomMeetingsTool"
 import { HolonBrowserShape } from "@/shapes/HolonBrowserShapeUtil"
 import { ObsidianBrowserShape } from "@/shapes/ObsidianBrowserShapeUtil"
 import { FathomMeetingsBrowserShape } from "@/shapes/FathomMeetingsBrowserShapeUtil"
-import { LocationShareShape } from "@/shapes/LocationShareShapeUtil"
 import { ImageGenShape } from "@/shapes/ImageGenShapeUtil"
 import { ImageGenTool } from "@/tools/ImageGenTool"
 import { VideoGenShape } from "@/shapes/VideoGenShapeUtil"
@@ -82,12 +80,10 @@ const customShapeUtils = [
   PromptShape,
   ObsNoteShape,
   TranscriptionShape,
-  FathomNoteShape,
   HolonShape,
   HolonBrowserShape,
   ObsidianBrowserShape,
   FathomMeetingsBrowserShape,
-  LocationShareShape,
   ImageGenShape,
   VideoGenShape,
   MultmuxShape,
@@ -109,6 +105,10 @@ const customTools = [
   VideoGenTool,
   MultmuxTool,
 ]
+
+// Debug: Log tool and shape registration info
+console.log('🔧 Board: Custom tools registered:', customTools.map(t => ({ id: t.id, shapeType: t.prototype?.shapeType })))
+console.log('🔧 Board: Custom shapes registered:', customShapeUtils.map(s => ({ type: s.type })))
 
 export function Board() {
   const { slug } = useParams<{ slug: string }>()

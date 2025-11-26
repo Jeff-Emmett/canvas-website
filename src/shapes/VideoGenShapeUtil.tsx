@@ -103,6 +103,10 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
         console.log('🎬 VideoGen: Submitting to RunPod endpoint:', endpointId)
         const runUrl = `https://api.runpod.ai/v2/${endpointId}/run`
 
+        // Generate a random seed for reproducibility
+        const seed = Math.floor(Math.random() * 2147483647)
+
+        // ComfyUI workflow parameters required by the Wan2.1 handler
         const response = await fetch(runUrl, {
           method: 'POST',
           headers: {
@@ -113,7 +117,16 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
             input: {
               prompt: prompt,
               duration: shape.props.duration,
-              model: shape.props.model
+              model: shape.props.model,
+              seed: seed,
+              cfg: 6.0,           // CFG scale - guidance strength
+              steps: 30,          // Inference steps
+              width: 832,         // Video width (Wan2.1 optimal)
+              height: 480,        // Video height (Wan2.1 optimal)
+              fps: 16,            // Frames per second
+              num_frames: shape.props.duration * 16, // Total frames based on duration
+              denoise: 1.0,       // Full denoising for text-to-video
+              scheduler: "euler", // Sampler scheduler
             }
           })
         })
@@ -273,6 +286,7 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                     placeholder="Describe the video you want to generate..."
                     disabled={isGenerating}
                     onPointerDown={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
                     style={{
                       width: '100%',
                       minHeight: '80px',
@@ -308,6 +322,7 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                       }}
                       disabled={isGenerating}
                       onPointerDown={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
                       style={{
                         width: '100%',
                         padding: '8px',
@@ -325,6 +340,7 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                     onClick={handleGenerate}
                     disabled={isGenerating || !prompt.trim()}
                     onPointerDown={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
                     style={{
                       padding: '8px 20px',
                       backgroundColor: isGenerating ? '#ccc' : VideoGenShape.PRIMARY_COLOR,
@@ -411,6 +427,7 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                       })
                     }}
                     onPointerDown={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
                     style={{
                       flex: 1,
                       padding: '10px',
@@ -430,6 +447,7 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                     href={videoUrl}
                     download="generated-video.mp4"
                     onPointerDown={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => e.stopPropagation()}
                     style={{
                       flex: 1,
                       padding: '10px',

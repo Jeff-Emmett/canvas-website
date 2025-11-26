@@ -64,6 +64,11 @@ export function CustomToolbar() {
   useEffect(() => {
     if (editor && tools) {
       setIsReady(true)
+      // Debug: log available tools
+      console.log('🔧 CustomToolbar: Available tools:', Object.keys(tools))
+      console.log('🔧 CustomToolbar: VideoGen exists:', !!tools["VideoGen"])
+      console.log('🔧 CustomToolbar: Multmux exists:', !!tools["Multmux"])
+      console.log('🔧 CustomToolbar: ImageGen exists:', !!tools["ImageGen"])
     }
   }, [editor, tools])
  
@@ -1111,6 +1116,14 @@ export function CustomToolbar() {
             icon="image"
             label="Image Generation"
             isSelected={tools["ImageGen"].id === editor.getCurrentToolId()}
+          />
+        )}
+        {tools["VideoGen"] && (
+          <TldrawUiMenuItem
+            {...tools["VideoGen"]}
+            icon="video"
+            label="Video Generation"
+            isSelected={tools["VideoGen"].id === editor.getCurrentToolId()}
           />
         )}
         {tools["Multmux"] && (

@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { makeRealSettings, AI_PERSONALITIES } from "@/lib/settings";
-import { getRunPodConfig } from "@/lib/clientConfig";
+import { getRunPodConfig, getOllamaConfig } from "@/lib/clientConfig";
 
 export async function llm(
 	userPrompt: string,
@@ -169,11 +169,25 @@ function getAvailableProviders(availableKeys: Record<string, string>, settings: 
 		return false;
 	};
 	
-	// PRIORITY 1: Check for RunPod configuration from environment variables FIRST
-	// RunPod takes priority over user-configured keys
+	// PRIORITY 0: Check for Ollama configuration (FREE local AI - highest priority)
+	const ollamaConfig = getOllamaConfig();
+	if (ollamaConfig && ollamaConfig.url) {
+		// Get the selected Ollama model from settings
+		const selectedOllamaModel = settings.ollamaModel || 'llama3.1:8b';
+		console.log(`🦙 Found Ollama configuration - using as primary AI provider (FREE) with model: ${selectedOllamaModel}`);
+		providers.push({
+			provider: 'ollama',
+			apiKey: 'ollama', // Ollama doesn't need an API key
+			baseUrl: ollamaConfig.url,
+			model: selectedOllamaModel
+		});
+	}
+
+	// PRIORITY 1: Check for RunPod configuration from environment variables
+	// RunPod is used as fallback when Ollama is not available
 	const runpodConfig = getRunPodConfig();
 	if (runpodConfig && runpodConfig.apiKey && runpodConfig.endpointId) {
-		console.log('🔑 Found RunPod configuration from environment variables - using as primary AI provider');
+		console.log('🔑 Found RunPod configuration from environment variables');
 		providers.push({
 			provider: 'runpod',
 			apiKey: runpodConfig.apiKey,
@@ -388,6 +402,9 @@ function isValidApiKey(provider: string, apiKey: string): boolean {
 		case 'google':
 			// Google API keys are typically longer and don't have a specific prefix
 			return apiKey.length > 20;
+		case 'ollama':
+			// Ollama doesn't require an API key - any value is valid
+			return true;
 		default:
 			return apiKey.length > 10; // Basic validation for unknown providers
 	}
@@ -506,8 +523,81 @@ async function callProviderAPI(
 ) {
 	let partial = "";
 	const systemPrompt = settings ? getSystemPrompt(settings) : 'You are a helpful assistant.';
-	
-	if (provider === 'runpod') {
+
+	if (provider === 'ollama') {
+		// Ollama API integration - uses OpenAI-compatible API format
+		const ollamaConfig = getOllamaConfig();
+		const baseUrl = (settings as any)?.baseUrl || ollamaConfig?.url || 'http://localhost:11434';
+
+		console.log(`🦙 Ollama API: Using ${baseUrl}/v1/chat/completions with model ${model}`);
+
+		const messages = [];
+		if (systemPrompt) {
+			messages.push({ role: 'system', content: systemPrompt });
+		}
+		messages.push({ role: 'user', content: userPrompt });
+
+		try {
+			const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					model: model,
+					messages: messages,
+					stream: true, // Enable streaming for better UX
+				})
+			});
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error('❌ Ollama API error:', response.status, errorText);
+				throw new Error(`Ollama API error: ${response.status} - ${errorText}`);
+			}
+
+			// Handle streaming response
+			const reader = response.body?.getReader();
+			if (!reader) {
+				throw new Error('No response body from Ollama');
+			}
+
+			const decoder = new TextDecoder();
+
+			while (true) {
+				const { done, value } = await reader.read();
+				if (done) break;
+
+				const chunk = decoder.decode(value, { stream: true });
+				const lines = chunk.split('\n').filter(line => line.trim() !== '');
+
+				for (const line of lines) {
+					if (line.startsWith('data: ')) {
+						const data = line.slice(6);
+						if (data === '[DONE]') continue;
+
+						try {
+							const parsed = JSON.parse(data);
+							const content = parsed.choices?.[0]?.delta?.content || '';
+							if (content) {
+								partial += content;
+								onToken(partial, false);
+							}
+						} catch (e) {
+							// Skip malformed JSON chunks
+						}
+					}
+				}
+			}
+
+			console.log('✅ Ollama API: Response complete, length:', partial.length);
+			onToken(partial, true);
+			return;
+		} catch (error) {
+			console.error('❌ Ollama API error:', error);
+			throw error;
+		}
+	} else if (provider === 'runpod') {
 		// RunPod API integration - uses environment variables for automatic setup
 		// Get endpointId from parameter or from config
 		let runpodEndpointId = endpointId;
@@ -1055,6 +1145,9 @@ function getDefaultModel(provider: string): string {
 		case 'anthropic':
 			// Use Claude Sonnet 4.5 as default (newest and best model)
 			return 'claude-sonnet-4-5-20250929'
+		case 'ollama':
+			// Use Llama 3.1 8B as default for local Ollama
+			return 'llama3.1:8b'
 		default:
 			return 'gpt-4o'
 	}

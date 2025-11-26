@@ -124,6 +124,9 @@ import { FathomNoteShape } from "@/shapes/FathomNoteShapeUtil"
 import { HolonShape } from "@/shapes/HolonShapeUtil"
 import { ObsidianBrowserShape } from "@/shapes/ObsidianBrowserShapeUtil"
 import { FathomMeetingsBrowserShape } from "@/shapes/FathomMeetingsBrowserShapeUtil"
+import { ImageGenShape } from "@/shapes/ImageGenShapeUtil"
+import { VideoGenShape } from "@/shapes/VideoGenShapeUtil"
+import { MultmuxShape } from "@/shapes/MultmuxShapeUtil"
 // Location shape removed - no longer needed
 
 export function useAutomergeStoreV2({
@@ -154,7 +157,9 @@ export function useAutomergeStoreV2({
       Holon: {} as any,
       ObsidianBrowser: {} as any,
       FathomMeetingsBrowser: {} as any,
-      LocationShare: {} as any,
+      ImageGen: {} as any,
+      VideoGen: {} as any,
+      Multmux: {} as any,
     },
     bindings: defaultBindingSchemas,
   })
@@ -176,6 +181,9 @@ export function useAutomergeStoreV2({
         HolonShape,
         ObsidianBrowserShape,
         FathomMeetingsBrowserShape,
+        ImageGenShape,
+        VideoGenShape,
+        MultmuxShape,
       ],
     })
     return store

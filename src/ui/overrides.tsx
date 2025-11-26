@@ -14,7 +14,14 @@ import {
   zoomToSelection,
 } from "./cameraUtils"
 import { saveToPdf } from "../utils/pdfUtils"
-import { searchText } from "../utils/searchUtils"
+import {
+  searchText,
+  searchSemantic,
+  askCanvasAI,
+  indexCanvasForSearch,
+  explainViewport,
+  findSimilarToSelection
+} from "../utils/searchUtils"
 import { EmbedShape, IEmbedShape } from "@/shapes/EmbedShapeUtil"
 import { moveToSlide } from "@/slides/useSlides"
 import { ISlideShape } from "@/shapes/SlideShapeUtil"
@@ -160,31 +167,31 @@ export const overrides: TLUiOverrides = {
         onSelect: () => editor.setCurrentTool("gesture"),
       },
       ObsidianNote: {
-        id: "obs_note",
+        id: "ObsidianNote",
         icon: "file-text",
         label: "Obsidian Note",
         kbd: "alt+o",
         readonlyOk: true,
         type: "ObsNote",
-        onSelect: () => editor.setCurrentTool("obs_note"),
+        onSelect: () => editor.setCurrentTool("ObsidianNote"),
       },
       Transcription: {
-        id: "transcription",
+        id: "Transcription",
         icon: "microphone",
         label: "Transcription",
         kbd: "alt+t",
         readonlyOk: true,
         type: "Transcription",
-        onSelect: () => editor.setCurrentTool("transcription"),
+        onSelect: () => editor.setCurrentTool("Transcription"),
       },
       Holon: {
-        id: "holon",
+        id: "Holon",
         icon: "circle",
         label: "Holon",
         kbd: "alt+h",
         readonlyOk: true,
         type: "Holon",
-        onSelect: () => editor.setCurrentTool("holon"),
+        onSelect: () => editor.setCurrentTool("Holon"),
       },
       FathomMeetings: {
         id: "fathom-meetings",
@@ -204,6 +211,22 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         type: "ImageGen",
         onSelect: () => editor.setCurrentTool("ImageGen"),
+      },
+      VideoGen: {
+        id: "VideoGen",
+        icon: "video",
+        label: "Video Generation",
+        kbd: "alt+v",
+        readonlyOk: true,
+        onSelect: () => editor.setCurrentTool("VideoGen"),
+      },
+      Multmux: {
+        id: "Multmux",
+        icon: "terminal",
+        label: "Terminal",
+        kbd: "alt+m",
+        readonlyOk: true,
+        onSelect: () => editor.setCurrentTool("Multmux"),
       },
       hand: {
         ...tools.hand,
@@ -390,6 +413,95 @@ export const overrides: TLUiOverrides = {
         kbd: "s",
         readonlyOk: true,
         onSelect: () => searchText(editor),
+      },
+      semanticSearch: {
+        id: "semantic-search",
+        label: "Semantic Search (AI)",
+        kbd: "shift+s",
+        readonlyOk: true,
+        onSelect: async () => {
+          try {
+            await searchSemantic(editor)
+          } catch (error) {
+            console.error("Semantic search error:", error)
+          }
+        },
+      },
+      askCanvasAI: {
+        id: "ask-canvas-ai",
+        label: "Ask AI About Canvas",
+        kbd: "shift+a",
+        readonlyOk: true,
+        onSelect: async () => {
+          try {
+            // Create a simple modal/prompt for AI response
+            const answer = await askCanvasAI(editor, undefined, (partial, done) => {
+              // Log streaming response to console for now
+              if (!done) {
+                console.log("AI response:", partial)
+              }
+            })
+            if (answer) {
+              // Could display in a UI element - for now show alert with result
+              console.log("Canvas AI answer:", answer)
+            }
+          } catch (error) {
+            console.error("Canvas AI error:", error)
+          }
+        },
+      },
+      indexCanvas: {
+        id: "index-canvas",
+        label: "Index Canvas for AI Search",
+        kbd: "ctrl+shift+i",
+        readonlyOk: true,
+        onSelect: async () => {
+          try {
+            console.log("Starting canvas indexing...")
+            await indexCanvasForSearch(editor, (progress) => {
+              console.log(`Indexing progress: ${progress.toFixed(1)}%`)
+            })
+            console.log("Canvas indexing complete!")
+          } catch (error) {
+            console.error("Canvas indexing error:", error)
+          }
+        },
+      },
+      explainViewport: {
+        id: "explain-viewport",
+        label: "Explain Current View",
+        kbd: "shift+e",
+        readonlyOk: true,
+        onSelect: async () => {
+          try {
+            console.log("Analyzing viewport...")
+            await explainViewport(editor, (partial, done) => {
+              if (!done) {
+                console.log("Viewport analysis:", partial)
+              }
+            })
+          } catch (error) {
+            console.error("Viewport explanation error:", error)
+          }
+        },
+      },
+      findSimilar: {
+        id: "find-similar",
+        label: "Find Similar Shapes",
+        kbd: "shift+f",
+        readonlyOk: true,
+        onSelect: async () => {
+          if (editor.getSelectedShapeIds().length === 0) {
+            console.log("Select a shape first to find similar ones")
+            return
+          }
+          try {
+            const results = await findSimilarToSelection(editor)
+            console.log(`Found ${results.length} similar shapes`)
+          } catch (error) {
+            console.error("Find similar error:", error)
+          }
+        },
       },
       llm: {
         id: "llm",
