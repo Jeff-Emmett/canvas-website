@@ -16,6 +16,11 @@ export interface ClientConfig {
   openaiApiKey?: string
   runpodApiKey?: string
   runpodEndpointId?: string
+  runpodImageEndpointId?: string
+  runpodVideoEndpointId?: string
+  runpodTextEndpointId?: string
+  runpodWhisperEndpointId?: string
+  ollamaUrl?: string
 }
 
 /**
@@ -41,7 +46,12 @@ export function getClientConfig(): ClientConfig {
         webhookSecret: import.meta.env.VITE_QUARTZ_WEBHOOK_SECRET || import.meta.env.NEXT_PUBLIC_QUARTZ_WEBHOOK_SECRET,
         openaiApiKey: import.meta.env.VITE_OPENAI_API_KEY || import.meta.env.NEXT_PUBLIC_OPENAI_API_KEY,
         runpodApiKey: import.meta.env.VITE_RUNPOD_API_KEY || import.meta.env.NEXT_PUBLIC_RUNPOD_API_KEY,
-        runpodEndpointId: import.meta.env.VITE_RUNPOD_ENDPOINT_ID || import.meta.env.NEXT_PUBLIC_RUNPOD_ENDPOINT_ID,
+        runpodEndpointId: import.meta.env.VITE_RUNPOD_ENDPOINT_ID || import.meta.env.VITE_RUNPOD_IMAGE_ENDPOINT_ID || import.meta.env.NEXT_PUBLIC_RUNPOD_ENDPOINT_ID,
+        runpodImageEndpointId: import.meta.env.VITE_RUNPOD_IMAGE_ENDPOINT_ID || import.meta.env.NEXT_PUBLIC_RUNPOD_IMAGE_ENDPOINT_ID,
+        runpodVideoEndpointId: import.meta.env.VITE_RUNPOD_VIDEO_ENDPOINT_ID || import.meta.env.NEXT_PUBLIC_RUNPOD_VIDEO_ENDPOINT_ID,
+        runpodTextEndpointId: import.meta.env.VITE_RUNPOD_TEXT_ENDPOINT_ID || import.meta.env.NEXT_PUBLIC_RUNPOD_TEXT_ENDPOINT_ID,
+        runpodWhisperEndpointId: import.meta.env.VITE_RUNPOD_WHISPER_ENDPOINT_ID || import.meta.env.NEXT_PUBLIC_RUNPOD_WHISPER_ENDPOINT_ID,
+        ollamaUrl: import.meta.env.VITE_OLLAMA_URL || import.meta.env.NEXT_PUBLIC_OLLAMA_URL,
       }
     } else {
       // Next.js environment
@@ -73,24 +83,109 @@ export function getClientConfig(): ClientConfig {
       webhookUrl: process.env.VITE_QUARTZ_WEBHOOK_URL || process.env.NEXT_PUBLIC_QUARTZ_WEBHOOK_URL,
       webhookSecret: process.env.VITE_QUARTZ_WEBHOOK_SECRET || process.env.NEXT_PUBLIC_QUARTZ_WEBHOOK_SECRET,
       runpodApiKey: process.env.VITE_RUNPOD_API_KEY || process.env.NEXT_PUBLIC_RUNPOD_API_KEY,
-      runpodEndpointId: process.env.VITE_RUNPOD_ENDPOINT_ID || process.env.NEXT_PUBLIC_RUNPOD_ENDPOINT_ID,
+      runpodEndpointId: process.env.VITE_RUNPOD_ENDPOINT_ID || process.env.VITE_RUNPOD_IMAGE_ENDPOINT_ID || process.env.NEXT_PUBLIC_RUNPOD_ENDPOINT_ID,
+      runpodImageEndpointId: process.env.VITE_RUNPOD_IMAGE_ENDPOINT_ID || process.env.NEXT_PUBLIC_RUNPOD_IMAGE_ENDPOINT_ID,
+      runpodVideoEndpointId: process.env.VITE_RUNPOD_VIDEO_ENDPOINT_ID || process.env.NEXT_PUBLIC_RUNPOD_VIDEO_ENDPOINT_ID,
+      runpodTextEndpointId: process.env.VITE_RUNPOD_TEXT_ENDPOINT_ID || process.env.NEXT_PUBLIC_RUNPOD_TEXT_ENDPOINT_ID,
+      runpodWhisperEndpointId: process.env.VITE_RUNPOD_WHISPER_ENDPOINT_ID || process.env.NEXT_PUBLIC_RUNPOD_WHISPER_ENDPOINT_ID,
+      ollamaUrl: process.env.VITE_OLLAMA_URL || process.env.NEXT_PUBLIC_OLLAMA_URL,
     }
   }
 }
 
 /**
- * Get RunPod configuration for API calls
+ * Get RunPod configuration for API calls (defaults to image endpoint)
  */
 export function getRunPodConfig(): { apiKey: string; endpointId: string } | null {
   const config = getClientConfig()
-  
+
   if (!config.runpodApiKey || !config.runpodEndpointId) {
     return null
   }
-  
+
   return {
     apiKey: config.runpodApiKey,
     endpointId: config.runpodEndpointId
+  }
+}
+
+/**
+ * Get RunPod configuration for image generation
+ */
+export function getRunPodImageConfig(): { apiKey: string; endpointId: string } | null {
+  const config = getClientConfig()
+  const endpointId = config.runpodImageEndpointId || config.runpodEndpointId
+
+  if (!config.runpodApiKey || !endpointId) {
+    return null
+  }
+
+  return {
+    apiKey: config.runpodApiKey,
+    endpointId: endpointId
+  }
+}
+
+/**
+ * Get RunPod configuration for video generation
+ */
+export function getRunPodVideoConfig(): { apiKey: string; endpointId: string } | null {
+  const config = getClientConfig()
+
+  if (!config.runpodApiKey || !config.runpodVideoEndpointId) {
+    return null
+  }
+
+  return {
+    apiKey: config.runpodApiKey,
+    endpointId: config.runpodVideoEndpointId
+  }
+}
+
+/**
+ * Get RunPod configuration for text generation (vLLM)
+ */
+export function getRunPodTextConfig(): { apiKey: string; endpointId: string } | null {
+  const config = getClientConfig()
+
+  if (!config.runpodApiKey || !config.runpodTextEndpointId) {
+    return null
+  }
+
+  return {
+    apiKey: config.runpodApiKey,
+    endpointId: config.runpodTextEndpointId
+  }
+}
+
+/**
+ * Get RunPod configuration for Whisper transcription
+ */
+export function getRunPodWhisperConfig(): { apiKey: string; endpointId: string } | null {
+  const config = getClientConfig()
+
+  if (!config.runpodApiKey || !config.runpodWhisperEndpointId) {
+    return null
+  }
+
+  return {
+    apiKey: config.runpodApiKey,
+    endpointId: config.runpodWhisperEndpointId
+  }
+}
+
+/**
+ * Get Ollama configuration for local LLM
+ */
+export function getOllamaConfig(): { url: string } | null {
+  const config = getClientConfig()
+
+  if (!config.ollamaUrl) {
+    return null
+  }
+
+  return {
+    url: config.ollamaUrl
   }
 }
 
