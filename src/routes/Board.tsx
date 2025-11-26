@@ -1,7 +1,7 @@
 import { useAutomergeSync } from "@/automerge/useAutomergeSync"
 import { AutomergeHandleProvider } from "@/context/AutomergeHandleContext"
 import { useMemo, useEffect, useState, useRef } from "react"
-import { Tldraw, Editor, TLShapeId, TLRecord } from "tldraw"
+import { Tldraw, Editor, TLShapeId, TLRecord, useTldrawUser, TLUserPreferences } from "tldraw"
 import { useParams } from "react-router-dom"
 import { ChatBoxTool } from "@/tools/ChatBoxTool"
 import { ChatBoxShape } from "@/shapes/ChatBoxShapeUtil"
@@ -41,6 +41,8 @@ import { FathomMeetingsTool } from "@/tools/FathomMeetingsTool"
 import { HolonBrowserShape } from "@/shapes/HolonBrowserShapeUtil"
 import { ObsidianBrowserShape } from "@/shapes/ObsidianBrowserShapeUtil"
 import { FathomMeetingsBrowserShape } from "@/shapes/FathomMeetingsBrowserShapeUtil"
+import { MultmuxTool } from "@/tools/MultmuxTool"
+import { MultmuxShape } from "@/shapes/MultmuxShapeUtil"
 // Location shape removed - no longer needed
 import {
   lockElement,
@@ -81,6 +83,7 @@ const customShapeUtils = [
   HolonBrowserShape,
   ObsidianBrowserShape,
   FathomMeetingsBrowserShape,
+  MultmuxShape,
 ]
 const customTools = [
   ChatBoxTool,
@@ -95,6 +98,7 @@ const customTools = [
   TranscriptionTool,
   HolonTool,
   FathomMeetingsTool,
+  MultmuxTool,
 ]
 
 export function Board() {
@@ -180,18 +184,95 @@ export function Board() {
     });
   }, [roomId])
 
+  // Generate a stable user ID that persists across sessions
+  const uniqueUserId = useMemo(() => {
+    if (!session.username) return undefined
+
+    // Use localStorage to persist user ID across sessions
+    const storageKey = `tldraw-user-id-${session.username}`
+    let userId = localStorage.getItem(storageKey)
+
+    if (!userId) {
+      // Create a new user ID if one doesn't exist
+      userId = `${session.username}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      localStorage.setItem(storageKey, userId)
+    }
+
+    return userId
+  }, [session.username])
+
+  // Generate a unique color for each user based on their userId
+  const generateUserColor = (userId: string): string => {
+    let hash = 0
+    for (let i = 0; i < userId.length; i++) {
+      hash = userId.charCodeAt(i) + ((hash << 5) - hash)
+    }
+    const hue = hash % 360
+    return `hsl(${hue}, 70%, 50%)`
+  }
+
+  // Get current dark mode state from DOM
+  const getColorScheme = (): 'light' | 'dark' => {
+    return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+  }
+
+  // Set up user preferences for TLDraw collaboration
+  const [userPreferences, setUserPreferences] = useState<TLUserPreferences>(() => ({
+    id: uniqueUserId || 'anonymous',
+    name: session.username || 'Anonymous',
+    color: uniqueUserId ? generateUserColor(uniqueUserId) : '#000000',
+    colorScheme: getColorScheme(),
+  }))
+
+  // Update user preferences when session changes
+  useEffect(() => {
+    if (uniqueUserId) {
+      setUserPreferences({
+        id: uniqueUserId,
+        name: session.username || 'Anonymous',
+        color: generateUserColor(uniqueUserId),
+        colorScheme: getColorScheme(),
+      })
+    }
+  }, [uniqueUserId, session.username])
+
+  // Listen for dark mode changes and update tldraw color scheme
+  useEffect(() => {
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'class') {
+          const newColorScheme = getColorScheme()
+          setUserPreferences(prev => ({
+            ...prev,
+            colorScheme: newColorScheme,
+          }))
+        }
+      })
+    })
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    })
+
+    return () => observer.disconnect()
+  }, [])
+
+  // Create the user object for TLDraw
+  const user = useTldrawUser({ userPreferences, setUserPreferences })
+
   const storeConfig = useMemo(
     () => ({
       uri: `${WORKER_URL}/connect/${roomId}`,
       assets: multiplayerAssetStore,
       shapeUtils: [...defaultShapeUtils, ...customShapeUtils],
       bindingUtils: [...defaultBindingUtils],
-      user: session.authed ? {
-        id: session.username,
-        name: session.username,
+      user: session.authed && uniqueUserId ? {
+        id: uniqueUserId,
+        name: session.username,  // Display name (can be duplicate)
       } : undefined,
     }),
-    [roomId, session.authed, session.username],
+    [roomId, session.authed, session.username, uniqueUserId],
   )
 
   // Use Automerge sync for all environments
@@ -414,22 +495,52 @@ export function Board() {
       }
       
       // Also check for shapes on other pages
-      const shapesOnOtherPages = storeShapes.filter((s: any) => s.parentId && s.parentId !== currentPageId)
+      // CRITICAL: Only count shapes that are DIRECT children of other pages, not frame/group children
+      const shapesOnOtherPages = storeShapes.filter((s: any) =>
+        s.parentId &&
+        s.parentId.startsWith('page:') && // Only page children
+        s.parentId !== currentPageId
+      )
       if (shapesOnOtherPages.length > 0) {
         console.log(`📊 Board: ${shapesOnOtherPages.length} shapes exist on other pages (not current page ${currentPageId})`)
         
         // Find which page has the most shapes
+        // CRITICAL: Only count shapes that are DIRECT children of pages, not frame/group children
         const pageShapeCounts = new Map<string, number>()
         storeShapes.forEach((s: any) => {
-          if (s.parentId) {
+          if (s.parentId && s.parentId.startsWith('page:')) {
             pageShapeCounts.set(s.parentId, (pageShapeCounts.get(s.parentId) || 0) + 1)
           }
         })
         
         // Also check for shapes with no parentId or invalid parentId
-        const shapesWithInvalidParent = storeShapes.filter((s: any) => !s.parentId || (s.parentId && !allPages.find((p: any) => p.id === s.parentId)))
+        // CRITICAL: Frame and group children have parentId like "frame:..." or "group:...", not page IDs
+        // Only consider a parentId invalid if:
+        // 1. It's missing/null/undefined
+        // 2. It references a page that doesn't exist (starts with "page:" but page not found)
+        // 3. It references a shape that doesn't exist (starts with "shape:" but shape not found)
+        // DO NOT consider frame/group parentIds as invalid!
+        const shapesWithInvalidParent = storeShapes.filter((s: any) => {
+          if (!s.parentId) return true // Missing parentId
+
+          // Check if it's a page reference
+          if (s.parentId.startsWith('page:')) {
+            // Only invalid if the page doesn't exist
+            return !allPages.find((p: any) => p.id === s.parentId)
+          }
+
+          // Check if it's a shape reference (frame, group, etc.)
+          if (s.parentId.startsWith('shape:')) {
+            // Check if the parent shape exists in the store
+            const parentShape = storeShapes.find((shape: any) => shape.id === s.parentId)
+            return !parentShape // Invalid if parent shape doesn't exist
+          }
+
+          // Any other format is invalid
+          return true
+        })
         if (shapesWithInvalidParent.length > 0) {
-          console.warn(`📊 Board: ${shapesWithInvalidParent.length} shapes have invalid or missing parentId. Fixing...`)
+          console.warn(`📊 Board: ${shapesWithInvalidParent.length} shapes have truly invalid or missing parentId. Fixing...`)
           // Fix shapes with invalid parentId by assigning them to current page
           // CRITICAL: Preserve x and y coordinates when fixing parentId
           // This prevents coordinates from being reset when patches come back from Automerge
@@ -771,6 +882,7 @@ export function Board() {
       <div style={{ position: "fixed", inset: 0 }}>
         <Tldraw
         store={store.store}
+        user={user}
         shapeUtils={[...defaultShapeUtils, ...customShapeUtils]}
         tools={customTools}
         components={components}

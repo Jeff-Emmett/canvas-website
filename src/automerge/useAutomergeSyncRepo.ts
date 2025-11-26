@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useState, useCallback, useRef } from "react"
-import { TLStoreSnapshot } from "@tldraw/tldraw"
+import { TLStoreSnapshot, InstancePresenceRecordType } from "@tldraw/tldraw"
 import { CloudflareNetworkAdapter } from "./CloudflareAdapter"
 import { useAutomergeStoreV2, useAutomergePresence } from "./useAutomergeStoreV2"
 import { TLStoreWithStatus } from "@tldraw/tldraw"
@@ -35,6 +35,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
   const [isLoading, setIsLoading] = useState(true)
   const handleRef = useRef<any>(null)
   const storeRef = useRef<any>(null)
+  const adapterRef = useRef<any>(null)
   const lastSentHashRef = useRef<string | null>(null)
   const isMouseActiveRef = useRef<boolean>(false)
   const pendingSaveRef = useRef<boolean>(false)
@@ -91,17 +92,120 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
     handleRef.current = handle
   }, [handle])
   
-  // JSON sync is deprecated - all data now flows through Automerge sync protocol
-  // Old format content is converted server-side and saved to R2 in Automerge format
-  // This callback is kept for backwards compatibility but should not be used
-  const applyJsonSyncData = useCallback((_data: TLStoreSnapshot) => {
-    console.warn('⚠️ JSON sync callback called but JSON sync is deprecated. All data should flow through Automerge sync protocol.')
-    // Don't apply JSON sync - let Automerge sync handle everything
-    return
+  // JSON sync callback - receives changed records from other clients
+  // Apply to Automerge document which will emit patches to update the store
+  const applyJsonSyncData = useCallback((data: TLStoreSnapshot) => {
+    const currentHandle = handleRef.current
+    if (!currentHandle || !data?.store) {
+      console.warn('⚠️ Cannot apply JSON sync - no handle or data')
+      return
+    }
+
+    const changedRecordCount = Object.keys(data.store).length
+    console.log(`📥 Applying ${changedRecordCount} changed records from JSON sync to Automerge document`)
+
+    // Log shape dimension changes for debugging
+    Object.entries(data.store).forEach(([id, record]: [string, any]) => {
+      if (record?.typeName === 'shape' && (record.props?.w || record.props?.h)) {
+        console.log(`📥 Receiving shape update for ${record.type} ${id}:`, {
+          w: record.props.w,
+          h: record.props.h,
+          x: record.x,
+          y: record.y
+        })
+      }
+    })
+
+    // Apply changes to the Automerge document
+    // This will trigger patches which will update the TLDraw store
+    currentHandle.change((doc: any) => {
+      if (!doc.store) {
+        doc.store = {}
+      }
+      // Merge the changed records into the Automerge document
+      Object.entries(data.store).forEach(([id, record]) => {
+        doc.store[id] = record
+      })
+    })
+
+    console.log(`✅ Applied ${changedRecordCount} records to Automerge document - patches will update store`)
+  }, [])
+
+  // Presence update callback - applies presence from other clients
+  // Presence is ephemeral (cursors, selections) and goes directly to the store
+  // Note: This callback is passed to the adapter but accesses storeRef which updates later
+  const applyPresenceUpdate = useCallback((userId: string, presenceData: any, senderId?: string, userName?: string, userColor?: string) => {
+    // CRITICAL: Don't apply our own presence back to ourselves (avoid echo)
+    // Use senderId (sessionId) instead of userId since multiple users can have the same userId
+    const currentAdapter = adapterRef.current
+    const ourSessionId = currentAdapter?.sessionId
+
+    if (senderId && ourSessionId && senderId === ourSessionId) {
+      return
+    }
+
+    // Access the CURRENT store ref (not captured in closure)
+    const currentStore = storeRef.current
+
+    if (!currentStore) {
+      return
+    }
+
+    try {
+      // CRITICAL: Transform remote user's instance/pointer/page_state into a proper instance_presence record
+      // TLDraw expects instance_presence records for remote users, not their local instance records
+
+      // Extract data from the presence message
+      const pointerRecord = presenceData['pointer:pointer']
+      const pageStateRecord = presenceData['instance_page_state:page:page']
+      const instanceRecord = presenceData['instance:instance']
+
+      if (!pointerRecord) {
+        return
+      }
+
+      // Create a proper instance_presence record for this remote user
+      // Use senderId to create a unique presence ID for each session
+      const presenceId = InstancePresenceRecordType.createId(senderId || userId)
+
+      const instancePresence = InstancePresenceRecordType.create({
+        id: presenceId,
+        currentPageId: pageStateRecord?.pageId || 'page:page', // Default to main page
+        userId: userId,
+        userName: userName || userId, // Use provided userName or fall back to userId
+        color: userColor || '#000000', // Use provided color or default to black
+        cursor: {
+          x: pointerRecord.x || 0,
+          y: pointerRecord.y || 0,
+          type: pointerRecord.type || 'default',
+          rotation: pointerRecord.rotation || 0
+        },
+        chatMessage: '', // Empty by default
+        lastActivityTimestamp: Date.now()
+      })
+
+      // Apply the instance_presence record using mergeRemoteChanges for atomic updates
+      currentStore.mergeRemoteChanges(() => {
+        currentStore.put([instancePresence])
+      })
+
+      console.log(`✅ Applied instance_presence for remote user ${userId}`)
+    } catch (error) {
+      console.error('❌ Error applying presence:', error)
+    }
   }, [])
   
   const { repo, adapter } = useMemo(() => {
-    const adapter = new CloudflareNetworkAdapter(workerUrl, roomId, applyJsonSyncData)
+    const adapter = new CloudflareNetworkAdapter(
+      workerUrl,
+      roomId,
+      applyJsonSyncData,
+      applyPresenceUpdate
+    )
+
+    // Store adapter ref for use in callbacks
+    adapterRef.current = adapter
+
     const repo = new Repo({
       network: [adapter],
       // Enable sharing of all documents with all peers
@@ -114,7 +218,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
     })
 
     return { repo, adapter }
-  }, [workerUrl, roomId, applyJsonSyncData])
+  }, [workerUrl, roomId, applyJsonSyncData, applyPresenceUpdate])
 
   // Initialize Automerge document handle
   useEffect(() => {
@@ -184,65 +288,18 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
             // Continue anyway - user can still create new content
           }
 
-          console.log("Found/Created Automerge handle via Repo:", {
-            handleId: handle.documentId,
-            isReady: handle.isReady(),
-            roomId: roomId
-          })
-
-          // Wait for the handle to be ready
-          await handle.whenReady()
-
-          // Initialize document with default store if it's new/empty
-          const currentDoc = handle.doc() as any
-          if (!currentDoc || !currentDoc.store || Object.keys(currentDoc.store).length === 0) {
-            console.log("📝 Document is new/empty - initializing with default store")
-
-            // Try to load initial data from server for new documents
-            try {
-              const response = await fetch(`${workerUrl}/room/${roomId}`)
-              if (response.ok) {
-                const serverDoc = await response.json() as TLStoreSnapshot
-                const serverRecordCount = Object.keys(serverDoc.store || {}).length
-
-                if (serverDoc.store && serverRecordCount > 0) {
-                  console.log(`📥 Loading ${serverRecordCount} records from server into new document`)
-                  handle.change((doc: any) => {
-                    // Initialize store if it doesn't exist
-                    if (!doc.store) {
-                      doc.store = {}
-                    }
-                    // Copy all records from server document
-                    Object.entries(serverDoc.store).forEach(([id, record]) => {
-                      doc.store[id] = record
-                    })
-                  })
-                  console.log(`✅ Initialized Automerge document with ${serverRecordCount} records from server`)
-                } else {
-                  console.log("📥 Server document is empty - document will start empty")
-                }
-              } else if (response.status === 404) {
-                console.log("📥 No document found on server (404) - starting with empty document")
-              } else {
-                console.warn(`⚠️ Failed to load document from server: ${response.status} ${response.statusText}`)
-              }
-            } catch (error) {
-              console.error("❌ Error loading initial document from server:", error)
-              // Continue anyway - document will start empty and sync via WebSocket
-            }
-          } else {
-            const existingRecordCount = Object.keys(currentDoc.store || {}).length
-            console.log(`✅ Document already has ${existingRecordCount} records - ready to sync`)
-          }
-          
+          // Verify final document state
           const finalDoc = handle.doc() as any
           const finalStoreKeys = finalDoc?.store ? Object.keys(finalDoc.store).length : 0
           const finalShapeCount = finalDoc?.store ? Object.values(finalDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
-          
-          console.log("Automerge handle initialized:", {
+
+          console.log("✅ Automerge handle initialized and ready:", {
+            handleId: handle.documentId,
+            isReady: handle.isReady(),
             hasDoc: !!finalDoc,
             storeKeys: finalStoreKeys,
-            shapeCount: finalShapeCount
+            shapeCount: finalShapeCount,
+            roomId: roomId
           })
           
           setHandle(handle)
@@ -260,6 +317,10 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
 
     return () => {
       mounted = false
+      // Disconnect adapter on unmount to clean up WebSocket connection
+      if (adapter) {
+        adapter.disconnect?.()
+      }
     }
   }, [repo, adapter, roomId, workerUrl])
 
@@ -576,26 +637,42 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
     }
   }, [handle, roomId, workerUrl, generateDocHash])
 
+  // Generate a unique color for each user based on their userId
+  const generateUserColor = (userId: string): string => {
+    // Use a simple hash of the userId to generate a consistent color
+    let hash = 0
+    for (let i = 0; i < userId.length; i++) {
+      hash = userId.charCodeAt(i) + ((hash << 5) - hash)
+    }
+
+    // Generate a vibrant color using HSL (hue varies, saturation and lightness fixed for visibility)
+    const hue = hash % 360
+    return `hsl(${hue}, 70%, 50%)`
+  }
+
   // Get user metadata for presence
   const userMetadata: { userId: string; name: string; color: string } = (() => {
     if (user && 'userId' in user) {
+      const uid = (user as { userId: string; name: string; color?: string }).userId
       return {
-        userId: (user as { userId: string; name: string; color?: string }).userId,
+        userId: uid,
         name: (user as { userId: string; name: string; color?: string }).name,
-        color: (user as { userId: string; name: string; color?: string }).color || '#000000'
+        color: (user as { userId: string; name: string; color?: string }).color || generateUserColor(uid)
       }
     }
+    const uid = user?.id || 'anonymous'
     return {
-      userId: user?.id || 'anonymous',
+      userId: uid,
       name: user?.name || 'Anonymous',
-      color: '#000000'
+      color: generateUserColor(uid)
     }
   })()
   
   // Use useAutomergeStoreV2 to create a proper TLStore instance that syncs with Automerge
   const storeWithStatus = useAutomergeStoreV2({
     handle: handle || null as any,
-    userId: userMetadata.userId
+    userId: userMetadata.userId,
+    adapter: adapter // Pass adapter for JSON sync broadcasting
   })
   
   // Update store ref when store is available
@@ -609,7 +686,8 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
   const presence = useAutomergePresence({
     handle: handle || null,
     store: storeWithStatus.store || null,
-    userMetadata
+    userMetadata,
+    adapter: adapter // Pass adapter for presence broadcasting
   })
 
   return {

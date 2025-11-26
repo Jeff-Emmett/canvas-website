@@ -51,11 +51,11 @@ export class TerminalHandler {
         ws.send(JSON.stringify(message));
       };
 
-      terminal.onData(onData);
+      const dataListener = terminal.onData(onData);
 
       // Clean up on disconnect
       ws.on('close', () => {
-        terminal.off('data', onData);
+        dataListener.dispose();
         this.handleDisconnect(clientId);
       });
     }

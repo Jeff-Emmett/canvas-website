@@ -6,12 +6,13 @@ import {
   RecordsDiff,
 } from "@tldraw/tldraw"
 import { createTLSchema, defaultBindingSchemas, defaultShapeSchemas } from "@tldraw/tlschema"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { DocHandle, DocHandleChangePayload } from "@automerge/automerge-repo"
 import {
   useLocalAwareness,
   useRemoteAwareness,
 } from "@automerge/automerge-repo-react-hooks"
+import throttle from "lodash.throttle"
 
 import { applyAutomergePatchesToTLStore, sanitizeRecord } from "./AutomergeToTLStore.js"
 import { applyTLStoreChangesToAutomerge } from "./TLStoreToAutomerge.js"
@@ -128,11 +129,13 @@ import { FathomMeetingsBrowserShape } from "@/shapes/FathomMeetingsBrowserShapeU
 export function useAutomergeStoreV2({
   handle,
   userId: _userId,
+  adapter,
 }: {
   handle: DocHandle<any>
   userId: string
+  adapter?: any
 }): TLStoreWithStatus {
-  console.log("useAutomergeStoreV2 called with handle:", !!handle)
+  console.log("useAutomergeStoreV2 called with handle:", !!handle, "adapter:", !!adapter)
   
   // Create a custom schema that includes all the custom shapes
   const customSchema = createTLSchema({
@@ -202,67 +205,46 @@ export function useAutomergeStoreV2({
 
     const unsubs: (() => void)[] = []
 
-    // A hacky workaround to prevent local changes from being applied twice
-    // once into the automerge doc and then back again.
+    // Track local changes to prevent echoing them back
+    // Simple boolean flag: set to true when making local changes,
+    // then reset on the NEXT Automerge change event (which is the echo)
     let isLocalChange = false
 
-    // Helper function to manually trigger sync after document changes
-    // The Automerge Repo doesn't auto-broadcast because our WebSocket setup doesn't use peer discovery
-    const triggerSync = () => {
-      try {
-        console.log('🔄 triggerSync() called')
-        const repo = (handle as any).repo
-        console.log('🔍 repo:', !!repo, 'handle:', !!handle, 'documentId:', handle?.documentId)
+    // Helper function to broadcast changes via JSON sync
+    // DISABLED: This causes last-write-wins conflicts
+    // Automerge should handle sync automatically via binary protocol
+    // We're keeping this function but disabling all actual broadcasting
+    const broadcastJsonSync = (changedRecords: any[]) => {
+      // TEMPORARY FIX: Manually broadcast changes via WebSocket since Automerge Repo sync isn't working
+      // This sends the full changed records as JSON to other clients
+      // TODO: Fix Automerge Repo's binary sync protocol to work properly
 
-        if (repo) {
-          console.log('🔍 repo.networkSubsystem:', !!repo.networkSubsystem)
-          console.log('🔍 repo.networkSubsystem.syncDoc:', typeof repo.networkSubsystem?.syncDoc)
-          console.log('🔍 repo.networkSubsystem.adapters:', !!repo.networkSubsystem?.adapters)
+      if (!changedRecords || changedRecords.length === 0) {
+        return
+      }
 
-          // Try multiple approaches to trigger sync
+      console.log(`📤 Broadcasting ${changedRecords.length} changed records via manual JSON sync`)
 
-          // Approach 1: Use networkSubsystem.syncDoc if available
-          if (repo.networkSubsystem && typeof repo.networkSubsystem.syncDoc === 'function') {
-            console.log('🔄 Triggering sync via networkSubsystem.syncDoc()')
-            repo.networkSubsystem.syncDoc(handle.documentId)
-          }
-          // Approach 2: Broadcast to all network adapters directly
-          else if (repo.networkSubsystem && repo.networkSubsystem.adapters) {
-            console.log('🔄 Broadcasting sync to all network adapters')
-            const adapters = Array.from(repo.networkSubsystem.adapters.values())
-            console.log('🔍 Found adapters:', adapters.length)
-            adapters.forEach((adapter: any) => {
-              console.log('🔍 Adapter has send:', typeof adapter?.send)
-              if (adapter && typeof adapter.send === 'function') {
-                // Send a sync message via the adapter
-                // The adapter should handle converting this to the right format
-                console.log('📤 Sending sync via adapter')
-                adapter.send({
-                  type: 'sync',
-                  documentId: handle.documentId,
-                  data: handle.doc()
-                })
-              }
-            })
-          }
-          // Approach 3: Emit an event to trigger sync
-          else if (repo.emit && typeof repo.emit === 'function') {
-            console.log('🔄 Emitting document change event')
-            repo.emit('change', { documentId: handle.documentId, doc: handle.doc() })
-          }
-          else {
-            console.warn('⚠️ No known method to trigger sync broadcast found')
-          }
-        } else {
-          console.warn('⚠️ No repo found on handle')
-        }
-      } catch (error) {
-        console.error('❌ Error triggering manual sync:', error)
+      if (adapter && typeof (adapter as any).send === 'function') {
+        // Send changes to other clients via the network adapter
+        (adapter as any).send({
+          type: 'sync',
+          data: {
+            store: Object.fromEntries(changedRecords.map(r => [r.id, r]))
+          },
+          documentId: handle?.documentId,
+          timestamp: Date.now()
+        })
+      } else {
+        console.warn('⚠️ Cannot broadcast - adapter not available')
       }
     }
 
     // Listen for changes from Automerge and apply them to TLDraw
     const automergeChangeHandler = (payload: DocHandleChangePayload<any>) => {
+      // Skip the immediate echo of our own local changes
+      // This flag is set when we update Automerge from TLDraw changes
+      // and gets reset after skipping one change event (the echo)
       if (isLocalChange) {
         isLocalChange = false
         return
@@ -449,7 +431,7 @@ export function useAutomergeStoreV2({
     // Throttle position-only updates (x/y changes) to reduce automerge saves during movement
     let positionUpdateQueue: RecordsDiff<TLRecord> | null = null
     let positionUpdateTimeout: NodeJS.Timeout | null = null
-    const POSITION_UPDATE_THROTTLE_MS = 1000 // Save position updates every 1 second
+    const POSITION_UPDATE_THROTTLE_MS = 100 // Save position updates every 100ms for real-time feel
     
     const flushPositionUpdates = () => {
       if (positionUpdateQueue && handle) {
@@ -464,13 +446,14 @@ export function useAutomergeStoreV2({
               applyTLStoreChangesToAutomerge(doc, queuedChanges)
             })
             // Trigger sync to broadcast position updates
-            triggerSync()
-            setTimeout(() => {
-              isLocalChange = false
-            }, 100)
+            const changedRecords = [
+              ...Object.values(queuedChanges.added || {}),
+              ...Object.values(queuedChanges.updated || {}),
+              ...Object.values(queuedChanges.removed || {})
+            ]
+            broadcastJsonSync(changedRecords)
           } catch (error) {
             console.error("Error applying throttled position updates to Automerge:", error)
-            isLocalChange = false
           }
         })
       }
@@ -855,7 +838,14 @@ export function useAutomergeStoreV2({
       if (filteredTotalChanges === 0) {
         return
       }
-      
+
+      // CRITICAL: Skip broadcasting changes that came from remote sources to prevent feedback loops
+      // Only broadcast changes that originated from user interactions (source === 'user')
+      if (source === 'remote') {
+        console.log('🔄 Skipping broadcast for remote change to prevent feedback loop')
+        return
+      }
+
       // CRITICAL: Filter out x/y coordinate changes for pinned-to-view shapes
       // When a shape is pinned, its x/y coordinates change to stay in the same screen position,
       // but we want to keep the original coordinates static in Automerge
@@ -989,7 +979,39 @@ export function useAutomergeStoreV2({
       
       // Check if this is a position-only update that should be throttled
       const isPositionOnly = isPositionOnlyUpdate(finalFilteredChanges)
-      
+
+      // Log what type of change this is for debugging
+      const changeType = Object.keys(finalFilteredChanges.added || {}).length > 0 ? 'added' :
+                         Object.keys(finalFilteredChanges.removed || {}).length > 0 ? 'removed' :
+                         isPositionOnly ? 'position-only' : 'property-change'
+
+      // DEBUG: Log dimension changes for shapes
+      if (finalFilteredChanges.updated) {
+        Object.entries(finalFilteredChanges.updated).forEach(([id, recordTuple]: [string, any]) => {
+          const isTuple = Array.isArray(recordTuple) && recordTuple.length === 2
+          const oldRecord = isTuple ? recordTuple[0] : null
+          const newRecord = isTuple ? recordTuple[1] : recordTuple
+          if (newRecord?.typeName === 'shape') {
+            const oldProps = oldRecord?.props || {}
+            const newProps = newRecord?.props || {}
+            if (oldProps.w !== newProps.w || oldProps.h !== newProps.h) {
+              console.log(`🔍 Shape dimension change detected for ${newRecord.type} ${id}:`, {
+                oldDims: { w: oldProps.w, h: oldProps.h },
+                newDims: { w: newProps.w, h: newProps.h },
+                source
+              })
+            }
+          }
+        })
+      }
+
+      console.log(`🔍 Change detected: ${changeType}, will ${isPositionOnly ? 'throttle' : 'broadcast immediately'}`, {
+        added: Object.keys(finalFilteredChanges.added || {}).length,
+        updated: Object.keys(finalFilteredChanges.updated || {}).length,
+        removed: Object.keys(finalFilteredChanges.removed || {}).length,
+        source
+      })
+
       if (isPositionOnly && positionUpdateQueue === null) {
         // Start a new queue for position updates
         positionUpdateQueue = finalFilteredChanges
@@ -1046,9 +1068,9 @@ export function useAutomergeStoreV2({
         if (positionUpdateQueue) {
           flushPositionUpdates()
         }
-        
+
         // CRITICAL: Don't skip changes - always save them to ensure consistency
-        // The isLocalChange flag is only used to prevent feedback loops from Automerge changes
+        // The local change timestamp is only used to prevent immediate feedback loops
         // We should always save TLDraw changes, even if they came from Automerge sync
         // This ensures that all shapes (notes, rectangles, etc.) are consistently persisted
         
@@ -1106,13 +1128,14 @@ export function useAutomergeStoreV2({
                       applyTLStoreChangesToAutomerge(doc, queuedChanges)
                     })
                     // Trigger sync to broadcast eraser changes
-                    triggerSync()
-                    setTimeout(() => {
-                      isLocalChange = false
-                    }, 100)
+                    const changedRecords = [
+                      ...Object.values(queuedChanges.added || {}),
+                      ...Object.values(queuedChanges.updated || {}),
+                      ...Object.values(queuedChanges.removed || {})
+                    ]
+                    broadcastJsonSync(changedRecords)
                   } catch (error) {
                     console.error('❌ Error applying queued eraser changes:', error)
-                    isLocalChange = false
                   }
                 }
               }, 50) // Check every 50ms for faster response
@@ -1136,17 +1159,19 @@ export function useAutomergeStoreV2({
                 updated: { ...(queuedChanges.updated || {}), ...(finalFilteredChanges.updated || {}) },
                 removed: { ...(queuedChanges.removed || {}), ...(finalFilteredChanges.removed || {}) }
               }
-              
+
               requestAnimationFrame(() => {
                 isLocalChange = true
                 handle.change((doc) => {
                   applyTLStoreChangesToAutomerge(doc, mergedChanges)
                 })
                 // Trigger sync to broadcast merged changes
-                triggerSync()
-                setTimeout(() => {
-                  isLocalChange = false
-                }, 100)
+                const changedRecords = [
+                  ...Object.values(mergedChanges.added || {}),
+                  ...Object.values(mergedChanges.updated || {}),
+                  ...Object.values(mergedChanges.removed || {})
+                ]
+                broadcastJsonSync(changedRecords)
               })
               
               return
@@ -1154,22 +1179,21 @@ export function useAutomergeStoreV2({
             // OPTIMIZED: Use requestIdleCallback to defer Automerge changes when browser is idle
             // This prevents blocking mouse interactions without queuing changes
             const applyChanges = () => {
-              // Set flag to prevent feedback loop when this change comes back from Automerge
+              // Mark to prevent feedback loop when this change comes back from Automerge
               isLocalChange = true
 
               handle.change((doc) => {
                 applyTLStoreChangesToAutomerge(doc, finalFilteredChanges)
               })
 
-              // CRITICAL: Manually trigger Automerge Repo to broadcast changes
+              // CRITICAL: Manually trigger JSON sync broadcast to other clients
               // Use requestAnimationFrame to defer this slightly so the change is fully processed
-              requestAnimationFrame(triggerSync)
-
-              // Reset flag after a short delay to allow Automerge change handler to process
-              // This prevents feedback loops while ensuring all changes are saved
-              setTimeout(() => {
-                isLocalChange = false
-              }, 100)
+              const changedRecords = [
+                ...Object.values(finalFilteredChanges.added || {}),
+                ...Object.values(finalFilteredChanges.updated || {}),
+                ...Object.values(finalFilteredChanges.removed || {})
+              ]
+              requestAnimationFrame(() => broadcastJsonSync(changedRecords))
             }
             
             // Use requestIdleCallback if available to apply changes when browser is idle
@@ -1192,8 +1216,6 @@ export function useAutomergeStoreV2({
           const docAfter = handle.doc()
         } catch (error) {
           console.error("Error applying TLDraw changes to Automerge:", error)
-          // Reset flag on error to prevent getting stuck
-          isLocalChange = false
         }
       }
     }, {
@@ -1229,9 +1251,6 @@ export function useAutomergeStoreV2({
             handle.change((doc) => {
               applyTLStoreChangesToAutomerge(doc, queuedChanges)
             })
-            setTimeout(() => {
-              isLocalChange = false
-            }, 100)
           }
         }
       }
@@ -1403,23 +1422,73 @@ export function useAutomergePresence(params: {
     name: string
     color: string
   }
+  adapter?: any
 }) {
-  const { handle, store, userMetadata } = params
-  
-  // Simple presence implementation
-  useEffect(() => {
-    if (!handle || !store) return
+  const { handle, store, userMetadata, adapter } = params
+  const presenceRef = useRef<Map<string, any>>(new Map())
 
-    const updatePresence = () => {
-      // Basic presence update logic
-      console.log("Updating presence for user:", userMetadata.userId)
+  // Broadcast local presence to other clients
+  useEffect(() => {
+    if (!handle || !store || !adapter) {
+      return
     }
 
-    updatePresence()
-  }, [handle, store, userMetadata])
+    // Listen for changes to instance_presence records in the store
+    // These represent user cursors, selections, etc.
+    const handleStoreChange = () => {
+      if (!store) return
+
+      const allRecords = store.allRecords()
+
+      // Filter for ALL presence-related records
+      // instance_presence: Contains user cursor, name, color - THIS IS WHAT WE NEED!
+      // instance_page_state: Contains selections, editing state
+      // pointer: Contains pointer position
+      const presenceRecords = allRecords.filter((r: any) => {
+        const isPresenceType = r.typeName === 'instance_presence' ||
+                               r.typeName === 'instance_page_state' ||
+                               r.typeName === 'pointer'
+
+        const hasPresenceId = r.id?.startsWith('instance_presence:') ||
+                              r.id?.startsWith('instance_page_state:') ||
+                              r.id?.startsWith('pointer:')
+
+        return isPresenceType || hasPresenceId
+      })
+
+      if (presenceRecords.length > 0) {
+        // Send presence update via WebSocket
+        try {
+          const presenceData: any = {}
+          presenceRecords.forEach((record: any) => {
+            presenceData[record.id] = record
+          })
+
+          adapter.send({
+            type: 'presence',
+            userId: userMetadata.userId,
+            userName: userMetadata.name,
+            userColor: userMetadata.color,
+            data: presenceData
+          })
+        } catch (error) {
+          console.error('Error broadcasting presence:', error)
+        }
+      }
+    }
+
+    // Throttle presence updates to avoid overwhelming the network
+    const throttledUpdate = throttle(handleStoreChange, 100)
+
+    const unsubscribe = store.listen(throttledUpdate, { scope: 'all' })
+
+    return () => {
+      unsubscribe()
+    }
+  }, [handle, store, userMetadata, adapter])
 
   return {
     updatePresence: () => {},
-    presence: {},
+    presence: presenceRef.current,
   }
 }
