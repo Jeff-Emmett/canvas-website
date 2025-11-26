@@ -6,8 +6,20 @@ import {
   TLBaseShape,
 } from "tldraw"
 import React, { useState } from "react"
-import { aiOrchestrator, isAIOrchestratorAvailable } from "@/lib/aiOrchestrator"
+import { getRunPodVideoConfig } from "@/lib/clientConfig"
 import { StandardizedToolWrapper } from "@/components/StandardizedToolWrapper"
+
+// Type for RunPod job response
+interface RunPodJobResponse {
+  id?: string
+  status?: 'IN_QUEUE' | 'IN_PROGRESS' | 'STARTING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
+  output?: {
+    video_url?: string
+    url?: string
+    [key: string]: any
+  } | string
+  error?: string
+}
 
 type IVideoGen = TLBaseShape<
   "VideoGen",
@@ -66,6 +78,13 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
         return
       }
 
+      // Check RunPod config
+      const runpodConfig = getRunPodVideoConfig()
+      if (!runpodConfig) {
+        setError("RunPod video endpoint not configured. Please set VITE_RUNPOD_API_KEY and VITE_RUNPOD_VIDEO_ENDPOINT_ID in your .env file.")
+        return
+      }
+
       console.log('🎬 VideoGen: Starting generation with prompt:', prompt)
       setIsGenerating(true)
       setError(null)
@@ -78,53 +97,105 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
       })
 
       try {
-        // Check if AI Orchestrator is available
-        const orchestratorAvailable = await isAIOrchestratorAvailable()
+        const { apiKey, endpointId } = runpodConfig
 
-        if (orchestratorAvailable) {
-          console.log('🎬 VideoGen: Using AI Orchestrator for video generation')
+        // Submit job to RunPod
+        console.log('🎬 VideoGen: Submitting to RunPod endpoint:', endpointId)
+        const runUrl = `https://api.runpod.ai/v2/${endpointId}/run`
 
-          // Use AI Orchestrator (always routes to RunPod for video)
-          const job = await aiOrchestrator.generateVideo(prompt, {
-            model: shape.props.model,
-            duration: shape.props.duration,
-            wait: true // Wait for completion
+        const response = await fetch(runUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            input: {
+              prompt: prompt,
+              duration: shape.props.duration,
+              model: shape.props.model
+            }
+          })
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          throw new Error(`RunPod API error: ${response.status} - ${errorText}`)
+        }
+
+        const jobData = await response.json() as RunPodJobResponse
+        console.log('🎬 VideoGen: Job submitted:', jobData.id)
+
+        if (!jobData.id) {
+          throw new Error('No job ID returned from RunPod')
+        }
+
+        // Poll for completion
+        const statusUrl = `https://api.runpod.ai/v2/${endpointId}/status/${jobData.id}`
+        let attempts = 0
+        const maxAttempts = 120 // 4 minutes with 2s intervals (video can take a while)
+
+        while (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 2000))
+          attempts++
+
+          const statusResponse = await fetch(statusUrl, {
+            headers: { 'Authorization': `Bearer ${apiKey}` }
           })
 
-          if (job.status === 'completed' && job.result?.video_url) {
-            const url = job.result.video_url
-            console.log('✅ VideoGen: Generation complete, URL:', url)
-            console.log(`💰 VideoGen: Cost: $${job.cost?.toFixed(4) || '0.00'}`)
-
-            setVideoUrl(url)
-            setIsGenerating(false)
-
-            // Update shape with video URL
-            this.editor.updateShape({
-              id: shape.id,
-              type: shape.type,
-              props: {
-                ...shape.props,
-                videoUrl: url,
-                isLoading: false,
-                prompt: prompt
-              }
-            })
-          } else {
-            throw new Error('Video generation job did not return a video URL')
+          if (!statusResponse.ok) {
+            console.warn(`🎬 VideoGen: Poll error (attempt ${attempts}):`, statusResponse.status)
+            continue
           }
-        } else {
-          throw new Error(
-            'AI Orchestrator not available. Please configure VITE_AI_ORCHESTRATOR_URL or set up the orchestrator on your Netcup RS 8000 server.'
-          )
+
+          const statusData = await statusResponse.json() as RunPodJobResponse
+          console.log(`🎬 VideoGen: Poll ${attempts}/${maxAttempts}, status:`, statusData.status)
+
+          if (statusData.status === 'COMPLETED') {
+            // Extract video URL from output
+            let url = ''
+            if (typeof statusData.output === 'string') {
+              url = statusData.output
+            } else if (statusData.output?.video_url) {
+              url = statusData.output.video_url
+            } else if (statusData.output?.url) {
+              url = statusData.output.url
+            }
+
+            if (url) {
+              console.log('✅ VideoGen: Generation complete, URL:', url)
+              setVideoUrl(url)
+              setIsGenerating(false)
+
+              this.editor.updateShape({
+                id: shape.id,
+                type: shape.type,
+                props: {
+                  ...shape.props,
+                  videoUrl: url,
+                  isLoading: false,
+                  prompt: prompt
+                }
+              })
+              return
+            } else {
+              console.log('⚠️ VideoGen: Completed but no video URL in output:', statusData.output)
+              throw new Error('Video generation completed but no video URL returned')
+            }
+          } else if (statusData.status === 'FAILED') {
+            throw new Error(statusData.error || 'Video generation failed')
+          } else if (statusData.status === 'CANCELLED') {
+            throw new Error('Video generation was cancelled')
+          }
         }
+
+        throw new Error('Video generation timed out after 4 minutes')
       } catch (error: any) {
         const errorMessage = error.message || 'Unknown error during video generation'
         console.error('❌ VideoGen: Generation error:', errorMessage)
         setError(errorMessage)
         setIsGenerating(false)
 
-        // Update shape with error
         this.editor.updateShape({
           id: shape.id,
           type: shape.type,
