@@ -1,9 +1,7 @@
-import { BaseBoxShapeUtil, TLBaseShape } from "tldraw"
+import { BaseBoxShapeUtil, TLBaseShape, HTMLContainer } from "tldraw"
 import { useCallback, useState } from "react"
-//import Embed from "react-embed"
-
-
-//TODO: FIX PEN AND MOBILE INTERACTION WITH EDITING EMBED URL - DEFAULT TO TEXT SELECTED
+import { StandardizedToolWrapper } from "../components/StandardizedToolWrapper"
+import { usePinnedToView } from "../hooks/usePinnedToView"
 
 export type IEmbedShape = TLBaseShape<
   "Embed",
@@ -11,11 +9,11 @@ export type IEmbedShape = TLBaseShape<
     w: number
     h: number
     url: string | null
-    isMinimized?: boolean
+    pinnedToView: boolean
+    tags: string[]
     interactionState?: {
       scrollPosition?: { x: number; y: number }
-      currentTime?: number // for videos
-      // other state you want to sync
+      currentTime?: number
     }
   }
 >
@@ -31,12 +29,10 @@ const transformUrl = (url: string): string => {
 
   // Google Maps
   if (url.includes("google.com/maps") || url.includes("goo.gl/maps")) {
-    // If it's already an embed URL, return as is
     if (url.includes("google.com/maps/embed")) {
       return url
     }
 
-    // Handle directions
     const directionsMatch = url.match(/dir\/([^\/]+)\/([^\/]+)/)
     if (directionsMatch || url.includes("/dir/")) {
       const origin = url.match(/origin=([^&]+)/)?.[1] || directionsMatch?.[1]
@@ -52,13 +48,11 @@ const transformUrl = (url: string): string => {
       }
     }
 
-    // Extract place ID
     const placeMatch = url.match(/[?&]place_id=([^&]+)/)
     if (placeMatch) {
       return `https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2!2d0!3d0!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s${placeMatch[1]}!2s!5e0!3m2!1sen!2s!4v1`
     }
 
-    // For all other map URLs
     return `https://www.google.com/maps/embed/v1/place?key=${
       import.meta.env.VITE_GOOGLE_MAPS_API_KEY
     }&q=${encodeURIComponent(url)}`
@@ -71,15 +65,13 @@ const transformUrl = (url: string): string => {
   if (xMatch) {
     const [, username, tweetId] = xMatch
     if (tweetId) {
-      // For tweets
       return `https://platform.x.com/embed/Tweet.html?id=${tweetId}`
     } else {
-      // For profiles, return about:blank and handle display separately
       return "about:blank"
     }
   }
 
-  // Medium - return about:blank to prevent iframe loading
+  // Medium - return about:blank
   if (url.includes("medium.com")) {
     return "about:blank"
   }
@@ -93,29 +85,24 @@ const transformUrl = (url: string): string => {
 }
 
 const getDefaultDimensions = (url: string): { w: number; h: number } => {
-  // YouTube default dimensions (16:9 ratio)
   if (url.match(/(?:youtube\.com|youtu\.be)/)) {
     return { w: 800, h: 450 }
   }
 
-  // Twitter/X default dimensions
   if (url.match(/(?:twitter\.com|x\.com)/)) {
     if (url.match(/\/status\/|\/tweets\//)) {
-      return { w: 800, h: 600 } // For individual tweets
+      return { w: 800, h: 600 }
     }
   }
 
-  // Google Maps default dimensions
   if (url.includes("google.com/maps") || url.includes("goo.gl/maps")) {
     return { w: 800, h: 600 }
   }
 
-  // Gather.town default dimensions
   if (url.includes("gather.town")) {
     return { w: 800, h: 600 }
   }
 
-  // Default dimensions for other embeds
   return { w: 800, h: 600 }
 }
 
@@ -124,14 +111,13 @@ const getFaviconUrl = (url: string): string => {
     const urlObj = new URL(url)
     return `https://www.google.com/s2/favicons?domain=${urlObj.hostname}&sz=32`
   } catch {
-    return '' // Return empty if URL is invalid
+    return ''
   }
 }
 
 const getDisplayTitle = (url: string): string => {
   try {
     const urlObj = new URL(url)
-    // Handle special cases
     if (urlObj.hostname.includes('youtube.com')) {
       return 'YouTube'
     }
@@ -141,48 +127,70 @@ const getDisplayTitle = (url: string): string => {
     if (urlObj.hostname.includes('google.com/maps')) {
       return 'Google Maps'
     }
-    // Default: return clean hostname
     return urlObj.hostname.replace('www.', '')
   } catch {
-    return url // Return original URL if parsing fails
+    return url
   }
 }
 
 export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
   static override type = "Embed"
 
+  // Embed theme color: Yellow (Rainbow)
+  static readonly PRIMARY_COLOR = "#eab308"
+
   getDefaultProps(): IEmbedShape["props"] {
     return {
       url: null,
       w: 800,
       h: 600,
-      isMinimized: false,
+      pinnedToView: false,
+      tags: ['embed'],
     }
   }
 
   indicator(shape: IEmbedShape) {
     return (
-      <rect 
-        x={0} 
-        y={0} 
-        width={shape.props.w} 
-        height={shape.props.isMinimized ? 40 : shape.props.h}
+      <rect
+        x={0}
+        y={0}
+        width={shape.props.w}
+        height={shape.props.h}
         fill="none"
       />
     )
   }
 
   component(shape: IEmbedShape) {
-    // Ensure shape props exist with defaults
     const props = shape.props || {}
     const url = props.url || ""
-    const isMinimized = props.isMinimized || false
-    
+    const [isMinimized, setIsMinimized] = useState(false)
     const isSelected = this.editor.getSelectedShapeIds().includes(shape.id)
-    
+
     const [inputUrl, setInputUrl] = useState(url)
     const [error, setError] = useState("")
-    const [copyStatus, setCopyStatus] = useState(false)
+
+    // Use the pinning hook
+    usePinnedToView(this.editor, shape.id, shape.props.pinnedToView)
+
+    const handleClose = () => {
+      this.editor.deleteShape(shape.id)
+    }
+
+    const handleMinimize = () => {
+      setIsMinimized(!isMinimized)
+    }
+
+    const handlePinToggle = () => {
+      this.editor.updateShape<IEmbedShape>({
+        id: shape.id,
+        type: shape.type,
+        props: {
+          ...shape.props,
+          pinnedToView: !shape.props.pinnedToView,
+        },
+      })
+    }
 
     const handleSubmit = useCallback(
       (e: React.FormEvent) => {
@@ -192,7 +200,6 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
             ? inputUrl
             : `https://${inputUrl}`
 
-        // Basic URL validation
         const isValidUrl = completedUrl.match(/(^\w+:|^)\/\//)
         if (!isValidUrl) {
           setError("Invalid URL")
@@ -222,352 +229,268 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
       })
     }
 
-    const contentStyle = {
-      pointerEvents: isSelected ? "none" as const : "all" as const,
-      width: "100%",
-      height: "100%",
-      border: "1px solid #D3D3D3",
-      backgroundColor: "#FFFFFF",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      overflow: "hidden",
-    }
-
-    const wrapperStyle = {
-      position: 'relative' as const,
-      width: `${shape.props.w}px`,
-      height: `${shape.props.isMinimized ? 40 : shape.props.h}px`,
-      backgroundColor: "#F0F0F0",
-      borderRadius: "4px",
-      transition: "height 0.3s, width 0.3s",
-      overflow: "hidden",
-    }
-
-    // Update control button styles
-    const controlButtonStyle = {
-      border: "none",
-      background: "#666666", // Grey background
-      color: "white", // White text
-      padding: "4px 12px",
-      margin: "0 4px",
-      borderRadius: "4px",
-      cursor: "pointer",
-      fontSize: "12px",
-      pointerEvents: "all" as const,
-      whiteSpace: "nowrap" as const,
-      transition: "background-color 0.2s",
-      "&:hover": {
-        background: "#4D4D4D", // Darker grey on hover
-      }
-    }
-
-    const controlsContainerStyle = {
-      position: "absolute" as const,
-      top: "8px",
-      right: "8px",
-      display: "flex",
-      gap: "8px",
-      zIndex: 1,
-    }
-
-    const handleToggleMinimize = (e: React.MouseEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      this.editor.updateShape<IEmbedShape>({
-        id: shape.id,
-        type: "Embed",
-        props: {
-          ...shape.props,
-          isMinimized: !shape.props.isMinimized,
-        },
-      })
-    }
-
-    const controls = (url: string) => (
-      <div style={controlsContainerStyle}>
-        <button
-          onClick={() => navigator.clipboard.writeText(url)}
-          style={controlButtonStyle}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          Copy Link
-        </button>
-        <button
-          onClick={() => window.open(url, '_blank')}
-          style={controlButtonStyle}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          Open in Tab
-        </button>
-        <button
-          onClick={handleToggleMinimize}
-          style={controlButtonStyle}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          {shape.props.isMinimized ? "Maximize" : "Minimize"}
-        </button>
+    // Custom header content with URL info
+    const headerContent = url ? (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, overflow: 'hidden' }}>
+        <img
+          src={getFaviconUrl(url)}
+          alt=""
+          style={{
+            width: "16px",
+            height: "16px",
+            flexShrink: 0,
+          }}
+          onError={(e) => {
+            (e.target as HTMLImageElement).style.display = 'none'
+          }}
+        />
+        <span style={{
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          fontSize: '13px',
+          fontWeight: 600
+        }}>
+          {getDisplayTitle(url)}
+        </span>
       </div>
+    ) : (
+      <span>Embed</span>
     )
 
-    // For minimized state, show URL and all controls
-    if (shape.props.url && shape.props.isMinimized) {
+    // For empty state - URL input form
+    if (!url) {
       return (
-        <div style={wrapperStyle}>
-          <div
-            style={{
-              ...contentStyle,
-              height: "40px",
-              alignItems: "center",
-              padding: "0 15px",
-              position: "relative",
-              display: "flex",
-              gap: "8px",
+        <HTMLContainer style={{ width: shape.props.w, height: shape.props.h }}>
+          <StandardizedToolWrapper
+            title="Embed"
+            primaryColor={EmbedShape.PRIMARY_COLOR}
+            isSelected={isSelected}
+            width={shape.props.w}
+            height={shape.props.h}
+            onClose={handleClose}
+            onMinimize={handleMinimize}
+            isMinimized={isMinimized}
+            editor={this.editor}
+            shapeId={shape.id}
+            isPinnedToView={shape.props.pinnedToView}
+            onPinToggle={handlePinToggle}
+            tags={shape.props.tags}
+            onTagsChange={(newTags) => {
+              this.editor.updateShape<IEmbedShape>({
+                id: shape.id,
+                type: 'Embed',
+                props: {
+                  ...shape.props,
+                  tags: newTags,
+                }
+              })
             }}
+            tagsEditable={true}
           >
-            <img 
-              src={getFaviconUrl(shape.props.url)}
-              alt=""
-              style={{
-                width: "16px",
-                height: "16px",
-                flexShrink: 0,
-              }}
-              onError={(e) => {
-                // Hide broken favicon
-                (e.target as HTMLImageElement).style.display = 'none'
-              }}
-            />
             <div
               style={{
-                display: "flex",
-                flexDirection: "column",
-                overflow: "hidden",
-                flex: 1,
-              }}
-            >
-              <span
-                style={{
-                  fontWeight: 500,
-                  color: "#333",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {getDisplayTitle(shape.props.url)}
-              </span>
-              <span
-                style={{
-                  fontSize: "11px",
-                  color: "#666",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {shape.props.url}
-              </span>
-            </div>
-            {controls(shape.props.url)}
-          </div>
-        </div>
-      )
-    }
-
-    // For empty state
-    if (!shape.props.url) {
-      return (
-        <div style={wrapperStyle}>
-          {controls("")}
-          <div 
-            style={{
-              ...contentStyle,
-              cursor: 'text',  // Add text cursor to indicate clickable
-              touchAction: 'none', // Prevent touch scrolling
-            }}
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              const input = e.currentTarget.querySelector('input')
-              input?.focus()
-            }}
-          >
-            <form
-              onSubmit={handleSubmit}
-              style={{ 
-                width: "100%", 
-                height: "100%", 
-                padding: "10px",
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'center',
+                alignItems: 'center',
+                height: '100%',
+                padding: '20px',
+                cursor: 'text',
               }}
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                const input = e.currentTarget.querySelector('input')
+                input?.focus()
+              }}
             >
-              <input
-                type="text"
-                value={inputUrl}
-                onChange={(e) => setInputUrl(e.target.value)}
-                placeholder="Enter URL to embed"
+              <form
+                onSubmit={handleSubmit}
                 style={{
                   width: "100%",
-                  padding: "15px",  // Increased padding for better touch target
-                  border: "1px solid #ccc",
-                  borderRadius: "4px",
-                  fontSize: "16px",  // Increased font size for better visibility
-                  touchAction: 'none',
+                  maxWidth: "500px",
                 }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    handleSubmit(e)
-                  }
-                }}
-                onPointerDown={(e) => {
-                  e.stopPropagation()
-                  e.currentTarget.focus()
-                }}
-              />
-              {error && (
-                <div style={{ color: "red", marginTop: "10px" }}>{error}</div>
-              )}
-            </form>
-          </div>
-        </div>
+                onClick={(e) => e.stopPropagation()}
+              >
+                <input
+                  type="text"
+                  value={inputUrl}
+                  onChange={(e) => setInputUrl(e.target.value)}
+                  placeholder="Enter URL to embed..."
+                  style={{
+                    width: "100%",
+                    padding: "15px",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    fontSize: "16px",
+                    touchAction: 'manipulation',
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleSubmit(e)
+                    }
+                  }}
+                  onPointerDown={(e) => {
+                    e.stopPropagation()
+                    e.currentTarget.focus()
+                  }}
+                />
+                {error && (
+                  <div style={{ color: "red", marginTop: "10px", textAlign: 'center' }}>{error}</div>
+                )}
+              </form>
+            </div>
+          </StandardizedToolWrapper>
+        </HTMLContainer>
       )
     }
 
     // For medium.com and twitter profile views
-    if (shape.props.url?.includes("medium.com") || 
-        (shape.props.url && shape.props.url.match(/(?:twitter\.com|x\.com)\/[^\/]+$/))) {
+    if (url.includes("medium.com") ||
+        (url && url.match(/(?:twitter\.com|x\.com)\/[^\/]+$/))) {
       return (
-        <div style={wrapperStyle}>
-          {controls(shape.props.url)}
-          <div
-            style={{
-              ...contentStyle,
-              flexDirection: "column",
-              gap: "12px",
-              padding: "20px",
-              textAlign: "center",
-              pointerEvents: "all",
+        <HTMLContainer style={{ width: shape.props.w, height: shape.props.h }}>
+          <StandardizedToolWrapper
+            title="Embed"
+            headerContent={headerContent}
+            primaryColor={EmbedShape.PRIMARY_COLOR}
+            isSelected={isSelected}
+            width={shape.props.w}
+            height={shape.props.h}
+            onClose={handleClose}
+            onMinimize={handleMinimize}
+            isMinimized={isMinimized}
+            editor={this.editor}
+            shapeId={shape.id}
+            isPinnedToView={shape.props.pinnedToView}
+            onPinToggle={handlePinToggle}
+            tags={shape.props.tags}
+            onTagsChange={(newTags) => {
+              this.editor.updateShape<IEmbedShape>({
+                id: shape.id,
+                type: 'Embed',
+                props: {
+                  ...shape.props,
+                  tags: newTags,
+                }
+              })
             }}
+            tagsEditable={true}
           >
-            <p>
-              Medium's content policy does not allow for embedding articles in
-              iframes.
-            </p>
-            <a
-              href={shape.props.url}
-              target="_blank"
-              rel="noopener noreferrer"
+            <div
               style={{
-                color: "#1976d2",
-                textDecoration: "none",
-                cursor: "pointer",
+                display: 'flex',
+                flexDirection: "column",
+                gap: "12px",
+                padding: "20px",
+                textAlign: "center",
+                height: '100%',
+                justifyContent: 'center',
+                alignItems: 'center',
               }}
             >
-              Open article in new tab →
-            </a>
-          </div>
-        </div>
+              <p>
+                This content cannot be embedded in an iframe.
+              </p>
+              <button
+                onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: EmbedShape.PRIMARY_COLOR,
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  touchAction: 'manipulation',
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                Open in new tab →
+              </button>
+            </div>
+          </StandardizedToolWrapper>
+        </HTMLContainer>
       )
     }
 
     // For normal embed view
     return (
-      <div style={wrapperStyle}>
-        <div 
-          style={{
-            height: "40px",
-            position: "relative",
-            backgroundColor: "#F0F0F0",
-            borderTopLeftRadius: "4px",
-            borderTopRightRadius: "4px",
-            display: "flex",
-            alignItems: "center",
-            padding: "0 8px",
+      <HTMLContainer style={{ width: shape.props.w, height: shape.props.h }}>
+        <StandardizedToolWrapper
+          title="Embed"
+          headerContent={headerContent}
+          primaryColor={EmbedShape.PRIMARY_COLOR}
+          isSelected={isSelected}
+          width={shape.props.w}
+          height={shape.props.h}
+          onClose={handleClose}
+          onMinimize={handleMinimize}
+          isMinimized={isMinimized}
+          editor={this.editor}
+          shapeId={shape.id}
+          isPinnedToView={shape.props.pinnedToView}
+          onPinToggle={handlePinToggle}
+          tags={shape.props.tags}
+          onTagsChange={(newTags) => {
+            this.editor.updateShape<IEmbedShape>({
+              id: shape.id,
+              type: 'Embed',
+              props: {
+                ...shape.props,
+                tags: newTags,
+              }
+            })
           }}
+          tagsEditable={true}
         >
-          {controls(shape.props.url)}
-        </div>
-        {!shape.props.isMinimized && (
-          <>
-            <div style={{
-              ...contentStyle,
-              height: `${shape.props.h - 80}px`,
-            }}>
-              <iframe
-                src={transformUrl(shape.props.url)}
-                width="100%"
-                height="100%"
-                style={{ border: "none" }}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                loading="lazy"
-                referrerPolicy="no-referrer"
-                onLoad={(e) => {
-                  // Only add listener if we have a valid iframe
-                  const iframe = e.currentTarget as HTMLIFrameElement
-                  if (!iframe) return;
-
-                  const messageHandler = (event: MessageEvent) => {
-                    if (event.source === iframe.contentWindow) {
-                      handleIframeInteraction(event.data)
-                    }
-                  }
-
-                  window.addEventListener("message", messageHandler)
-                  
-                  // Clean up listener when iframe changes
-                  return () => window.removeEventListener("message", messageHandler)
-                }}
-              />
-            </div>
-            <div
+          <div style={{
+            height: '100%',
+            overflow: 'hidden',
+            backgroundColor: '#fff',
+          }}>
+            <iframe
+              src={transformUrl(url)}
+              width="100%"
+              height="100%"
               style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "8px",
-                height: "40px",
-                fontSize: "12px",
-                backgroundColor: "rgba(255, 255, 255, 0.9)",
-                borderRadius: "4px",
-                position: "absolute",
-                bottom: 0,
-                left: 0,
-                right: 0,
+                border: "none",
+                display: 'block',
               }}
-            >
-              <span
-                style={{
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                  flex: 1,
-                  marginRight: "8px",
-                  color: "#666",
-                }}
-              >
-                {shape.props.url}
-              </span>
-            </div>
-          </>
-        )}
-      </div>
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              onLoad={(e) => {
+                const iframe = e.currentTarget as HTMLIFrameElement
+                if (!iframe) return;
+
+                const messageHandler = (event: MessageEvent) => {
+                  if (event.source === iframe.contentWindow) {
+                    handleIframeInteraction(event.data)
+                  }
+                }
+
+                window.addEventListener("message", messageHandler)
+
+                return () => window.removeEventListener("message", messageHandler)
+              }}
+            />
+          </div>
+        </StandardizedToolWrapper>
+      </HTMLContainer>
     )
   }
 
   override onDoubleClick = (shape: IEmbedShape) => {
-    // If no URL is set, focus the input field
     if (!shape.props.url) {
       const input = document.querySelector('input')
       input?.focus()
       return
     }
 
-    // For Medium articles and Twitter profiles that show alternative content
     if (
       shape.props.url.includes('medium.com') ||
       (shape.props.url && shape.props.url.match(/(?:twitter\.com|x\.com)\/[^\/]+$/))
@@ -576,11 +499,9 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
       return
     }
 
-    // For other embeds, enable interaction by temporarily removing pointer-events: none
     const iframe = document.querySelector(`[data-shape-id="${shape.id}"] iframe`) as HTMLIFrameElement
     if (iframe) {
       iframe.style.pointerEvents = 'all'
-      // Reset pointer-events after interaction
       const cleanup = () => {
         iframe.style.pointerEvents = 'none'
         window.removeEventListener('pointerdown', cleanup)
@@ -589,7 +510,6 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
     }
   }
 
-  // Update the pointer down handler
   onPointerDown = (shape: IEmbedShape) => {
     if (!shape.props.url) {
       const input = document.querySelector('input')
@@ -597,7 +517,6 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
     }
   }
 
-  // Add a method to handle URL updates
   override onBeforeCreate = (shape: IEmbedShape) => {
     if (shape.props.url) {
       const dimensions = getDefaultDimensions(shape.props.url)
@@ -613,7 +532,6 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
     return shape
   }
 
-  // Handle URL updates after creation
   override onBeforeUpdate = (prev: IEmbedShape, next: IEmbedShape) => {
     if (next.props.url && prev.props.url !== next.props.url) {
       const dimensions = getDefaultDimensions(next.props.url)

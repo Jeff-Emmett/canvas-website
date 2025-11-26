@@ -17,6 +17,20 @@ import { HolonData } from "../lib/HoloSphereService"
 import { FathomMeetingsPanel } from "../components/FathomMeetingsPanel"
 import { getFathomApiKey, saveFathomApiKey, removeFathomApiKey, isFathomApiKeyConfigured } from "../lib/fathomApiKey"
 
+// Dark mode utilities
+const getDarkMode = (): boolean => {
+  const stored = localStorage.getItem('darkMode')
+  if (stored !== null) {
+    return stored === 'true'
+  }
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
+}
+
+const setDarkMode = (isDark: boolean) => {
+  localStorage.setItem('darkMode', String(isDark))
+  document.documentElement.classList.toggle('dark', isDark)
+}
+
 export function CustomToolbar() {
   const editor = useEditor()
   const tools = useTools()
@@ -34,6 +48,18 @@ export function CustomToolbar() {
   const [fathomApiKeyInput, setFathomApiKeyInput] = useState('')
   const [hasFathomApiKey, setHasFathomApiKey] = useState(false)
   const profilePopupRef = useRef<HTMLDivElement>(null)
+  const [isDarkMode, setIsDarkMode] = useState(getDarkMode())
+
+  // Initialize dark mode on mount
+  useEffect(() => {
+    setDarkMode(isDarkMode)
+  }, [])
+
+  const toggleDarkMode = () => {
+    const newMode = !isDarkMode
+    setIsDarkMode(newMode)
+    setDarkMode(newMode)
+  }
 
   useEffect(() => {
     if (editor && tools) {
@@ -545,6 +571,42 @@ export function CustomToolbar() {
           alignItems: "center",
         }}
       >
+        {/* Dark/Light Mode Toggle */}
+        <button
+          onClick={toggleDarkMode}
+          style={{
+            padding: "4px 8px",
+            borderRadius: "4px",
+            background: "#6B7280",
+            color: "white",
+            border: "none",
+            cursor: "pointer",
+            fontWeight: 500,
+            transition: "background 0.2s ease",
+            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+            whiteSpace: "nowrap",
+            userSelect: "none",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            height: "22px",
+            minHeight: "22px",
+            boxSizing: "border-box",
+            fontSize: "0.75rem",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "#4B5563"
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "#6B7280"
+          }}
+          title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+        >
+          <span style={{ fontSize: "14px" }}>
+            {isDarkMode ? "☀️" : "🌙"}
+          </span>
+        </button>
+
         <LoginButton className="toolbar-login-button" />
         <StarBoardButton className="toolbar-star-button" />
         
@@ -891,7 +953,7 @@ export function CustomToolbar() {
                 </div>
                 
                 <a
-                  href="/dashboard"
+                  href="/dashboard/"
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
@@ -1015,7 +1077,7 @@ export function CustomToolbar() {
           <TldrawUiMenuItem
             {...tools["Prompt"]}
             icon="prompt"
-            label="Prompt"
+            label="LLM Prompt"
             isSelected={tools["Prompt"].id === editor.getCurrentToolId()}
           />
         )}
@@ -1049,6 +1111,14 @@ export function CustomToolbar() {
             icon="image"
             label="Image Generation"
             isSelected={tools["ImageGen"].id === editor.getCurrentToolId()}
+          />
+        )}
+        {tools["Multmux"] && (
+          <TldrawUiMenuItem
+            {...tools["Multmux"]}
+            icon="terminal"
+            label="Terminal"
+            isSelected={tools["Multmux"].id === editor.getCurrentToolId()}
           />
         )}
         {/* Share Location tool removed for now */}

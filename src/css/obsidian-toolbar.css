@@ -47,22 +47,21 @@
 }
 
 /* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .obsidian-toolbar-button {
+
+html.dark .obsidian-toolbar-button {
     background: #2d2d2d;
     border-color: #404040;
     color: #e0e0e0;
   }
 
-  .obsidian-toolbar-button:hover {
+html.dark .obsidian-toolbar-button:hover {
     background: #3d3d3d;
     border-color: #007acc;
     color: #007acc;
   }
 
-  .obsidian-toolbar-button:active {
+html.dark .obsidian-toolbar-button:active {
     background: #1a3a5c;
     border-color: #005a9e;
     color: #005a9e;
   }
-}

@@ -20,8 +20,11 @@ function minimalSanitizeRecord(record: any): any {
     if (typeof sanitized.isLocked !== 'boolean') sanitized.isLocked = false
     if (typeof sanitized.opacity !== 'number') sanitized.opacity = 1
     if (!sanitized.meta || typeof sanitized.meta !== 'object') sanitized.meta = {}
-    // Validate and fix index property - must be a valid IndexKey (like 'a1', 'a2', etc.)
-    if (!sanitized.index || typeof sanitized.index !== 'string' || !/^[a-z]\d+$/.test(sanitized.index)) {
+    // CRITICAL: IndexKey must follow tldraw's fractional indexing format
+    // Valid format: starts with 'a' followed by digits, optionally followed by uppercase letters
+    // Examples: "a1", "a2", "a10", "a1V" (fractional between a1 and a2)
+    // Invalid: "c1", "b1", "z999" (must start with 'a')
+    if (!sanitized.index || typeof sanitized.index !== 'string' || !/^a\d+[A-Z]*$/.test(sanitized.index)) {
       sanitized.index = 'a1'
     }
     if (!sanitized.parentId) sanitized.parentId = 'page:page'

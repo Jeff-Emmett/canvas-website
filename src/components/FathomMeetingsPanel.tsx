@@ -435,7 +435,8 @@ export function FathomMeetingsPanel({ onClose, onMeetingSelect, shapeMode = fals
                   cursor: apiKey ? 'pointer' : 'not-allowed',
                   position: 'relative',
                   zIndex: 10002,
-                  pointerEvents: 'auto'
+                  pointerEvents: 'auto',
+                  touchAction: 'manipulation'
                 }}
               >
                 Save & Load Meetings

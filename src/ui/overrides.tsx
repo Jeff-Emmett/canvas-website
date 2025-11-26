@@ -145,7 +145,7 @@ export const overrides: TLUiOverrides = {
       Prompt: {
         id: "Prompt",
         icon: "prompt",
-        label: "Prompt",
+        label: "LLM Prompt",
         type: "Prompt",
         kbd: "alt+l",
         readonlyOk: true,

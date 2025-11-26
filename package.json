@@ -3,6 +3,9 @@
 	"version": "1.0.0",
 	"description": "Jeff Emmett's personal website",
 	"type": "module",
+	"workspaces": [
+		"multmux/packages/*"
+	],
 	"scripts": {
 		"dev": "concurrently --kill-others --names client,worker --prefix-colors blue,red \"npm run dev:client\" \"npm run dev:worker:local\"",
 		"dev:client": "vite --host 0.0.0.0 --port 5173",
@@ -15,7 +18,12 @@
 		"deploy:pages": "tsc && vite build",
 		"deploy:worker": "wrangler deploy",
 		"deploy:worker:dev": "wrangler deploy --config wrangler.dev.toml",
-		"types": "tsc --noEmit"
+		"types": "tsc --noEmit",
+		"multmux:install": "npm install --workspaces",
+		"multmux:build": "npm run build --workspace=@multmux/server --workspace=@multmux/cli",
+		"multmux:dev:server": "npm run dev --workspace=@multmux/server",
+		"multmux:dev:cli": "npm run dev --workspace=@multmux/cli",
+		"multmux:start": "npm run start --workspace=@multmux/server"
 	},
 	"keywords": [],
 	"author": "Jeff Emmett",
