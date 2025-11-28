@@ -16,6 +16,7 @@ import type { ObsidianObsNote } from "../lib/obsidianImporter"
 import { HolonData } from "../lib/HoloSphereService"
 import { FathomMeetingsPanel } from "../components/FathomMeetingsPanel"
 import { getFathomApiKey, saveFathomApiKey, removeFathomApiKey, isFathomApiKeyConfigured } from "../lib/fathomApiKey"
+import { ChipTemplateBrowser } from "../components/ChipTemplateBrowser"
 
 // Dark mode utilities
 const getDarkMode = (): boolean => {
@@ -49,6 +50,21 @@ export function CustomToolbar() {
   const [hasFathomApiKey, setHasFathomApiKey] = useState(false)
   const profilePopupRef = useRef<HTMLDivElement>(null)
   const [isDarkMode, setIsDarkMode] = useState(getDarkMode())
+  const [showChipTemplates, setShowChipTemplates] = useState(false)
+
+  // Listen for open-io-chip-templates event
+  useEffect(() => {
+    const handleOpenChipTemplates = () => {
+      console.log('🔌 Opening IO Chip Template Browser')
+      setShowChipTemplates(true)
+    }
+
+    window.addEventListener('open-io-chip-templates', handleOpenChipTemplates)
+
+    return () => {
+      window.removeEventListener('open-io-chip-templates', handleOpenChipTemplates)
+    }
+  }, [])
 
   // Initialize dark mode on mount
   useEffect(() => {
@@ -1134,6 +1150,14 @@ export function CustomToolbar() {
             isSelected={tools["Multmux"].id === editor.getCurrentToolId()}
           />
         )}
+        {tools["IOChip"] && (
+          <TldrawUiMenuItem
+            {...tools["IOChip"]}
+            icon="rectangle"
+            label="IO Chip"
+            isSelected={tools["IOChip"].id === editor.getCurrentToolId()}
+          />
+        )}
         {/* Share Location tool removed for now */}
         {/* Refresh All ObsNotes Button */}
         {(() => {
@@ -1159,7 +1183,15 @@ export function CustomToolbar() {
           onClose={() => setShowFathomPanel(false)}
         />
       )}
-      
+
+      {/* IO Chip Template Browser */}
+      {showChipTemplates && (
+        <ChipTemplateBrowser
+          editor={editor}
+          onClose={() => setShowChipTemplates(false)}
+        />
+      )}
+
     </div>
   )
 }

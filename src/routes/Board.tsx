@@ -46,6 +46,8 @@ import { VideoGenShape } from "@/shapes/VideoGenShapeUtil"
 import { VideoGenTool } from "@/tools/VideoGenTool"
 import { MultmuxTool } from "@/tools/MultmuxTool"
 import { MultmuxShape } from "@/shapes/MultmuxShapeUtil"
+import { IOChipTool } from "@/tools/IOChipTool"
+import { IOChipShape } from "@/shapes/IOChipShapeUtil"
 import {
   lockElement,
   unlockElement,
@@ -62,6 +64,7 @@ import { CmdK } from "@/CmdK"
 import "react-cmdk/dist/cmdk.css"
 import "@/css/style.css"
 import "@/css/obsidian-browser.css"
+import "@/css/io-chip.css"
 
 const collections: Collection[] = [GraphLayoutCollection]
 import { useAuth } from "../context/AuthContext"
@@ -87,6 +90,7 @@ const customShapeUtils = [
   ImageGenShape,
   VideoGenShape,
   MultmuxShape,
+  IOChipShape,
 ]
 const customTools = [
   ChatBoxTool,
@@ -104,6 +108,7 @@ const customTools = [
   ImageGenTool,
   VideoGenTool,
   MultmuxTool,
+  IOChipTool,
 ]
 
 // Debug: Log tool and shape registration info

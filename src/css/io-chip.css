@@ -1,0 +1,153 @@
+/* IO Chip Styles */
+
+/* Wire animation */
+@keyframes wire-flow {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
+.io-chip-wire-animated path {
+  animation: wire-flow 1s linear infinite;
+}
+
+/* Pin hover effects */
+.io-chip-pin {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.io-chip-pin:hover {
+  transform: scale(1.1);
+}
+
+/* Wiring mode cursor */
+.io-chip-wiring-mode {
+  cursor: crosshair !important;
+}
+
+.io-chip-wiring-mode * {
+  cursor: crosshair !important;
+}
+
+/* Template browser scrollbar */
+.io-chip-template-browser::-webkit-scrollbar {
+  width: 8px;
+}
+
+.io-chip-template-browser::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.io-chip-template-browser::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.io-chip-template-browser::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Pin type badges */
+.io-pin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.io-pin-badge-text { background: #dbeafe; color: #1d4ed8; }
+.io-pin-badge-image { background: #ede9fe; color: #7c3aed; }
+.io-pin-badge-video { background: #fce7f3; color: #db2777; }
+.io-pin-badge-url { background: #cffafe; color: #0891b2; }
+.io-pin-badge-file { background: #fef3c7; color: #d97706; }
+.io-pin-badge-identity { background: #d1fae5; color: #059669; }
+.io-pin-badge-api { background: #fee2e2; color: #dc2626; }
+.io-pin-badge-shape { background: #e0e7ff; color: #4f46e5; }
+.io-pin-badge-data { background: #ecfccb; color: #65a30d; }
+.io-pin-badge-prompt { background: #ffedd5; color: #ea580c; }
+.io-pin-badge-embedding { background: #ccfbf1; color: #0d9488; }
+.io-pin-badge-stream { background: #e0f2fe; color: #0284c7; }
+
+/* Template card hover effect */
+.io-chip-template-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.io-chip-template-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Save dialog animation */
+@keyframes dialog-appear {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.io-chip-save-dialog {
+  animation: dialog-appear 0.2s ease;
+}
+
+/* Wire connection indicator */
+.io-chip-wire-indicator {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: #10b981;
+  border-radius: 50%;
+  animation: pulse 1.5s ease infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.2);
+  }
+}
+
+/* Chip container drop zone */
+.io-chip-drop-zone {
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.io-chip-drop-zone.active {
+  border-color: #3b82f6 !important;
+  background-color: #eff6ff !important;
+}
+
+/* Dark mode support */
+.dark .io-chip-template-browser {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.dark .io-chip-template-card {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+.dark .io-chip-template-card:hover {
+  border-color: #475569;
+}
+
+.dark .io-pin-label {
+  background: rgba(30, 41, 59, 0.9);
+  color: #e2e8f0;
+}

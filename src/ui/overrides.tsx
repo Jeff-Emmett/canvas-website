@@ -228,6 +228,15 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("Multmux"),
       },
+      IOChip: {
+        id: "IOChip",
+        icon: "rectangle",
+        label: "IO Chip",
+        kbd: "alt+shift+p",
+        readonlyOk: true,
+        type: "IOChip",
+        onSelect: () => editor.setCurrentTool("IOChip"),
+      },
       hand: {
         ...tools.hand,
         onDoubleClick: (info: any) => {
@@ -332,6 +341,17 @@ export const overrides: TLUiOverrides = {
           if (editor.getSelectedShapeIds().length > 0) {
             saveToPdf(editor)
           }
+        },
+        readonlyOk: true,
+      },
+      openIOChipTemplates: {
+        id: "open-io-chip-templates",
+        label: "IO Chip Templates",
+        kbd: "alt+t",
+        onSelect: () => {
+          // Dispatch event to open IO Chip Template Browser
+          const event = new CustomEvent('open-io-chip-templates')
+          window.dispatchEvent(event)
         },
         readonlyOk: true,
       },

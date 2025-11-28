@@ -127,6 +127,7 @@ import { FathomMeetingsBrowserShape } from "@/shapes/FathomMeetingsBrowserShapeU
 import { ImageGenShape } from "@/shapes/ImageGenShapeUtil"
 import { VideoGenShape } from "@/shapes/VideoGenShapeUtil"
 import { MultmuxShape } from "@/shapes/MultmuxShapeUtil"
+import { IOChipShape } from "@/shapes/IOChipShapeUtil"
 // Location shape removed - no longer needed
 
 export function useAutomergeStoreV2({
@@ -160,6 +161,7 @@ export function useAutomergeStoreV2({
       ImageGen: {} as any,
       VideoGen: {} as any,
       Multmux: {} as any,
+      IOChip: {} as any,
     },
     bindings: defaultBindingSchemas,
   })
@@ -184,6 +186,7 @@ export function useAutomergeStoreV2({
         ImageGenShape,
         VideoGenShape,
         MultmuxShape,
+        IOChipShape,
       ],
     })
     return store
