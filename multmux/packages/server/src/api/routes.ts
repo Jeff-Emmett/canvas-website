@@ -64,6 +64,26 @@ export function createRouter(
     });
   });
 
+  // Join an existing session (generates a new token and returns session info)
+  router.post('/sessions/:id/join', (req, res) => {
+    const session = sessionManager.getSession(req.params.id);
+
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    // Generate a new token for this joining client
+    const token = tokenManager.generateToken(session.id, 60, 'write');
+
+    res.json({
+      id: session.id,
+      name: session.name,
+      token,
+      createdAt: session.createdAt,
+      activeClients: session.clients.size,
+    });
+  });
+
   // Generate new invite token for existing session
   router.post('/sessions/:id/tokens', (req, res) => {
     const session = sessionManager.getSession(req.params.id);

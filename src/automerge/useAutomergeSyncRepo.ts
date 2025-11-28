@@ -94,41 +94,59 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
   
   // JSON sync callback - receives changed records from other clients
   // Apply to Automerge document which will emit patches to update the store
-  const applyJsonSyncData = useCallback((data: TLStoreSnapshot) => {
+  const applyJsonSyncData = useCallback((data: TLStoreSnapshot & { deleted?: string[] }) => {
     const currentHandle = handleRef.current
-    if (!currentHandle || !data?.store) {
+    if (!currentHandle || (!data?.store && !data?.deleted)) {
       console.warn('⚠️ Cannot apply JSON sync - no handle or data')
       return
     }
 
-    const changedRecordCount = Object.keys(data.store).length
-    console.log(`📥 Applying ${changedRecordCount} changed records from JSON sync to Automerge document`)
+    const changedRecordCount = data.store ? Object.keys(data.store).length : 0
+    const shapeRecords = data.store ? Object.values(data.store).filter((r: any) => r?.typeName === 'shape') : []
+    const deletedRecordIds = data.deleted || []
+    const deletedShapes = deletedRecordIds.filter(id => id.startsWith('shape:'))
 
-    // Log shape dimension changes for debugging
-    Object.entries(data.store).forEach(([id, record]: [string, any]) => {
-      if (record?.typeName === 'shape' && (record.props?.w || record.props?.h)) {
-        console.log(`📥 Receiving shape update for ${record.type} ${id}:`, {
-          w: record.props.w,
-          h: record.props.h,
-          x: record.x,
-          y: record.y
+    // Log incoming sync data for debugging
+    console.log(`📥 Received JSON sync: ${changedRecordCount} records (${shapeRecords.length} shapes), ${deletedRecordIds.length} deletions (${deletedShapes.length} shapes)`)
+    if (shapeRecords.length > 0) {
+      shapeRecords.forEach((shape: any) => {
+        console.log(`📥 Shape update: ${shape.type} ${shape.id}`, {
+          x: shape.x,
+          y: shape.y,
+          w: shape.props?.w,
+          h: shape.props?.h
         })
-      }
-    })
+      })
+    }
+    if (deletedShapes.length > 0) {
+      console.log(`📥 Shape deletions:`, deletedShapes)
+    }
 
     // Apply changes to the Automerge document
     // This will trigger patches which will update the TLDraw store
+    // NOTE: We do NOT increment pendingLocalChanges here because these are REMOTE changes
+    // that we WANT to be processed by automergeChangeHandler and applied to the store
     currentHandle.change((doc: any) => {
       if (!doc.store) {
         doc.store = {}
       }
       // Merge the changed records into the Automerge document
-      Object.entries(data.store).forEach(([id, record]) => {
-        doc.store[id] = record
-      })
+      if (data.store) {
+        Object.entries(data.store).forEach(([id, record]) => {
+          doc.store[id] = record
+        })
+      }
+      // Delete records that were removed on the other client
+      if (deletedRecordIds.length > 0) {
+        deletedRecordIds.forEach(id => {
+          if (doc.store[id]) {
+            delete doc.store[id]
+          }
+        })
+      }
     })
 
-    console.log(`✅ Applied ${changedRecordCount} records to Automerge document - patches will update store`)
+    console.log(`✅ Applied ${changedRecordCount} records and ${deletedRecordIds.length} deletions to Automerge document`)
   }, [])
 
   // Presence update callback - applies presence from other clients
@@ -189,7 +207,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
         currentStore.put([instancePresence])
       })
 
-      console.log(`✅ Applied instance_presence for remote user ${userId}`)
+      // Presence applied for remote user
     } catch (error) {
       console.error('❌ Error applying presence:', error)
     }
@@ -214,7 +232,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
 
     // Log when sync messages are sent/received
     adapter.on('message', (msg: any) => {
-      console.log('🔄 CloudflareAdapter received message from network:', msg.type)
+      // Message received from network
     })
 
     return { repo, adapter }
@@ -226,13 +244,9 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
 
     const initializeHandle = async () => {
       try {
-        console.log("🔌 Initializing Automerge Repo with NetworkAdapter for room:", roomId)
-
         // CRITICAL: Wait for the network adapter to be ready before creating document
         // This ensures the WebSocket connection is established for sync
-        console.log("⏳ Waiting for network adapter to be ready...")
         await adapter.whenReady()
-        console.log("✅ Network adapter is ready, WebSocket connected")
 
         if (mounted) {
           // CRITICAL: Create a new Automerge document (repo.create() generates a proper document ID)
@@ -240,18 +254,11 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
           // The network adapter broadcasts sync messages between all clients in the same room
           const handle = repo.create<TLStoreSnapshot>()
 
-          console.log("Created Automerge handle via Repo:", {
-            handleId: handle.documentId,
-            isReady: handle.isReady(),
-            roomId: roomId
-          })
-
           // Wait for the handle to be ready
           await handle.whenReady()
 
           // CRITICAL: Always load initial data from the server
           // The server stores documents in R2 as JSON, so we need to load and initialize the Automerge document
-          console.log("📥 Loading initial data from server...")
           try {
             const response = await fetch(`${workerUrl}/room/${roomId}`)
             if (response.ok) {
@@ -259,7 +266,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
               const serverShapeCount = serverDoc.store ? Object.values(serverDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
               const serverRecordCount = Object.keys(serverDoc.store || {}).length
 
-              console.log(`📥 Loaded document from server: ${serverRecordCount} records, ${serverShapeCount} shapes`)
+              // Document loaded from server
 
               // Initialize the Automerge document with server data
               if (serverDoc.store && serverRecordCount > 0) {
@@ -274,12 +281,12 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
                   })
                 })
 
-                console.log(`✅ Initialized Automerge document with ${serverRecordCount} records from server`)
+                // Initialized Automerge document from server
               } else {
-                console.log("📥 Server document is empty - starting with empty Automerge document")
+                // Server document is empty - starting fresh
               }
             } else if (response.status === 404) {
-              console.log("📥 No document found on server (404) - starting with empty document")
+              // No document found on server - starting fresh
             } else {
               console.warn(`⚠️ Failed to load document from server: ${response.status} ${response.statusText}`)
             }
@@ -293,15 +300,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
           const finalStoreKeys = finalDoc?.store ? Object.keys(finalDoc.store).length : 0
           const finalShapeCount = finalDoc?.store ? Object.values(finalDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
 
-          console.log("✅ Automerge handle initialized and ready:", {
-            handleId: handle.documentId,
-            isReady: handle.isReady(),
-            hasDoc: !!finalDoc,
-            storeKeys: finalStoreKeys,
-            shapeCount: finalShapeCount,
-            roomId: roomId
-          })
-          
+          // Automerge handle initialized and ready
           setHandle(handle)
           setIsLoading(false)
         }

@@ -127,6 +127,8 @@ import { FathomMeetingsBrowserShape } from "@/shapes/FathomMeetingsBrowserShapeU
 import { ImageGenShape } from "@/shapes/ImageGenShapeUtil"
 import { VideoGenShape } from "@/shapes/VideoGenShapeUtil"
 import { MultmuxShape } from "@/shapes/MultmuxShapeUtil"
+// MycelialIntelligence moved to permanent UI bar - shape kept for backwards compatibility
+import { MycelialIntelligenceShape } from "@/shapes/MycelialIntelligenceShapeUtil"
 // Location shape removed - no longer needed
 
 export function useAutomergeStoreV2({
@@ -138,53 +140,87 @@ export function useAutomergeStoreV2({
   userId: string
   adapter?: any
 }): TLStoreWithStatus {
-  console.log("useAutomergeStoreV2 called with handle:", !!handle, "adapter:", !!adapter)
+  // useAutomergeStoreV2 initializing
   
-  // Create a custom schema that includes all the custom shapes
-  const customSchema = createTLSchema({
-    shapes: {
-      ...defaultShapeSchemas,
-      ChatBox: {} as any,
-      VideoChat: {} as any,
-      Embed: {} as any,
-      Markdown: {} as any,
-      MycrozineTemplate: {} as any,
-      Slide: {} as any,
-      Prompt: {} as any,
-      Transcription: {} as any,
-      ObsNote: {} as any,
-      FathomNote: {} as any,
-      Holon: {} as any,
-      ObsidianBrowser: {} as any,
-      FathomMeetingsBrowser: {} as any,
-      ImageGen: {} as any,
-      VideoGen: {} as any,
-      Multmux: {} as any,
-    },
-    bindings: defaultBindingSchemas,
-  })
-
+  // Create store with shape utils and explicit schema for all custom shapes
+  // Note: Some shapes don't have `static override props`, so we must explicitly list them all
   const [store] = useState(() => {
+    const shapeUtils = [
+      ChatBoxShape,
+      VideoChatShape,
+      EmbedShape,
+      MarkdownShape,
+      MycrozineTemplateShape,
+      SlideShape,
+      PromptShape,
+      TranscriptionShape,
+      ObsNoteShape,
+      FathomNoteShape,
+      HolonShape,
+      ObsidianBrowserShape,
+      FathomMeetingsBrowserShape,
+      ImageGenShape,
+      VideoGenShape,
+      MultmuxShape,
+      MycelialIntelligenceShape, // Deprecated - kept for backwards compatibility
+    ]
+
+    // CRITICAL: Explicitly list ALL custom shape types to ensure they're registered
+    // This is a fallback in case dynamic extraction from shape utils fails
+    const knownCustomShapeTypes = [
+      'ChatBox',
+      'VideoChat',
+      'Embed',
+      'Markdown',
+      'MycrozineTemplate',
+      'Slide',
+      'Prompt',
+      'Transcription',
+      'ObsNote',
+      'FathomNote',
+      'Holon',
+      'ObsidianBrowser',
+      'FathomMeetingsBrowser',
+      'ImageGen',
+      'VideoGen',
+      'Multmux',
+      'MycelialIntelligence', // Deprecated - kept for backwards compatibility
+    ]
+
+    // Build schema with explicit entries for all custom shapes
+    const customShapeSchemas: Record<string, any> = {}
+
+    // First, register all known custom shape types with empty schemas as fallback
+    knownCustomShapeTypes.forEach(type => {
+      customShapeSchemas[type] = {} as any
+    })
+
+    // Then, override with actual props for shapes that have them defined
+    shapeUtils.forEach((util) => {
+      const type = (util as any).type
+      if (type && (util as any).props) {
+        // Shape has static props - use them for proper validation
+        customShapeSchemas[type] = {
+          props: (util as any).props,
+          migrations: (util as any).migrations,
+        }
+      }
+    })
+
+    // Log what shapes were registered for debugging
+    // Custom shape schemas registered
+
+    const customSchema = createTLSchema({
+      shapes: {
+        ...defaultShapeSchemas,
+        ...customShapeSchemas,
+      },
+      bindings: defaultBindingSchemas,
+    })
+
     const store = createTLStore({
       schema: customSchema,
-      shapeUtils: [
-        ChatBoxShape,
-        VideoChatShape,
-        EmbedShape,
-        MarkdownShape,
-        MycrozineTemplateShape,
-        SlideShape,
-        PromptShape,
-        TranscriptionShape,
-        ObsNoteShape,
-        FathomNoteShape,
-        HolonShape,
-        ObsidianBrowserShape,
-        FathomMeetingsBrowserShape,
-        ImageGenShape,
-        VideoGenShape,
-        MultmuxShape,
-      ],
+      shapeUtils: shapeUtils,
     })
     return store
   })
@@ -199,7 +235,7 @@ export function useAutomergeStoreV2({
       const allRecords = storeWithStatus.store.allRecords()
       const shapes = allRecords.filter(r => r.typeName === 'shape')
       const pages = allRecords.filter(r => r.typeName === 'page')
-      console.log(`📊 useAutomergeStoreV2: Store synced with ${allRecords.length} total records, ${shapes.length} shapes, ${pages.length} pages`)
+      // Store synced
     }
   }, [storeWithStatus.status, storeWithStatus.store])
 
@@ -213,34 +249,47 @@ export function useAutomergeStoreV2({
 
     const unsubs: (() => void)[] = []
 
-    // Track local changes to prevent echoing them back
-    // Simple boolean flag: set to true when making local changes,
-    // then reset on the NEXT Automerge change event (which is the echo)
-    let isLocalChange = false
+    // Track pending local changes using a COUNTER instead of a boolean.
+    // The old boolean approach failed because during rapid changes (like dragging),
+    // multiple echoes could arrive but only the first was skipped.
+    // With a counter:
+    // - Increment before each handle.change()
+    // - Decrement (and skip) for each echo that arrives
+    // - Process changes only when counter is 0 (those are remote changes)
+    let pendingLocalChanges = 0
 
     // Helper function to broadcast changes via JSON sync
     // DISABLED: This causes last-write-wins conflicts
     // Automerge should handle sync automatically via binary protocol
     // We're keeping this function but disabling all actual broadcasting
-    const broadcastJsonSync = (changedRecords: any[]) => {
+    const broadcastJsonSync = (addedOrUpdatedRecords: any[], deletedRecordIds: string[] = []) => {
       // TEMPORARY FIX: Manually broadcast changes via WebSocket since Automerge Repo sync isn't working
       // This sends the full changed records as JSON to other clients
       // TODO: Fix Automerge Repo's binary sync protocol to work properly
 
-      if (!changedRecords || changedRecords.length === 0) {
+      if ((!addedOrUpdatedRecords || addedOrUpdatedRecords.length === 0) && deletedRecordIds.length === 0) {
         return
       }
 
-      console.log(`📤 Broadcasting ${changedRecords.length} changed records via manual JSON sync`)
+      // Broadcasting changes via JSON sync
+      const shapeRecords = addedOrUpdatedRecords.filter(r => r?.typeName === 'shape')
+      const deletedShapes = deletedRecordIds.filter(id => id.startsWith('shape:'))
+      if (shapeRecords.length > 0 || deletedShapes.length > 0) {
+        console.log(`📤 Broadcasting ${shapeRecords.length} shape changes and ${deletedShapes.length} deletions via JSON sync`)
+      }
 
       if (adapter && typeof (adapter as any).send === 'function') {
         // Send changes to other clients via the network adapter
-        (adapter as any).send({
+        // CRITICAL: Always include a documentId for the server to process correctly
+        const docId: string = handle?.documentId || `automerge:${Date.now()}`;
+        const adapterSend = (adapter as any).send.bind(adapter);
+        adapterSend({
           type: 'sync',
           data: {
-            store: Object.fromEntries(changedRecords.map(r => [r.id, r]))
+            store: Object.fromEntries(addedOrUpdatedRecords.map(r => [r.id, r])),
+            deleted: deletedRecordIds // Include list of deleted record IDs
           },
-          documentId: handle?.documentId,
+          documentId: docId,
           timestamp: Date.now()
         })
       } else {
@@ -250,24 +299,32 @@ export function useAutomergeStoreV2({
 
     // Listen for changes from Automerge and apply them to TLDraw
     const automergeChangeHandler = (payload: DocHandleChangePayload<any>) => {
-      // Skip the immediate echo of our own local changes
-      // This flag is set when we update Automerge from TLDraw changes
-      // and gets reset after skipping one change event (the echo)
-      if (isLocalChange) {
-        isLocalChange = false
+      const patchCount = payload.patches?.length || 0
+      const shapePatches = payload.patches?.filter((p: any) => {
+        const id = p.path?.[1]
+        return id && typeof id === 'string' && id.startsWith('shape:')
+      }) || []
+
+      // Debug logging for sync issues
+      console.log(`🔄 automergeChangeHandler: ${patchCount} patches (${shapePatches.length} shapes), pendingLocalChanges=${pendingLocalChanges}`)
+
+      // Skip echoes of our own local changes using a counter.
+      // Each local handle.change() increments the counter, and each echo decrements it.
+      // Only process changes when counter is 0 (those are remote changes from other clients).
+      if (pendingLocalChanges > 0) {
+        console.log(`⏭️ Skipping echo (pendingLocalChanges was ${pendingLocalChanges}, now ${pendingLocalChanges - 1})`)
+        pendingLocalChanges--
         return
       }
+
+      console.log(`✅ Processing ${patchCount} patches as REMOTE changes (${shapePatches.length} shape patches)`)
 
       try {
         // Apply patches from Automerge to TLDraw store
         if (payload.patches && payload.patches.length > 0) {
           // Debug: Check if patches contain shapes
-          const shapePatches = payload.patches.filter((p: any) => {
-            const id = p.path?.[1]
-            return id && typeof id === 'string' && id.startsWith('shape:')
-          })
           if (shapePatches.length > 0) {
-            console.log(`🔌 Automerge patches contain ${shapePatches.length} shape patches out of ${payload.patches.length} total patches`)
+            console.log(`📥 Applying ${shapePatches.length} shape patches from remote`)
           }
           
           try {
@@ -283,13 +340,10 @@ export function useAutomergeStoreV2({
             const shapesAfter = recordsAfter.filter((r: any) => r.typeName === 'shape')
             
             if (shapesAfter.length !== shapesBefore.length) {
-              console.log(`✅ Applied ${payload.patches.length} patches: shapes changed from ${shapesBefore.length} to ${shapesAfter.length}`)
+              // Patches applied
             }
             
-            // Only log if there are many patches or if debugging is needed
-            if (payload.patches.length > 5) {
-              console.log(`✅ Successfully applied ${payload.patches.length} patches`)
-            }
+            // Patches processed successfully
           } catch (patchError) {
             console.error("Error applying patches batch, attempting individual patch application:", patchError)
             // Try applying patches one by one to identify problematic ones
@@ -349,7 +403,7 @@ export function useAutomergeStoreV2({
             }
             
             if (successCount < payload.patches.length || payload.patches.length > 5) {
-              console.log(`✅ Successfully applied ${successCount} out of ${payload.patches.length} patches`)
+              // Partial patches applied
             }
           }
         }
@@ -439,31 +493,30 @@ export function useAutomergeStoreV2({
     // Throttle position-only updates (x/y changes) to reduce automerge saves during movement
     let positionUpdateQueue: RecordsDiff<TLRecord> | null = null
     let positionUpdateTimeout: NodeJS.Timeout | null = null
-    const POSITION_UPDATE_THROTTLE_MS = 100 // Save position updates every 100ms for real-time feel
+    const POSITION_UPDATE_THROTTLE_MS = 50 // Save position updates every 50ms for near real-time feel
     
     const flushPositionUpdates = () => {
       if (positionUpdateQueue && handle) {
         const queuedChanges = positionUpdateQueue
         positionUpdateQueue = null
-        
-        // CRITICAL: Defer position update saves to prevent interrupting active interactions
-        requestAnimationFrame(() => {
-          try {
-            isLocalChange = true
-            handle.change((doc) => {
-              applyTLStoreChangesToAutomerge(doc, queuedChanges)
-            })
-            // Trigger sync to broadcast position updates
-            const changedRecords = [
-              ...Object.values(queuedChanges.added || {}),
-              ...Object.values(queuedChanges.updated || {}),
-              ...Object.values(queuedChanges.removed || {})
-            ]
-            broadcastJsonSync(changedRecords)
-          } catch (error) {
-            console.error("Error applying throttled position updates to Automerge:", error)
-          }
-        })
+
+        // Apply immediately for real-time sync
+        try {
+          pendingLocalChanges++
+          handle.change((doc) => {
+            applyTLStoreChangesToAutomerge(doc, queuedChanges)
+          })
+          // Trigger sync to broadcast position updates
+          // CRITICAL: updated records are [before, after] tuples - extract the 'after' value
+          const addedOrUpdatedRecords = [
+            ...Object.values(queuedChanges.added || {}),
+            ...Object.values(queuedChanges.updated || {}).map((tuple: any) => Array.isArray(tuple) ? tuple[1] : tuple)
+          ]
+          const deletedRecordIds = Object.keys(queuedChanges.removed || {})
+          broadcastJsonSync(addedOrUpdatedRecords, deletedRecordIds)
+        } catch (error) {
+          console.error("Error applying throttled position updates to Automerge:", error)
+        }
       }
     }
     
@@ -1131,17 +1184,18 @@ export function useAutomergeStoreV2({
                   
                   // Apply queued changes immediately
                   try {
-                    isLocalChange = true
+                    pendingLocalChanges++
                     handle.change((doc) => {
                       applyTLStoreChangesToAutomerge(doc, queuedChanges)
                     })
                     // Trigger sync to broadcast eraser changes
-                    const changedRecords = [
+                    // CRITICAL: updated records are [before, after] tuples - extract the 'after' value
+                    const addedOrUpdatedRecords = [
                       ...Object.values(queuedChanges.added || {}),
-                      ...Object.values(queuedChanges.updated || {}),
-                      ...Object.values(queuedChanges.removed || {})
+                      ...Object.values(queuedChanges.updated || {}).map((tuple: any) => Array.isArray(tuple) ? tuple[1] : tuple)
                     ]
-                    broadcastJsonSync(changedRecords)
+                    const deletedRecordIds = Object.keys(queuedChanges.removed || {})
+                    broadcastJsonSync(addedOrUpdatedRecords, deletedRecordIds)
                   } catch (error) {
                     console.error('❌ Error applying queued eraser changes:', error)
                   }
@@ -1168,49 +1222,37 @@ export function useAutomergeStoreV2({
                 removed: { ...(queuedChanges.removed || {}), ...(finalFilteredChanges.removed || {}) }
               }
 
-              requestAnimationFrame(() => {
-                isLocalChange = true
-                handle.change((doc) => {
-                  applyTLStoreChangesToAutomerge(doc, mergedChanges)
-                })
-                // Trigger sync to broadcast merged changes
-                const changedRecords = [
-                  ...Object.values(mergedChanges.added || {}),
-                  ...Object.values(mergedChanges.updated || {}),
-                  ...Object.values(mergedChanges.removed || {})
-                ]
-                broadcastJsonSync(changedRecords)
+              // Apply immediately for real-time sync
+              pendingLocalChanges++
+              handle.change((doc) => {
+                applyTLStoreChangesToAutomerge(doc, mergedChanges)
               })
+              // Trigger sync to broadcast merged changes
+              // CRITICAL: updated records are [before, after] tuples - extract the 'after' value
+              const addedOrUpdatedRecords = [
+                ...Object.values(mergedChanges.added || {}),
+                ...Object.values(mergedChanges.updated || {}).map((tuple: any) => Array.isArray(tuple) ? tuple[1] : tuple)
+              ]
+              const deletedRecordIds = Object.keys(mergedChanges.removed || {})
+              broadcastJsonSync(addedOrUpdatedRecords, deletedRecordIds)
               
               return
             }
-            // OPTIMIZED: Use requestIdleCallback to defer Automerge changes when browser is idle
-            // This prevents blocking mouse interactions without queuing changes
-            const applyChanges = () => {
-              // Mark to prevent feedback loop when this change comes back from Automerge
-              isLocalChange = true
+            // Apply changes immediately for real-time sync (no deferral)
+            // The old requestIdleCallback approach caused multi-second delays
+            pendingLocalChanges++
+            handle.change((doc) => {
+              applyTLStoreChangesToAutomerge(doc, finalFilteredChanges)
+            })
 
-              handle.change((doc) => {
-                applyTLStoreChangesToAutomerge(doc, finalFilteredChanges)
-              })
-
-              // CRITICAL: Manually trigger JSON sync broadcast to other clients
-              // Use requestAnimationFrame to defer this slightly so the change is fully processed
-              const changedRecords = [
-                ...Object.values(finalFilteredChanges.added || {}),
-                ...Object.values(finalFilteredChanges.updated || {}),
-                ...Object.values(finalFilteredChanges.removed || {})
-              ]
-              requestAnimationFrame(() => broadcastJsonSync(changedRecords))
-            }
-            
-            // Use requestIdleCallback if available to apply changes when browser is idle
-            if (typeof requestIdleCallback !== 'undefined') {
-              requestIdleCallback(applyChanges, { timeout: 100 })
-            } else {
-              // Fallback: use requestAnimationFrame for next frame
-              requestAnimationFrame(applyChanges)
-            }
+            // CRITICAL: Broadcast immediately for real-time collaboration
+            // CRITICAL: updated records are [before, after] tuples - extract the 'after' value
+            const addedOrUpdatedRecords = [
+              ...Object.values(finalFilteredChanges.added || {}),
+              ...Object.values(finalFilteredChanges.updated || {}).map((tuple: any) => Array.isArray(tuple) ? tuple[1] : tuple)
+            ]
+            const deletedRecordIds = Object.keys(finalFilteredChanges.removed || {})
+            broadcastJsonSync(addedOrUpdatedRecords, deletedRecordIds)
           }
           
           // Only log if there are many changes or if debugging is needed
@@ -1255,7 +1297,7 @@ export function useAutomergeStoreV2({
           const queuedChanges = eraserChangeQueue
           eraserChangeQueue = null
           if (handle) {
-            isLocalChange = true
+            pendingLocalChanges++
             handle.change((doc) => {
               applyTLStoreChangesToAutomerge(doc, queuedChanges)
             })

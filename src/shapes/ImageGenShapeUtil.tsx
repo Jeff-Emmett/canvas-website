@@ -351,7 +351,8 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
           throw new Error("RunPod API key not configured. Please set VITE_RUNPOD_API_KEY environment variable.")
         }
 
-        const url = `https://api.runpod.ai/v2/${endpointId}/run`
+        // Use runsync for synchronous execution - returns output directly without polling
+        const url = `https://api.runpod.ai/v2/${endpointId}/runsync`
 
         console.log("📤 ImageGen: Sending request to:", url)
 
@@ -375,27 +376,25 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
         }
 
         const data = await response.json() as RunPodJobResponse
-        console.log("📥 ImageGen: Response data:", JSON.stringify(data, null, 2))
+        console.log("📥 ImageGen: Response data:", JSON.stringify(data, null, 2).substring(0, 500) + '...')
 
-        // Handle async job pattern (RunPod often returns job IDs)
-        if (data.id && (data.status === 'IN_QUEUE' || data.status === 'IN_PROGRESS' || data.status === 'STARTING')) {
-          console.log("⏳ ImageGen: Job queued/in progress, polling job ID:", data.id)
-          const imageUrl = await pollRunPodJob(data.id, apiKey, endpointId)
-          console.log("✅ ImageGen: Job completed, image URL:", imageUrl)
-          
-          this.editor.updateShape<IImageGen>({
-            id: shape.id,
-            type: "ImageGen",
-            props: { 
-              imageUrl: imageUrl,
-              isLoading: false,
-              error: null
-            },
-          })
-        } else if (data.output) {
-          // Handle direct response
+        // With runsync, we get the output directly (no polling needed)
+        if (data.output) {
           let imageUrl = ''
-          if (typeof data.output === 'string') {
+
+          // Handle output.images array format (Automatic1111 endpoint format)
+          if (Array.isArray(data.output.images) && data.output.images.length > 0) {
+            const firstImage = data.output.images[0]
+            // Base64 encoded image string
+            if (typeof firstImage === 'string') {
+              imageUrl = firstImage.startsWith('data:') ? firstImage : `data:image/png;base64,${firstImage}`
+              console.log('✅ ImageGen: Found base64 image in output.images array')
+            } else if (firstImage.data) {
+              imageUrl = firstImage.data.startsWith('data:') ? firstImage.data : `data:image/png;base64,${firstImage.data}`
+            } else if (firstImage.url) {
+              imageUrl = firstImage.url
+            }
+          } else if (typeof data.output === 'string') {
             imageUrl = data.output
           } else if (data.output.image) {
             imageUrl = data.output.image
@@ -404,7 +403,7 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
           } else if (Array.isArray(data.output) && data.output.length > 0) {
             const firstItem = data.output[0]
             if (typeof firstItem === 'string') {
-              imageUrl = firstItem
+              imageUrl = firstItem.startsWith('data:') ? firstItem : `data:image/png;base64,${firstItem}`
             } else if (firstItem.image) {
               imageUrl = firstItem.image
             } else if (firstItem.url) {
@@ -413,22 +412,23 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
           }
 
           if (imageUrl) {
+            console.log('✅ ImageGen: Image generated successfully')
             this.editor.updateShape<IImageGen>({
               id: shape.id,
               type: "ImageGen",
-              props: { 
+              props: {
                 imageUrl: imageUrl,
                 isLoading: false,
                 error: null
               },
             })
           } else {
-            throw new Error("No image URL found in response")
+            throw new Error("No image URL found in response output")
           }
         } else if (data.error) {
           throw new Error(`RunPod API error: ${data.error}`)
         } else {
-          throw new Error("No valid response from RunPod API")
+          throw new Error("No valid response from RunPod API - missing output field")
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)

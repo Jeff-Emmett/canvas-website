@@ -15,7 +15,8 @@ import { createShapeId } from "tldraw"
 import type { ObsidianObsNote } from "../lib/obsidianImporter"
 import { HolonData } from "../lib/HoloSphereService"
 import { FathomMeetingsPanel } from "../components/FathomMeetingsPanel"
-import { getFathomApiKey, saveFathomApiKey, removeFathomApiKey, isFathomApiKeyConfigured } from "../lib/fathomApiKey"
+import { isFathomApiKeyConfigured } from "../lib/fathomApiKey"
+import { UserSettingsModal } from "./UserSettingsModal"
 
 // Dark mode utilities
 const getDarkMode = (): boolean => {
@@ -40,13 +41,11 @@ export function CustomToolbar() {
 
   const { session, setSession, clearSession } = useAuth()
   const [showProfilePopup, setShowProfilePopup] = useState(false)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [showVaultBrowser, setShowVaultBrowser] = useState(false)
   const [showHolonBrowser, setShowHolonBrowser] = useState(false)
   const [vaultBrowserMode, setVaultBrowserMode] = useState<'keyboard' | 'button'>('keyboard')
   const [showFathomPanel, setShowFathomPanel] = useState(false)
-  const [showFathomApiKeyInput, setShowFathomApiKeyInput] = useState(false)
-  const [fathomApiKeyInput, setFathomApiKeyInput] = useState('')
-  const [hasFathomApiKey, setHasFathomApiKey] = useState(false)
   const profilePopupRef = useRef<HTMLDivElement>(null)
   const [isDarkMode, setIsDarkMode] = useState(getDarkMode())
 
@@ -64,11 +63,7 @@ export function CustomToolbar() {
   useEffect(() => {
     if (editor && tools) {
       setIsReady(true)
-      // Debug: log available tools
-      console.log('🔧 CustomToolbar: Available tools:', Object.keys(tools))
-      console.log('🔧 CustomToolbar: VideoGen exists:', !!tools["VideoGen"])
-      console.log('🔧 CustomToolbar: Multmux exists:', !!tools["Multmux"])
-      console.log('🔧 CustomToolbar: ImageGen exists:', !!tools["ImageGen"])
+      // Tools are ready
     }
   }, [editor, tools])
  
@@ -95,10 +90,7 @@ export function CustomToolbar() {
   // Listen for open-fathom-meetings event - now creates a shape instead of modal
   useEffect(() => {
     const handleOpenFathomMeetings = () => {
-      console.log('🔧 Received open-fathom-meetings event')
-
-      // Allow multiple FathomMeetingsBrowser instances - users can work with multiple meeting browsers
-      console.log('🔧 Creating new FathomMeetingsBrowser shape')
+      // Allow multiple FathomMeetingsBrowser instances
 
       // Get the current viewport center
       const viewport = editor.getViewportPageBounds()
@@ -120,8 +112,6 @@ export function CustomToolbar() {
           }
         })
 
-        console.log('✅ Created FathomMeetingsBrowser shape:', browserShape.id)
-
         // Select the new shape and switch to select tool
         editor.setSelectedShapes([`shape:${browserShape.id}`] as any)
         editor.setCurrentTool('select')
@@ -140,22 +130,18 @@ export function CustomToolbar() {
   // Listen for open-obsidian-browser event - now creates a shape instead of modal
   useEffect(() => {
     const handleOpenBrowser = (event?: CustomEvent) => {
-      console.log('🔧 Received open-obsidian-browser event')
-
       // Check if ObsidianBrowser already exists
       const allShapes = editor.getCurrentPageShapes()
       const existingBrowserShapes = allShapes.filter(shape => shape.type === 'ObsidianBrowser')
-      
+
       if (existingBrowserShapes.length > 0) {
         // If a browser already exists, just select it
-        console.log('✅ ObsidianBrowser already exists, selecting it')
         editor.setSelectedShapes([existingBrowserShapes[0].id])
         editor.setCurrentTool('hand')
         return
       }
 
       // No existing browser, create a new one
-      console.log('🔧 Creating new ObsidianBrowser shape')
 
       // Try to get click position from event or use current page point
       let xPosition: number
@@ -169,24 +155,21 @@ export function CustomToolbar() {
       const clickPoint = (event as any)?.detail?.point
       if (clickPoint) {
         // Use click coordinates from event
-        xPosition = clickPoint.x - shapeWidth / 2 // Center the shape on click
-        yPosition = clickPoint.y - shapeHeight / 2 // Center the shape on click
-        console.log('📍 Positioning at event click location:', { clickPoint, xPosition, yPosition })
+        xPosition = clickPoint.x - shapeWidth / 2
+        yPosition = clickPoint.y - shapeHeight / 2
       } else {
         // Try to get current page point (if called from a click)
         const currentPagePoint = editor.inputs.currentPagePoint
         if (currentPagePoint && currentPagePoint.x !== undefined && currentPagePoint.y !== undefined) {
-          xPosition = currentPagePoint.x - shapeWidth / 2 // Center the shape on click
-          yPosition = currentPagePoint.y - shapeHeight / 2 // Center the shape on click
-          console.log('📍 Positioning at current page point:', { currentPagePoint, xPosition, yPosition })
+          xPosition = currentPagePoint.x - shapeWidth / 2
+          yPosition = currentPagePoint.y - shapeHeight / 2
         } else {
           // Fallback to viewport center if no click coordinates available
           const viewport = editor.getViewportPageBounds()
           const centerX = viewport.x + viewport.w / 2
           const centerY = viewport.y + viewport.h / 2
-          xPosition = centerX - shapeWidth / 2 // Center the shape
-          yPosition = centerY - shapeHeight / 2 // Center the shape
-          console.log('📍 Positioning at viewport center (fallback):', { centerX, centerY, xPosition, yPosition })
+          xPosition = centerX - shapeWidth / 2
+          yPosition = centerY - shapeHeight / 2
         }
       }
 
@@ -200,8 +183,6 @@ export function CustomToolbar() {
             h: shapeHeight,
           }
         })
-
-        console.log('✅ Created ObsidianBrowser shape:', browserShape.id)
 
         // Select the new shape and switch to hand tool
         editor.setSelectedShapes([`shape:${browserShape.id}`] as any)
@@ -221,21 +202,16 @@ export function CustomToolbar() {
   // Listen for open-holon-browser event - now creates a shape instead of modal
   useEffect(() => {
     const handleOpenHolonBrowser = () => {
-      console.log('🔧 Received open-holon-browser event')
-
       // Check if a HolonBrowser shape already exists
       const allShapes = editor.getCurrentPageShapes()
       const existingBrowserShapes = allShapes.filter(s => s.type === 'HolonBrowser')
 
       if (existingBrowserShapes.length > 0) {
         // If a browser already exists, just select it
-        console.log('✅ HolonBrowser already exists, selecting it')
         editor.setSelectedShapes([existingBrowserShapes[0].id])
         editor.setCurrentTool('select')
         return
       }
-
-      console.log('🔧 Creating new HolonBrowser shape')
 
       // Get the current viewport center
       const viewport = editor.getViewportPageBounds()
@@ -257,8 +233,6 @@ export function CustomToolbar() {
           }
         })
 
-        console.log('✅ Created HolonBrowser shape:', browserShape.id)
-
         // Select the new shape and switch to hand tool
         editor.setSelectedShapes([`shape:${browserShape.id}`] as any)
         editor.setCurrentTool('hand')
@@ -276,8 +250,6 @@ export function CustomToolbar() {
 
   // Handle Holon selection from browser
   const handleHolonSelect = (holonData: HolonData) => {
-    console.log('🎯 Creating Holon shape from data:', holonData)
-    
     try {
       // Store current camera position to prevent it from changing
       const currentCamera = editor.getCamera()
@@ -318,8 +290,6 @@ export function CustomToolbar() {
         }
       })
       
-      console.log('✅ Created Holon shape from data:', holonShape.id)
-      
       // Restore camera position if it changed
       const newCamera = editor.getCamera()
       if (currentCamera.x !== newCamera.x || currentCamera.y !== newCamera.y || currentCamera.z !== newCamera.z) {
@@ -336,15 +306,12 @@ export function CustomToolbar() {
   // Listen for create-obsnote-shapes event from the tool
   useEffect(() => {
     const handleCreateShapes = () => {
-      console.log('🎯 CustomToolbar: Received create-obsnote-shapes event')
-      
       // If vault browser is open, trigger shape creation
       if (showVaultBrowser) {
         const event = new CustomEvent('trigger-obsnote-creation')
         window.dispatchEvent(event)
       } else {
         // If vault browser is not open, open it first
-        console.log('🎯 Vault browser not open, opening it first')
         setVaultBrowserMode('keyboard')
         setShowVaultBrowser(true)
       }
@@ -400,39 +367,13 @@ export function CustomToolbar() {
     return () => clearInterval(interval)
   }, [])
 
-  // Check Fathom API key status
-  useEffect(() => {
-    if (session.authed && session.username) {
-      const hasKey = isFathomApiKeyConfigured(session.username)
-      setHasFathomApiKey(hasKey)
-    } else {
-      setHasFathomApiKey(false)
-    }
-  }, [session.authed, session.username])
-
   const handleLogout = () => {
     // Clear the session
     clearSession()
-    
+
     // Close the popup
     setShowProfilePopup(false)
   }
-
-  const openApiKeysDialog = () => {
-    addDialog({
-      id: "api-keys",
-      component: ({ onClose }: { onClose: () => void }) => (
-        <SettingsDialog
-          onClose={() => {
-            onClose()
-            removeDialog("api-keys")
-            checkApiKeys() // Refresh API key status
-          }}
-        />
-      ),
-    })
-  }
-
 
   const handleObsNoteSelect = (obsNote: ObsidianObsNote) => {
     // Get current camera position to place the obs_note
@@ -566,466 +507,104 @@ export function CustomToolbar() {
       <div
         className="toolbar-container"
         style={{
-          position: "fixed",
-          top: "4px",
-          right: "40px",
-          zIndex: 99999,
           pointerEvents: "auto",
-          display: "flex",
-          gap: "6px",
-          alignItems: "center",
         }}
       >
-        {/* Dark/Light Mode Toggle */}
-        <button
-          onClick={toggleDarkMode}
-          style={{
-            padding: "4px 8px",
-            borderRadius: "4px",
-            background: "#6B7280",
-            color: "white",
-            border: "none",
-            cursor: "pointer",
-            fontWeight: 500,
-            transition: "background 0.2s ease",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-            whiteSpace: "nowrap",
-            userSelect: "none",
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            height: "22px",
-            minHeight: "22px",
-            boxSizing: "border-box",
-            fontSize: "0.75rem",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "#4B5563"
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "#6B7280"
-          }}
-          title={isDarkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
-        >
-          <span style={{ fontSize: "14px" }}>
-            {isDarkMode ? "☀️" : "🌙"}
-          </span>
-        </button>
+        <LoginButton className="toolbar-btn" />
+        <StarBoardButton className="toolbar-btn" />
 
-        <LoginButton className="toolbar-login-button" />
-        <StarBoardButton className="toolbar-star-button" />
-        
         {session.authed && (
           <div style={{ position: "relative" }}>
             <button
+              className="toolbar-btn profile-btn"
               onClick={() => setShowProfilePopup(!showProfilePopup)}
-              style={{
-                padding: "4px 8px",
-                borderRadius: "4px",
-                background: "#6B7280",
-                color: "white",
-                border: "none",
-                cursor: "pointer",
-                fontWeight: 500,
-                transition: "background 0.2s ease",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-                whiteSpace: "nowrap",
-                userSelect: "none",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                height: "22px",
-                minHeight: "22px",
-                boxSizing: "border-box",
-                fontSize: "0.75rem",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#4B5563"
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#6B7280"
-              }}
+              title={`Signed in as ${session.username}`}
             >
-              <span style={{ fontSize: "12px" }}>
-                {hasApiKey ? "🔑" : "❌"}
-              </span>
-              <span>CryptID: {session.username}</span>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/>
+              </svg>
+              <span className="profile-username">{session.username}</span>
             </button>
-          
+
             {showProfilePopup && (
-              <div 
-                ref={profilePopupRef}
-                style={{
-                  position: "absolute",
-                  top: "40px",
-                  right: "0",
-                  width: "250px",
-                  backgroundColor: "white",
-                  borderRadius: "4px",
-                  boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
-                  padding: "16px",
-                  zIndex: 100000,
-                }}
-              >
-                <div style={{ marginBottom: "12px", fontWeight: "bold" }}>
-                  CryptID: {session.username}
-                </div>
-                
-                {/* API Key Status */}
-                <div style={{ 
-                  marginBottom: "16px", 
-                  padding: "12px",
-                  backgroundColor: hasApiKey ? "#f0f9ff" : "#fef2f2",
-                  borderRadius: "4px",
-                  border: `1px solid ${hasApiKey ? "#0ea5e9" : "#f87171"}`
-                }}>
-                  <div style={{ 
-                    display: "flex", 
-                    alignItems: "center", 
-                    justifyContent: "space-between",
-                    marginBottom: "8px"
-                  }}>
-                    <span style={{ fontWeight: "500" }}>AI API Keys</span>
-                    <span style={{ fontSize: "14px" }}>
-                      {hasApiKey ? "✅ Configured" : "❌ Not configured"}
-                    </span>
+              <div ref={profilePopupRef} className="profile-dropdown">
+                <div className="profile-dropdown-header">
+                  <div className="profile-avatar">
+                    <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0zm4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4zm-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664h10z"/>
+                    </svg>
                   </div>
-                  <p style={{ 
-                    fontSize: "12px", 
-                    color: "#666",
-                    margin: "0 0 8px 0"
-                  }}>
-                    {hasApiKey 
-                      ? "Your AI models are ready to use" 
-                      : "Configure API keys to use AI features"
-                    }
-                  </p>
-                  <button
-                    onClick={openApiKeysDialog}
-                    style={{
-                      width: "100%",
-                      padding: "6px 12px",
-                      backgroundColor: hasApiKey ? "#0ea5e9" : "#ef4444",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                      fontSize: "12px",
-                      fontWeight: "500",
-                      transition: "background 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = hasApiKey ? "#0284c7" : "#dc2626"
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = hasApiKey ? "#0ea5e9" : "#ef4444"
-                    }}
-                  >
-                    {hasApiKey ? "Manage Keys" : "Add API Keys"}
-                  </button>
-                </div>
-                
-                {/* Obsidian Vault Settings */}
-                <div style={{ 
-                  marginBottom: "16px", 
-                  padding: "12px",
-                  backgroundColor: "#f8f9fa",
-                  borderRadius: "4px",
-                  border: "1px solid #e9ecef"
-                }}>
-                  <div style={{ 
-                    display: "flex", 
-                    alignItems: "center", 
-                    justifyContent: "space-between",
-                    marginBottom: "8px"
-                  }}>
-                    <span style={{ fontWeight: "500" }}>Obsidian Vault</span>
-                    <span style={{ fontSize: "14px" }}>
-                      {session.obsidianVaultName ? "✅ Configured" : "❌ Not configured"}
-                    </span>
+                  <div className="profile-info">
+                    <span className="profile-name">{session.username}</span>
+                    <span className="profile-label">CryptID Account</span>
                   </div>
-                  
-                  {session.obsidianVaultName ? (
-                    <div style={{ marginBottom: "8px" }}>
-                      <div style={{ 
-                        fontSize: "12px", 
-                        color: "#007acc",
-                        fontWeight: "600",
-                        marginBottom: "4px"
-                      }}>
-                        {session.obsidianVaultName}
-                      </div>
-                      <div style={{ 
-                        fontSize: "11px", 
-                        color: "#666",
-                        fontFamily: "monospace",
-                        wordBreak: "break-all"
-                      }}>
-                        {session.obsidianVaultPath === 'folder-selected' 
-                          ? 'Folder selected (path not available)' 
-                          : session.obsidianVaultPath}
-                      </div>
-                    </div>
-                  ) : (
-                    <p style={{ 
-                      fontSize: "12px", 
-                      color: "#666",
-                      margin: "0 0 8px 0"
-                    }}>
-                      No Obsidian vault configured
-                    </p>
-                  )}
-                  
-                  <button
-                    onClick={() => {
-                      console.log('🔧 Set Vault button clicked, opening folder picker')
-                      setVaultBrowserMode('button')
-                      setShowVaultBrowser(true)
-                    }}
-                    style={{
-                      width: "100%",
-                      padding: "6px 12px",
-                      backgroundColor: session.obsidianVaultName ? "#007acc" : "#28a745",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                      fontSize: "12px",
-                      fontWeight: "500",
-                      transition: "background 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = session.obsidianVaultName ? "#005a9e" : "#218838"
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = session.obsidianVaultName ? "#007acc" : "#28a745"
-                    }}
-                  >
-                    {session.obsidianVaultName ? "Change Vault" : "Set Vault"}
-                  </button>
                 </div>
-                
-                {/* Fathom API Key Settings */}
-                <div style={{ 
-                  marginBottom: "16px", 
-                  padding: "12px",
-                  backgroundColor: hasFathomApiKey ? "#f0f9ff" : "#fef2f2",
-                  borderRadius: "4px",
-                  border: `1px solid ${hasFathomApiKey ? "#0ea5e9" : "#f87171"}`
-                }}>
-                  <div style={{ 
-                    display: "flex", 
-                    alignItems: "center", 
-                    justifyContent: "space-between",
-                    marginBottom: "8px"
-                  }}>
-                    <span style={{ fontWeight: "500" }}>Fathom API</span>
-                    <span style={{ fontSize: "14px" }}>
-                      {hasFathomApiKey ? "✅ Connected" : "❌ Not connected"}
-                    </span>
-                  </div>
-                  
-                  {showFathomApiKeyInput ? (
-                    <div>
-                      <input
-                        type="password"
-                        value={fathomApiKeyInput}
-                        onChange={(e) => setFathomApiKeyInput(e.target.value)}
-                        placeholder="Enter Fathom API key..."
-                        style={{
-                          width: "100%",
-                          padding: "6px 8px",
-                          marginBottom: "8px",
-                          border: "1px solid #ddd",
-                          borderRadius: "4px",
-                          fontSize: "12px",
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            if (fathomApiKeyInput.trim()) {
-                              saveFathomApiKey(fathomApiKeyInput.trim(), session.username)
-                              setHasFathomApiKey(true)
-                              setShowFathomApiKeyInput(false)
-                              setFathomApiKeyInput('')
-                            }
-                          } else if (e.key === 'Escape') {
-                            setShowFathomApiKeyInput(false)
-                            setFathomApiKeyInput('')
-                          }
-                        }}
-                        autoFocus
-                      />
-                      <div style={{ display: "flex", gap: "4px" }}>
-                        <button
-                          onClick={() => {
-                            if (fathomApiKeyInput.trim()) {
-                              saveFathomApiKey(fathomApiKeyInput.trim(), session.username)
-                              setHasFathomApiKey(true)
-                              setShowFathomApiKeyInput(false)
-                              setFathomApiKeyInput('')
-                            }
-                          }}
-                          style={{
-                            flex: 1,
-                            padding: "4px 8px",
-                            backgroundColor: "#0ea5e9",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                            fontSize: "11px",
-                          }}
-                        >
-                          Save
-                        </button>
-                        <button
-                          onClick={() => {
-                            setShowFathomApiKeyInput(false)
-                            setFathomApiKeyInput('')
-                          }}
-                          style={{
-                            flex: 1,
-                            padding: "4px 8px",
-                            backgroundColor: "#6b7280",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                            fontSize: "11px",
-                          }}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <p style={{ 
-                        fontSize: "12px", 
-                        color: "#666",
-                        margin: "0 0 8px 0"
-                      }}>
-                        {hasFathomApiKey 
-                          ? "Your Fathom account is connected" 
-                          : "Connect your Fathom account to import meetings"}
-                      </p>
-                      <div style={{ display: "flex", gap: "4px" }}>
-                        <button
-                          onClick={() => {
-                            setShowFathomApiKeyInput(true)
-                            const currentKey = getFathomApiKey(session.username)
-                            if (currentKey) {
-                              setFathomApiKeyInput(currentKey)
-                            }
-                          }}
-                          style={{
-                            flex: 1,
-                            padding: "6px 12px",
-                            backgroundColor: hasFathomApiKey ? "#0ea5e9" : "#ef4444",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                            fontSize: "12px",
-                            fontWeight: "500",
-                          }}
-                        >
-                          {hasFathomApiKey ? "Change Key" : "Add API Key"}
-                        </button>
-                        {hasFathomApiKey && (
-                          <button
-                            onClick={() => {
-                              removeFathomApiKey(session.username)
-                              setHasFathomApiKey(false)
-                            }}
-                            style={{
-                              padding: "6px 12px",
-                              backgroundColor: "#6b7280",
-                              color: "white",
-                              border: "none",
-                              borderRadius: "4px",
-                              cursor: "pointer",
-                              fontSize: "12px",
-                              fontWeight: "500",
-                            }}
-                          >
-                            Disconnect
-                          </button>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-                
-                <a
-                  href="/dashboard/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    padding: "8px 12px",
-                    backgroundColor: "#3B82F6",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    fontWeight: "500",
-                    textDecoration: "none",
-                    textAlign: "center",
-                    marginBottom: "8px",
-                    transition: "background 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "#2563EB"
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "#3B82F6"
+
+                <div className="profile-dropdown-divider" />
+
+                <a href="/dashboard/" className="profile-dropdown-item">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M11.251.068a.5.5 0 0 1 .227.58L9.677 6.5H13a.5.5 0 0 1 .364.843l-8 8.5a.5.5 0 0 1-.842-.49L6.323 9.5H3a.5.5 0 0 1-.364-.843l8-8.5a.5.5 0 0 1 .615-.09z"/>
+                  </svg>
+                  <span>My Saved Boards</span>
+                </a>
+
+                <button
+                  className="profile-dropdown-item"
+                  onClick={() => {
+                    setShowProfilePopup(false)
+                    setShowSettingsModal(true)
                   }}
                 >
-                  My Dashboard
-                </a>
-                
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
+                    <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z"/>
+                  </svg>
+                  <span>Settings</span>
+                </button>
+
+                <div className="profile-dropdown-divider" />
+
+                <button className="profile-dropdown-item" onClick={toggleDarkMode}>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    {isDarkMode ? (
+                      <path d="M8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0 1a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm.5-9.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm0 11a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0zm5-5a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1zm-11 0a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1zm9.743-4.036a.5.5 0 1 1-.707-.707.5.5 0 0 1 .707.707zm-7.779 7.779a.5.5 0 1 1-.707-.707.5.5 0 0 1 .707.707zm7.072 0a.5.5 0 1 1 .707-.707.5.5 0 0 1-.707.707zM3.757 4.464a.5.5 0 1 1 .707-.707.5.5 0 0 1-.707.707z"/>
+                    ) : (
+                      <path d="M6 .278a.768.768 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z"/>
+                    )}
+                  </svg>
+                  <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
+                </button>
+
+                <div className="profile-dropdown-divider" />
+
                 {!session.backupCreated && (
-                  <div style={{ 
-                    marginBottom: "12px", 
-                    fontSize: "12px", 
-                    color: "#666",
-                    padding: "8px",
-                    backgroundColor: "#f8f8f8",
-                    borderRadius: "4px"
-                  }}>
-                    Remember to back up your encryption keys to prevent data loss!
+                  <div className="profile-dropdown-warning">
+                    Back up your encryption keys to prevent data loss
                   </div>
                 )}
-                
-                <button
-                  onClick={handleLogout}
-                  style={{
-                    width: "100%",
-                    padding: "8px 12px",
-                    backgroundColor: "#EF4444",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    fontWeight: "500",
-                    transition: "background 0.2s",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "#DC2626"
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "#EF4444"
-                  }}
-                >
-                  Sign Out
+
+                <button className="profile-dropdown-item danger" onClick={handleLogout}>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 12.5a.5.5 0 0 1-.5.5h-8a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5h8a.5.5 0 0 1 .5.5v2a.5.5 0 0 0 1 0v-2A1.5 1.5 0 0 0 9.5 2h-8A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h8a1.5 1.5 0 0 0 1.5-1.5v-2a.5.5 0 0 0-1 0v2z"/>
+                    <path fillRule="evenodd" d="M15.854 8.354a.5.5 0 0 0 0-.708l-3-3a.5.5 0 0 0-.708.708L14.293 7.5H5.5a.5.5 0 0 0 0 1h8.793l-2.147 2.146a.5.5 0 0 0 .708.708l3-3z"/>
+                  </svg>
+                  <span>Sign Out</span>
                 </button>
               </div>
             )}
           </div>
         )}
       </div>
+
+      {/* Settings Modal */}
+      {showSettingsModal && (
+        <UserSettingsModal
+          onClose={() => setShowSettingsModal(false)}
+          isDarkMode={isDarkMode}
+          onToggleDarkMode={toggleDarkMode}
+        />
+      )}
       <DefaultToolbar>
         <DefaultToolbarContent />
         {tools["VideoChat"] && (
@@ -1110,6 +689,14 @@ export function CustomToolbar() {
             isSelected={tools["Holon"].id === editor.getCurrentToolId()}
           />
         )}
+        {tools["FathomMeetings"] && (
+          <TldrawUiMenuItem
+            {...tools["FathomMeetings"]}
+            icon="calendar"
+            label="Fathom Meetings"
+            isSelected={tools["FathomMeetings"].id === editor.getCurrentToolId()}
+          />
+        )}
         {tools["ImageGen"] && (
           <TldrawUiMenuItem
             {...tools["ImageGen"]}
@@ -1134,6 +721,7 @@ export function CustomToolbar() {
             isSelected={tools["Multmux"].id === editor.getCurrentToolId()}
           />
         )}
+        {/* MycelialIntelligence moved to permanent floating bar */}
         {/* Share Location tool removed for now */}
         {/* Refresh All ObsNotes Button */}
         {(() => {

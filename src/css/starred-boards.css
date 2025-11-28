@@ -1,26 +1,6 @@
-/* Star Board Button Styles */
+/* Star Board Button Styles - extends .toolbar-btn */
 .star-board-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 8px;
-  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.75rem;
-  font-weight: 600;
-  transition: all 0.2s ease;
-  letter-spacing: 0.5px;
-  white-space: nowrap;
-  box-sizing: border-box;
-  line-height: 1.1;
-  margin: 0;
-  width: 22px;
-  height: 22px;
-  min-width: 22px;
-  min-height: 22px;
+  /* Base styles come from .toolbar-btn */
 }
 
 /* Custom popup notification styles */
@@ -64,48 +44,15 @@
   }
 }
 
-/* Toolbar-specific star button styling to match login button exactly */
-.toolbar-star-button {
-  padding: 4px 8px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  border-radius: 4px;
-  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-  color: white;
-  border: none;
-  transition: all 0.2s ease;
-  letter-spacing: 0.5px;
-  box-sizing: border-box;
-  line-height: 1.1;
-  margin: 0;
-  width: 22px;
-  height: 22px;
-  min-width: 22px;
-  min-height: 22px;
-  flex-shrink: 0;
-}
-
-.star-board-button:hover {
-  background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
-}
-
-.toolbar-star-button:hover {
-  background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
-}
-
+/* Starred state for star button */
 .star-board-button.starred {
-  background: #6B7280;
-  color: white;
+  background: var(--tool-bg);
+  border-color: #eab308;
+  color: #eab308;
 }
 
 .star-board-button.starred:hover {
-  background: #4B5563;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  background: rgba(234, 179, 8, 0.1);
 }
 
 .star-board-button:disabled {

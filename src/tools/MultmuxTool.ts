@@ -109,6 +109,12 @@ export class MultmuxIdle extends StateNode {
         props: {
           w: shapeWidth,
           h: shapeHeight,
+          sessionId: '',
+          sessionName: '',
+          token: '',
+          serverUrl: 'http://localhost:3000',
+          pinnedToView: false,
+          tags: ['terminal', 'multmux'],
         }
       })
 

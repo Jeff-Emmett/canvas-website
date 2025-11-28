@@ -270,8 +270,12 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
             } else {
               // Handle text messages (our custom protocol for backward compatibility)
               const message = JSON.parse(event.data)
-              console.log('🔌 CloudflareAdapter: Received WebSocket message:', message.type)
-              
+
+              // Only log non-presence messages to reduce console spam
+              if (message.type !== 'presence' && message.type !== 'pong') {
+                console.log('🔌 CloudflareAdapter: Received WebSocket message:', message.type)
+              }
+
               // Handle ping/pong messages for keep-alive
               if (message.type === 'ping') {
                 this.sendPong()
