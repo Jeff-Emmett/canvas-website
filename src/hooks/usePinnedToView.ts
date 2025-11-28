@@ -1,11 +1,33 @@
 import { useEffect, useRef } from 'react'
-import { Editor, TLShapeId } from 'tldraw'
+import { Editor, TLShapeId, getIndexAbove } from 'tldraw'
+
+export interface PinnedViewOptions {
+  /**
+   * The position to pin the shape at.
+   * - 'current': Keep at current screen position (default)
+   * - 'top-center': Pin to top center of viewport
+   * - 'bottom-center': Pin to bottom center of viewport
+   * - 'center': Pin to center of viewport
+   */
+  position?: 'current' | 'top-center' | 'bottom-center' | 'center'
+  /**
+   * Offset from the edge (for top-center, bottom-center positions)
+   */
+  offsetY?: number
+  offsetX?: number
+}
 
 /**
  * Hook to manage shapes pinned to the viewport.
  * When a shape is pinned, it stays in the same screen position as the camera moves.
  */
-export function usePinnedToView(editor: Editor | null, shapeId: string | undefined, isPinned: boolean) {
+export function usePinnedToView(
+  editor: Editor | null,
+  shapeId: string | undefined,
+  isPinned: boolean,
+  options: PinnedViewOptions = {}
+) {
+  const { position = 'current', offsetY = 0, offsetX = 0 } = options
   const pinnedScreenPositionRef = useRef<{ x: number; y: number } | null>(null)
   const originalCoordinatesRef = useRef<{ x: number; y: number } | null>(null)
   const originalSizeRef = useRef<{ w: number; h: number } | null>(null)
@@ -39,67 +61,58 @@ export function usePinnedToView(editor: Editor | null, shapeId: string | undefin
       }
       originalZoomRef.current = currentCamera.z
       
-      // Get the shape's current page position (top-left corner)
-      const pagePoint = { x: shape.x, y: shape.y }
-      // Convert to screen coordinates - this is where we want the shape to stay
-      const screenPoint = editor.pageToScreen(pagePoint)
-      
+      // Calculate screen position based on position option
+      let screenPoint: { x: number; y: number }
+      const viewport = editor.getViewportScreenBounds()
+      const shapeWidth = (shape.props as any).w || 0
+      const shapeHeight = (shape.props as any).h || 0
+
+      if (position === 'top-center') {
+        // Center horizontally at the top of the viewport
+        screenPoint = {
+          x: viewport.x + (viewport.w / 2) - (shapeWidth * currentCamera.z / 2) + offsetX,
+          y: viewport.y + offsetY,
+        }
+      } else if (position === 'bottom-center') {
+        // Center horizontally at the bottom of the viewport
+        screenPoint = {
+          x: viewport.x + (viewport.w / 2) - (shapeWidth * currentCamera.z / 2) + offsetX,
+          y: viewport.y + viewport.h - (shapeHeight * currentCamera.z) - offsetY,
+        }
+      } else if (position === 'center') {
+        // Center in the viewport
+        screenPoint = {
+          x: viewport.x + (viewport.w / 2) - (shapeWidth * currentCamera.z / 2) + offsetX,
+          y: viewport.y + (viewport.h / 2) - (shapeHeight * currentCamera.z / 2) + offsetY,
+        }
+      } else {
+        // Default: use current position
+        const pagePoint = { x: shape.x, y: shape.y }
+        screenPoint = editor.pageToScreen(pagePoint)
+      }
+
       pinnedScreenPositionRef.current = { x: screenPoint.x, y: screenPoint.y }
       lastCameraRef.current = { ...currentCamera }
       
-      // Bring the shape to the front by setting its index higher than all other shapes
+      // Bring the shape to the front using tldraw's proper index functions
       try {
         const allShapes = editor.getCurrentPageShapes()
-        let highestIndex = 'a0'
-        
+
         // Find the highest index among all shapes
+        let highestIndex = shape.index
         for (const s of allShapes) {
-          if (s.index && typeof s.index === 'string') {
-            // Compare string indices (fractional indexing)
-            // Higher alphabetical order = higher z-index
-            if (s.index > highestIndex) {
-              highestIndex = s.index
-            }
+          if (s.id !== shape.id && s.index > highestIndex) {
+            highestIndex = s.index
           }
         }
-        
-        // Bring the shape to the front by manually setting index
-        // Note: sendToFront doesn't exist in this version of tldraw, so we use manual index setting
-        // Try to set a safe index value
-        // Use conservative values that are known to work (a1, a2, b1, etc.)
-        let newIndex: string = 'a2' // Safe default
-        
-        // Try to find a valid index higher than existing ones
-        const allIndices = allShapes
-          .map(s => s.index)
-          .filter((idx): idx is any => typeof idx === 'string' && /^[a-z]\d+$/.test(idx))
-          .sort()
-        
-        if (allIndices.length > 0) {
-          const highest = allIndices[allIndices.length - 1]
-          const match = highest.match(/^([a-z])(\d+)$/)
-          if (match) {
-            const letter = match[1]
-            const num = parseInt(match[2], 10)
-            // Increment number, or move to next letter if number gets too high
-            if (num < 100) {
-              newIndex = `${letter}${num + 1}`
-            } else if (letter < 'y') {
-              const nextLetter = String.fromCharCode(letter.charCodeAt(0) + 1)
-              newIndex = `${nextLetter}1`
-            } else {
-              // Use a safe value if we're running out of letters
-              newIndex = 'a2'
-            }
-          }
-        }
-        
-        // Validate before using
-        if (/^[a-z]\d+$/.test(newIndex)) {
+
+        // Only update if we need to move higher
+        if (highestIndex > shape.index) {
+          const newIndex = getIndexAbove(highestIndex)
           editor.updateShape({
             id: shapeId as TLShapeId,
             type: shape.type,
-            index: newIndex as any,
+            index: newIndex,
           })
         }
       } catch (error) {
@@ -268,14 +281,43 @@ export function usePinnedToView(editor: Editor | null, shapeId: string | undefin
         return
       }
 
-      const pinnedScreenPos = pinnedScreenPositionRef.current
-      if (!pinnedScreenPos) {
-        animationFrameRef.current = requestAnimationFrame(updatePinnedPosition)
-        return
-      }
-
       const currentCamera = editor.getCamera()
       const lastCamera = lastCameraRef.current
+
+      // For preset positions (top-center, etc.), always recalculate based on viewport
+      // For 'current' position, use the stored screen position
+      let pinnedScreenPos: { x: number; y: number }
+
+      if (position !== 'current') {
+        const viewport = editor.getViewportScreenBounds()
+        const shapeWidth = (currentShape.props as any).w || 0
+        const shapeHeight = (currentShape.props as any).h || 0
+
+        if (position === 'top-center') {
+          pinnedScreenPos = {
+            x: viewport.x + (viewport.w / 2) - (shapeWidth * currentCamera.z / 2) + offsetX,
+            y: viewport.y + offsetY,
+          }
+        } else if (position === 'bottom-center') {
+          pinnedScreenPos = {
+            x: viewport.x + (viewport.w / 2) - (shapeWidth * currentCamera.z / 2) + offsetX,
+            y: viewport.y + viewport.h - (shapeHeight * currentCamera.z) - offsetY,
+          }
+        } else if (position === 'center') {
+          pinnedScreenPos = {
+            x: viewport.x + (viewport.w / 2) - (shapeWidth * currentCamera.z / 2) + offsetX,
+            y: viewport.y + (viewport.h / 2) - (shapeHeight * currentCamera.z / 2) + offsetY,
+          }
+        } else {
+          pinnedScreenPos = pinnedScreenPositionRef.current!
+        }
+      } else {
+        if (!pinnedScreenPositionRef.current) {
+          animationFrameRef.current = requestAnimationFrame(updatePinnedPosition)
+          return
+        }
+        pinnedScreenPos = pinnedScreenPositionRef.current
+      }
 
       // Check if camera has changed significantly
       const cameraChanged = !lastCamera || (
@@ -284,7 +326,10 @@ export function usePinnedToView(editor: Editor | null, shapeId: string | undefin
         Math.abs(currentCamera.z - lastCamera.z) > 0.001
       )
 
-      if (cameraChanged) {
+      // For preset positions, always check for updates (viewport might have changed)
+      const shouldUpdate = cameraChanged || position !== 'current'
+
+      if (shouldUpdate) {
         // Throttle updates to max 60fps (every ~16ms)
         const timeSinceLastUpdate = timestamp - lastUpdateTimeRef.current
         const minUpdateInterval = 16 // ~60fps
@@ -405,6 +450,6 @@ export function usePinnedToView(editor: Editor | null, shapeId: string | undefin
       }
       editor.off('change' as any, handleShapeChange)
     }
-  }, [editor, shapeId, isPinned])
+  }, [editor, shapeId, isPinned, position, offsetX, offsetY])
 }
 

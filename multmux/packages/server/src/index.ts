@@ -1,4 +1,5 @@
 import express from 'express';
+import { createServer } from 'http';
 import { WebSocketServer } from 'ws';
 import cors from 'cors';
 import { SessionManager } from './managers/SessionManager';
@@ -6,8 +7,7 @@ import { TokenManager } from './managers/TokenManager';
 import { TerminalHandler } from './websocket/TerminalHandler';
 import { createRouter } from './api/routes';
 
-const PORT = process.env.PORT || 3000;
-const WS_PORT = process.env.WS_PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 async function main() {
   // Initialize managers
@@ -21,16 +21,15 @@ async function main() {
   app.use(express.json());
   app.use('/api', createRouter(sessionManager, tokenManager));
 
-  app.listen(PORT, () => {
-    console.log(`mulTmux HTTP API listening on port ${PORT}`);
-  });
+  // Create HTTP server to share with WebSocket
+  const server = createServer(app);
 
-  // WebSocket Server
-  const wss = new WebSocketServer({ port: Number(WS_PORT) });
+  // WebSocket Server on same port, handles upgrade requests
+  const wss = new WebSocketServer({ server, path: '/ws' });
 
   wss.on('connection', (ws, req) => {
     // Extract token from query string
-    const url = new URL(req.url || '', `http://localhost:${WS_PORT}`);
+    const url = new URL(req.url || '', `http://localhost:${PORT}`);
     const token = url.searchParams.get('token');
 
     if (!token) {
@@ -42,11 +41,12 @@ async function main() {
     terminalHandler.handleConnection(ws, token);
   });
 
-  console.log(`mulTmux WebSocket server listening on port ${WS_PORT}`);
-  console.log('');
-  console.log('mulTmux server is ready!');
-  console.log(`API: http://localhost:${PORT}/api`);
-  console.log(`WebSocket: ws://localhost:${WS_PORT}`);
+  server.listen(PORT, () => {
+    console.log('');
+    console.log('mulTmux server is ready!');
+    console.log(`API: http://localhost:${PORT}/api`);
+    console.log(`WebSocket: ws://localhost:${PORT}/ws`);
+  });
 }
 
 main().catch((error) => {

@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { BaseBoxShapeUtil, TLBaseShape, HTMLContainer, Geometry2d, Rectangle2d } from 'tldraw'
+import { BaseBoxShapeUtil, TLBaseShape, HTMLContainer, Geometry2d, Rectangle2d, T, createShapePropsMigrationIds, createShapePropsMigrationSequence } from 'tldraw'
 import { StandardizedToolWrapper } from '../components/StandardizedToolWrapper'
 import { usePinnedToView } from '../hooks/usePinnedToView'
+import { Terminal } from '@xterm/xterm'
+import { FitAddon } from '@xterm/addon-fit'
+import '@xterm/xterm/css/xterm.css'
 
 export type IMultmuxShape = TLBaseShape<
   'Multmux',
@@ -12,7 +15,6 @@ export type IMultmuxShape = TLBaseShape<
     sessionName: string
     token: string
     serverUrl: string
-    wsUrl: string
     pinnedToView: boolean
     tags: string[]
   }
@@ -24,8 +26,80 @@ interface SessionResponse {
   token: string
 }
 
+interface SessionListItem {
+  id: string
+  name: string
+  createdAt: string
+  clientCount: number
+}
+
+// Helper to convert HTTP URL to WebSocket URL
+function httpToWs(httpUrl: string): string {
+  return httpUrl
+    .replace(/^http:/, 'ws:')
+    .replace(/^https:/, 'wss:')
+    .replace(/\/?$/, '/ws')
+}
+
+// Migration versions for Multmux shape
+const versions = createShapePropsMigrationIds('Multmux', {
+  AddMissingProps: 1,
+  RemoveWsUrl: 2,
+})
+
+// Migrations to handle shapes with missing/undefined props
+export const multmuxShapeMigrations = createShapePropsMigrationSequence({
+  sequence: [
+    {
+      id: versions.AddMissingProps,
+      up: (props: any) => {
+        return {
+          w: props.w ?? 800,
+          h: props.h ?? 600,
+          sessionId: props.sessionId ?? '',
+          sessionName: props.sessionName ?? 'New Terminal',
+          token: props.token ?? '',
+          serverUrl: props.serverUrl ?? 'http://localhost:3002',
+          wsUrl: props.wsUrl ?? 'ws://localhost:3002',
+          pinnedToView: props.pinnedToView ?? false,
+          tags: Array.isArray(props.tags) ? props.tags : ['terminal', 'multmux'],
+        }
+      },
+      down: (props: any) => props,
+    },
+    {
+      id: versions.RemoveWsUrl,
+      up: (props: any) => {
+        // Remove wsUrl, it's now derived from serverUrl
+        const { wsUrl, ...rest } = props
+        return {
+          ...rest,
+          serverUrl: rest.serverUrl ?? 'http://localhost:3002',
+        }
+      },
+      down: (props: any) => ({
+        ...props,
+        wsUrl: httpToWs(props.serverUrl || 'http://localhost:3002'),
+      }),
+    },
+  ],
+})
+
 export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
   static override type = 'Multmux' as const
+
+  static override props = {
+    w: T.number,
+    h: T.number,
+    sessionId: T.string,
+    sessionName: T.string,
+    token: T.string,
+    serverUrl: T.string,
+    pinnedToView: T.boolean,
+    tags: T.arrayOf(T.string),
+  }
+
+  static override migrations = multmuxShapeMigrations
 
   // Terminal theme color: Dark purple/violet
   static readonly PRIMARY_COLOR = "#8b5cf6"
@@ -35,10 +109,9 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
       w: 800,
       h: 600,
       sessionId: '',
-      sessionName: 'New Terminal',
+      sessionName: '',
       token: '',
-      serverUrl: 'http://localhost:3000',
-      wsUrl: 'ws://localhost:3001',
+      serverUrl: 'http://localhost:3002',
       pinnedToView: false,
       tags: ['terminal', 'multmux'],
     }
@@ -56,11 +129,14 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
     const isSelected = this.editor.getSelectedShapeIds().includes(shape.id)
     const [isMinimized, setIsMinimized] = useState(false)
     const [ws, setWs] = useState<WebSocket | null>(null)
-    const [output, setOutput] = useState<string[]>([])
-    const [input, setInput] = useState('')
     const [connected, setConnected] = useState(false)
+    const [showAdvanced, setShowAdvanced] = useState(false)
+    const [sessions, setSessions] = useState<SessionListItem[]>([])
+    const [loadingSessions, setLoadingSessions] = useState(false)
+    const [sessionName, setSessionName] = useState('')
     const terminalRef = useRef<HTMLDivElement>(null)
-    const inputRef = useRef<HTMLInputElement>(null)
+    const xtermRef = useRef<Terminal | null>(null)
+    const fitAddonRef = useRef<FitAddon | null>(null)
 
     // Use the pinning hook
     usePinnedToView(this.editor, shape.id, shape.props.pinnedToView)
@@ -87,17 +163,96 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
       })
     }
 
-    // WebSocket connection
+    // Fetch available sessions
+    const fetchSessions = async () => {
+      setLoadingSessions(true)
+      try {
+        const response = await fetch(`${shape.props.serverUrl}/api/sessions`)
+        if (response.ok) {
+          const data = await response.json() as { sessions?: SessionListItem[] }
+          setSessions(data.sessions || [])
+        }
+      } catch (error) {
+        console.error('Failed to fetch sessions:', error)
+      } finally {
+        setLoadingSessions(false)
+      }
+    }
+
+    // Initialize xterm.js terminal
     useEffect(() => {
-      if (!shape.props.token || !shape.props.wsUrl) {
+      if (!shape.props.token || !terminalRef.current || xtermRef.current) {
         return
       }
 
-      const websocket = new WebSocket(`${shape.props.wsUrl}?token=${shape.props.token}`)
+      const term = new Terminal({
+        cursorBlink: true,
+        fontSize: 14,
+        fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+        theme: {
+          background: '#1e1e2e',
+          foreground: '#cdd6f4',
+          cursor: '#f5e0dc',
+          cursorAccent: '#1e1e2e',
+          black: '#45475a',
+          red: '#f38ba8',
+          green: '#a6e3a1',
+          yellow: '#f9e2af',
+          blue: '#89b4fa',
+          magenta: '#cba6f7',
+          cyan: '#94e2d5',
+          white: '#bac2de',
+          brightBlack: '#585b70',
+          brightRed: '#f38ba8',
+          brightGreen: '#a6e3a1',
+          brightYellow: '#f9e2af',
+          brightBlue: '#89b4fa',
+          brightMagenta: '#cba6f7',
+          brightCyan: '#94e2d5',
+          brightWhite: '#a6adc8',
+        },
+      })
+
+      const fitAddon = new FitAddon()
+      term.loadAddon(fitAddon)
+      term.open(terminalRef.current)
+
+      // Small delay to ensure container is sized
+      setTimeout(() => {
+        fitAddon.fit()
+      }, 100)
+
+      xtermRef.current = term
+      fitAddonRef.current = fitAddon
+
+      return () => {
+        term.dispose()
+        xtermRef.current = null
+        fitAddonRef.current = null
+      }
+    }, [shape.props.token])
+
+    // Fit terminal when shape resizes
+    useEffect(() => {
+      if (fitAddonRef.current && xtermRef.current) {
+        setTimeout(() => {
+          fitAddonRef.current?.fit()
+        }, 50)
+      }
+    }, [shape.props.w, shape.props.h, isMinimized])
+
+    // WebSocket connection
+    useEffect(() => {
+      if (!shape.props.token || !shape.props.serverUrl) {
+        return
+      }
+
+      const wsUrl = httpToWs(shape.props.serverUrl)
+      const websocket = new WebSocket(`${wsUrl}?token=${shape.props.token}`)
 
       websocket.onopen = () => {
         setConnected(true)
-        setOutput(prev => [...prev, '✓ Connected to terminal session'])
+        xtermRef.current?.writeln('\r\n\x1b[32m✓ Connected to terminal session\x1b[0m\r\n')
       }
 
       websocket.onmessage = (event) => {
@@ -106,21 +261,23 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
 
           switch (message.type) {
             case 'output':
-              setOutput(prev => [...prev, message.data])
+              // Write terminal output directly to xterm
+              xtermRef.current?.write(message.data)
               break
             case 'joined':
-              setOutput(prev => [...prev, `✓ Joined session: ${message.sessionName}`])
+              xtermRef.current?.writeln(`\r\n\x1b[32m✓ Joined session: ${message.sessionName}\x1b[0m\r\n`)
               break
             case 'presence':
               if (message.data.action === 'join') {
-                setOutput(prev => [...prev, `→ User joined (${message.data.totalClients} total)`])
+                xtermRef.current?.writeln(`\r\n\x1b[33m→ User joined (${message.data.totalClients} total)\x1b[0m`)
               } else if (message.data.action === 'leave') {
-                setOutput(prev => [...prev, `← User left (${message.data.totalClients} total)`])
+                xtermRef.current?.writeln(`\r\n\x1b[33m← User left (${message.data.totalClients} total)\x1b[0m`)
               }
               break
             case 'error':
-              setOutput(prev => [...prev, `✗ Error: ${message.message}`])
+              xtermRef.current?.writeln(`\r\n\x1b[31m✗ Error: ${message.message}\x1b[0m\r\n`)
               break
+            // Ignore 'input' messages from other clients (they're just for awareness)
           }
         } catch (error) {
           console.error('Failed to parse WebSocket message:', error)
@@ -129,13 +286,13 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
 
       websocket.onerror = (error) => {
         console.error('WebSocket error:', error)
-        setOutput(prev => [...prev, '✗ Connection error'])
+        xtermRef.current?.writeln('\r\n\x1b[31m✗ Connection error\x1b[0m\r\n')
         setConnected(false)
       }
 
       websocket.onclose = () => {
         setConnected(false)
-        setOutput(prev => [...prev, '✗ Connection closed'])
+        xtermRef.current?.writeln('\r\n\x1b[31m✗ Connection closed\x1b[0m\r\n')
       }
 
       setWs(websocket)
@@ -143,28 +300,26 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
       return () => {
         websocket.close()
       }
-    }, [shape.props.token, shape.props.wsUrl])
+    }, [shape.props.token, shape.props.serverUrl])
 
-    // Auto-scroll terminal output
+    // Handle terminal input - send keystrokes to server
     useEffect(() => {
-      if (terminalRef.current) {
-        terminalRef.current.scrollTop = terminalRef.current.scrollHeight
+      if (!xtermRef.current || !ws) return
+
+      const disposable = xtermRef.current.onData((data) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'input',
+            data: data,
+            timestamp: Date.now(),
+          }))
+        }
+      })
+
+      return () => {
+        disposable.dispose()
       }
-    }, [output])
-
-    const handleInputSubmit = (e: React.FormEvent) => {
-      e.preventDefault()
-      if (!input || !ws || !connected) return
-
-      // Send input to terminal
-      ws.send(JSON.stringify({
-        type: 'input',
-        data: input + '\n',
-        timestamp: Date.now(),
-      }))
-
-      setInput('')
-    }
+    }, [ws])
 
     const handleCreateSession = async () => {
       try {
@@ -172,7 +327,7 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: shape.props.sessionName || 'Canvas Terminal',
+            name: sessionName || `Terminal ${new Date().toLocaleTimeString()}`,
           }),
         })
 
@@ -182,22 +337,59 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
 
         const session: SessionResponse = await response.json()
 
-        // Update shape with session details
+        // CRITICAL: Ensure all props are defined - undefined values cause ValidationError
+        // Explicitly build props object with all required values to prevent undefined from slipping through
         this.editor.updateShape<IMultmuxShape>({
           id: shape.id,
           type: 'Multmux',
           props: {
-            ...shape.props,
-            sessionId: session.id,
-            sessionName: session.name,
-            token: session.token,
+            w: shape.props.w ?? 800,
+            h: shape.props.h ?? 600,
+            sessionId: session.id ?? '',
+            sessionName: session.name ?? '',
+            token: session.token ?? '',
+            serverUrl: shape.props.serverUrl ?? 'http://localhost:3002',
+            pinnedToView: shape.props.pinnedToView ?? false,
+            tags: Array.isArray(shape.props.tags) ? shape.props.tags : ['terminal', 'multmux'],
           },
         })
 
-        setOutput(prev => [...prev, `✓ Created session: ${session.name}`])
+        // Session created - terminal will connect via WebSocket
+        console.log('✓ Created session:', session.name)
       } catch (error) {
         console.error('Failed to create session:', error)
-        setOutput(prev => [...prev, `✗ Failed to create session: ${error}`])
+      }
+    }
+
+    const handleJoinSession = async (sessionId: string) => {
+      try {
+        const response = await fetch(`${shape.props.serverUrl}/api/sessions/${sessionId}/join`, {
+          method: 'POST',
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to join session')
+        }
+
+        const data = await response.json() as { name?: string; token?: string }
+
+        // CRITICAL: Ensure all props are defined - undefined values cause ValidationError
+        this.editor.updateShape<IMultmuxShape>({
+          id: shape.id,
+          type: 'Multmux',
+          props: {
+            w: shape.props.w ?? 800,
+            h: shape.props.h ?? 600,
+            sessionId: sessionId ?? '',
+            sessionName: data.name ?? 'Joined Session',
+            token: data.token ?? '',
+            serverUrl: shape.props.serverUrl ?? 'http://localhost:3002',
+            pinnedToView: shape.props.pinnedToView ?? false,
+            tags: Array.isArray(shape.props.tags) ? shape.props.tags : ['terminal', 'multmux'],
+          },
+        })
+      } catch (error) {
+        console.error('Failed to join session:', error)
       }
     }
 
@@ -223,10 +415,7 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
               this.editor.updateShape<IMultmuxShape>({
                 id: shape.id,
                 type: 'Multmux',
-                props: {
-                  ...shape.props,
-                  tags: newTags,
-                }
+                props: { ...shape.props, tags: newTags }
               })
             }}
             tagsEditable={true}
@@ -236,157 +425,175 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
               height: '100%',
               backgroundColor: '#1e1e2e',
               color: '#cdd6f4',
-              padding: '20px',
+              padding: '24px',
               fontFamily: 'monospace',
               pointerEvents: 'all',
               display: 'flex',
               flexDirection: 'column',
-              gap: '16px',
+              gap: '20px',
             }}>
-              <h3 style={{ margin: 0, color: '#cba6f7' }}>Setup mulTmux Terminal</h3>
+              <div style={{ textAlign: 'center' }}>
+                <h2 style={{ margin: '0 0 8px 0', color: '#cba6f7', fontSize: '24px' }}>mulTmux</h2>
+                <p style={{ margin: 0, opacity: 0.7, fontSize: '14px' }}>Collaborative Terminal Sessions</p>
+              </div>
 
+              {/* Create Session */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <label>
-                  Session Name:
-                  <input
-                    type="text"
-                    value={shape.props.sessionName}
-                    onChange={(e) => {
-                      this.editor.updateShape<IMultmuxShape>({
-                        id: shape.id,
-                        type: 'Multmux',
-                        props: {
-                          ...shape.props,
-                          sessionName: e.target.value,
-                        },
-                      })
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      marginTop: '4px',
-                      backgroundColor: '#313244',
-                      border: '1px solid #45475a',
-                      borderRadius: '4px',
-                      color: '#cdd6f4',
-                      fontFamily: 'monospace',
-                    }}
-                    placeholder="Canvas Terminal"
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onMouseDown={(e) => e.stopPropagation()}
-                  />
-                </label>
-
-                <label>
-                  Server URL:
-                  <input
-                    type="text"
-                    value={shape.props.serverUrl}
-                    onChange={(e) => {
-                      this.editor.updateShape<IMultmuxShape>({
-                        id: shape.id,
-                        type: 'Multmux',
-                        props: {
-                          ...shape.props,
-                          serverUrl: e.target.value,
-                        },
-                      })
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      marginTop: '4px',
-                      backgroundColor: '#313244',
-                      border: '1px solid #45475a',
-                      borderRadius: '4px',
-                      color: '#cdd6f4',
-                      fontFamily: 'monospace',
-                    }}
-                    placeholder="http://localhost:3000"
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onMouseDown={(e) => e.stopPropagation()}
-                  />
-                </label>
-
-                <label>
-                  WebSocket URL:
-                  <input
-                    type="text"
-                    value={shape.props.wsUrl}
-                    onChange={(e) => {
-                      this.editor.updateShape<IMultmuxShape>({
-                        id: shape.id,
-                        type: 'Multmux',
-                        props: {
-                          ...shape.props,
-                          wsUrl: e.target.value,
-                        },
-                      })
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      marginTop: '4px',
-                      backgroundColor: '#313244',
-                      border: '1px solid #45475a',
-                      borderRadius: '4px',
-                      color: '#cdd6f4',
-                      fontFamily: 'monospace',
-                    }}
-                    placeholder="ws://localhost:3001"
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onMouseDown={(e) => e.stopPropagation()}
-                  />
-                </label>
-
+                <input
+                  type="text"
+                  value={sessionName}
+                  onChange={(e) => setSessionName(e.target.value)}
+                  placeholder="Session name (optional)"
+                  style={{
+                    padding: '12px 16px',
+                    backgroundColor: '#313244',
+                    border: '1px solid #45475a',
+                    borderRadius: '8px',
+                    color: '#cdd6f4',
+                    fontFamily: 'monospace',
+                    fontSize: '14px',
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                />
                 <button
                   onClick={handleCreateSession}
                   style={{
-                    padding: '12px',
+                    padding: '14px 20px',
                     backgroundColor: '#8b5cf6',
                     border: 'none',
-                    borderRadius: '4px',
+                    borderRadius: '8px',
                     color: 'white',
                     fontWeight: 'bold',
+                    cursor: 'pointer',
+                    fontFamily: 'monospace',
+                    fontSize: '16px',
+                    transition: 'background-color 0.2s',
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  + Create New Session
+                </button>
+              </div>
+
+              {/* Divider */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ flex: 1, height: '1px', backgroundColor: '#45475a' }} />
+                <span style={{ opacity: 0.5, fontSize: '12px' }}>OR JOIN EXISTING</span>
+                <div style={{ flex: 1, height: '1px', backgroundColor: '#45475a' }} />
+              </div>
+
+              {/* Join Session */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', minHeight: 0 }}>
+                <button
+                  onClick={fetchSessions}
+                  disabled={loadingSessions}
+                  style={{
+                    padding: '10px 16px',
+                    backgroundColor: '#313244',
+                    border: '1px solid #45475a',
+                    borderRadius: '8px',
+                    color: '#cdd6f4',
                     cursor: 'pointer',
                     fontFamily: 'monospace',
                   }}
                   onPointerDown={(e) => e.stopPropagation()}
                   onMouseDown={(e) => e.stopPropagation()}
                 >
-                  Create New Session
+                  {loadingSessions ? 'Loading...' : 'Refresh Sessions'}
                 </button>
 
-                <div style={{ marginTop: '16px', fontSize: '12px', opacity: 0.8 }}>
-                  <p>Or paste a session token:</p>
-                  <input
-                    type="text"
-                    placeholder="Paste token here..."
-                    onPaste={(e) => {
-                      const token = e.clipboardData.getData('text')
-                      this.editor.updateShape<IMultmuxShape>({
-                        id: shape.id,
-                        type: 'Multmux',
-                        props: {
-                          ...shape.props,
-                          token: token.trim(),
-                        },
-                      })
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      marginTop: '4px',
-                      backgroundColor: '#313244',
-                      border: '1px solid #45475a',
-                      borderRadius: '4px',
-                      color: '#cdd6f4',
-                      fontFamily: 'monospace',
-                    }}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onMouseDown={(e) => e.stopPropagation()}
-                  />
+                <div style={{
+                  flex: 1,
+                  overflowY: 'auto',
+                  backgroundColor: '#313244',
+                  borderRadius: '8px',
+                  padding: '8px',
+                }}>
+                  {sessions.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '20px', opacity: 0.5 }}>
+                      No active sessions
+                    </div>
+                  ) : (
+                    sessions.map((session) => (
+                      <button
+                        key={session.id}
+                        onClick={() => handleJoinSession(session.id)}
+                        style={{
+                          width: '100%',
+                          padding: '12px',
+                          marginBottom: '4px',
+                          backgroundColor: '#45475a',
+                          border: 'none',
+                          borderRadius: '6px',
+                          color: '#cdd6f4',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          fontFamily: 'monospace',
+                        }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      >
+                        <div style={{ fontWeight: 'bold' }}>{session.name}</div>
+                        <div style={{ fontSize: '12px', opacity: 0.7 }}>
+                          {session.clientCount} connected
+                        </div>
+                      </button>
+                    ))
+                  )}
                 </div>
+              </div>
+
+              {/* Advanced Settings */}
+              <div>
+                <button
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#89b4fa',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    fontFamily: 'monospace',
+                    padding: '4px 0',
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  {showAdvanced ? '▼' : '▶'} Advanced Settings
+                </button>
+                {showAdvanced && (
+                  <div style={{ marginTop: '8px' }}>
+                    <label style={{ fontSize: '12px', opacity: 0.7 }}>
+                      Server URL:
+                      <input
+                        type="text"
+                        value={shape.props.serverUrl}
+                        onChange={(e) => {
+                          this.editor.updateShape<IMultmuxShape>({
+                            id: shape.id,
+                            type: 'Multmux',
+                            props: { ...shape.props, serverUrl: e.target.value },
+                          })
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '8px',
+                          marginTop: '4px',
+                          backgroundColor: '#313244',
+                          border: '1px solid #45475a',
+                          borderRadius: '4px',
+                          color: '#cdd6f4',
+                          fontFamily: 'monospace',
+                          fontSize: '12px',
+                        }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      />
+                    </label>
+                  </div>
+                )}
               </div>
             </div>
           </StandardizedToolWrapper>
@@ -415,10 +622,7 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
             this.editor.updateShape<IMultmuxShape>({
               id: shape.id,
               type: 'Multmux',
-              props: {
-                ...shape.props,
-                tags: newTags,
-              }
+              props: { ...shape.props, tags: newTags }
             })
           }}
           tagsEditable={true}
@@ -451,45 +655,24 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
               </span>
             </div>
 
-            {/* Terminal output */}
+            {/* xterm.js Terminal */}
             <div
               ref={terminalRef}
               style={{
                 flex: 1,
-                padding: '12px',
-                overflowY: 'auto',
-                overflowX: 'hidden',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
+                padding: '4px',
+                overflow: 'hidden',
               }}
-            >
-              {output.map((line, i) => (
-                <div key={i}>{line}</div>
-              ))}
-            </div>
-
-            {/* Input area */}
-            <form onSubmit={handleInputSubmit} style={{ display: 'flex', borderTop: '1px solid #45475a' }}>
-              <span style={{ padding: '8px 12px', backgroundColor: '#313244', color: '#89b4fa' }}>$</span>
-              <input
-                ref={inputRef}
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                disabled={!connected}
-                placeholder={connected ? "Type command..." : "Not connected"}
-                style={{
-                  flex: 1,
-                  padding: '8px 12px',
-                  backgroundColor: '#313244',
-                  border: 'none',
-                  color: '#cdd6f4',
-                  fontFamily: 'monospace',
-                  outline: 'none',
-                }}
-                onPointerDown={(e) => e.stopPropagation()}
-              />
-            </form>
+              onPointerDown={(e) => {
+                // Allow pointer events for text selection but stop propagation to prevent tldraw interactions
+                e.stopPropagation()
+              }}
+              onClick={(e) => {
+                e.stopPropagation()
+                // Focus the terminal when clicked
+                xtermRef.current?.focus()
+              }}
+            />
           </div>
         </StandardizedToolWrapper>
       </HTMLContainer>
@@ -501,7 +684,6 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
   }
 
   override onDoubleClick = (shape: IMultmuxShape) => {
-    // Focus input on double click
     setTimeout(() => {
       const input = document.querySelector(`[data-shape-id="${shape.id}"] input[type="text"]`) as HTMLInputElement
       input?.focus()

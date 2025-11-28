@@ -5,6 +5,26 @@ const MAX_HISTORY = 10 // Keep last 10 camera positions
 
 const frameObservers = new Map<string, ResizeObserver>()
 
+// Focus lock state - tracks when camera is locked to a specific shape
+let focusLockedShapeId: TLShapeId | null = null
+let focusLockCleanup: (() => void) | null = null
+let focusLockListeners: Set<(locked: boolean, shapeId: TLShapeId | null) => void> = new Set()
+
+// Subscribe to focus lock state changes
+export const onFocusLockChange = (callback: (locked: boolean, shapeId: TLShapeId | null) => void) => {
+  focusLockListeners.add(callback)
+  // Call immediately with current state
+  callback(focusLockedShapeId !== null, focusLockedShapeId)
+  return () => focusLockListeners.delete(callback)
+}
+
+const notifyFocusLockListeners = () => {
+  focusLockListeners.forEach(cb => cb(focusLockedShapeId !== null, focusLockedShapeId))
+}
+
+export const isCameraFocusLocked = () => focusLockedShapeId !== null
+export const getFocusLockedShapeId = () => focusLockedShapeId
+
 // Helper function to store camera position
 const storeCameraPosition = (editor: Editor) => {
   const currentCamera = editor.getCamera()
@@ -290,6 +310,19 @@ export const setInitialCameraFromUrl = (editor: Editor) => {
   const zoom = url.searchParams.get("zoom")
   const shapeId = url.searchParams.get("shapeId")
   const frameId = url.searchParams.get("frameId")
+  const focusId = url.searchParams.get("focusId")
+
+  // Handle focus lock mode - locks camera to a specific shape
+  if (focusId) {
+    // Small delay to ensure store is loaded
+    setTimeout(() => {
+      const success = lockCameraToShape(editor, focusId as TLShapeId)
+      if (success) {
+        editor.select(focusId as TLShapeId)
+      }
+    }, 100)
+    return // Don't apply other camera settings when in focus mode
+  }
 
   if (x && y && zoom) {
     editor.stopCameraAnimation()
@@ -340,6 +373,158 @@ export const copyFrameLink = (_editor: Editor, frameId: string) => {
   const url = new URL(window.location.href)
   url.searchParams.set("frameId", frameId)
   navigator.clipboard.writeText(url.toString())
+}
+
+// Lock camera to a specific shape - prevents panning/zooming and keeps shape centered
+export const lockCameraToShape = (editor: Editor, shapeId: TLShapeId) => {
+  // Clean up any existing focus lock
+  if (focusLockCleanup) {
+    focusLockCleanup()
+  }
+
+  const shape = editor.getShape(shapeId)
+  if (!shape) {
+    console.warn("Cannot lock camera to non-existent shape:", shapeId)
+    return false
+  }
+
+  focusLockedShapeId = shapeId
+
+  // Center camera on the shape with appropriate zoom
+  const bounds = editor.getShapePageBounds(shape)
+  if (bounds) {
+    const viewportBounds = editor.getViewportPageBounds()
+
+    // Calculate zoom to fit shape with padding
+    const padding = 100
+    const targetZoom = Math.min(
+      (viewportBounds.w - padding * 2) / bounds.w,
+      (viewportBounds.h - padding * 2) / bounds.h,
+      2 // Max zoom
+    )
+
+    editor.zoomToBounds(bounds, {
+      targetZoom: Math.max(0.25, Math.min(targetZoom, 2)),
+      inset: padding,
+      animation: { duration: 400, easing: (t) => t * (2 - t) },
+    })
+  }
+
+  // Store original camera interaction methods to restore later
+  const originalCameraOptions = editor.getCameraOptions()
+
+  // Disable camera panning and zooming
+  editor.setCameraOptions({
+    ...originalCameraOptions,
+    isLocked: true,
+  })
+
+  // Watch for shape position changes to re-center camera
+  const unsubscribeChange = editor.store.listen((entry) => {
+    if (!focusLockedShapeId) return
+
+    // Check if the locked shape was updated
+    for (const record of Object.values(entry.changes.updated)) {
+      const [_from, to] = record as [TLShape, TLShape]
+      if (to.id === focusLockedShapeId && to.typeName === 'shape') {
+        // Shape moved, recenter camera
+        const newBounds = editor.getShapePageBounds(to)
+        if (newBounds) {
+          const currentZoom = editor.getCamera().z
+          editor.zoomToBounds(newBounds, {
+            targetZoom: currentZoom,
+            inset: 100,
+            animation: { duration: 200 },
+          })
+        }
+      }
+    }
+
+    // Check if locked shape was deleted
+    for (const id of Object.keys(entry.changes.removed)) {
+      if (id === focusLockedShapeId) {
+        unlockCameraFocus(editor)
+      }
+    }
+  })
+
+  // Cleanup function
+  focusLockCleanup = () => {
+    unsubscribeChange()
+    editor.setCameraOptions({
+      ...editor.getCameraOptions(),
+      isLocked: false,
+    })
+    focusLockedShapeId = null
+    focusLockCleanup = null
+    notifyFocusLockListeners()
+  }
+
+  notifyFocusLockListeners()
+  return true
+}
+
+// Unlock the camera from focus mode
+export const unlockCameraFocus = (_editor: Editor) => {
+  if (focusLockCleanup) {
+    focusLockCleanup()
+  }
+
+  // Update URL to remove focusId
+  const url = new URL(window.location.href)
+  url.searchParams.delete("focusId")
+  window.history.replaceState(null, "", url.toString())
+}
+
+// Copy a focus link for the selected shape(s)
+export const copyFocusLink = async (editor: Editor) => {
+  const selectedIds = editor.getSelectedShapeIds()
+  if (selectedIds.length === 0) {
+    console.warn("No shapes selected for focus link")
+    return
+  }
+
+  // Use the first selected shape
+  const shapeId = selectedIds[0]
+  const shape = editor.getShape(shapeId)
+  if (!shape) return
+
+  // Build URL with focusId parameter
+  const baseUrl = `${window.location.origin}${window.location.pathname}`
+  const url = new URL(baseUrl)
+  url.searchParams.set("focusId", shapeId.toString())
+
+  // Also include current camera bounds for context
+  const bounds = editor.getShapePageBounds(shape)
+  if (bounds) {
+    // Calculate optimal camera position for the shape
+    const viewportBounds = editor.getViewportPageBounds()
+    const padding = 100
+    const targetZoom = Math.min(
+      (viewportBounds.w - padding * 2) / bounds.w,
+      (viewportBounds.h - padding * 2) / bounds.h,
+      2
+    )
+    url.searchParams.set("zoom", Math.max(0.25, Math.min(targetZoom, 2)).toFixed(2))
+  }
+
+  const finalUrl = url.toString()
+
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(finalUrl)
+    } else {
+      const textArea = document.createElement("textarea")
+      textArea.value = finalUrl
+      document.body.appendChild(textArea)
+      textArea.select()
+      document.execCommand("copy")
+      document.body.removeChild(textArea)
+    }
+  } catch (error) {
+    console.error("Failed to copy focus link:", error)
+    alert("Failed to copy link. Please check clipboard permissions.")
+  }
 }
 
 // Initialize lock indicators and watch for changes

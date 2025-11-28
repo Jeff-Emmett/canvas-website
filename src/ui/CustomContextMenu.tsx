@@ -173,6 +173,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
       <TldrawUiMenuGroup id="camera-controls">
         <TldrawUiMenuItem {...customActions.zoomToSelection} disabled={!hasSelection} />
         <TldrawUiMenuItem {...customActions.copyLinkToCurrentView} />
+        <TldrawUiMenuItem {...customActions.copyFocusLink} disabled={!hasSelection} />
         <TldrawUiMenuItem {...customActions.revertCamera} disabled={!hasCameraHistory} />
         <TldrawUiMenuItem {...customActions.lockElement} disabled={!hasSelection} />
         <TldrawUiMenuItem {...customActions.unlockElement} disabled={!hasSelection} />
@@ -239,6 +240,9 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
         <TldrawUiMenuItem {...tools.FathomMeetings} disabled={hasSelection} />
         <TldrawUiMenuItem {...tools.Holon} disabled={hasSelection} />
         <TldrawUiMenuItem {...tools.ImageGen} disabled={hasSelection} />
+        <TldrawUiMenuItem {...tools.VideoGen} disabled={hasSelection} />
+        <TldrawUiMenuItem {...tools.Multmux} disabled={hasSelection} />
+        <TldrawUiMenuItem {...tools.MycelialIntelligence} disabled={hasSelection} />
       </TldrawUiMenuGroup>
 
       {/* Collections Group */}

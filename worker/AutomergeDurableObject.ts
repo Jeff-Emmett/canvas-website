@@ -362,11 +362,13 @@ export class AutomergeDurableObject {
         break
       case "sync":
         // Handle Automerge sync message
-        if (message.data && message.documentId) {
-          // This is a sync message with binary data
+        if (message.data) {
+          // This is a sync message with data - broadcast to other clients
+          // CRITICAL: Don't require documentId - JSON sync messages might not have it
+          // but they still need to be broadcast for real-time collaboration
           await this.handleSyncMessage(sessionId, message)
         } else {
-          // This is a sync request - send current document state
+          // This is a sync request (no data) - send current document state
           const doc = await this.getDocument()
           const client = this.clients.get(sessionId)
           if (client) {
@@ -1417,7 +1419,54 @@ export class AutomergeDurableObject {
               }
             })
           }
-          
+
+          // Special handling for Multmux shapes - ensure all required props exist
+          // Old shapes may have wsUrl (removed) or undefined values
+          // CRITICAL: Every prop must be explicitly defined - undefined values cause ValidationError
+          if (record.type === 'Multmux') {
+            if (!record.props || typeof record.props !== 'object') {
+              record.props = {}
+              needsUpdate = true
+            }
+            // Remove deprecated wsUrl prop
+            if ('wsUrl' in record.props) {
+              delete record.props.wsUrl
+              needsUpdate = true
+            }
+            // CRITICAL: Create clean props with all required values - no undefined allowed
+            const w = (typeof record.props.w === 'number' && !isNaN(record.props.w)) ? record.props.w : 800
+            const h = (typeof record.props.h === 'number' && !isNaN(record.props.h)) ? record.props.h : 600
+            const sessionId = (typeof record.props.sessionId === 'string') ? record.props.sessionId : ''
+            const sessionName = (typeof record.props.sessionName === 'string') ? record.props.sessionName : ''
+            const token = (typeof record.props.token === 'string') ? record.props.token : ''
+            const serverUrl = (typeof record.props.serverUrl === 'string') ? record.props.serverUrl : 'http://localhost:3000'
+            const pinnedToView = (record.props.pinnedToView === true) ? true : false
+            // Filter out any undefined or non-string elements from tags array
+            let tags: string[] = ['terminal', 'multmux']
+            if (Array.isArray(record.props.tags)) {
+              const filteredTags = record.props.tags.filter((t: any) => typeof t === 'string' && t !== '')
+              if (filteredTags.length > 0) {
+                tags = filteredTags
+              }
+            }
+            // Check if any prop needs updating
+            if (record.props.w !== w || record.props.h !== h ||
+                record.props.sessionId !== sessionId || record.props.sessionName !== sessionName ||
+                record.props.token !== token || record.props.serverUrl !== serverUrl ||
+                record.props.pinnedToView !== pinnedToView ||
+                JSON.stringify(record.props.tags) !== JSON.stringify(tags)) {
+              record.props.w = w
+              record.props.h = h
+              record.props.sessionId = sessionId
+              record.props.sessionName = sessionName
+              record.props.token = token
+              record.props.serverUrl = serverUrl
+              record.props.pinnedToView = pinnedToView
+              record.props.tags = tags
+              needsUpdate = true
+            }
+          }
+
           if (needsUpdate) {
             migrationStats.migrated++
             // Only log detailed migration info for first few shapes to avoid spam

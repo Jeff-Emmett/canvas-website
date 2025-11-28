@@ -275,12 +275,8 @@
   .toolbar-login-button {
     margin-right: 0;
   }
-  
-  /* Adjust toolbar container position on mobile */
-  .toolbar-container {
-    right: 35px !important;
-    gap: 4px !important;
-  }
+
+  /* Note: toolbar-container positioning is now handled in style.css */
 }
 
 /* Dark mode support */
@@ -472,52 +468,9 @@ html.dark .user-status {
   margin-bottom: 0.5rem;
 }
 
-/* Login Button Styles */
+/* Login Button Styles - extends .toolbar-btn */
 .login-button {
-  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.75rem;
-  font-weight: 600;
-  transition: all 0.2s ease;
-  letter-spacing: 0.5px;
-  white-space: nowrap;
-  padding: 4px 8px;
-  height: 22px;
-  min-height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-}
-
-.login-button:hover {
-  background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
-}
-
-.toolbar-login-button {
-  margin-right: 0;
-  height: 22px;
-  min-height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  flex-shrink: 0;
-  padding: 4px 8px;
-  font-size: 0.75rem;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-}
-
-.toolbar-login-button:hover {
-  background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+  /* Base styles come from .toolbar-btn */
 }
 
 /* Login Modal Overlay */

@@ -8,9 +8,11 @@ import {
 import {
   cameraHistory,
   copyLinkToCurrentView,
+  copyFocusLink,
   lockElement,
   revertCamera,
   unlockElement,
+  unlockCameraFocus,
   zoomToSelection,
 } from "./cameraUtils"
 import { saveToPdf } from "../utils/pdfUtils"
@@ -228,6 +230,43 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("Multmux"),
       },
+      MycelialIntelligence: {
+        id: "MycelialIntelligence",
+        icon: "chat",
+        label: "Mycelial Intelligence",
+        kbd: "ctrl+shift+m",
+        readonlyOk: true,
+        type: "MycelialIntelligence",
+        onSelect: () => {
+          // Spawn the MI shape at top center of viewport
+          const viewport = editor.getViewportPageBounds()
+          const shapeWidth = 600
+          const shapeHeight = 60
+
+          // Calculate center top position
+          const x = viewport.x + (viewport.w / 2) - (shapeWidth / 2)
+          const y = viewport.y + 20
+
+          // Check if MI already exists on canvas - if so, select it
+          const existingMI = editor.getCurrentPageShapes().find(s => s.type === 'MycelialIntelligence')
+          if (existingMI) {
+            editor.setSelectedShapes([existingMI.id])
+            return
+          }
+
+          // Create the shape
+          editor.createShape({
+            type: 'MycelialIntelligence',
+            x,
+            y,
+            props: {
+              w: shapeWidth,
+              h: shapeHeight,
+              pinnedToView: true,
+            }
+          })
+        },
+      },
       hand: {
         ...tools.hand,
         onDoubleClick: (info: any) => {
@@ -290,6 +329,24 @@ export const overrides: TLUiOverrides = {
         label: "Copy Link to Current View",
         kbd: "alt+c",
         onSelect: () => copyLinkToCurrentView(editor),
+        readonlyOk: true,
+      },
+      copyFocusLink: {
+        id: "copy-focus-link",
+        label: "Copy Focus Link (Locked View)",
+        kbd: "alt+shift+f",
+        onSelect: () => {
+          if (editor.getSelectedShapeIds().length > 0) {
+            copyFocusLink(editor)
+          }
+        },
+        readonlyOk: true,
+      },
+      unlockCameraFocus: {
+        id: "unlock-camera-focus",
+        label: "Unlock Camera",
+        kbd: "escape",
+        onSelect: () => unlockCameraFocus(editor),
         readonlyOk: true,
       },
       revertCamera: {

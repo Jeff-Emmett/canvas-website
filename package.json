@@ -7,7 +7,7 @@
 		"multmux/packages/*"
 	],
 	"scripts": {
-		"dev": "concurrently --kill-others --names client,worker --prefix-colors blue,red \"npm run dev:client\" \"npm run dev:worker:local\"",
+		"dev": "concurrently --kill-others --names client,worker,multmux --prefix-colors blue,red,magenta \"npm run dev:client\" \"npm run dev:worker:local\" \"npm run multmux:dev:server\"",
 		"dev:client": "vite --host 0.0.0.0 --port 5173",
 		"dev:worker": "wrangler dev --config wrangler.dev.toml --remote --port 5172",
 		"dev:worker:local": "wrangler dev --config wrangler.dev.toml --port 5172 --ip 0.0.0.0",
@@ -43,6 +43,8 @@
 		"@types/marked": "^5.0.2",
 		"@uiw/react-md-editor": "^4.0.5",
 		"@xenova/transformers": "^2.17.2",
+		"@xterm/addon-fit": "^0.10.0",
+		"@xterm/xterm": "^5.5.0",
 		"ai": "^4.1.0",
 		"ajv": "^8.17.1",
 		"cherry-markdown": "^0.8.57",

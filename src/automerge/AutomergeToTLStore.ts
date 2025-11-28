@@ -640,14 +640,77 @@ export function sanitizeRecord(record: any): TLRecord {
       'holon': 'Holon',
       'obsidianBrowser': 'ObsidianBrowser',
       'fathomMeetingsBrowser': 'FathomMeetingsBrowser',
-      // locationShare removed
       'imageGen': 'ImageGen',
+      'videoGen': 'VideoGen',
+      'multmux': 'Multmux',
     }
 
     // Normalize the shape type if it's a custom type with incorrect case
     if (sanitized.type && typeof sanitized.type === 'string' && customShapeTypeMap[sanitized.type]) {
       console.log(`🔧 Normalizing shape type: "${sanitized.type}" → "${customShapeTypeMap[sanitized.type]}"`)
       sanitized.type = customShapeTypeMap[sanitized.type]
+    }
+
+    // CRITICAL: Sanitize Multmux shapes AFTER case normalization - ensure all required props exist
+    // Old shapes may have wsUrl (removed) or undefined values
+    if (sanitized.type === 'Multmux') {
+      console.log(`🔧 Sanitizing Multmux shape ${sanitized.id}:`, JSON.stringify(sanitized.props))
+      // Remove deprecated wsUrl prop
+      if ('wsUrl' in sanitized.props) {
+        delete sanitized.props.wsUrl
+      }
+      // CRITICAL: Create a clean props object with all required values
+      // This ensures no undefined values slip through validation
+      // Every value MUST be explicitly defined - undefined values cause ValidationError
+      const w = (typeof sanitized.props.w === 'number' && !isNaN(sanitized.props.w)) ? sanitized.props.w : 800
+      const h = (typeof sanitized.props.h === 'number' && !isNaN(sanitized.props.h)) ? sanitized.props.h : 600
+      const sessionId = (typeof sanitized.props.sessionId === 'string') ? sanitized.props.sessionId : ''
+      const sessionName = (typeof sanitized.props.sessionName === 'string') ? sanitized.props.sessionName : ''
+      const token = (typeof sanitized.props.token === 'string') ? sanitized.props.token : ''
+      const serverUrl = (typeof sanitized.props.serverUrl === 'string') ? sanitized.props.serverUrl : 'http://localhost:3000'
+      const pinnedToView = (sanitized.props.pinnedToView === true) ? true : false
+      // Filter out any undefined or non-string elements from tags array
+      let tags: string[] = ['terminal', 'multmux']
+      if (Array.isArray(sanitized.props.tags)) {
+        const filteredTags = sanitized.props.tags.filter((t: any) => typeof t === 'string' && t !== '')
+        if (filteredTags.length > 0) {
+          tags = filteredTags
+        }
+      }
+
+      // Build clean props object - all values are guaranteed to be defined
+      const cleanProps = {
+        w: w,
+        h: h,
+        sessionId: sessionId,
+        sessionName: sessionName,
+        token: token,
+        serverUrl: serverUrl,
+        pinnedToView: pinnedToView,
+        tags: tags,
+      }
+
+      // CRITICAL: Verify no undefined values before assigning
+      // This is a safety check - if any value is undefined, something went wrong above
+      for (const [key, value] of Object.entries(cleanProps)) {
+        if (value === undefined) {
+          console.error(`❌ CRITICAL: Multmux prop ${key} is undefined after sanitization! This should never happen.`)
+          // Fix it with a default value based on key
+          switch (key) {
+            case 'w': (cleanProps as any).w = 800; break
+            case 'h': (cleanProps as any).h = 600; break
+            case 'sessionId': (cleanProps as any).sessionId = ''; break
+            case 'sessionName': (cleanProps as any).sessionName = ''; break
+            case 'token': (cleanProps as any).token = ''; break
+            case 'serverUrl': (cleanProps as any).serverUrl = 'http://localhost:3000'; break
+            case 'pinnedToView': (cleanProps as any).pinnedToView = false; break
+            case 'tags': (cleanProps as any).tags = ['terminal', 'multmux']; break
+          }
+        }
+      }
+
+      sanitized.props = cleanProps
+      console.log(`🔧 Sanitized Multmux shape ${sanitized.id} props:`, JSON.stringify(sanitized.props))
     }
 
     // CRITICAL: Infer type from properties BEFORE defaulting to 'geo'
@@ -784,14 +847,62 @@ export function sanitizeRecord(record: any): TLRecord {
       // Remove invalid w/h from props (they cause validation errors)
       if ('w' in sanitized.props) delete sanitized.props.w
       if ('h' in sanitized.props) delete sanitized.props.h
-      
-      // Line shapes REQUIRE points property
+
+      // Line shapes REQUIRE points property with at least 2 points
       if (!sanitized.props.points || typeof sanitized.props.points !== 'object' || Array.isArray(sanitized.props.points)) {
         sanitized.props.points = {
           'a1': { id: 'a1', index: 'a1' as any, x: 0, y: 0 },
           'a2': { id: 'a2', index: 'a2' as any, x: 100, y: 0 }
         }
+      } else {
+        // Ensure the points object has at least 2 valid points
+        const pointKeys = Object.keys(sanitized.props.points)
+        if (pointKeys.length < 2) {
+          sanitized.props.points = {
+            'a1': { id: 'a1', index: 'a1' as any, x: 0, y: 0 },
+            'a2': { id: 'a2', index: 'a2' as any, x: 100, y: 0 }
+          }
+        }
       }
+    }
+
+    // CRITICAL: Fix draw shapes - ensure valid segments structure (required by schema)
+    // Draw shapes with empty segments cause "No nearest point found" errors
+    if (sanitized.type === 'draw') {
+      // Remove invalid w/h from props (they cause validation errors)
+      if ('w' in sanitized.props) delete sanitized.props.w
+      if ('h' in sanitized.props) delete sanitized.props.h
+
+      // Draw shapes REQUIRE segments property with at least one segment containing points
+      if (!sanitized.props.segments || !Array.isArray(sanitized.props.segments) || sanitized.props.segments.length === 0) {
+        // Create a minimal valid segment with at least 2 points
+        sanitized.props.segments = [{
+          type: 'free',
+          points: [
+            { x: 0, y: 0, z: 0.5 },
+            { x: 10, y: 0, z: 0.5 }
+          ]
+        }]
+      } else {
+        // Ensure each segment has valid points
+        sanitized.props.segments = sanitized.props.segments.map((segment: any) => {
+          if (!segment.points || !Array.isArray(segment.points) || segment.points.length < 2) {
+            return {
+              type: segment.type || 'free',
+              points: [
+                { x: 0, y: 0, z: 0.5 },
+                { x: 10, y: 0, z: 0.5 }
+              ]
+            }
+          }
+          return segment
+        })
+      }
+
+      // Ensure required draw shape properties exist
+      if (typeof sanitized.props.isClosed !== 'boolean') sanitized.props.isClosed = false
+      if (typeof sanitized.props.isComplete !== 'boolean') sanitized.props.isComplete = true
+      if (typeof sanitized.props.isPen !== 'boolean') sanitized.props.isPen = false
     }
     
     // CRITICAL: Fix group shapes - remove invalid w/h from props
@@ -855,8 +966,58 @@ export function sanitizeRecord(record: any): TLRecord {
       sanitized.props.richText = cleanRichTextNaN(sanitized.props.richText)
     }
     
-    // CRITICAL: Preserve arrow text property (ensure it's a string)
+    // CRITICAL: Fix arrow shapes - ensure valid start/end structure (required by schema)
+    // Arrows with invalid start/end cause "No nearest point found" errors
     if (sanitized.type === 'arrow') {
+      // Ensure start property exists and has valid structure
+      if (!sanitized.props.start || typeof sanitized.props.start !== 'object') {
+        sanitized.props.start = { x: 0, y: 0 }
+      } else {
+        // Ensure start has x and y properties (could be bound to a shape or free)
+        const start = sanitized.props.start as any
+        if (start.type === 'binding') {
+          // Binding type must have boundShapeId, normalizedAnchor, and other properties
+          if (!start.boundShapeId) {
+            // Invalid binding - convert to point
+            sanitized.props.start = { x: start.x ?? 0, y: start.y ?? 0 }
+          }
+        } else if (start.type === 'point' || start.type === undefined) {
+          // Point type must have x and y
+          if (typeof start.x !== 'number' || typeof start.y !== 'number') {
+            sanitized.props.start = { x: 0, y: 0 }
+          }
+        }
+      }
+
+      // Ensure end property exists and has valid structure
+      if (!sanitized.props.end || typeof sanitized.props.end !== 'object') {
+        sanitized.props.end = { x: 100, y: 0 }
+      } else {
+        // Ensure end has x and y properties (could be bound to a shape or free)
+        const end = sanitized.props.end as any
+        if (end.type === 'binding') {
+          // Binding type must have boundShapeId
+          if (!end.boundShapeId) {
+            // Invalid binding - convert to point
+            sanitized.props.end = { x: end.x ?? 100, y: end.y ?? 0 }
+          }
+        } else if (end.type === 'point' || end.type === undefined) {
+          // Point type must have x and y
+          if (typeof end.x !== 'number' || typeof end.y !== 'number') {
+            sanitized.props.end = { x: 100, y: 0 }
+          }
+        }
+      }
+
+      // Ensure bend is a valid number
+      if (typeof sanitized.props.bend !== 'number' || isNaN(sanitized.props.bend)) {
+        sanitized.props.bend = 0
+      }
+
+      // Ensure arrowhead properties exist
+      if (!sanitized.props.arrowheadStart) sanitized.props.arrowheadStart = 'none'
+      if (!sanitized.props.arrowheadEnd) sanitized.props.arrowheadEnd = 'arrow'
+
       // Ensure text property exists and is a string
       if (sanitized.props.text === undefined || sanitized.props.text === null) {
         sanitized.props.text = ''
