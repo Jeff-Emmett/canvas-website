@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useState, useCallback, useRef } from "react"
-import { TLStoreSnapshot, InstancePresenceRecordType } from "@tldraw/tldraw"
+import { TLStoreSnapshot, InstancePresenceRecordType, getIndexAbove, IndexKey } from "@tldraw/tldraw"
 import { CloudflareNetworkAdapter } from "./CloudflareAdapter"
 import { useAutomergeStoreV2, useAutomergePresence } from "./useAutomergeStoreV2"
 import { TLStoreWithStatus } from "@tldraw/tldraw"
@@ -7,6 +7,72 @@ import { Repo, parseAutomergeUrl, stringifyAutomergeUrl, AutomergeUrl } from "@a
 import { DocHandle } from "@automerge/automerge-repo"
 import { IndexedDBStorageAdapter } from "@automerge/automerge-repo-storage-indexeddb"
 import { getDocumentId, saveDocumentId } from "./documentIdMapping"
+
+/**
+ * Migrate old data to fix invalid index values
+ * tldraw requires indices to be in a specific format (fractional indexing)
+ * Old data may have simple indices like "b1" which are invalid
+ */
+function migrateStoreData(store: Record<string, any>): Record<string, any> {
+  if (!store) return store
+
+  const migratedStore: Record<string, any> = {}
+  let currentIndex: IndexKey = 'a1' as IndexKey // Start with a valid index
+
+  // Sort shapes by their old index to maintain relative ordering
+  const entries = Object.entries(store)
+  const shapes = entries.filter(([_, record]) => record?.typeName === 'shape')
+  const nonShapes = entries.filter(([_, record]) => record?.typeName !== 'shape')
+
+  // Check if any shapes have invalid indices
+  const hasInvalidIndices = shapes.some(([_, record]) => {
+    const index = record?.index
+    if (!index) return false
+    // Valid tldraw indices are like "a1", "a1V", "a2", etc.
+    // Invalid indices would be like "b1" without proper fractional format
+    // Simple check: if it's just a letter and number, it might be invalid
+    return typeof index === 'string' && /^[a-z]\d+$/i.test(index) && !index.startsWith('a')
+  })
+
+  if (!hasInvalidIndices) {
+    // No migration needed
+    return store
+  }
+
+  console.log('🔄 Migrating store data: fixing invalid shape indices')
+
+  // Copy non-shape records as-is
+  for (const [id, record] of nonShapes) {
+    migratedStore[id] = record
+  }
+
+  // Sort shapes by their original index (alphabetically) to maintain order
+  shapes.sort((a, b) => {
+    const indexA = a[1]?.index || ''
+    const indexB = b[1]?.index || ''
+    return indexA.localeCompare(indexB)
+  })
+
+  // Regenerate valid indices for shapes
+  for (const [id, record] of shapes) {
+    const migratedRecord = { ...record }
+
+    // Generate a new valid index
+    try {
+      currentIndex = getIndexAbove(currentIndex)
+    } catch {
+      // Fallback if getIndexAbove fails - generate simple sequential index
+      const num = parseInt(currentIndex.slice(1) || '1') + 1
+      currentIndex = `a${num}` as IndexKey
+    }
+
+    migratedRecord.index = currentIndex
+    migratedStore[id] = migratedRecord
+  }
+
+  console.log(`✅ Migrated ${shapes.length} shapes with new indices`)
+  return migratedStore
+}
 
 interface AutomergeSyncConfig {
   uri: string
@@ -311,7 +377,16 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
         try {
           const response = await fetch(`${workerUrl}/room/${roomId}`)
           if (response.ok) {
-            const serverDoc = await response.json() as TLStoreSnapshot
+            let serverDoc = await response.json() as TLStoreSnapshot
+
+            // Migrate server data to fix any invalid indices
+            if (serverDoc.store) {
+              serverDoc = {
+                ...serverDoc,
+                store: migrateStoreData(serverDoc.store)
+              }
+            }
+
             const serverShapeCount = serverDoc.store ? Object.values(serverDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
             const serverRecordCount = Object.keys(serverDoc.store || {}).length
 
