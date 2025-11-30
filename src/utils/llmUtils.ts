@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { makeRealSettings, AI_PERSONALITIES } from "@/lib/settings";
-import { getRunPodConfig, getOllamaConfig } from "@/lib/clientConfig";
+import { getRunPodConfig, getRunPodTextConfig, getOllamaConfig } from "@/lib/clientConfig";
 
 export async function llm(
 	userPrompt: string,
@@ -183,17 +183,29 @@ function getAvailableProviders(availableKeys: Record<string, string>, settings: 
 		});
 	}
 
-	// PRIORITY 1: Check for RunPod configuration from environment variables
-	// RunPod is used as fallback when Ollama is not available
-	const runpodConfig = getRunPodConfig();
-	if (runpodConfig && runpodConfig.apiKey && runpodConfig.endpointId) {
-		console.log('🔑 Found RunPod configuration from environment variables');
+	// PRIORITY 1: Check for RunPod TEXT configuration from environment variables
+	// RunPod vLLM text endpoint is used as fallback when Ollama is not available
+	const runpodTextConfig = getRunPodTextConfig();
+	if (runpodTextConfig && runpodTextConfig.apiKey && runpodTextConfig.endpointId) {
+		console.log('🔑 Found RunPod TEXT endpoint configuration from environment variables');
 		providers.push({
 			provider: 'runpod',
-			apiKey: runpodConfig.apiKey,
-			endpointId: runpodConfig.endpointId,
-			model: 'default' // RunPod doesn't use model selection in the same way
+			apiKey: runpodTextConfig.apiKey,
+			endpointId: runpodTextConfig.endpointId,
+			model: 'default' // RunPod vLLM endpoint
 		});
+	} else {
+		// Fallback to generic RunPod config if text endpoint not configured
+		const runpodConfig = getRunPodConfig();
+		if (runpodConfig && runpodConfig.apiKey && runpodConfig.endpointId) {
+			console.log('🔑 Found RunPod configuration from environment variables (generic endpoint)');
+			providers.push({
+				provider: 'runpod',
+				apiKey: runpodConfig.apiKey,
+				endpointId: runpodConfig.endpointId,
+				model: 'default'
+			});
+		}
 	}
 	
 	// PRIORITY 2: Then add user-configured keys (they will be tried after RunPod)
@@ -525,11 +537,12 @@ async function callProviderAPI(
 	const systemPrompt = settings ? getSystemPrompt(settings) : 'You are a helpful assistant.';
 
 	if (provider === 'ollama') {
-		// Ollama API integration - uses OpenAI-compatible API format
+		// Ollama API integration via AI Orchestrator
+		// The orchestrator provides /api/chat endpoint that routes to local Ollama
 		const ollamaConfig = getOllamaConfig();
 		const baseUrl = (settings as any)?.baseUrl || ollamaConfig?.url || 'http://localhost:11434';
 
-		console.log(`🦙 Ollama API: Using ${baseUrl}/v1/chat/completions with model ${model}`);
+		console.log(`🦙 Ollama API: Using ${baseUrl}/api/chat with model ${model}`);
 
 		const messages = [];
 		if (systemPrompt) {
@@ -538,7 +551,8 @@ async function callProviderAPI(
 		messages.push({ role: 'user', content: userPrompt });
 
 		try {
-			const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+			// Use the AI Orchestrator's /api/chat endpoint
+			const response = await fetch(`${baseUrl}/api/chat`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
@@ -546,7 +560,7 @@ async function callProviderAPI(
 				body: JSON.stringify({
 					model: model,
 					messages: messages,
-					stream: true, // Enable streaming for better UX
+					priority: 'low', // Use free Ollama
 				})
 			});
 
@@ -556,36 +570,27 @@ async function callProviderAPI(
 				throw new Error(`Ollama API error: ${response.status} - ${errorText}`);
 			}
 
-			// Handle streaming response
-			const reader = response.body?.getReader();
-			if (!reader) {
-				throw new Error('No response body from Ollama');
+			const data = await response.json();
+			console.log('📥 Ollama API: Response received:', JSON.stringify(data, null, 2).substring(0, 500));
+
+			// Extract response from AI Orchestrator format
+			let responseText = '';
+			if (data.message?.content) {
+				responseText = data.message.content;
+			} else if (data.response) {
+				responseText = data.response;
+			} else if (typeof data === 'string') {
+				responseText = data;
 			}
 
-			const decoder = new TextDecoder();
-
-			while (true) {
-				const { done, value } = await reader.read();
-				if (done) break;
-
-				const chunk = decoder.decode(value, { stream: true });
-				const lines = chunk.split('\n').filter(line => line.trim() !== '');
-
-				for (const line of lines) {
-					if (line.startsWith('data: ')) {
-						const data = line.slice(6);
-						if (data === '[DONE]') continue;
-
-						try {
-							const parsed = JSON.parse(data);
-							const content = parsed.choices?.[0]?.delta?.content || '';
-							if (content) {
-								partial += content;
-								onToken(partial, false);
-							}
-						} catch (e) {
-							// Skip malformed JSON chunks
-						}
+			if (responseText) {
+				// Stream the response character by character for UX
+				for (let i = 0; i < responseText.length; i++) {
+					partial += responseText[i];
+					onToken(partial, false);
+					// Small delay to simulate streaming
+					if (i % 10 === 0) {
+						await new Promise(resolve => setTimeout(resolve, 5));
 					}
 				}
 			}

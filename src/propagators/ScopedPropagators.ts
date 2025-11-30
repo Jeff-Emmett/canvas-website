@@ -246,7 +246,17 @@ export class ClickPropagator extends Propagator {
 
   eventHandler(event: any): void {
     if (event.type !== 'pointer' || event.name !== 'pointer_down') return;
-    const shapeAtPoint = this.editor.getShapeAtPoint(this.editor.inputs.currentPagePoint, { filter: (shape) => shape.type === 'geo' });
+
+    // Wrap in try-catch to handle geometry errors from shapes with invalid paths
+    let shapeAtPoint;
+    try {
+      shapeAtPoint = this.editor.getShapeAtPoint(this.editor.inputs.currentPagePoint, { filter: (shape) => shape.type === 'geo' });
+    } catch (error) {
+      // Some shapes may have invalid geometry (e.g., empty paths) that cause nearestPoint to fail
+      console.warn('ClickPropagator: Error getting shape at point:', error);
+      return;
+    }
+
     if (!shapeAtPoint) return
     if (!this.listenerShapes.has(shapeAtPoint.id)) return
     const edgesFromHovered = getArrowsFromShape(this.editor, shapeAtPoint.id)

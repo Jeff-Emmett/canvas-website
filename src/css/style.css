@@ -1006,11 +1006,11 @@ input[type="submit"],
    Toolbar and Share Zone Alignment
    ======================================== */
 
-/* Position the share zone (people menu) to not overlap with custom toolbar */
+/* Position the share zone (people menu) in the top right */
 .tlui-share-zone {
   position: fixed !important;
-  top: 4px !important;
-  right: 8px !important;
+  top: 8px !important;
+  right: 12px !important;
   z-index: 99998 !important;
   display: flex !important;
   align-items: center !important;
@@ -1021,26 +1021,42 @@ input[type="submit"],
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 8px;
-  background: rgba(255, 255, 255, 0.9);
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(8px);
 }
 
 html.dark .custom-people-menu {
-  background: rgba(45, 55, 72, 0.9);
+  background: rgba(45, 55, 72, 0.95);
+}
+
+/* People dropdown styling */
+.people-dropdown {
+  backdrop-filter: blur(8px);
+}
+
+html.dark .people-dropdown {
+  background: rgba(30, 30, 30, 0.98) !important;
 }
 
 /* Ensure custom toolbar buttons don't overlap with share zone */
+/* Position to the left of the people menu with adequate spacing */
 .toolbar-container {
   position: fixed !important;
-  top: 4px !important;
-  /* Adjust right position to leave room for people menu (about 80px) */
-  right: 90px !important;
+  top: 8px !important;
+  /* Leave enough room for people menu - accounts for multiple users */
+  right: 140px !important;
   z-index: 99999 !important;
   display: flex !important;
-  gap: 6px !important;
+  gap: 8px !important;
   align-items: center !important;
+}
+
+/* Move the tldraw style panel (color picker) below the top-right UI */
+.tlui-style-panel__wrapper {
+  top: 52px !important;
 }
 
 /* ========================================
@@ -1052,14 +1068,14 @@ html.dark .custom-people-menu {
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 4px 10px;
-  height: 28px;
-  min-height: 28px;
+  padding: 6px 12px;
+  height: 32px;
+  min-height: 32px;
   background: var(--tool-bg);
   color: var(--tool-text);
   border: 1px solid var(--tool-border);
-  border-radius: 6px;
-  font-size: 12px;
+  border-radius: 16px;
+  font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -1075,10 +1091,13 @@ html.dark .custom-people-menu {
 
 .toolbar-btn svg {
   flex-shrink: 0;
+  width: 16px;
+  height: 16px;
 }
 
 .profile-btn {
-  padding: 4px 8px;
+  padding: 6px 10px;
+  height: 32px;
 }
 
 .profile-username {
@@ -1466,16 +1485,16 @@ html.dark .custom-people-menu {
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .toolbar-container {
-    right: 70px !important;
-    gap: 4px !important;
+    right: 90px !important;
+    gap: 6px !important;
   }
 
   .tlui-share-zone {
-    right: 4px !important;
+    right: 8px !important;
   }
 
   .custom-people-menu {
-    padding: 2px 4px;
+    padding: 4px 6px;
     gap: 2px;
   }
 
@@ -1485,6 +1504,14 @@ html.dark .custom-people-menu {
 
   .toolbar-btn {
     padding: 4px 8px;
+    height: 28px;
+    min-height: 28px;
+    font-size: 12px;
+  }
+
+  .toolbar-btn svg {
+    width: 14px;
+    height: 14px;
   }
 
   .settings-modal {

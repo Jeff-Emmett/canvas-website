@@ -51,7 +51,7 @@ export function HolonBrowser({ isOpen, onClose, onSelectHolon, shapeMode = false
     try {
       // Validate that the holonId is a valid H3 index
       if (!h3.isValidCell(holonId)) {
-        throw new Error('Invalid H3 cell ID')
+        throw new Error('Invalid H3 Cell ID. Holon IDs must be valid H3 geospatial cell identifiers (e.g., 872a1070bffffff)')
       }
 
       // Get holon information
@@ -210,7 +210,7 @@ export function HolonBrowser({ isOpen, onClose, onSelectHolon, shapeMode = false
               value={holonId}
               onChange={(e) => setHolonId(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="e.g., 1002848305066"
+              placeholder="e.g., 872a1070bffffff"
               className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 z-[10001] relative"
               disabled={isLoading}
               style={{ zIndex: 10001 }}

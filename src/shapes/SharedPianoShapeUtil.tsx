@@ -303,19 +303,19 @@ export class SharedPianoShape extends BaseBoxShapeUtil<ISharedPianoShape> {
     // Handle pointer down events if needed
   }
 
-  override onBeforeCreate = (shape: ISharedPianoShape) => {
+  override onBeforeCreate = (shape: ISharedPianoShape): ISharedPianoShape | void => {
     // Set default dimensions if not provided
+    // Return the modified shape instead of calling updateShape (which causes infinite loops)
     if (!shape.props.w || !shape.props.h) {
       const { w, h } = getDefaultDimensions()
-      this.editor.updateShape<ISharedPianoShape>({
-        id: shape.id,
-        type: "SharedPiano",
+      return {
+        ...shape,
         props: {
           ...shape.props,
-          w,
-          h,
+          w: shape.props.w || w,
+          h: shape.props.h || h,
         },
-      })
+      }
     }
   }
 

@@ -289,25 +289,28 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
   }
 
   getGeometry(shape: IImageGen): Geometry2d {
+    // Ensure minimum dimensions for proper hit testing
     return new Rectangle2d({
-      width: shape.props.w,
-      height: shape.props.h,
+      width: Math.max(shape.props.w, 1),
+      height: Math.max(shape.props.h, 1),
       isFilled: true,
     })
   }
 
   component(shape: IImageGen) {
+    // Capture editor reference to avoid stale 'this' during drag operations
+    const editor = this.editor
     const [isHovering, setIsHovering] = useState(false)
-    const isSelected = this.editor.getSelectedShapeIds().includes(shape.id)
+    const isSelected = editor.getSelectedShapeIds().includes(shape.id)
 
     const generateImage = async (prompt: string) => {
       console.log("🎨 ImageGen: Generating image with prompt:", prompt)
       
       // Clear any previous errors
-      this.editor.updateShape<IImageGen>({
+      editor.updateShape<IImageGen>({
         id: shape.id,
         type: "ImageGen",
-        props: { 
+        props: {
           error: null,
           isLoading: true,
           imageUrl: null
@@ -333,7 +336,7 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
 
           console.log("✅ ImageGen: Mock image generated:", mockImageUrl)
 
-          this.editor.updateShape<IImageGen>({
+          editor.updateShape<IImageGen>({
             id: shape.id,
             type: "ImageGen",
             props: {
@@ -413,7 +416,7 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
 
           if (imageUrl) {
             console.log('✅ ImageGen: Image generated successfully')
-            this.editor.updateShape<IImageGen>({
+            editor.updateShape<IImageGen>({
               id: shape.id,
               type: "ImageGen",
               props: {
@@ -461,10 +464,10 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
           }
         }
         
-        this.editor.updateShape<IImageGen>({
+        editor.updateShape<IImageGen>({
           id: shape.id,
           type: "ImageGen",
-          props: { 
+          props: {
             isLoading: false,
             error: userFriendlyError
           },
@@ -475,7 +478,7 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
     const handleGenerate = () => {
       if (shape.props.prompt.trim() && !shape.props.isLoading) {
         generateImage(shape.props.prompt)
-        this.editor.updateShape<IImageGen>({
+        editor.updateShape<IImageGen>({
           id: shape.id,
           type: "ImageGen",
           props: { prompt: "" },
@@ -522,7 +525,7 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
             <span style={{ flex: 1, lineHeight: "1.5" }}>{shape.props.error}</span>
             <button
               onClick={() => {
-                this.editor.updateShape<IImageGen>({
+                editor.updateShape<IImageGen>({
                   id: shape.id,
                   type: "ImageGen",
                   props: { error: null },
@@ -567,10 +570,10 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
               }}
               onError={(_e) => {
                 console.error("❌ ImageGen: Failed to load image:", shape.props.imageUrl)
-                this.editor.updateShape<IImageGen>({
+                editor.updateShape<IImageGen>({
                   id: shape.id,
                   type: "ImageGen",
-                  props: { 
+                  props: {
                     error: "Failed to load generated image",
                     imageUrl: null
                   },
@@ -650,7 +653,7 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
             placeholder="Enter image prompt..."
             value={shape.props.prompt}
             onChange={(e) => {
-              this.editor.updateShape<IImageGen>({
+              editor.updateShape<IImageGen>({
                 id: shape.id,
                 type: "ImageGen",
                 props: { prompt: e.target.value },
