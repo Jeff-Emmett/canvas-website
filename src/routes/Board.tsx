@@ -40,6 +40,7 @@ import { FathomMeetingsTool } from "@/tools/FathomMeetingsTool"
 import { HolonBrowserShape } from "@/shapes/HolonBrowserShapeUtil"
 import { ObsidianBrowserShape } from "@/shapes/ObsidianBrowserShapeUtil"
 import { FathomMeetingsBrowserShape } from "@/shapes/FathomMeetingsBrowserShapeUtil"
+import { FathomNoteShape } from "@/shapes/FathomNoteShapeUtil"
 import { ImageGenShape } from "@/shapes/ImageGenShapeUtil"
 import { ImageGenTool } from "@/tools/ImageGenTool"
 import { VideoGenShape } from "@/shapes/VideoGenShapeUtil"
@@ -86,6 +87,7 @@ const customShapeUtils = [
   HolonBrowserShape,
   ObsidianBrowserShape,
   FathomMeetingsBrowserShape,
+  FathomNoteShape, // Individual Fathom meeting notes created from FathomMeetingsBrowser
   ImageGenShape,
   VideoGenShape,
   MultmuxShape,
