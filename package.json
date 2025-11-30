@@ -73,7 +73,8 @@
 		"tldraw": "^3.15.4",
 		"use-whisper": "^0.0.1",
 		"webcola": "^3.4.0",
-		"webnative": "^0.36.3"
+		"webnative": "^0.36.3",
+		"sharp": "^0.33.5"
 	},
 	"devDependencies": {
 		"@cloudflare/types": "^6.0.0",
@@ -94,6 +95,8 @@
 		"node": ">=20.0.0"
 	},
 	"overrides": {
-		"sharp": "0.33.5"
+		"@xenova/transformers": {
+			"sharp": "0.33.5"
+		}
 	}
 }
