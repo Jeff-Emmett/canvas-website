@@ -24,7 +24,8 @@ const getDarkMode = (): boolean => {
   if (stored !== null) {
     return stored === 'true'
   }
-  return window.matchMedia('(prefers-color-scheme: dark)').matches
+  // Default to light mode instead of system preference
+  return false
 }
 
 const setDarkMode = (isDark: boolean) => {

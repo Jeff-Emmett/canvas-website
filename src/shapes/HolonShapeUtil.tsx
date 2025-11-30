@@ -3,8 +3,8 @@ import {
   HTMLContainer,
   TLBaseShape,
 } from "tldraw"
-import React, { useState, useRef, useEffect, useMemo, useCallback } from "react"
-import { holosphereService, HoloSphereService, HolonData, HolonLens, HolonConnection } from "@/lib/HoloSphereService"
+import React, { useState, useRef, useEffect, useCallback } from "react"
+import { holosphereService, HoloSphereService, HolonConnection } from "@/lib/HoloSphereService"
 import * as h3 from 'h3-js'
 import { StandardizedToolWrapper } from "../components/StandardizedToolWrapper"
 import { usePinnedToView } from "../hooks/usePinnedToView"
@@ -103,7 +103,6 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
     const [isHovering, setIsHovering] = useState(false)
     const [isLoading, setIsLoading] = useState(false)
     const [isMinimized, setIsMinimized] = useState(false)
-    const [lenses, setLenses] = useState<HolonLens[]>([])
     const [currentData, setCurrentData] = useState<any>(null)
     const [error, setError] = useState<string | null>(null)
     
@@ -242,15 +241,47 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
       })
     }
 
+    // Validate if input is a valid H3 cell ID
+    const isValidH3Cell = (id: string): boolean => {
+      if (!id || id.trim() === '') return false
+      try {
+        return h3.isValidCell(id.trim())
+      } catch {
+        return false
+      }
+    }
+
     const handleConnect = async () => {
       const trimmedHolonId = holonId?.trim() || ''
       if (!trimmedHolonId) {
+        setError('Please enter a Holon ID')
+        return
+      }
+
+      // Validate H3 cell ID
+      if (!isValidH3Cell(trimmedHolonId)) {
+        setError('Invalid H3 Cell ID. Holon IDs must be valid H3 geospatial cell identifiers (e.g., 872a1070bffffff)')
         return
       }
 
       console.log('🔌 Connecting to Holon:', trimmedHolonId)
+      setError(null)
 
-      // Update the shape to mark as connected with trimmed ID
+      // Extract H3 cell info (coordinates and resolution)
+      let cellLatitude = latitude
+      let cellLongitude = longitude
+      let cellResolution = resolution
+      try {
+        const [lat, lng] = h3.cellToLatLng(trimmedHolonId)
+        cellLatitude = lat
+        cellLongitude = lng
+        cellResolution = h3.getResolution(trimmedHolonId)
+        console.log(`📍 H3 Cell Info: lat=${lat}, lng=${lng}, resolution=${cellResolution}`)
+      } catch (e) {
+        console.warn('Could not extract H3 cell coordinates:', e)
+      }
+
+      // Update the shape to mark as connected with trimmed ID and H3 info
       this.editor.updateShape<IHolon>({
         id: shape.id,
         type: "Holon",
@@ -258,6 +289,9 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
           ...shape.props,
           isConnected: true,
           holonId: trimmedHolonId,
+          latitude: cellLatitude,
+          longitude: cellLongitude,
+          resolution: cellResolution,
         },
       })
 
@@ -723,16 +757,64 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
               boxSizing: 'border-box',
               minHeight: 0
             }}>
-              <div style={{ 
-                fontSize: '16px', 
-                color: '#333', 
-                marginBottom: '8px', 
+              <div style={{
+                fontSize: '16px',
+                color: '#333',
+                marginBottom: '8px',
                 fontWeight: '600',
                 textAlign: 'center',
                 lineHeight: '1.5',
                 width: '100%'
               }}>
-                Enter your HolonID to connect to the Holosphere
+                Enter an H3 Cell ID to connect to the Holosphere
+              </div>
+              <div style={{
+                fontSize: '11px',
+                color: '#666',
+                textAlign: 'center',
+                marginBottom: '8px'
+              }}>
+                H3 Cell IDs are hexagonal geospatial identifiers (e.g., 872a1070bffffff)
+              </div>
+              {/* Quick generate button */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                marginBottom: '8px'
+              }}>
+                <button
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    // Generate H3 cell from default coordinates
+                    try {
+                      const newCellId = h3.latLngToCell(latitude, longitude, resolution)
+                      handleHolonIdChange(newCellId)
+                      setError(null)
+                    } catch (err) {
+                      setError('Failed to generate H3 cell ID')
+                    }
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '11px',
+                    color: '#4b5563',
+                    backgroundColor: '#f3f4f6',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#e5e7eb'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#f3f4f6'
+                  }}
+                >
+                  Generate H3 Cell for current location (NYC)
+                </button>
               </div>
               <div style={{
                 display: 'flex',
@@ -753,7 +835,7 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
                       handleConnect()
                     }
                   }}
-                  placeholder="1002848305066"
+                  placeholder="872a1070bffffff"
                   style={{
                     flex: 1,
                     height: '48px',
@@ -820,9 +902,22 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
                   Connect to the Holosphere
                 </button>
               </div>
-              <div style={{ 
-                fontSize: '11px', 
-                color: '#666', 
+              {error && (
+                <div style={{
+                  fontSize: '12px',
+                  color: '#dc2626',
+                  textAlign: 'center',
+                  padding: '8px 12px',
+                  backgroundColor: '#fef2f2',
+                  borderRadius: '6px',
+                  border: '1px solid #fecaca'
+                }}>
+                  {error}
+                </div>
+              )}
+              <div style={{
+                fontSize: '11px',
+                color: '#666',
                 textAlign: 'center',
                 fontStyle: 'italic',
                 width: '100%'
@@ -847,18 +942,52 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
               }}
               onWheel={handleWheel}
             >
+              {/* H3 Cell Information Header */}
+              {isConnected && (
+                <div style={{
+                  backgroundColor: '#f0fdf4',
+                  border: '1px solid #86efac',
+                  borderRadius: '8px',
+                  padding: '12px',
+                  marginBottom: '12px'
+                }}>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(2, 1fr)',
+                    gap: '8px',
+                    fontSize: '11px'
+                  }}>
+                    <div>
+                      <span style={{ color: '#666', fontWeight: '500' }}>Resolution:</span>{' '}
+                      <span style={{ color: '#15803d', fontWeight: '600' }}>
+                        {resolutionInfo.name} (Level {resolution})
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ color: '#666', fontWeight: '500' }}>Coordinates:</span>{' '}
+                      <span style={{ fontFamily: 'monospace', color: '#333' }}>
+                        {latitude.toFixed(4)}, {longitude.toFixed(4)}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#666', marginTop: '6px' }}>
+                    {resolutionInfo.description}
+                  </div>
+                </div>
+              )}
+
               {/* Display all data from all lenses */}
               {isConnected && data && Object.keys(data).length > 0 && (
-                <div style={{ marginTop: '12px' }}>
+                <div>
                   <div style={{
                     fontSize: '11px',
                     fontWeight: 'bold',
                     color: '#333',
                     marginBottom: '8px',
-                    borderBottom: '2px solid #4CAF50',
+                    borderBottom: '2px solid #22c55e',
                     paddingBottom: '4px'
                   }}>
-                    📊 Holon Data ({Object.keys(data).length} categor{Object.keys(data).length !== 1 ? 'ies' : 'y'})
+                    Data Lenses ({Object.keys(data).length} categor{Object.keys(data).length !== 1 ? 'ies' : 'y'})
                   </div>
 
                   {Object.entries(data).map(([lensName, lensData]) => (
@@ -867,39 +996,106 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
                         fontSize: '10px',
                         fontWeight: 'bold',
                         color: '#2196F3',
-                        marginBottom: '6px'
+                        marginBottom: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
                       }}>
-                        {getCategoryIcon(lensName)} {getCategoryDisplayName(lensName)}
+                        <span>{getCategoryIcon(lensName)}</span>
+                        <span>{getCategoryDisplayName(lensName)}</span>
+                        {lensData && typeof lensData === 'object' && (
+                          <span style={{ color: '#888', fontWeight: 'normal' }}>
+                            ({Object.keys(lensData).length} items)
+                          </span>
+                        )}
                       </div>
                       <div style={{
                         backgroundColor: '#f9f9f9',
                         padding: '8px',
                         borderRadius: '4px',
                         border: '1px solid #e0e0e0',
-                        fontSize: '9px'
+                        fontSize: '9px',
+                        maxHeight: '150px',
+                        overflowY: 'auto'
                       }}>
                         {lensData && typeof lensData === 'object' ? (
                           Object.entries(lensData).length > 0 ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                              {Object.entries(lensData).map(([key, value]) => (
-                                <div key={key} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
-                                  <span style={{
-                                    fontWeight: 'bold',
-                                    color: '#666',
-                                    minWidth: '80px',
-                                    fontFamily: 'monospace'
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              {Object.entries(lensData).map(([key, value]) => {
+                                // Render items - HoloSphere items have an 'id' field
+                                const item = value as Record<string, any>
+                                const isHolonItem = item && typeof item === 'object' && 'id' in item
+
+                                return (
+                                  <div key={key} style={{
+                                    backgroundColor: '#fff',
+                                    padding: '6px 8px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #e5e7eb'
                                   }}>
-                                    {key}:
-                                  </span>
-                                  <span style={{
-                                    flex: 1,
-                                    color: '#333',
-                                    wordBreak: 'break-word'
-                                  }}>
-                                    {typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}
-                                  </span>
-                                </div>
-                              ))}
+                                    {isHolonItem ? (
+                                      // Render as a holon item with structured display
+                                      <div>
+                                        <div style={{
+                                          fontWeight: '600',
+                                          color: '#1f2937',
+                                          marginBottom: '4px',
+                                          display: 'flex',
+                                          justifyContent: 'space-between'
+                                        }}>
+                                          <span>{item.name || item.title || item.id}</span>
+                                          {item.timestamp && (
+                                            <span style={{ fontSize: '8px', color: '#9ca3af', fontWeight: 'normal' }}>
+                                              {new Date(item.timestamp).toLocaleDateString()}
+                                            </span>
+                                          )}
+                                        </div>
+                                        {item.description && (
+                                          <div style={{ color: '#6b7280', fontSize: '9px' }}>
+                                            {item.description}
+                                          </div>
+                                        )}
+                                        {item.content && (
+                                          <div style={{ color: '#374151', fontSize: '9px', marginTop: '2px' }}>
+                                            {String(item.content).slice(0, 100)}
+                                            {String(item.content).length > 100 && '...'}
+                                          </div>
+                                        )}
+                                        {/* Show other relevant fields */}
+                                        {Object.entries(item)
+                                          .filter(([k]) => !['id', 'name', 'title', 'description', 'content', 'timestamp', '_'].includes(k))
+                                          .slice(0, 3)
+                                          .map(([k, v]) => (
+                                            <div key={k} style={{ fontSize: '8px', color: '#9ca3af', marginTop: '2px' }}>
+                                              <span style={{ fontWeight: '500' }}>{k}:</span> {String(v).slice(0, 50)}
+                                            </div>
+                                          ))
+                                        }
+                                      </div>
+                                    ) : (
+                                      // Render as key-value pair
+                                      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                                        <span style={{
+                                          fontWeight: 'bold',
+                                          color: '#666',
+                                          minWidth: '60px',
+                                          fontFamily: 'monospace',
+                                          fontSize: '8px'
+                                        }}>
+                                          {key}:
+                                        </span>
+                                        <span style={{
+                                          flex: 1,
+                                          color: '#333',
+                                          wordBreak: 'break-word'
+                                        }}>
+                                          {typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value)}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                )
+                              })}
                             </div>
                           ) : (
                             <div style={{ color: '#999', fontStyle: 'italic' }}>No data in this lens</div>
@@ -915,18 +1111,25 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
 
               {isConnected && (!data || Object.keys(data).length === 0) && (
                 <div style={{
-                  marginTop: '12px',
-                  padding: '12px',
-                  backgroundColor: '#f5f5f5',
-                  borderRadius: '4px',
-                  color: '#666',
-                  fontSize: '10px',
+                  padding: '16px',
+                  backgroundColor: '#fefce8',
+                  borderRadius: '8px',
+                  border: '1px solid #fde047',
+                  color: '#854d0e',
+                  fontSize: '11px',
                   textAlign: 'center'
                 }}>
-                  <div style={{ marginBottom: '8px' }}>📭 No data found in this holon</div>
-                  <div style={{ fontSize: '9px' }}>
-                    Categories checked: Active Users, Users, Rankings, Tasks, Progress, Events, Activities, Items, Shopping, Proposals, Offers, Checklists, Roles
+                  <div style={{ marginBottom: '8px', fontSize: '12px', fontWeight: '500' }}>
+                    No data found in this holon
                   </div>
+                  <div style={{ fontSize: '10px', color: '#a16207' }}>
+                    This H3 cell may not have any data stored yet. You can add data using the + button above.
+                  </div>
+                  {isLoading && (
+                    <div style={{ marginTop: '8px', color: '#ca8a04' }}>
+                      Loading data from GunDB...
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -1,0 +1,8 @@
+node_modules
+packages/*/node_modules
+packages/*/dist
+*.log
+.git
+.gitignore
+README.md
+infrastructure/

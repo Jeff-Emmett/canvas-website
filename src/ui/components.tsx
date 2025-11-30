@@ -1,8 +1,10 @@
+import React from "react"
 import { CustomMainMenu } from "./CustomMainMenu"
 import { CustomToolbar } from "./CustomToolbar"
 import { CustomContextMenu } from "./CustomContextMenu"
 import { FocusLockIndicator } from "./FocusLockIndicator"
 import { MycelialIntelligenceBar } from "./MycelialIntelligenceBar"
+import { CommandPalette } from "./CommandPalette"
 import {
   DefaultKeyboardShortcutsDialog,
   DefaultKeyboardShortcutsDialogContent,
@@ -18,6 +20,7 @@ import { SlidesPanel } from "@/slides/SlidesPanel"
 // Custom People Menu component for showing connected users
 function CustomPeopleMenu() {
   const editor = useEditor()
+  const [showDropdown, setShowDropdown] = React.useState(false)
 
   // Get current user info
   const myUserColor = useValue('myColor', () => editor.user.getColor(), [editor])
@@ -26,49 +29,189 @@ function CustomPeopleMenu() {
   // Get all collaborators (other users in the session)
   const collaborators = useValue('collaborators', () => editor.getCollaborators(), [editor])
 
-  return (
-    <div className="custom-people-menu">
-      {/* Current user avatar */}
-      <div
-        title={`${myUserName} (you)`}
-        style={{
-          width: '24px',
-          height: '24px',
-          borderRadius: '50%',
-          backgroundColor: myUserColor,
-          border: '2px solid white',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-          cursor: 'default',
-        }}
-      />
+  const totalUsers = collaborators.length + 1
 
-      {/* Other users */}
-      {collaborators.map((presence) => (
+  return (
+    <div className="custom-people-menu" style={{ position: 'relative' }}>
+      {/* Clickable avatar stack */}
+      <button
+        onClick={() => setShowDropdown(!showDropdown)}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          cursor: 'pointer',
+        }}
+        title="Click to see participants"
+      >
+        {/* Current user avatar */}
         <div
-          key={presence.id}
-          title={`${presence.userName || 'Anonymous'}`}
           style={{
-            width: '24px',
-            height: '24px',
+            width: '28px',
+            height: '28px',
             borderRadius: '50%',
-            backgroundColor: presence.color,
+            backgroundColor: myUserColor,
             border: '2px solid white',
             boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-            marginLeft: '-8px',
-            cursor: 'default',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '10px',
+            fontWeight: 600,
+            color: 'white',
+            textShadow: '0 1px 2px rgba(0,0,0,0.3)',
           }}
-        />
-      ))}
+        >
+          {myUserName.charAt(0).toUpperCase()}
+        </div>
 
-      {/* User count badge */}
-      {collaborators.length > 0 && (
-        <span style={{
-          fontSize: '12px',
-          color: 'var(--color-text-1)',
-          marginLeft: '4px',
-        }}>
-          {collaborators.length + 1}
-        </span>
+        {/* Other users (stacked) */}
+        {collaborators.slice(0, 3).map((presence, index) => (
+          <div
+            key={presence.id}
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '50%',
+              backgroundColor: presence.color,
+              border: '2px solid white',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+              marginLeft: '-10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '10px',
+              fontWeight: 600,
+              color: 'white',
+              textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+            }}
+          >
+            {(presence.userName || 'A').charAt(0).toUpperCase()}
+          </div>
+        ))}
+
+        {/* User count badge if more than shown */}
+        {totalUsers > 1 && (
+          <span style={{
+            fontSize: '12px',
+            fontWeight: 500,
+            color: 'var(--color-text-1)',
+            marginLeft: '6px',
+          }}>
+            {totalUsers}
+          </span>
+        )}
+      </button>
+
+      {/* Dropdown with user names */}
+      {showDropdown && (
+        <div
+          className="people-dropdown"
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 8px)',
+            right: 0,
+            minWidth: '180px',
+            background: 'var(--bg-color, #fff)',
+            border: '1px solid var(--border-color, #e1e4e8)',
+            borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            zIndex: 100000,
+            padding: '8px 0',
+          }}
+        >
+          <div style={{
+            padding: '6px 12px',
+            fontSize: '11px',
+            fontWeight: 600,
+            color: 'var(--tool-text)',
+            opacity: 0.7,
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+          }}>
+            Participants ({totalUsers})
+          </div>
+
+          {/* Current user */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '8px 12px',
+          }}>
+            <div style={{
+              width: '24px',
+              height: '24px',
+              borderRadius: '50%',
+              backgroundColor: myUserColor,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '10px',
+              fontWeight: 600,
+              color: 'white',
+              textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+            }}>
+              {myUserName.charAt(0).toUpperCase()}
+            </div>
+            <span style={{
+              fontSize: '13px',
+              color: 'var(--text-color)',
+              fontWeight: 500,
+            }}>
+              {myUserName} (you)
+            </span>
+          </div>
+
+          {/* Other users */}
+          {collaborators.map((presence) => (
+            <div
+              key={presence.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '8px 12px',
+              }}
+            >
+              <div style={{
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                backgroundColor: presence.color,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '10px',
+                fontWeight: 600,
+                color: 'white',
+                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+              }}>
+                {(presence.userName || 'A').charAt(0).toUpperCase()}
+              </div>
+              <span style={{
+                fontSize: '13px',
+                color: 'var(--text-color)',
+              }}>
+                {presence.userName || 'Anonymous'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Click outside to close */}
+      {showDropdown && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 99999,
+          }}
+          onClick={() => setShowDropdown(false)}
+        />
       )}
     </div>
   )
@@ -89,6 +232,7 @@ function CustomInFrontOfCanvas() {
     <>
       <MycelialIntelligenceBar />
       <FocusLockIndicator />
+      <CommandPalette />
     </>
   )
 }

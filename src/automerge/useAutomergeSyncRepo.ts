@@ -3,8 +3,10 @@ import { TLStoreSnapshot, InstancePresenceRecordType } from "@tldraw/tldraw"
 import { CloudflareNetworkAdapter } from "./CloudflareAdapter"
 import { useAutomergeStoreV2, useAutomergePresence } from "./useAutomergeStoreV2"
 import { TLStoreWithStatus } from "@tldraw/tldraw"
-import { Repo, parseAutomergeUrl, stringifyAutomergeUrl } from "@automerge/automerge-repo"
+import { Repo, parseAutomergeUrl, stringifyAutomergeUrl, AutomergeUrl } from "@automerge/automerge-repo"
 import { DocHandle } from "@automerge/automerge-repo"
+import { IndexedDBStorageAdapter } from "@automerge/automerge-repo-storage-indexeddb"
+import { getDocumentId, saveDocumentId } from "./documentIdMapping"
 
 interface AutomergeSyncConfig {
   uri: string
@@ -213,7 +215,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
     }
   }, [])
   
-  const { repo, adapter } = useMemo(() => {
+  const { repo, adapter, storageAdapter } = useMemo(() => {
     const adapter = new CloudflareNetworkAdapter(
       workerUrl,
       roomId,
@@ -224,18 +226,23 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
     // Store adapter ref for use in callbacks
     adapterRef.current = adapter
 
+    // Create IndexedDB storage adapter for offline persistence
+    // This stores Automerge documents locally in the browser
+    const storageAdapter = new IndexedDBStorageAdapter()
+
     const repo = new Repo({
       network: [adapter],
+      storage: storageAdapter, // Add IndexedDB storage for offline support
       // Enable sharing of all documents with all peers
       sharePolicy: async () => true
     })
 
     // Log when sync messages are sent/received
-    adapter.on('message', (msg: any) => {
+    adapter.on('message', (_msg: any) => {
       // Message received from network
     })
 
-    return { repo, adapter }
+    return { repo, adapter, storageAdapter }
   }, [workerUrl, roomId, applyJsonSyncData, applyPresenceUpdate])
 
   // Initialize Automerge document handle
@@ -248,62 +255,122 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
         // This ensures the WebSocket connection is established for sync
         await adapter.whenReady()
 
-        if (mounted) {
-          // CRITICAL: Create a new Automerge document (repo.create() generates a proper document ID)
-          // Each client gets its own document, but Automerge sync protocol keeps them in sync
-          // The network adapter broadcasts sync messages between all clients in the same room
-          const handle = repo.create<TLStoreSnapshot>()
+        if (!mounted) return
 
-          // Wait for the handle to be ready
-          await handle.whenReady()
+        let handle: DocHandle<TLStoreSnapshot>
+        let loadedFromLocal = false
 
-          // CRITICAL: Always load initial data from the server
-          // The server stores documents in R2 as JSON, so we need to load and initialize the Automerge document
+        // Check if we have a stored document ID mapping for this room
+        // This allows us to load the same document from IndexedDB on subsequent visits
+        const storedDocumentId = await getDocumentId(roomId)
+
+        if (storedDocumentId) {
+          console.log(`Found stored document ID for room ${roomId}: ${storedDocumentId}`)
           try {
-            const response = await fetch(`${workerUrl}/room/${roomId}`)
-            if (response.ok) {
-              const serverDoc = await response.json() as TLStoreSnapshot
-              const serverShapeCount = serverDoc.store ? Object.values(serverDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
-              const serverRecordCount = Object.keys(serverDoc.store || {}).length
+            // Try to find the existing document in the repo (loads from IndexedDB)
+            // repo.find() returns a Promise<DocHandle>
+            const foundHandle = await repo.find<TLStoreSnapshot>(storedDocumentId as AutomergeUrl)
+            await foundHandle.whenReady()
+            handle = foundHandle
 
-              // Document loaded from server
+            // Check if document has data
+            const localDoc = handle.doc()
+            const localRecordCount = localDoc?.store ? Object.keys(localDoc.store).length : 0
+            const localShapeCount = localDoc?.store ? Object.values(localDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
 
-              // Initialize the Automerge document with server data
-              if (serverDoc.store && serverRecordCount > 0) {
-                handle.change((doc: any) => {
-                  // Initialize store if it doesn't exist
-                  if (!doc.store) {
-                    doc.store = {}
-                  }
-                  // Copy all records from server document
-                  Object.entries(serverDoc.store).forEach(([id, record]) => {
-                    doc.store[id] = record
-                  })
-                })
-
-                // Initialized Automerge document from server
-              } else {
-                // Server document is empty - starting fresh
-              }
-            } else if (response.status === 404) {
-              // No document found on server - starting fresh
+            if (localRecordCount > 0) {
+              console.log(`Loaded document from IndexedDB: ${localRecordCount} records, ${localShapeCount} shapes`)
+              loadedFromLocal = true
             } else {
-              console.warn(`⚠️ Failed to load document from server: ${response.status} ${response.statusText}`)
+              console.log(`Document found in IndexedDB but is empty, will load from server`)
             }
           } catch (error) {
-            console.error("❌ Error loading initial document from server:", error)
-            // Continue anyway - user can still create new content
+            console.warn(`Failed to load document ${storedDocumentId} from IndexedDB:`, error)
+            // Fall through to create a new document
           }
-
-          // Verify final document state
-          const finalDoc = handle.doc() as any
-          const finalStoreKeys = finalDoc?.store ? Object.keys(finalDoc.store).length : 0
-          const finalShapeCount = finalDoc?.store ? Object.values(finalDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
-
-          // Automerge handle initialized and ready
-          setHandle(handle)
-          setIsLoading(false)
         }
+
+        // If we didn't load from local storage, create a new document
+        if (!loadedFromLocal || !handle!) {
+          console.log(`Creating new Automerge document for room ${roomId}`)
+          handle = repo.create<TLStoreSnapshot>()
+          await handle.whenReady()
+
+          // Save the mapping between roomId and the new document ID
+          const documentId = handle.url
+          if (documentId) {
+            await saveDocumentId(roomId, documentId)
+            console.log(`Saved new document mapping: ${roomId} -> ${documentId}`)
+          }
+        }
+
+        if (!mounted) return
+
+        // Sync with server to get latest data (or upload local changes if offline was edited)
+        // This ensures we're in sync even if we loaded from IndexedDB
+        try {
+          const response = await fetch(`${workerUrl}/room/${roomId}`)
+          if (response.ok) {
+            const serverDoc = await response.json() as TLStoreSnapshot
+            const serverShapeCount = serverDoc.store ? Object.values(serverDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
+            const serverRecordCount = Object.keys(serverDoc.store || {}).length
+
+            // Get current local state
+            const localDoc = handle.doc()
+            const localRecordCount = localDoc?.store ? Object.keys(localDoc.store).length : 0
+
+            // Merge server data with local data
+            // Automerge handles conflict resolution automatically via CRDT
+            if (serverDoc.store && serverRecordCount > 0) {
+              handle.change((doc: any) => {
+                // Initialize store if it doesn't exist
+                if (!doc.store) {
+                  doc.store = {}
+                }
+                // Merge server records - Automerge will handle conflicts
+                Object.entries(serverDoc.store).forEach(([id, record]) => {
+                  // Only add if not already present locally (local changes take precedence)
+                  // This is a simple merge strategy - Automerge's CRDT will handle deeper conflicts
+                  if (!doc.store[id]) {
+                    doc.store[id] = record
+                  }
+                })
+              })
+
+              const finalDoc = handle.doc()
+              const finalRecordCount = finalDoc?.store ? Object.keys(finalDoc.store).length : 0
+              console.log(`Merged server data: server had ${serverRecordCount}, local had ${localRecordCount}, final has ${finalRecordCount} records`)
+            } else if (!loadedFromLocal) {
+              // Server is empty and we didn't load from local - fresh start
+              console.log(`Starting fresh - no data on server or locally`)
+            }
+          } else if (response.status === 404) {
+            // No document found on server
+            if (loadedFromLocal) {
+              console.log(`No server document, but loaded ${handle.doc()?.store ? Object.keys(handle.doc()!.store).length : 0} records from local storage`)
+            } else {
+              console.log(`No document found on server - starting fresh`)
+            }
+          } else {
+            console.warn(`Failed to load document from server: ${response.status} ${response.statusText}`)
+          }
+        } catch (error) {
+          // Network error - continue with local data if available
+          if (loadedFromLocal) {
+            console.log(`Offline mode: using local data from IndexedDB`)
+          } else {
+            console.error("Error loading from server (offline?):", error)
+          }
+        }
+
+        // Verify final document state
+        const finalDoc = handle.doc() as any
+        const finalStoreKeys = finalDoc?.store ? Object.keys(finalDoc.store).length : 0
+        const finalShapeCount = finalDoc?.store ? Object.values(finalDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
+        console.log(`Automerge handle ready: ${finalStoreKeys} records, ${finalShapeCount} shapes (loaded from ${loadedFromLocal ? 'IndexedDB' : 'server/new'})`)
+
+        setHandle(handle)
+        setIsLoading(false)
       } catch (error) {
         console.error("Error initializing Automerge handle:", error)
         if (mounted) {

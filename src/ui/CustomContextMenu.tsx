@@ -242,7 +242,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
         <TldrawUiMenuItem {...tools.ImageGen} disabled={hasSelection} />
         <TldrawUiMenuItem {...tools.VideoGen} disabled={hasSelection} />
         <TldrawUiMenuItem {...tools.Multmux} disabled={hasSelection} />
-        <TldrawUiMenuItem {...tools.MycelialIntelligence} disabled={hasSelection} />
+        {/* MycelialIntelligence moved to permanent UI bar */}
       </TldrawUiMenuGroup>
 
       {/* Collections Group */}

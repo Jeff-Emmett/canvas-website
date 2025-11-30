@@ -1,7 +1,7 @@
 import { useAutomergeSync } from "@/automerge/useAutomergeSync"
 import { AutomergeHandleProvider } from "@/context/AutomergeHandleContext"
 import { useMemo, useEffect, useState, useRef } from "react"
-import { Tldraw, Editor, TLShapeId, TLRecord, useTldrawUser, TLUserPreferences, createShapeId } from "tldraw"
+import { Tldraw, Editor, TLShapeId, TLRecord, useTldrawUser, TLUserPreferences } from "tldraw"
 import { useParams } from "react-router-dom"
 import { ChatBoxTool } from "@/tools/ChatBoxTool"
 import { ChatBoxShape } from "@/shapes/ChatBoxShapeUtil"
@@ -963,47 +963,7 @@ export function Board() {
           initializeGlobalCollections(editor, collections)
           // Note: User presence is configured through the useAutomergeSync hook above
           // The authenticated username should appear in the people section
-
-          // Auto-create Mycelial Intelligence shape on page load if not present
-          // Use a flag to ensure this only runs once per session
-          const miCreatedKey = `mi-created-${roomId}`
-          const alreadyCreatedThisSession = sessionStorage.getItem(miCreatedKey)
-
-          if (!alreadyCreatedThisSession) {
-            setTimeout(() => {
-              const existingMI = editor.getCurrentPageShapes().find(s => s.type === 'MycelialIntelligence')
-              if (!existingMI) {
-                const viewport = editor.getViewportScreenBounds()
-                const miWidth = 520
-                const screenCenter = {
-                  x: viewport.x + (viewport.w / 2) - (miWidth / 2),
-                  y: viewport.y + 20, // 20px from top
-                }
-                const pagePoint = editor.screenToPage(screenCenter)
-
-                editor.createShape({
-                  id: createShapeId(),
-                  type: 'MycelialIntelligence',
-                  x: pagePoint.x,
-                  y: pagePoint.y,
-                  props: {
-                    w: miWidth,
-                    h: 52,
-                    prompt: '',
-                    response: '',
-                    isLoading: false,
-                    isListening: false,
-                    isExpanded: false,
-                    conversationHistory: [],
-                    pinnedToView: true,
-                    indexingProgress: 0,
-                    isIndexing: false,
-                  },
-                })
-              }
-              sessionStorage.setItem(miCreatedKey, 'true')
-            }, 500) // Small delay to ensure editor is ready
-          }
+          // MycelialIntelligence is now a permanent UI bar - no shape creation needed
         }}
         >
           <CmdK />

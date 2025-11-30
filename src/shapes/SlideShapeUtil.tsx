@@ -41,10 +41,11 @@ export class SlideShape extends BaseBoxShapeUtil<ISlideShape> {
   }
 
   getGeometry(shape: ISlideShape): Geometry2d {
+    // isFilled must be true for proper hit testing and nearestPoint calculation
     return new Rectangle2d({
-      width: shape.props.w,
-      height: shape.props.h,
-      isFilled: false,
+      width: Math.max(shape.props.w, 1),
+      height: Math.max(shape.props.h, 1),
+      isFilled: true,
     })
   }
 

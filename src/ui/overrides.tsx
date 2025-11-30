@@ -99,7 +99,7 @@ export const overrides: TLUiOverrides = {
         id: "VideoChat",
         icon: "video",
         label: "Video Chat",
-        kbd: "alt+v",
+        kbd: "ctrl+shift+v",
         readonlyOk: true,
         type: "VideoChat",
         onSelect: () => editor.setCurrentTool("VideoChat"),
@@ -108,7 +108,7 @@ export const overrides: TLUiOverrides = {
         id: "ChatBox",
         icon: "chat",
         label: "Chat",
-        kbd: "alt+c",
+        kbd: "ctrl+shift+c",
         readonlyOk: true,
         type: "ChatBox",
         onSelect: () => editor.setCurrentTool("ChatBox"),
@@ -117,7 +117,7 @@ export const overrides: TLUiOverrides = {
         id: "Embed",
         icon: "embed",
         label: "Embed",
-        kbd: "alt+e",
+        kbd: "ctrl+shift+e",
         readonlyOk: true,
         type: "Embed",
         onSelect: () => editor.setCurrentTool("Embed"),
@@ -126,7 +126,7 @@ export const overrides: TLUiOverrides = {
         id: "Slide",
         icon: "slides",
         label: "Slide",
-        kbd: "alt+s",
+        kbd: "ctrl+shift+s",
         type: "Slide",
         readonlyOk: true,
         onSelect: () => {
@@ -137,7 +137,7 @@ export const overrides: TLUiOverrides = {
         id: "Markdown",
         icon: "markdown",
         label: "Markdown",
-        kbd: "alt+m",
+        kbd: "ctrl+shift+m",
         readonlyOk: true,
         type: "Markdown",
         onSelect: () => editor.setCurrentTool("Markdown"),
@@ -147,7 +147,7 @@ export const overrides: TLUiOverrides = {
         icon: "rectangle",
         label: "Mycrozine Template",
         type: "MycrozineTemplate",
-        kbd: "alt+z",
+        kbd: "ctrl+shift+z",
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("MycrozineTemplate"),
       },
@@ -156,7 +156,7 @@ export const overrides: TLUiOverrides = {
         icon: "prompt",
         label: "LLM Prompt",
         type: "Prompt",
-        kbd: "alt+l",
+        kbd: "ctrl+shift+l",
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("Prompt"),
       },
@@ -172,7 +172,7 @@ export const overrides: TLUiOverrides = {
         id: "ObsidianNote",
         icon: "file-text",
         label: "Obsidian Note",
-        kbd: "alt+o",
+        kbd: "ctrl+shift+o",
         readonlyOk: true,
         type: "ObsNote",
         onSelect: () => editor.setCurrentTool("ObsidianNote"),
@@ -181,7 +181,7 @@ export const overrides: TLUiOverrides = {
         id: "Transcription",
         icon: "microphone",
         label: "Transcription",
-        kbd: "alt+t",
+        kbd: "ctrl+shift+t",
         readonlyOk: true,
         type: "Transcription",
         onSelect: () => editor.setCurrentTool("Transcription"),
@@ -190,7 +190,7 @@ export const overrides: TLUiOverrides = {
         id: "Holon",
         icon: "circle",
         label: "Holon",
-        kbd: "alt+h",
+        kbd: "ctrl+shift+h",
         readonlyOk: true,
         type: "Holon",
         onSelect: () => editor.setCurrentTool("Holon"),
@@ -199,7 +199,7 @@ export const overrides: TLUiOverrides = {
         id: "fathom-meetings",
         icon: "calendar",
         label: "Fathom Meetings",
-        kbd: "alt+f",
+        kbd: "ctrl+shift+f",
         readonlyOk: true,
         // Removed type property to prevent automatic shape creation
         // Shape creation is handled manually in FathomMeetingsTool.onPointerDown
@@ -209,7 +209,7 @@ export const overrides: TLUiOverrides = {
         id: "ImageGen",
         icon: "image",
         label: "Image Generation",
-        kbd: "alt+i",
+        kbd: "ctrl+shift+i",
         readonlyOk: true,
         type: "ImageGen",
         onSelect: () => editor.setCurrentTool("ImageGen"),
@@ -218,7 +218,7 @@ export const overrides: TLUiOverrides = {
         id: "VideoGen",
         icon: "video",
         label: "Video Generation",
-        kbd: "alt+v",
+        kbd: "ctrl+shift+g",
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("VideoGen"),
       },
@@ -226,47 +226,11 @@ export const overrides: TLUiOverrides = {
         id: "Multmux",
         icon: "terminal",
         label: "Terminal",
-        kbd: "alt+m",
+        kbd: "ctrl+shift+k",
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("Multmux"),
       },
-      MycelialIntelligence: {
-        id: "MycelialIntelligence",
-        icon: "chat",
-        label: "Mycelial Intelligence",
-        kbd: "ctrl+shift+m",
-        readonlyOk: true,
-        type: "MycelialIntelligence",
-        onSelect: () => {
-          // Spawn the MI shape at top center of viewport
-          const viewport = editor.getViewportPageBounds()
-          const shapeWidth = 600
-          const shapeHeight = 60
-
-          // Calculate center top position
-          const x = viewport.x + (viewport.w / 2) - (shapeWidth / 2)
-          const y = viewport.y + 20
-
-          // Check if MI already exists on canvas - if so, select it
-          const existingMI = editor.getCurrentPageShapes().find(s => s.type === 'MycelialIntelligence')
-          if (existingMI) {
-            editor.setSelectedShapes([existingMI.id])
-            return
-          }
-
-          // Create the shape
-          editor.createShape({
-            type: 'MycelialIntelligence',
-            x,
-            y,
-            props: {
-              w: shapeWidth,
-              h: shapeHeight,
-              pinnedToView: true,
-            }
-          })
-        },
-      },
+      // MycelialIntelligence removed - now a permanent UI bar (MycelialIntelligenceBar.tsx)
       hand: {
         ...tools.hand,
         onDoubleClick: (info: any) => {
@@ -327,14 +291,14 @@ export const overrides: TLUiOverrides = {
       copyLinkToCurrentView: {
         id: "copy-link-to-current-view",
         label: "Copy Link to Current View",
-        kbd: "alt+c",
+        kbd: "ctrl+alt+c",
         onSelect: () => copyLinkToCurrentView(editor),
         readonlyOk: true,
       },
       copyFocusLink: {
         id: "copy-focus-link",
         label: "Copy Focus Link (Locked View)",
-        kbd: "alt+shift+f",
+        kbd: "ctrl+alt+f",
         onSelect: () => {
           if (editor.getSelectedShapeIds().length > 0) {
             copyFocusLink(editor)
@@ -352,7 +316,7 @@ export const overrides: TLUiOverrides = {
       revertCamera: {
         id: "revert-camera",
         label: "Revert Camera",
-        kbd: "alt+b",
+        kbd: "ctrl+alt+b",
         onSelect: () => {
           if (cameraHistory.length > 0) {
             revertCamera(editor)
@@ -384,7 +348,7 @@ export const overrides: TLUiOverrides = {
       saveToPdf: {
         id: "save-to-pdf",
         label: "Save Selection as PDF",
-        kbd: "alt+p",
+        kbd: "ctrl+alt+p",
         onSelect: () => {
           if (editor.getSelectedShapeIds().length > 0) {
             saveToPdf(editor)
@@ -563,7 +527,7 @@ export const overrides: TLUiOverrides = {
       llm: {
         id: "llm",
         label: "Run LLM Prompt",
-        kbd: "alt+g",
+        kbd: "ctrl+alt+r",
         readonlyOk: true,
         onSelect: () => {
 

@@ -66,11 +66,19 @@ export const CmdK = () => {
 			)
 
 			const selected = editor.getSelectedShapeIds()
-			const inView = editor
-				.getShapesAtPoint(editor.getViewportPageBounds().center, {
-					margin: 1200,
-				})
-				.map((o) => o.id)
+			let inView: TLShapeId[] = []
+			try {
+				inView = editor
+					.getShapesAtPoint(editor.getViewportPageBounds().center, {
+						margin: 1200,
+					})
+					.map((o) => o.id)
+			} catch (e) {
+				// Some shapes may have invalid geometry (e.g., zero-length arrows)
+				// Fall back to getting all shapes on the current page
+				console.warn('getShapesAtPoint failed, falling back to all page shapes:', e)
+				inView = editor.getCurrentPageShapeIds() as unknown as TLShapeId[]
+			}
 
 			return new Map([
 				...nameToShapeIdMap,

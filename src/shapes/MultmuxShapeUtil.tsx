@@ -118,9 +118,10 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
   }
 
   getGeometry(shape: IMultmuxShape): Geometry2d {
+    // Ensure minimum dimensions for proper hit testing
     return new Rectangle2d({
-      width: shape.props.w,
-      height: shape.props.h,
+      width: Math.max(shape.props.w, 1),
+      height: Math.max(shape.props.h, 1),
       isFilled: true,
     })
   }

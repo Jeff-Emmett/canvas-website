@@ -69,10 +69,11 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
 
   // Override getGeometry to ensure the selector box always matches the rendered component height
   getGeometry(shape: IPrompt): Geometry2d {
+    // isFilled must be true for proper hit testing and nearestPoint calculation
     return new Rectangle2d({
-      width: shape.props.w,
-      height: Math.max(shape.props.h, this.FIXED_HEIGHT),
-      isFilled: false,
+      width: Math.max(shape.props.w, 1),
+      height: Math.max(shape.props.h, this.FIXED_HEIGHT, 1),
+      isFilled: true,
     })
   }
 

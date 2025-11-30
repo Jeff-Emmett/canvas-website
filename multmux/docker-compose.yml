@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  multmux:
+    build: .
+    container_name: multmux-server
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3002
+    labels:
+      - "traefik.enable=true"
+      # HTTP router
+      - "traefik.http.routers.multmux.rule=Host(`terminal.jeffemmett.com`)"
+      - "traefik.http.routers.multmux.entrypoints=web"
+      - "traefik.http.services.multmux.loadbalancer.server.port=3002"
+      # WebSocket support - Traefik handles this automatically for HTTP/1.1 upgrades
+      # Enable sticky sessions for WebSocket connections
+      - "traefik.http.services.multmux.loadbalancer.sticky.cookie=true"
+      - "traefik.http.services.multmux.loadbalancer.sticky.cookie.name=multmux_session"
+    networks:
+      - traefik-public
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  traefik-public:
+    external: true
