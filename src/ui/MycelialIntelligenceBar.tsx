@@ -4,7 +4,7 @@ import { canvasAI, useCanvasAI } from "@/lib/canvasAI"
 import { useWebSpeechTranscription } from "@/hooks/useWebSpeechTranscription"
 
 // Microphone icon component
-const MicrophoneIcon = ({ isListening, isDark }: { isListening: boolean; isDark: boolean }) => (
+const MicrophoneIcon = ({ isListening }: { isListening: boolean }) => (
   <svg
     width="20"
     height="20"
@@ -364,7 +364,7 @@ export function MycelialIntelligenceBar() {
                 }}
                 title={isRecording ? "Stop recording" : "Voice input"}
               >
-                <MicrophoneIcon isListening={isRecording} isDark={isDark} />
+                <MicrophoneIcon isListening={isRecording} />
               </button>
             )}
 
@@ -638,7 +638,7 @@ export function MycelialIntelligenceBar() {
                   }}
                   title={isRecording ? "Stop recording" : "Start voice input"}
                 >
-                  <MicrophoneIcon isListening={isRecording} isDark={isDark} />
+                  <MicrophoneIcon isListening={isRecording} />
                 </button>
               )}
 

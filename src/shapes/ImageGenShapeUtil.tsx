@@ -194,18 +194,20 @@ async function pollRunPodJob(
             } else if (firstItem.url) {
               imageUrl = firstItem.url
             }
-          } else if (data.output?.result) {
+          } else if (!Array.isArray(data.output) && data.output?.result) {
             // Some formats nest result inside output
-            if (typeof data.output.result === 'string') {
-              imageUrl = data.output.result
-            } else if (data.output.result?.image) {
-              imageUrl = data.output.result.image
-            } else if (data.output.result?.url) {
-              imageUrl = data.output.result.url
+            const outputObj = data.output as { result?: string | { image?: string; url?: string } }
+            if (typeof outputObj.result === 'string') {
+              imageUrl = outputObj.result
+            } else if (outputObj.result?.image) {
+              imageUrl = outputObj.result.image
+            } else if (outputObj.result?.url) {
+              imageUrl = outputObj.result.url
             }
-          } else if (Array.isArray(data.output?.images) && data.output.images.length > 0) {
+          } else if (!Array.isArray(data.output) && data.output?.images && Array.isArray(data.output.images) && data.output.images.length > 0) {
             // ComfyUI worker format: { output: { images: [{ filename, type, data }] } }
-            const firstImage = data.output.images[0]
+            const outputObj = data.output as { images: Array<{ data?: string; url?: string; type?: string; filename?: string }> }
+            const firstImage = outputObj.images[0]
             if (firstImage.data) {
               // Base64 encoded image
               if (firstImage.data.startsWith('data:image')) {
@@ -386,8 +388,9 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
           let imageUrl = ''
 
           // Handle output.images array format (Automatic1111 endpoint format)
-          if (Array.isArray(data.output.images) && data.output.images.length > 0) {
-            const firstImage = data.output.images[0]
+          if (typeof data.output === 'object' && !Array.isArray(data.output) && data.output.images && Array.isArray(data.output.images) && data.output.images.length > 0) {
+            const outputObj = data.output as { images: Array<{ data?: string; url?: string } | string> }
+            const firstImage = outputObj.images[0]
             // Base64 encoded image string
             if (typeof firstImage === 'string') {
               imageUrl = firstImage.startsWith('data:') ? firstImage : `data:image/png;base64,${firstImage}`
@@ -399,9 +402,9 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
             }
           } else if (typeof data.output === 'string') {
             imageUrl = data.output
-          } else if (data.output.image) {
+          } else if (!Array.isArray(data.output) && data.output.image) {
             imageUrl = data.output.image
-          } else if (data.output.url) {
+          } else if (!Array.isArray(data.output) && data.output.url) {
             imageUrl = data.output.url
           } else if (Array.isArray(data.output) && data.output.length > 0) {
             const firstItem = data.output[0]

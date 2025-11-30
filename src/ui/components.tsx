@@ -68,7 +68,7 @@ function CustomPeopleMenu() {
         </div>
 
         {/* Other users (stacked) */}
-        {collaborators.slice(0, 3).map((presence, index) => (
+        {collaborators.slice(0, 3).map((presence) => (
           <div
             key={presence.id}
             style={{
