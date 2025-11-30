@@ -570,7 +570,7 @@ async function callProviderAPI(
 				throw new Error(`Ollama API error: ${response.status} - ${errorText}`);
 			}
 
-			const data = await response.json();
+			const data = await response.json() as Record<string, any>;
 			console.log('📥 Ollama API: Response received:', JSON.stringify(data, null, 2).substring(0, 500));
 
 			// Extract response from AI Orchestrator format
@@ -657,7 +657,7 @@ async function callProviderAPI(
 				});
 				
 				if (syncResponse.ok) {
-					const syncData = await syncResponse.json();
+					const syncData = await syncResponse.json() as Record<string, any>;
 					console.log('📥 RunPod API: Synchronous response:', JSON.stringify(syncData, null, 2));
 					
 					// Check if we got output directly
@@ -722,9 +722,9 @@ async function callProviderAPI(
 				throw new Error(`RunPod API error: ${response.status} - ${errorText}`);
 			}
 			
-			const data = await response.json();
+			const data = await response.json() as Record<string, any>;
 			console.log('📥 RunPod API: Response data:', JSON.stringify(data, null, 2));
-			
+
 			// Handle async job pattern (RunPod often returns job IDs)
 			if (data.id && (data.status === 'IN_QUEUE' || data.status === 'IN_PROGRESS')) {
 				console.log('⏳ RunPod API: Job queued/in progress, polling job ID:', data.id);
@@ -921,7 +921,7 @@ async function pollRunPodJob(
 				throw new Error(`Failed to check job status: ${response.status} - ${errorText}`);
 			}
 
-			const data = await response.json();
+			const data = await response.json() as Record<string, any>;
 			console.log(`🔄 RunPod API: Poll attempt ${attempt + 1}/${maxAttempts}, status:`, data.status);
 			console.log(`📥 RunPod API: Full poll response:`, JSON.stringify(data, null, 2));
 			
@@ -951,9 +951,9 @@ async function pollRunPodJob(
 						});
 						
 						if (streamResponse.ok) {
-							const streamData = await streamResponse.json();
+							const streamData = await streamResponse.json() as Record<string, any>;
 							console.log('📥 RunPod API: Stream endpoint response:', JSON.stringify(streamData, null, 2));
-							
+
 							if (streamData.output) {
 								// Use stream endpoint output
 								data.output = streamData.output;

@@ -714,7 +714,6 @@ export const useWhisperTranscription = ({
           }
       } else {
         console.log('⚠️ No transcription text produced')
-        console.log('🔍 Full transcription result object:', result)
         
         // Try alternative transcription parameters (only for local model)
         if (!shouldUseRunPod && transcriberRef.current) {
