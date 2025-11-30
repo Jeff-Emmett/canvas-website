@@ -9,6 +9,41 @@ import { IndexedDBStorageAdapter } from "@automerge/automerge-repo-storage-index
 import { getDocumentId, saveDocumentId } from "./documentIdMapping"
 
 /**
+ * Validate if an index is a valid tldraw fractional index
+ * Valid indices: "a0", "a1", "a1V", "a2", "Zz", etc.
+ * Invalid indices: "b1", "c2", or any simple letter+number that isn't "a" followed by proper format
+ *
+ * tldraw uses fractional indexing where indices are strings that can be compared lexicographically
+ * The format allows inserting new items between any two existing items without renumbering.
+ */
+function isValidTldrawIndex(index: string): boolean {
+  if (!index || typeof index !== 'string') return false
+
+  // Valid tldraw indices start with 'a' and can have various formats:
+  // "a0", "a1", "a1V", "a1Vz", "Zz", etc.
+  // The key insight is that indices NOT starting with 'a' (like 'b1', 'c1') are invalid
+  // unless they're the special "Zz" format used for very high indices
+
+  // Simple indices like "b1", "c1", "d1" are definitely invalid
+  if (/^[b-z]\d+$/i.test(index)) {
+    return false
+  }
+
+  // An index starting with 'a' followed by digits and optional letters is valid
+  // e.g., "a0", "a1", "a1V", "a10", "a1Vz"
+  if (/^a\d/.test(index)) {
+    return true
+  }
+
+  // Other formats like "Zz" are also valid for high indices
+  if (/^[A-Z]/.test(index)) {
+    return true
+  }
+
+  return false
+}
+
+/**
  * Migrate old data to fix invalid index values
  * tldraw requires indices to be in a specific format (fractional indexing)
  * Old data may have simple indices like "b1" which are invalid
@@ -28,10 +63,7 @@ function migrateStoreData(store: Record<string, any>): Record<string, any> {
   const hasInvalidIndices = shapes.some(([_, record]) => {
     const index = record?.index
     if (!index) return false
-    // Valid tldraw indices are like "a1", "a1V", "a2", etc.
-    // Invalid indices would be like "b1" without proper fractional format
-    // Simple check: if it's just a letter and number, it might be invalid
-    return typeof index === 'string' && /^[a-z]\d+$/i.test(index) && !index.startsWith('a')
+    return !isValidTldrawIndex(index)
   })
 
   if (!hasInvalidIndices) {
@@ -346,6 +378,19 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
 
             if (localRecordCount > 0) {
               console.log(`Loaded document from IndexedDB: ${localRecordCount} records, ${localShapeCount} shapes`)
+
+              // CRITICAL: Migrate local IndexedDB data to fix any invalid indices
+              // This ensures shapes with old-format indices like "b1" are fixed
+              if (localDoc?.store) {
+                const migratedStore = migrateStoreData(localDoc.store)
+                if (migratedStore !== localDoc.store) {
+                  console.log('🔄 Applying index migration to local IndexedDB data')
+                  handle.change((doc: any) => {
+                    doc.store = migratedStore
+                  })
+                }
+              }
+
               loadedFromLocal = true
             } else {
               console.log(`Document found in IndexedDB but is empty, will load from server`)
