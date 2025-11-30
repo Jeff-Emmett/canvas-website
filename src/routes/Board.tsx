@@ -114,7 +114,38 @@ const customTools = [
 
 export function Board() {
   const { slug } = useParams<{ slug: string }>()
-  
+
+  // Global error handler to suppress geometry errors from corrupted shapes
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      if (event.error?.message?.includes('nearest point') ||
+          event.error?.message?.includes('No nearest point') ||
+          event.message?.includes('nearest point')) {
+        console.warn('Suppressed geometry error from corrupted shape:', event.error?.message || event.message)
+        event.preventDefault()
+        event.stopPropagation()
+        return true
+      }
+    }
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (event.reason?.message?.includes('nearest point') ||
+          event.reason?.message?.includes('No nearest point')) {
+        console.warn('Suppressed geometry promise rejection:', event.reason?.message)
+        event.preventDefault()
+        return true
+      }
+    }
+
+    window.addEventListener('error', handleError)
+    window.addEventListener('unhandledrejection', handleUnhandledRejection)
+
+    return () => {
+      window.removeEventListener('error', handleError)
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection)
+    }
+  }, [])
+
   // Global wheel event handler to ensure scrolling happens on the hovered scrollable element
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
@@ -938,6 +969,45 @@ export function Board() {
             ChangePropagator,
             ClickPropagator,
           ])
+
+          // Clean up corrupted shapes that cause "No nearest point found" errors
+          // This typically happens with draw/line shapes that have no points
+          try {
+            const allShapes = editor.getCurrentPageShapes()
+            const corruptedShapeIds: TLShapeId[] = []
+
+            for (const shape of allShapes) {
+              // Check draw and line shapes for missing/empty segments
+              if (shape.type === 'draw' || shape.type === 'line') {
+                const props = shape.props as any
+                // Draw shapes need segments with points
+                if (shape.type === 'draw') {
+                  if (!props.segments || props.segments.length === 0) {
+                    corruptedShapeIds.push(shape.id)
+                    continue
+                  }
+                  // Check if all segments have no points
+                  const hasPoints = props.segments.some((seg: any) => seg.points && seg.points.length > 0)
+                  if (!hasPoints) {
+                    corruptedShapeIds.push(shape.id)
+                  }
+                }
+                // Line shapes need points
+                if (shape.type === 'line') {
+                  if (!props.points || Object.keys(props.points).length === 0) {
+                    corruptedShapeIds.push(shape.id)
+                  }
+                }
+              }
+            }
+
+            if (corruptedShapeIds.length > 0) {
+              console.warn(`🧹 Removing ${corruptedShapeIds.length} corrupted shapes (draw/line with no points)`)
+              editor.deleteShapes(corruptedShapeIds)
+            }
+          } catch (error) {
+            console.error('Error cleaning up corrupted shapes:', error)
+          }
           
           // Set user preferences immediately if user is authenticated
           if (session.authed && session.username) {
