@@ -93,66 +93,70 @@ export function getClientConfig(): ClientConfig {
   }
 }
 
+// Default RunPod API key - shared across all endpoints
+// This allows all users to access AI features without their own API keys
+const DEFAULT_RUNPOD_API_KEY = '(REDACTED-RUNPOD-KEY)'
+
+// Default RunPod endpoint IDs (from CLAUDE.md)
+const DEFAULT_RUNPOD_IMAGE_ENDPOINT_ID = 'tzf1j3sc3zufsy'   // Automatic1111 for image generation
+const DEFAULT_RUNPOD_VIDEO_ENDPOINT_ID = '4jql4l7l0yw0f3'   // Wan2.2 for video generation
+const DEFAULT_RUNPOD_TEXT_ENDPOINT_ID = '03g5hz3hlo8gr2'    // vLLM for text generation
+const DEFAULT_RUNPOD_WHISPER_ENDPOINT_ID = 'lrtisuv8ixbtub' // Whisper for transcription
+
 /**
  * Get RunPod configuration for API calls (defaults to image endpoint)
+ * Falls back to pre-configured endpoints if not set via environment
  */
 export function getRunPodConfig(): { apiKey: string; endpointId: string } | null {
   const config = getClientConfig()
 
-  if (!config.runpodApiKey || !config.runpodEndpointId) {
-    return null
-  }
+  const apiKey = config.runpodApiKey || DEFAULT_RUNPOD_API_KEY
+  const endpointId = config.runpodEndpointId || config.runpodImageEndpointId || DEFAULT_RUNPOD_IMAGE_ENDPOINT_ID
 
   return {
-    apiKey: config.runpodApiKey,
-    endpointId: config.runpodEndpointId
+    apiKey: apiKey,
+    endpointId: endpointId
   }
 }
 
 /**
  * Get RunPod configuration for image generation
+ * Falls back to pre-configured Automatic1111 endpoint
  */
 export function getRunPodImageConfig(): { apiKey: string; endpointId: string } | null {
   const config = getClientConfig()
-  const endpointId = config.runpodImageEndpointId || config.runpodEndpointId
 
-  if (!config.runpodApiKey || !endpointId) {
-    return null
-  }
+  const apiKey = config.runpodApiKey || DEFAULT_RUNPOD_API_KEY
+  const endpointId = config.runpodImageEndpointId || config.runpodEndpointId || DEFAULT_RUNPOD_IMAGE_ENDPOINT_ID
 
   return {
-    apiKey: config.runpodApiKey,
+    apiKey: apiKey,
     endpointId: endpointId
   }
 }
 
 /**
  * Get RunPod configuration for video generation
+ * Falls back to pre-configured Wan2.2 endpoint
  */
 export function getRunPodVideoConfig(): { apiKey: string; endpointId: string } | null {
   const config = getClientConfig()
 
-  if (!config.runpodApiKey || !config.runpodVideoEndpointId) {
-    return null
-  }
+  const apiKey = config.runpodApiKey || DEFAULT_RUNPOD_API_KEY
+  const endpointId = config.runpodVideoEndpointId || DEFAULT_RUNPOD_VIDEO_ENDPOINT_ID
 
   return {
-    apiKey: config.runpodApiKey,
-    endpointId: config.runpodVideoEndpointId
+    apiKey: apiKey,
+    endpointId: endpointId
   }
 }
 
 /**
  * Get RunPod configuration for text generation (vLLM)
- * Falls back to pre-configured RunPod endpoints if not set via environment
+ * Falls back to pre-configured vLLM endpoint
  */
 export function getRunPodTextConfig(): { apiKey: string; endpointId: string } | null {
   const config = getClientConfig()
-
-  // Default RunPod configuration for text generation
-  // These are pre-configured endpoints that all users can use
-  const DEFAULT_RUNPOD_API_KEY = '(REDACTED-RUNPOD-KEY)'
-  const DEFAULT_RUNPOD_TEXT_ENDPOINT_ID = '03g5hz3hlo8gr2'
 
   const apiKey = config.runpodApiKey || DEFAULT_RUNPOD_API_KEY
   const endpointId = config.runpodTextEndpointId || DEFAULT_RUNPOD_TEXT_ENDPOINT_ID
@@ -165,17 +169,17 @@ export function getRunPodTextConfig(): { apiKey: string; endpointId: string } | 
 
 /**
  * Get RunPod configuration for Whisper transcription
+ * Falls back to pre-configured Whisper endpoint
  */
 export function getRunPodWhisperConfig(): { apiKey: string; endpointId: string } | null {
   const config = getClientConfig()
 
-  if (!config.runpodApiKey || !config.runpodWhisperEndpointId) {
-    return null
-  }
+  const apiKey = config.runpodApiKey || DEFAULT_RUNPOD_API_KEY
+  const endpointId = config.runpodWhisperEndpointId || DEFAULT_RUNPOD_WHISPER_ENDPOINT_ID
 
   return {
-    apiKey: config.runpodApiKey,
-    endpointId: config.runpodWhisperEndpointId
+    apiKey: apiKey,
+    endpointId: endpointId
   }
 }
 

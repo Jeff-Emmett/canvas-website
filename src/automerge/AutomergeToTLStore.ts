@@ -1,5 +1,51 @@
-import { TLRecord, RecordId, TLStore } from "@tldraw/tldraw"
+import { TLRecord, RecordId, TLStore, IndexKey } from "@tldraw/tldraw"
 import * as Automerge from "@automerge/automerge"
+
+// Helper function to validate if a string is a valid tldraw IndexKey
+// tldraw uses fractional indexing based on https://observablehq.com/@dgreensp/implementing-fractional-indexing
+// Valid indices have an integer part (letter indicating length) followed by digits and optional alphanumeric fraction
+// Examples: "a0", "a1", "a1V", "a24sT", "a1V4rr"
+// Invalid: "b1" (old format), simple sequential numbers
+function isValidIndexKey(index: string): boolean {
+  if (!index || typeof index !== 'string' || index.length === 0) {
+    return false
+  }
+
+  // The first character indicates the integer part length:
+  // 'a' = 1 digit, 'b' = 2 digits, etc. for positive integers
+  // 'Z' = 1 digit, 'Y' = 2 digits, etc. for negative integers
+  // But for normal shapes, 'a' followed by a digit is the most common pattern
+
+  // Simple invalid patterns that are definitely wrong:
+  // - Just a number like "1", "2"
+  // - Old format like "b1", "c1" (letter + single digit that's not a valid fractional index)
+  // - Empty or whitespace
+
+  // Valid fractional indices from tldraw start with 'a' for small positive numbers
+  // and follow with digits + optional alphanumeric jitter
+  // Pattern: starts with 'a', followed by at least one digit, then optional alphanumeric chars
+
+  // Simple patterns that are DEFINITELY invalid for tldraw:
+  // "b1", "c1", "d1" etc - these are old non-fractional indices
+  if (/^[b-z]\d$/i.test(index)) {
+    return false
+  }
+
+  // Valid tldraw indices should start with lowercase 'a' followed by digits
+  // and optionally more alphanumeric characters for the fractional part
+  // Examples from actual tldraw: "a0", "a1", "a24sT", "a1V4rr"
+  if (/^a\d/.test(index)) {
+    return true
+  }
+
+  // Also allow 'Z' prefix for very high indices (though rare)
+  if (/^Z[a-z]/i.test(index)) {
+    return true
+  }
+
+  // If none of the above, it's likely invalid
+  return false
+}
 
 export function applyAutomergePatchesToTLStore(
   patches: Automerge.Patch[],
