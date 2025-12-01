@@ -1254,10 +1254,21 @@ export class AutomergeDurableObject {
             needsUpdate = true
           }
           // CRITICAL: IndexKey must follow tldraw's fractional indexing format
-          // Valid format: starts with 'a' followed by digits, optionally followed by uppercase letters
-          // Examples: "a1", "a2", "a10", "a1V" (fractional between a1 and a2)
-          // Invalid: "c1", "b1", "z999" (must start with 'a')
-          if (!record.index || typeof record.index !== 'string' || !/^a\d+[A-Z]*$/.test(record.index)) {
+          // Valid format: starts with 'a' followed by digits, optionally followed by alphanumeric jitter
+          // Examples: "a1", "a2", "a10", "a1V", "a24sT", "a1V4rr" (fractional between a1 and a2)
+          // Invalid: "c1", "b1" (old non-fractional format - single letter + single digit)
+          // tldraw uses fractional-indexing-jittered library: https://observablehq.com/@dgreensp/implementing-fractional-indexing
+          const isValidIndex = (idx: any): boolean => {
+            if (!idx || typeof idx !== 'string' || idx.length === 0) return false
+            // Old format "b1", "c1" etc are invalid (single letter + single digit)
+            if (/^[b-z]\d$/i.test(idx)) return false
+            // Valid: starts with 'a' followed by at least one digit
+            if (/^a\d/.test(idx)) return true
+            // Also allow 'Z' prefix for very high indices
+            if (/^Z[a-z]/i.test(idx)) return true
+            return false
+          }
+          if (!isValidIndex(record.index)) {
             console.log(`🔧 Server: Fixing invalid index "${record.index}" to "a1" for shape ${record.id}`)
             record.index = 'a1' // Required index property for all shapes - must be valid IndexKey format
             needsUpdate = true

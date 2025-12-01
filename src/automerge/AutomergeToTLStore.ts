@@ -620,11 +620,12 @@ export function sanitizeRecord(record: any): TLRecord {
       sanitized.meta = { ...sanitized.meta }
     }
     // CRITICAL: IndexKey must follow tldraw's fractional indexing format
-    // Valid format: starts with 'a' followed by digits, optionally followed by uppercase letters
-    // Examples: "a1", "a2", "a10", "a1V" (fractional between a1 and a2)
-    // Invalid: "c1", "b1", "z999" (must start with 'a')
-    if (!sanitized.index || typeof sanitized.index !== 'string' || !/^a\d+[A-Z]*$/.test(sanitized.index)) {
-      sanitized.index = 'a1'
+    // Valid format: starts with 'a' followed by digits, optionally followed by alphanumeric jitter
+    // Examples: "a1", "a2", "a10", "a1V", "a24sT", "a1V4rr" (fractional between a1 and a2)
+    // Invalid: "c1", "b1", "z999" (old format - not valid fractional indices)
+    if (!isValidIndexKey(sanitized.index)) {
+      console.warn(`⚠️ Invalid index "${sanitized.index}" for shape ${sanitized.id}, resetting to 'a1'`)
+      sanitized.index = 'a1' as IndexKey
     }
     if (!sanitized.parentId) sanitized.parentId = 'page:page'
     if (!sanitized.props || typeof sanitized.props !== 'object') sanitized.props = {}
