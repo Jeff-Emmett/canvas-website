@@ -714,7 +714,11 @@ export function sanitizeRecord(record: any): TLRecord {
       const sessionId = (typeof sanitized.props.sessionId === 'string') ? sanitized.props.sessionId : ''
       const sessionName = (typeof sanitized.props.sessionName === 'string') ? sanitized.props.sessionName : ''
       const token = (typeof sanitized.props.token === 'string') ? sanitized.props.token : ''
-      const serverUrl = (typeof sanitized.props.serverUrl === 'string') ? sanitized.props.serverUrl : 'http://localhost:3000'
+      // Fix old port (3000 -> 3002) during sanitization
+      let serverUrl = (typeof sanitized.props.serverUrl === 'string') ? sanitized.props.serverUrl : 'http://localhost:3002'
+      if (serverUrl === 'http://localhost:3000') {
+        serverUrl = 'http://localhost:3002'
+      }
       const pinnedToView = (sanitized.props.pinnedToView === true) ? true : false
       // Filter out any undefined or non-string elements from tags array
       let tags: string[] = ['terminal', 'multmux']
@@ -749,7 +753,7 @@ export function sanitizeRecord(record: any): TLRecord {
             case 'sessionId': (cleanProps as any).sessionId = ''; break
             case 'sessionName': (cleanProps as any).sessionName = ''; break
             case 'token': (cleanProps as any).token = ''; break
-            case 'serverUrl': (cleanProps as any).serverUrl = 'http://localhost:3000'; break
+            case 'serverUrl': (cleanProps as any).serverUrl = 'http://localhost:3002'; break
             case 'pinnedToView': (cleanProps as any).pinnedToView = false; break
             case 'tags': (cleanProps as any).tags = ['terminal', 'multmux']; break
           }

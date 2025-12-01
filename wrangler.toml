@@ -58,6 +58,11 @@ bucket_name = 'jeffemmett-canvas'
 binding = 'BOARD_BACKUPS_BUCKET'
 bucket_name = 'board-backups'
 
+[[d1_databases]]
+binding = "CRYPTID_DB"
+database_name = "cryptid-auth"
+database_id = "placeholder-will-be-created"
+
 [observability]
 enabled = true
 head_sampling_rate = 1  
@@ -90,6 +95,11 @@ bucket_name = 'jeffemmett-canvas-preview'
 [[env.dev.r2_buckets]]
 binding = 'BOARD_BACKUPS_BUCKET'
 bucket_name = 'board-backups-preview'
+
+[[env.dev.d1_databases]]
+binding = "CRYPTID_DB"
+database_name = "cryptid-auth-dev"
+database_id = "placeholder-will-be-created-dev"
 
 [env.dev.triggers]
 crons = ["0 0 * * *"] # Run at midnight UTC every day 

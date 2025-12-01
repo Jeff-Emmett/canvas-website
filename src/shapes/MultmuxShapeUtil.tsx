@@ -45,6 +45,7 @@ function httpToWs(httpUrl: string): string {
 const versions = createShapePropsMigrationIds('Multmux', {
   AddMissingProps: 1,
   RemoveWsUrl: 2,
+  UpdateServerPort: 3,
 })
 
 // Migrations to handle shapes with missing/undefined props
@@ -81,6 +82,21 @@ export const multmuxShapeMigrations = createShapePropsMigrationSequence({
         ...props,
         wsUrl: httpToWs(props.serverUrl || 'http://localhost:3002'),
       }),
+    },
+    {
+      id: versions.UpdateServerPort,
+      up: (props: any) => {
+        // Update old port 3000 to new port 3002
+        let serverUrl = props.serverUrl ?? 'http://localhost:3002'
+        if (serverUrl === 'http://localhost:3000') {
+          serverUrl = 'http://localhost:3002'
+        }
+        return {
+          ...props,
+          serverUrl,
+        }
+      },
+      down: (props: any) => props,
     },
   ],
 })
@@ -141,6 +157,21 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
 
     // Use the pinning hook
     usePinnedToView(this.editor, shape.id, shape.props.pinnedToView)
+
+    // Runtime fix: correct old serverUrl port (3000 -> 3002)
+    // This handles shapes that may not have been migrated yet
+    useEffect(() => {
+      if (shape.props.serverUrl === 'http://localhost:3000') {
+        this.editor.updateShape<IMultmuxShape>({
+          id: shape.id,
+          type: 'Multmux',
+          props: {
+            ...shape.props,
+            serverUrl: 'http://localhost:3002',
+          },
+        })
+      }
+    }, [shape.props.serverUrl])
 
     const handleClose = () => {
       if (ws) {

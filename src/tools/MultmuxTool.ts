@@ -112,7 +112,7 @@ export class MultmuxIdle extends StateNode {
           sessionId: '',
           sessionName: '',
           token: '',
-          serverUrl: 'http://localhost:3000',
+          serverUrl: 'http://localhost:3002',
           pinnedToView: false,
           tags: ['terminal', 'multmux'],
         }

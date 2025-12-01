@@ -8,6 +8,8 @@ import {
 import React, { useState } from "react"
 import { getRunPodConfig } from "@/lib/clientConfig"
 import { aiOrchestrator, isAIOrchestratorAvailable } from "@/lib/aiOrchestrator"
+import { StandardizedToolWrapper } from "@/components/StandardizedToolWrapper"
+import { usePinnedToView } from "@/hooks/usePinnedToView"
 
 // Feature flag: Set to false when AI Orchestrator or RunPod API is ready for production
 const USE_MOCK_API = false
@@ -44,6 +46,8 @@ type IImageGen = TLBaseShape<
     isLoading: boolean
     error: string | null
     endpointId?: string // Optional custom endpoint ID
+    tags: string[]
+    pinnedToView: boolean
   }
 >
 
@@ -274,6 +278,9 @@ async function pollRunPodJob(
 export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
   static override type = "ImageGen" as const
 
+  // Image generation theme color: Blue
+  static readonly PRIMARY_COLOR = "#007AFF"
+
   MIN_WIDTH = 300 as const
   MIN_HEIGHT = 300 as const
   DEFAULT_WIDTH = 400 as const
@@ -287,6 +294,8 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
       imageUrl: null,
       isLoading: false,
       error: null,
+      tags: ['image', 'ai-generated'],
+      pinnedToView: false,
     }
   }
 
@@ -302,8 +311,18 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
   component(shape: IImageGen) {
     // Capture editor reference to avoid stale 'this' during drag operations
     const editor = this.editor
-    const [isHovering, setIsHovering] = useState(false)
     const isSelected = editor.getSelectedShapeIds().includes(shape.id)
+
+    // Pin to view functionality
+    usePinnedToView(editor, shape.id, shape.props.pinnedToView)
+
+    const handlePinToggle = () => {
+      editor.updateShape<IImageGen>({
+        id: shape.id,
+        type: "ImageGen",
+        props: { pinnedToView: !shape.props.pinnedToView },
+      })
+    }
 
     const generateImage = async (prompt: string) => {
       console.log("🎨 ImageGen: Generating image with prompt:", prompt)
@@ -503,237 +522,293 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
       }
     }
 
+    const [isMinimized, setIsMinimized] = useState(false)
+
+    const handleClose = () => {
+      editor.deleteShape(shape.id)
+    }
+
+    const handleMinimize = () => {
+      setIsMinimized(!isMinimized)
+    }
+
+    const handleTagsChange = (newTags: string[]) => {
+      editor.updateShape<IImageGen>({
+        id: shape.id,
+        type: "ImageGen",
+        props: { tags: newTags },
+      })
+    }
+
     return (
-      <HTMLContainer
-        style={{
-          borderRadius: 6,
-          border: "1px solid lightgrey",
-          padding: 8,
-          height: shape.props.h,
-          width: shape.props.w,
-          pointerEvents: isSelected || isHovering ? "all" : "none",
-          backgroundColor: "#ffffff",
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-        }}
-        onPointerEnter={() => setIsHovering(true)}
-        onPointerLeave={() => setIsHovering(false)}
-      >
-        {/* Error Display */}
-        {shape.props.error && (
-          <div
-            style={{
-              padding: "12px 16px",
-              backgroundColor: "#fee",
-              border: "1px solid #fcc",
-              borderRadius: "8px",
-              color: "#c33",
-              fontSize: "13px",
-              display: "flex",
-              alignItems: "flex-start",
-              gap: "8px",
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-            }}
-          >
-            <span style={{ fontSize: "18px", flexShrink: 0 }}>⚠️</span>
-            <span style={{ flex: 1, lineHeight: "1.5" }}>{shape.props.error}</span>
-            <button
-              onClick={() => {
-                editor.updateShape<IImageGen>({
-                  id: shape.id,
-                  type: "ImageGen",
-                  props: { error: null },
-                })
-              }}
+      <HTMLContainer id={shape.id}>
+        <StandardizedToolWrapper
+          title="🎨 Image Generator"
+          primaryColor={ImageGenShape.PRIMARY_COLOR}
+          isSelected={isSelected}
+          width={shape.props.w}
+          height={shape.props.h}
+          onClose={handleClose}
+          onMinimize={handleMinimize}
+          isMinimized={isMinimized}
+          editor={editor}
+          shapeId={shape.id}
+          tags={shape.props.tags || []}
+          onTagsChange={handleTagsChange}
+          tagsEditable={true}
+          isPinnedToView={shape.props.pinnedToView}
+          onPinToggle={handlePinToggle}
+          headerContent={
+            shape.props.isLoading ? (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                🎨 Image Generator
+                <span style={{
+                  marginLeft: 'auto',
+                  fontSize: '11px',
+                  color: ImageGenShape.PRIMARY_COLOR,
+                  animation: 'pulse 1.5s ease-in-out infinite'
+                }}>
+                  Generating...
+                </span>
+              </span>
+            ) : undefined
+          }
+        >
+          <div style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            padding: '12px',
+            gap: '12px',
+            overflow: 'auto',
+            backgroundColor: '#fafafa'
+          }}>
+            {/* Image Display */}
+            {shape.props.imageUrl && !shape.props.isLoading && (
+              <div
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: "#fff",
+                  borderRadius: "6px",
+                  overflow: "hidden",
+                  minHeight: 0,
+                  border: '1px solid #e0e0e0',
+                }}
+              >
+                <img
+                  src={shape.props.imageUrl}
+                  alt={shape.props.prompt || "Generated image"}
+                  style={{
+                    maxWidth: "100%",
+                    maxHeight: "100%",
+                    objectFit: "contain",
+                  }}
+                  onError={(_e) => {
+                    console.error("❌ ImageGen: Failed to load image:", shape.props.imageUrl)
+                    editor.updateShape<IImageGen>({
+                      id: shape.id,
+                      type: "ImageGen",
+                      props: {
+                        error: "Failed to load generated image",
+                        imageUrl: null
+                      },
+                    })
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Loading State */}
+            {shape.props.isLoading && (
+              <div
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: "#fff",
+                  borderRadius: "6px",
+                  gap: 12,
+                  border: '1px solid #e0e0e0',
+                }}
+              >
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    border: "4px solid #f3f3f3",
+                    borderTop: `4px solid ${ImageGenShape.PRIMARY_COLOR}`,
+                    borderRadius: "50%",
+                    animation: "spin 1s linear infinite",
+                  }}
+                />
+                <span style={{ color: "#666", fontSize: "14px" }}>
+                  Generating image...
+                </span>
+              </div>
+            )}
+
+            {/* Empty State */}
+            {!shape.props.imageUrl && !shape.props.isLoading && !shape.props.error && (
+              <div
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: "#fff",
+                  borderRadius: "6px",
+                  color: "#999",
+                  fontSize: "14px",
+                  border: '1px solid #e0e0e0',
+                }}
+              >
+                Generated image will appear here
+              </div>
+            )}
+
+            {/* Input Section */}
+            <div
               style={{
-                padding: "4px 8px",
-                backgroundColor: "#fcc",
-                border: "1px solid #c99",
-                borderRadius: "4px",
-                cursor: "pointer",
-                fontSize: "11px",
+                display: "flex",
+                gap: 8,
                 flexShrink: 0,
               }}
             >
-              Dismiss
-            </button>
+              <input
+                style={{
+                  flex: 1,
+                  height: "36px",
+                  backgroundColor: "#fff",
+                  border: "1px solid #ddd",
+                  borderRadius: "6px",
+                  fontSize: 13,
+                  padding: "0 10px",
+                }}
+                type="text"
+                placeholder="Enter image prompt..."
+                value={shape.props.prompt}
+                onChange={(e) => {
+                  editor.updateShape<IImageGen>({
+                    id: shape.id,
+                    type: "ImageGen",
+                    props: { prompt: e.target.value },
+                  })
+                }}
+                onKeyDown={(e) => {
+                  e.stopPropagation()
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    if (shape.props.prompt.trim() && !shape.props.isLoading) {
+                      handleGenerate()
+                    }
+                  }
+                }}
+                onPointerDown={(e) => {
+                  e.stopPropagation()
+                }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                }}
+                disabled={shape.props.isLoading}
+              />
+              <button
+                style={{
+                  height: "36px",
+                  padding: "0 16px",
+                  pointerEvents: "all",
+                  cursor: shape.props.prompt.trim() && !shape.props.isLoading ? "pointer" : "not-allowed",
+                  backgroundColor: shape.props.prompt.trim() && !shape.props.isLoading ? ImageGenShape.PRIMARY_COLOR : "#ccc",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontWeight: "500",
+                  fontSize: "13px",
+                  opacity: shape.props.prompt.trim() && !shape.props.isLoading ? 1 : 0.6,
+                }}
+                onPointerDown={(e) => {
+                  e.stopPropagation()
+                  e.preventDefault()
+                  if (shape.props.prompt.trim() && !shape.props.isLoading) {
+                    handleGenerate()
+                  }
+                }}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  if (shape.props.prompt.trim() && !shape.props.isLoading) {
+                    handleGenerate()
+                  }
+                }}
+                disabled={shape.props.isLoading || !shape.props.prompt.trim()}
+              >
+                Generate
+              </button>
+            </div>
+
+            {/* Error Display - at bottom */}
+            {shape.props.error && (
+              <div
+                style={{
+                  padding: "8px 12px",
+                  backgroundColor: "#fee",
+                  border: "1px solid #fcc",
+                  borderRadius: "6px",
+                  color: "#c33",
+                  fontSize: "12px",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "8px",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                  maxHeight: "80px",
+                  overflowY: "auto",
+                  flexShrink: 0,
+                }}
+              >
+                <span style={{ fontSize: "14px", flexShrink: 0 }}>⚠️</span>
+                <span style={{ flex: 1, lineHeight: "1.4" }}>{shape.props.error}</span>
+                <button
+                  onClick={() => {
+                    editor.updateShape<IImageGen>({
+                      id: shape.id,
+                      type: "ImageGen",
+                      props: { error: null },
+                    })
+                  }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  style={{
+                    padding: "2px 6px",
+                    backgroundColor: "#fcc",
+                    border: "1px solid #c99",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    fontSize: "10px",
+                    flexShrink: 0,
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            )}
           </div>
-        )}
 
-        {/* Image Display */}
-        {shape.props.imageUrl && !shape.props.isLoading && (
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: "#f5f5f5",
-              borderRadius: "4px",
-              overflow: "hidden",
-              minHeight: 0,
-            }}
-          >
-            <img
-              src={shape.props.imageUrl}
-              alt={shape.props.prompt || "Generated image"}
-              style={{
-                maxWidth: "100%",
-                maxHeight: "100%",
-                objectFit: "contain",
-              }}
-              onError={(_e) => {
-                console.error("❌ ImageGen: Failed to load image:", shape.props.imageUrl)
-                editor.updateShape<IImageGen>({
-                  id: shape.id,
-                  type: "ImageGen",
-                  props: {
-                    error: "Failed to load generated image",
-                    imageUrl: null
-                  },
-                })
-              }}
-            />
-          </div>
-        )}
-
-        {/* Loading State */}
-        {shape.props.isLoading && (
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: "#f5f5f5",
-              borderRadius: "4px",
-              gap: 12,
-            }}
-          >
-            <div
-              style={{
-                width: 40,
-                height: 40,
-                border: "4px solid #f3f3f3",
-                borderTop: "4px solid #007AFF",
-                borderRadius: "50%",
-                animation: "spin 1s linear infinite",
-              }}
-            />
-            <span style={{ color: "#666", fontSize: "14px" }}>
-              Generating image...
-            </span>
-          </div>
-        )}
-
-        {/* Empty State */}
-        {!shape.props.imageUrl && !shape.props.isLoading && (
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: "#f5f5f5",
-              borderRadius: "4px",
-              color: "#999",
-              fontSize: "14px",
-            }}
-          >
-            Generated image will appear here
-          </div>
-        )}
-
-        {/* Input Section */}
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            pointerEvents: isSelected || isHovering ? "all" : "none",
-          }}
-        >
-          <input
-            style={{
-              flex: 1,
-              height: "36px",
-              backgroundColor: "rgba(0, 0, 0, 0.05)",
-              border: "1px solid rgba(0, 0, 0, 0.1)",
-              borderRadius: "4px",
-              fontSize: 14,
-              padding: "0 8px",
-            }}
-            type="text"
-            placeholder="Enter image prompt..."
-            value={shape.props.prompt}
-            onChange={(e) => {
-              editor.updateShape<IImageGen>({
-                id: shape.id,
-                type: "ImageGen",
-                props: { prompt: e.target.value },
-              })
-            }}
-            onKeyDown={(e) => {
-              e.stopPropagation()
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                if (shape.props.prompt.trim() && !shape.props.isLoading) {
-                  handleGenerate()
-                }
-              }
-            }}
-            onPointerDown={(e) => {
-              e.stopPropagation()
-            }}
-            onClick={(e) => {
-              e.stopPropagation()
-            }}
-            disabled={shape.props.isLoading}
-          />
-          <button
-            style={{
-              height: "36px",
-              padding: "0 16px",
-              pointerEvents: "all",
-              cursor: shape.props.prompt.trim() && !shape.props.isLoading ? "pointer" : "not-allowed",
-              backgroundColor: shape.props.prompt.trim() && !shape.props.isLoading ? "#007AFF" : "#ccc",
-              color: "white",
-              border: "none",
-              borderRadius: "4px",
-              fontWeight: "500",
-              fontSize: "14px",
-              opacity: shape.props.prompt.trim() && !shape.props.isLoading ? 1 : 0.6,
-            }}
-            onPointerDown={(e) => {
-              e.stopPropagation()
-              e.preventDefault()
-              if (shape.props.prompt.trim() && !shape.props.isLoading) {
-                handleGenerate()
-              }
-            }}
-            onClick={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              if (shape.props.prompt.trim() && !shape.props.isLoading) {
-                handleGenerate()
-              }
-            }}
-            disabled={shape.props.isLoading || !shape.props.prompt.trim()}
-          >
-            Generate
-          </button>
-        </div>
-
-        {/* Add CSS for spinner animation */}
-        <style>{`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}</style>
+          {/* Add CSS for spinner animation */}
+          <style>{`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+            @keyframes pulse {
+              0%, 100% { opacity: 1; }
+              50% { opacity: 0.5; }
+            }
+          `}</style>
+        </StandardizedToolWrapper>
       </HTMLContainer>
     )
   }

@@ -156,8 +156,8 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
   }
 
   const buttonBaseStyle: React.CSSProperties = {
-    width: '20px',
-    height: '20px',
+    width: '24px',
+    height: '24px',
     borderRadius: '4px',
     border: 'none',
     cursor: 'pointer',
@@ -170,8 +170,8 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
     pointerEvents: 'auto',
     flexShrink: 0,
     touchAction: 'manipulation', // Prevent double-tap zoom, improve touch responsiveness
-    padding: '8px', // Increase touch target size without changing visual size
-    margin: '-8px', // Negative margin to maintain visual spacing
+    padding: 0,
+    margin: 0,
   }
 
   const minimizeButtonStyle: React.CSSProperties = {
@@ -222,7 +222,7 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
   }
 
   const tagStyle: React.CSSProperties = {
-    backgroundColor: '#007acc',
+    backgroundColor: '#6b7280',
     color: 'white',
     padding: '4px 8px', // Increased padding for better touch target
     borderRadius: '12px',
@@ -237,7 +237,7 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
   }
 
   const tagInputStyle: React.CSSProperties = {
-    border: '1px solid #007acc',
+    border: '1px solid #9ca3af',
     borderRadius: '12px',
     padding: '2px 6px',
     fontSize: '10px',
@@ -247,7 +247,7 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
   }
 
   const addTagButtonStyle: React.CSSProperties = {
-    backgroundColor: '#007acc',
+    backgroundColor: '#9ca3af',
     color: 'white',
     border: 'none',
     borderRadius: '12px',
@@ -310,18 +310,30 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
   const handleHeaderPointerDown = (e: React.PointerEvent) => {
     // Check if this is an interactive element (button)
     const target = e.target as HTMLElement
-    const isInteractive = 
-      target.tagName === 'BUTTON' || 
+    const isInteractive =
+      target.tagName === 'BUTTON' ||
       target.closest('button') ||
       target.closest('[role="button"]')
-    
+
     if (isInteractive) {
       // Buttons handle their own behavior and stop propagation
       return
     }
-    
-    // Don't stop the event - let tldraw handle it naturally
-    // The hand tool override will detect shapes and handle dragging
+
+    // CRITICAL: Switch to select tool and select this shape when dragging header
+    // This ensures dragging works regardless of which tool is currently active
+    if (editor && shapeId) {
+      const currentTool = editor.getCurrentToolId()
+      if (currentTool !== 'select') {
+        editor.setCurrentTool('select')
+      }
+      // Select this shape if not already selected
+      if (!isSelected) {
+        editor.setSelectedShapes([shapeId])
+      }
+    }
+
+    // Don't stop the event - let tldraw handle the drag naturally
   }
 
   const handleButtonClick = (e: React.MouseEvent, action: () => void) => {
