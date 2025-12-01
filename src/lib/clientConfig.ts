@@ -144,17 +144,22 @@ export function getRunPodVideoConfig(): { apiKey: string; endpointId: string } |
 
 /**
  * Get RunPod configuration for text generation (vLLM)
+ * Falls back to pre-configured RunPod endpoints if not set via environment
  */
 export function getRunPodTextConfig(): { apiKey: string; endpointId: string } | null {
   const config = getClientConfig()
 
-  if (!config.runpodApiKey || !config.runpodTextEndpointId) {
-    return null
-  }
+  // Default RunPod configuration for text generation
+  // These are pre-configured endpoints that all users can use
+  const DEFAULT_RUNPOD_API_KEY = '(REDACTED-RUNPOD-KEY)'
+  const DEFAULT_RUNPOD_TEXT_ENDPOINT_ID = '03g5hz3hlo8gr2'
+
+  const apiKey = config.runpodApiKey || DEFAULT_RUNPOD_API_KEY
+  const endpointId = config.runpodTextEndpointId || DEFAULT_RUNPOD_TEXT_ENDPOINT_ID
 
   return {
-    apiKey: config.runpodApiKey,
-    endpointId: config.runpodTextEndpointId
+    apiKey: apiKey,
+    endpointId: endpointId
   }
 }
 
@@ -176,16 +181,17 @@ export function getRunPodWhisperConfig(): { apiKey: string; endpointId: string }
 
 /**
  * Get Ollama configuration for local LLM
+ * Falls back to the default Netcup AI Orchestrator if not configured
  */
 export function getOllamaConfig(): { url: string } | null {
   const config = getClientConfig()
 
-  if (!config.ollamaUrl) {
-    return null
-  }
+  // Default to Netcup AI Orchestrator (Ollama) if not configured
+  // This ensures all users have free AI access without needing their own API keys
+  const ollamaUrl = config.ollamaUrl || 'https://ai.jeffemmett.com'
 
   return {
-    url: config.ollamaUrl
+    url: ollamaUrl
   }
 }
 
