@@ -49,14 +49,33 @@ export function HolonBrowser({ isOpen, onClose, onSelectHolon, shapeMode = false
     setHolonInfo(null)
 
     try {
-      // Validate that the holonId is a valid H3 index
-      if (!h3.isValidCell(holonId)) {
-        throw new Error('Invalid H3 Cell ID. Holon IDs must be valid H3 geospatial cell identifiers (e.g., 872a1070bffffff)')
+      // Check if it's a valid H3 cell ID
+      const isH3Cell = h3.isValidCell(holonId)
+
+      // Check if it's a numeric Holon ID (workspace/group identifier)
+      const isNumericId = /^\d{6,20}$/.test(holonId)
+
+      // Check if it's an alphanumeric identifier
+      const isAlphanumericId = /^[a-zA-Z0-9_-]{3,50}$/.test(holonId)
+
+      if (!isH3Cell && !isNumericId && !isAlphanumericId) {
+        throw new Error('Invalid Holon ID. Enter an H3 cell ID (e.g., 872a1070bffffff) or a numeric Holon ID (e.g., 1002848305066)')
       }
 
-      // Get holon information
-      const resolution = h3.getResolution(holonId)
-      const [lat, lng] = h3.cellToLatLng(holonId)
+      // Get holon information based on ID type
+      let resolution: number
+      let lat: number
+      let lng: number
+
+      if (isH3Cell) {
+        resolution = h3.getResolution(holonId)
+        ;[lat, lng] = h3.cellToLatLng(holonId)
+      } else {
+        // For non-H3 IDs, use default values
+        resolution = -1 // Indicates non-geospatial holon
+        lat = 0
+        lng = 0
+      }
       
       // Try to get metadata from the holon
       let metadata = null
@@ -101,7 +120,9 @@ export function HolonBrowser({ isOpen, onClose, onSelectHolon, shapeMode = false
         latitude: lat,
         longitude: lng,
         resolution: resolution,
-        resolutionName: HoloSphereService.getResolutionName(resolution),
+        resolutionName: resolution >= 0
+          ? HoloSphereService.getResolutionName(resolution)
+          : 'Workspace / Group',
         data: {},
         lastUpdated: metadata?.lastUpdated || Date.now()
       }
@@ -192,7 +213,7 @@ export function HolonBrowser({ isOpen, onClose, onSelectHolon, shapeMode = false
             </button>
           </div>
           <p className="text-sm text-gray-600 mt-2">
-            Enter a Holon ID to browse its data and import it to your canvas
+            Enter a Holon ID (numeric like 1002848305066 or H3 cell like 872a1070bffffff) to browse its data
           </p>
         </div>
       )}
@@ -210,7 +231,7 @@ export function HolonBrowser({ isOpen, onClose, onSelectHolon, shapeMode = false
               value={holonId}
               onChange={(e) => setHolonId(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="e.g., 872a1070bffffff"
+              placeholder="e.g., 1002848305066 or 872a1070bffffff"
               className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 z-[10001] relative"
               disabled={isLoading}
               style={{ zIndex: 10001 }}
@@ -237,18 +258,29 @@ export function HolonBrowser({ isOpen, onClose, onSelectHolon, shapeMode = false
             </h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div>
-                <p className="text-sm text-gray-600">Coordinates</p>
-                <p className="font-mono text-sm">
-                  {holonInfo.latitude.toFixed(6)}, {holonInfo.longitude.toFixed(6)}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Resolution</p>
-                <p className="text-sm">
-                  {holonInfo.resolutionName} (Level {holonInfo.resolution})
-                </p>
-              </div>
+              {holonInfo.resolution >= 0 ? (
+                <>
+                  <div>
+                    <p className="text-sm text-gray-600">Coordinates</p>
+                    <p className="font-mono text-sm">
+                      {holonInfo.latitude.toFixed(6)}, {holonInfo.longitude.toFixed(6)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Resolution</p>
+                    <p className="text-sm">
+                      {holonInfo.resolutionName} (Level {holonInfo.resolution})
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <p className="text-sm text-gray-600">Type</p>
+                  <p className="text-sm font-medium text-green-600">
+                    {holonInfo.resolutionName}
+                  </p>
+                </div>
+              )}
               <div>
                 <p className="text-sm text-gray-600">Holon ID</p>
                 <p className="font-mono text-xs break-all">{holonInfo.id}</p>

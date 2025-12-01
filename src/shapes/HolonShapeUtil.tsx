@@ -241,8 +241,38 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
       })
     }
 
-    // Validate if input is a valid H3 cell ID
-    const isValidH3Cell = (id: string): boolean => {
+    // Validate if input is a valid Holon ID
+    // Accepts both H3 cell IDs (hexagonal geospatial identifiers like 872a1070bffffff)
+    // and numeric Holon IDs (workspace/group identifiers like 1002848305066)
+    const isValidHolonId = (id: string): boolean => {
+      if (!id || id.trim() === '') return false
+      const trimmedId = id.trim()
+
+      // Check if it's a valid H3 cell ID
+      try {
+        if (h3.isValidCell(trimmedId)) {
+          return true
+        }
+      } catch {
+        // Not an H3 cell, continue to check other formats
+      }
+
+      // Check if it's a numeric Holon ID (workspace/group identifier)
+      // These are typically 10-15 digit numbers
+      if (/^\d{6,20}$/.test(trimmedId)) {
+        return true
+      }
+
+      // Check if it's an alphanumeric identifier (some holons use these)
+      if (/^[a-zA-Z0-9_-]{3,50}$/.test(trimmedId)) {
+        return true
+      }
+
+      return false
+    }
+
+    // Check if the ID is an H3 cell (for coordinate extraction)
+    const isH3CellId = (id: string): boolean => {
       if (!id || id.trim() === '') return false
       try {
         return h3.isValidCell(id.trim())
@@ -258,27 +288,36 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
         return
       }
 
-      // Validate H3 cell ID
-      if (!isValidH3Cell(trimmedHolonId)) {
-        setError('Invalid H3 Cell ID. Holon IDs must be valid H3 geospatial cell identifiers (e.g., 872a1070bffffff)')
+      // Validate Holon ID (accepts H3 cells, numeric IDs, and alphanumeric identifiers)
+      if (!isValidHolonId(trimmedHolonId)) {
+        setError('Invalid Holon ID. Enter an H3 cell ID (e.g., 872a1070bffffff) or a numeric Holon ID (e.g., 1002848305066)')
         return
       }
 
       console.log('🔌 Connecting to Holon:', trimmedHolonId)
       setError(null)
 
-      // Extract H3 cell info (coordinates and resolution)
+      // Extract H3 cell info if applicable (coordinates and resolution)
       let cellLatitude = latitude
       let cellLongitude = longitude
       let cellResolution = resolution
-      try {
-        const [lat, lng] = h3.cellToLatLng(trimmedHolonId)
-        cellLatitude = lat
-        cellLongitude = lng
-        cellResolution = h3.getResolution(trimmedHolonId)
-        console.log(`📍 H3 Cell Info: lat=${lat}, lng=${lng}, resolution=${cellResolution}`)
-      } catch (e) {
-        console.warn('Could not extract H3 cell coordinates:', e)
+      const isH3 = isH3CellId(trimmedHolonId)
+
+      if (isH3) {
+        try {
+          const [lat, lng] = h3.cellToLatLng(trimmedHolonId)
+          cellLatitude = lat
+          cellLongitude = lng
+          cellResolution = h3.getResolution(trimmedHolonId)
+          console.log(`📍 H3 Cell Info: lat=${lat}, lng=${lng}, resolution=${cellResolution}`)
+        } catch (e) {
+          console.warn('Could not extract H3 cell coordinates:', e)
+        }
+      } else {
+        // For numeric/alphanumeric Holon IDs, use default coordinates
+        // The holon is not geospatially indexed
+        console.log(`📍 Numeric Holon ID detected: ${trimmedHolonId} (not geospatially indexed)`)
+        cellResolution = -1 // Indicate non-H3 holon
       }
 
       // Update the shape to mark as connected with trimmed ID and H3 info
@@ -766,7 +805,7 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
                 lineHeight: '1.5',
                 width: '100%'
               }}>
-                Enter an H3 Cell ID to connect to the Holosphere
+                Enter a Holon ID to connect to the Holosphere
               </div>
               <div style={{
                 fontSize: '11px',
@@ -774,7 +813,7 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
                 textAlign: 'center',
                 marginBottom: '8px'
               }}>
-                H3 Cell IDs are hexagonal geospatial identifiers (e.g., 872a1070bffffff)
+                Supports numeric IDs (e.g., 1002848305066) or H3 cell IDs (e.g., 872a1070bffffff)
               </div>
               {/* Quick generate button */}
               <div style={{
@@ -835,7 +874,7 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
                       handleConnect()
                     }
                   }}
-                  placeholder="872a1070bffffff"
+                  placeholder="1002848305066 or 872a1070bffffff"
                   style={{
                     flex: 1,
                     height: '48px',
@@ -942,7 +981,7 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
               }}
               onWheel={handleWheel}
             >
-              {/* H3 Cell Information Header */}
+              {/* Holon Information Header */}
               {isConnected && (
                 <div style={{
                   backgroundColor: '#f0fdf4',
@@ -953,25 +992,38 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
                 }}>
                   <div style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(2, 1fr)',
+                    gridTemplateColumns: resolution >= 0 ? 'repeat(2, 1fr)' : '1fr',
                     gap: '8px',
                     fontSize: '11px'
                   }}>
-                    <div>
-                      <span style={{ color: '#666', fontWeight: '500' }}>Resolution:</span>{' '}
-                      <span style={{ color: '#15803d', fontWeight: '600' }}>
-                        {resolutionInfo.name} (Level {resolution})
-                      </span>
-                    </div>
-                    <div>
-                      <span style={{ color: '#666', fontWeight: '500' }}>Coordinates:</span>{' '}
-                      <span style={{ fontFamily: 'monospace', color: '#333' }}>
-                        {latitude.toFixed(4)}, {longitude.toFixed(4)}
-                      </span>
-                    </div>
+                    {resolution >= 0 ? (
+                      <>
+                        <div>
+                          <span style={{ color: '#666', fontWeight: '500' }}>Resolution:</span>{' '}
+                          <span style={{ color: '#15803d', fontWeight: '600' }}>
+                            {resolutionInfo.name} (Level {resolution})
+                          </span>
+                        </div>
+                        <div>
+                          <span style={{ color: '#666', fontWeight: '500' }}>Coordinates:</span>{' '}
+                          <span style={{ fontFamily: 'monospace', color: '#333' }}>
+                            {latitude.toFixed(4)}, {longitude.toFixed(4)}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div>
+                        <span style={{ color: '#666', fontWeight: '500' }}>Type:</span>{' '}
+                        <span style={{ color: '#15803d', fontWeight: '600' }}>
+                          Workspace / Group Holon
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <div style={{ fontSize: '10px', color: '#666', marginTop: '6px' }}>
-                    {resolutionInfo.description}
+                    {resolution >= 0
+                      ? resolutionInfo.description
+                      : 'This holon represents a workspace, organization, or group (not geospatially indexed)'}
                   </div>
                 </div>
               )}
