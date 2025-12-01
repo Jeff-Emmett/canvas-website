@@ -145,9 +145,14 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
         }
 
         // Poll for completion
+        // Video generation can take a long time, especially with GPU cold starts:
+        // - GPU cold start: 30-120 seconds
+        // - Model loading: 30-60 seconds
+        // - Actual generation: 60-180 seconds depending on duration
+        // Total: up to 6 minutes is reasonable
         const statusUrl = `https://api.runpod.ai/v2/${endpointId}/status/${jobData.id}`
         let attempts = 0
-        const maxAttempts = 120 // 4 minutes with 2s intervals (video can take a while)
+        const maxAttempts = 180 // 6 minutes with 2s intervals
 
         while (attempts < maxAttempts) {
           await new Promise(resolve => setTimeout(resolve, 2000))
@@ -203,7 +208,7 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
           }
         }
 
-        throw new Error('Video generation timed out after 4 minutes')
+        throw new Error('Video generation timed out after 6 minutes. The GPU may be busy - try again later.')
       } catch (error: any) {
         const errorMessage = error.message || 'Unknown error during video generation'
         console.error('❌ VideoGen: Generation error:', errorMessage)
@@ -384,7 +389,10 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                   lineHeight: '1.5'
                 }}>
                   <div><strong>Note:</strong> Video generation uses RunPod GPU</div>
-                  <div>Cost: ~$0.50 per video | Processing: 30-90 seconds</div>
+                  <div>Cost: ~$0.50 per video | Processing: 1-5 minutes</div>
+                  <div style={{ marginTop: '4px', opacity: 0.8 }}>
+                    First request may take longer due to GPU cold start
+                  </div>
                 </div>
               </>
             )}

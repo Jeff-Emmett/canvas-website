@@ -10,36 +10,41 @@ import { getDocumentId, saveDocumentId } from "./documentIdMapping"
 
 /**
  * Validate if an index is a valid tldraw fractional index
- * Valid indices: "a0", "a1", "a1V", "a2", "Zz", etc.
- * Invalid indices: "b1", "c2", or any simple letter+number that isn't "a" followed by proper format
+ * Valid indices: "a0", "a1", "a1V", "a24sT", "a1V4rr", "Zz", etc.
+ * Invalid indices: "b1", "c2", or any simple letter+number that isn't a valid fractional index
  *
  * tldraw uses fractional indexing where indices are strings that can be compared lexicographically
  * The format allows inserting new items between any two existing items without renumbering.
+ * Based on: https://observablehq.com/@dgreensp/implementing-fractional-indexing
  */
 function isValidTldrawIndex(index: string): boolean {
-  if (!index || typeof index !== 'string') return false
+  if (!index || typeof index !== 'string' || index.length === 0) return false
 
-  // Valid tldraw indices start with 'a' and can have various formats:
-  // "a0", "a1", "a1V", "a1Vz", "Zz", etc.
-  // The key insight is that indices NOT starting with 'a' (like 'b1', 'c1') are invalid
-  // unless they're the special "Zz" format used for very high indices
+  // The first character indicates the integer part length:
+  // 'a' = 1 digit, 'b' = 2 digits, etc. for positive integers
+  // 'Z' = 1 digit, 'Y' = 2 digits, etc. for negative integers
+  // But for normal shapes, 'a' followed by a digit is the most common pattern
 
-  // Simple indices like "b1", "c1", "d1" are definitely invalid
-  if (/^[b-z]\d+$/i.test(index)) {
+  // Simple patterns that are DEFINITELY invalid for tldraw:
+  // "b1", "c1", "d1" etc - these are old non-fractional indices (single letter + single digit)
+  // These were used before tldraw switched to fractional indexing
+  if (/^[b-z]\d$/i.test(index)) {
     return false
   }
 
-  // An index starting with 'a' followed by digits and optional letters is valid
-  // e.g., "a0", "a1", "a1V", "a10", "a1Vz"
+  // Valid tldraw indices should start with lowercase 'a' followed by digits
+  // and optionally more alphanumeric characters for the fractional/jitter part
+  // Examples from actual tldraw: "a0", "a1", "a24sT", "a1V4rr"
   if (/^a\d/.test(index)) {
     return true
   }
 
-  // Other formats like "Zz" are also valid for high indices
-  if (/^[A-Z]/.test(index)) {
+  // Also allow 'Z' prefix for very high indices (though rare)
+  if (/^Z[a-z]/i.test(index)) {
     return true
   }
 
+  // If none of the above, it's likely invalid
   return false
 }
 
