@@ -1,7 +1,7 @@
 import { useAutomergeSync } from "@/automerge/useAutomergeSync"
 import { AutomergeHandleProvider } from "@/context/AutomergeHandleContext"
 import { useMemo, useEffect, useState, useRef } from "react"
-import { Tldraw, Editor, TLShapeId, TLRecord, useTldrawUser, TLUserPreferences } from "tldraw"
+import { Tldraw, Editor, TLShapeId, TLRecord, useTldrawUser, TLUserPreferences, IndexKey } from "tldraw"
 import { useParams } from "react-router-dom"
 import { ChatBoxTool } from "@/tools/ChatBoxTool"
 import { ChatBoxShape } from "@/shapes/ChatBoxShapeUtil"
@@ -65,6 +65,24 @@ import { CmdK } from "@/CmdK"
 import "react-cmdk/dist/cmdk.css"
 import "@/css/style.css"
 import "@/css/obsidian-browser.css"
+
+// Helper to validate and fix tldraw IndexKey format
+// Valid: "a0", "a1", "a24sT", "a1V4rr" - Invalid: "b1", "c1" (old format)
+function sanitizeIndex(index: any): IndexKey {
+  if (!index || typeof index !== 'string' || index.length === 0) {
+    return 'a1' as IndexKey
+  }
+  // Old format "b1", "c1" etc are invalid (single letter + single digit)
+  if (/^[b-z]\d$/i.test(index)) {
+    return 'a1' as IndexKey
+  }
+  // Valid: starts with 'a' followed by at least one digit
+  if (/^a\d/.test(index)) {
+    return index as IndexKey
+  }
+  // Fallback
+  return 'a1' as IndexKey
+}
 
 const collections: Collection[] = [GraphLayoutCollection]
 import { useAuth } from "../context/AuthContext"
@@ -594,33 +612,37 @@ export function Board() {
               // Fallback if store not available
               const fallbackX = (s.x !== undefined && typeof s.x === 'number' && !isNaN(s.x)) ? s.x : 0
               const fallbackY = (s.y !== undefined && typeof s.y === 'number' && !isNaN(s.y)) ? s.y : 0
-              return { ...s, parentId: currentPageId, x: fallbackX, y: fallbackY } as TLRecord
+              // CRITICAL: Sanitize index to prevent validation errors
+              return { ...s, parentId: currentPageId, x: fallbackX, y: fallbackY, index: sanitizeIndex(s.index) } as TLRecord
             }
-            
+
             const shapeFromStore = store.store.get(s.id)
             if (shapeFromStore && shapeFromStore.typeName === 'shape') {
               // CRITICAL: Get coordinates from store's current state (most reliable)
               // This ensures we preserve coordinates even if the shape object has been modified
               const storeX = (shapeFromStore as any).x
               const storeY = (shapeFromStore as any).y
-              const originalX = (typeof storeX === 'number' && !isNaN(storeX) && storeX !== null && storeX !== undefined) 
-                ? storeX 
+              const originalX = (typeof storeX === 'number' && !isNaN(storeX) && storeX !== null && storeX !== undefined)
+                ? storeX
                 : (s.x !== undefined && typeof s.x === 'number' && !isNaN(s.x) ? s.x : 0)
               const originalY = (typeof storeY === 'number' && !isNaN(storeY) && storeY !== null && storeY !== undefined)
                 ? storeY
                 : (s.y !== undefined && typeof s.y === 'number' && !isNaN(s.y) ? s.y : 0)
-              
-              // Create fixed shape with preserved coordinates
+
+              // Create fixed shape with preserved coordinates and sanitized index
               const fixed: any = { ...shapeFromStore, parentId: currentPageId }
               // CRITICAL: Always preserve coordinates - never reset to 0,0 unless truly missing
               fixed.x = originalX
               fixed.y = originalY
+              // CRITICAL: Sanitize index to prevent "Expected an index key" validation errors
+              fixed.index = sanitizeIndex(fixed.index)
               return fixed as TLRecord
             }
             // Fallback if shape not in store - preserve coordinates from s
             const fallbackX = (s.x !== undefined && typeof s.x === 'number' && !isNaN(s.x)) ? s.x : 0
             const fallbackY = (s.y !== undefined && typeof s.y === 'number' && !isNaN(s.y)) ? s.y : 0
-            return { ...s, parentId: currentPageId, x: fallbackX, y: fallbackY } as TLRecord
+            // CRITICAL: Sanitize index to prevent validation errors
+            return { ...s, parentId: currentPageId, x: fallbackX, y: fallbackY, index: sanitizeIndex(s.index) } as TLRecord
           })
           try {
             // CRITICAL: Use mergeRemoteChanges to prevent feedback loop

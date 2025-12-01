@@ -1,8 +1,9 @@
 # Worker configuration
 # Note: This wrangler.toml is for the Worker backend only.
 # Pages deployment is configured separately in the Cloudflare dashboard.
+# Frontend (Vite) environment variables should be set in Cloudflare Pages dashboard.
 main = "worker/worker.ts"
-compatibility_date = "2024-07-01"
+compatibility_date = "2024-11-01"
 name = "jeffemmett-canvas"
 account_id = "0e7b3338d5278ed1b148e6456b940913"
 
@@ -10,6 +11,15 @@ account_id = "0e7b3338d5278ed1b148e6456b940913"
 # Environment variables are managed in Cloudflare Dashboard
 # Workers & Pages → jeffemmett-canvas → Settings → Variables
 DAILY_DOMAIN = "mycopunks.daily.co"
+
+# RunPod AI Service Configuration (defaults hardcoded in src/lib/clientConfig.ts)
+# These are documented here for reference - actual values are in the client code
+# to allow all users to access AI features without configuration
+# RUNPOD_API_KEY = "set via wrangler secret put"
+# RUNPOD_IMAGE_ENDPOINT_ID = "tzf1j3sc3zufsy"   # Automatic1111
+# RUNPOD_VIDEO_ENDPOINT_ID = "4jql4l7l0yw0f3"   # Wan2.2
+# RUNPOD_TEXT_ENDPOINT_ID = "03g5hz3hlo8gr2"    # vLLM
+# RUNPOD_WHISPER_ENDPOINT_ID = "lrtisuv8ixbtub" # Whisper
 
 [dev]
 port = 5172

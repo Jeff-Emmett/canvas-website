@@ -433,8 +433,22 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
           }
         } else if (data.error) {
           throw new Error(`RunPod API error: ${data.error}`)
+        } else if (data.status) {
+          // Handle RunPod status responses (no output yet)
+          const status = data.status.toUpperCase()
+          if (status === 'IN_PROGRESS' || status === 'IN_QUEUE') {
+            throw new Error(`Image generation timed out (status: ${data.status}). The GPU may be experiencing a cold start. Please try again in a moment.`)
+          } else if (status === 'FAILED') {
+            throw new Error(`RunPod job failed: ${data.error || 'Unknown error'}`)
+          } else if (status === 'CANCELLED') {
+            throw new Error('Image generation was cancelled')
+          } else {
+            throw new Error(`Unexpected RunPod status: ${data.status}`)
+          }
         } else {
-          throw new Error("No valid response from RunPod API - missing output field")
+          // Log full response for debugging
+          console.error("❌ ImageGen: Unexpected response structure:", JSON.stringify(data, null, 2))
+          throw new Error("No valid response from RunPod API - missing output field. Check console for details.")
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
