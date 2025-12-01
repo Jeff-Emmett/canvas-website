@@ -8,6 +8,7 @@ import {
 import React, { useState } from "react"
 import { getRunPodVideoConfig } from "@/lib/clientConfig"
 import { StandardizedToolWrapper } from "@/components/StandardizedToolWrapper"
+import { usePinnedToView } from "@/hooks/usePinnedToView"
 
 // Type for RunPod job response
 interface RunPodJobResponse {
@@ -33,6 +34,7 @@ type IVideoGen = TLBaseShape<
     duration: number // seconds
     model: string
     tags: string[]
+    pinnedToView: boolean
   }
 >
 
@@ -52,7 +54,8 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
       error: null,
       duration: 3,
       model: "wan2.1-i2v",
-      tags: ['video', 'ai-generated']
+      tags: ['video', 'ai-generated'],
+      pinnedToView: false
     }
   }
 
@@ -66,12 +69,25 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
   }
 
   component(shape: IVideoGen) {
+    // Capture editor reference to avoid stale 'this' during drag operations
+    const editor = this.editor
     const [prompt, setPrompt] = useState(shape.props.prompt)
     const [isGenerating, setIsGenerating] = useState(shape.props.isLoading)
     const [error, setError] = useState<string | null>(shape.props.error)
     const [videoUrl, setVideoUrl] = useState<string | null>(shape.props.videoUrl)
     const [isMinimized, setIsMinimized] = useState(false)
-    const isSelected = this.editor.getSelectedShapeIds().includes(shape.id)
+    const isSelected = editor.getSelectedShapeIds().includes(shape.id)
+
+    // Pin to view functionality
+    usePinnedToView(editor, shape.id, shape.props.pinnedToView)
+
+    const handlePinToggle = () => {
+      editor.updateShape<IVideoGen>({
+        id: shape.id,
+        type: "VideoGen",
+        props: { pinnedToView: !shape.props.pinnedToView },
+      })
+    }
 
     const handleGenerate = async () => {
       if (!prompt.trim()) {
@@ -91,7 +107,7 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
       setError(null)
 
       // Update shape to show loading state
-      this.editor.updateShape({
+      editor.updateShape({
         id: shape.id,
         type: shape.type,
         props: { ...shape.props, isLoading: true, error: null }
@@ -186,7 +202,7 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
               setVideoUrl(url)
               setIsGenerating(false)
 
-              this.editor.updateShape({
+              editor.updateShape({
                 id: shape.id,
                 type: shape.type,
                 props: {
@@ -215,7 +231,7 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
         setError(errorMessage)
         setIsGenerating(false)
 
-        this.editor.updateShape({
+        editor.updateShape({
           id: shape.id,
           type: shape.type,
           props: { ...shape.props, isLoading: false, error: errorMessage }
@@ -224,7 +240,7 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
     }
 
     const handleClose = () => {
-      this.editor.deleteShape(shape.id)
+      editor.deleteShape(shape.id)
     }
 
     const handleMinimize = () => {
@@ -232,7 +248,7 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
     }
 
     const handleTagsChange = (newTags: string[]) => {
-      this.editor.updateShape({
+      editor.updateShape({
         id: shape.id,
         type: shape.type,
         props: { ...shape.props, tags: newTags }
@@ -250,11 +266,13 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
           onClose={handleClose}
           onMinimize={handleMinimize}
           isMinimized={isMinimized}
-          editor={this.editor}
+          editor={editor}
           shapeId={shape.id}
           tags={shape.props.tags}
           onTagsChange={handleTagsChange}
           tagsEditable={true}
+          isPinnedToView={shape.props.pinnedToView}
+          onPinToggle={handlePinToggle}
           headerContent={
             isGenerating ? (
               <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -320,7 +338,7 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                       max="10"
                       value={shape.props.duration}
                       onChange={(e) => {
-                        this.editor.updateShape({
+                        editor.updateShape({
                           id: shape.id,
                           type: shape.type,
                           props: { ...shape.props, duration: parseInt(e.target.value) || 3 }
@@ -429,7 +447,7 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                     onClick={() => {
                       setVideoUrl(null)
                       setPrompt("")
-                      this.editor.updateShape({
+                      editor.updateShape({
                         id: shape.id,
                         type: shape.type,
                         props: { ...shape.props, videoUrl: null, prompt: "" }

@@ -1047,7 +1047,8 @@ export class ObsNoteShape extends BaseBoxShapeUtil<IObsNoteShape> {
       noteId: typeof props.noteId === 'string' ? props.noteId : '',
       title: typeof props.title === 'string' ? props.title : 'Untitled ObsNote',
       content: typeof props.content === 'string' ? props.content : '',
-      tags,
+      // Use provided tags, or default to 'obsidian note' and 'markdown' if empty
+      tags: tags.length > 0 ? tags : ['obsidian note', 'markdown'],
       showPreview: typeof props.showPreview === 'boolean' ? props.showPreview : true,
       backgroundColor: typeof props.backgroundColor === 'string' ? props.backgroundColor : '#ffffff',
       textColor: typeof props.textColor === 'string' ? props.textColor : '#000000',
@@ -1145,6 +1146,12 @@ export class ObsNoteShape extends BaseBoxShapeUtil<IObsNoteShape> {
    * Create an obs_note shape from an ObsidianObsNote
    */
   static createFromObsidianObsNote(obs_note: ObsidianObsNote, x: number = 0, y: number = 0, id?: TLShapeId, vaultPath?: string, vaultName?: string): IObsNoteShape {
+    // Use tags from Obsidian if they exist, otherwise use default tags
+    // Obsidian tags may include '#' prefix, we preserve them as-is
+    const obsidianTags = obs_note.tags && obs_note.tags.length > 0
+      ? obs_note.tags
+      : ['obsidian note', 'markdown']
+
     // Use sanitizeProps to ensure all values are JSON serializable
     const props = ObsNoteShape.sanitizeProps({
       w: 300,
@@ -1157,7 +1164,7 @@ export class ObsNoteShape extends BaseBoxShapeUtil<IObsNoteShape> {
       noteId: obs_note.id || '',
       title: obs_note.title || 'Untitled',
       content: obs_note.content || '',
-      tags: obs_note.tags || [],
+      tags: obsidianTags,
       showPreview: true,
       backgroundColor: '#ffffff',
       textColor: '#000000',
