@@ -4,7 +4,7 @@ title: 'Google Export: Local-First Data Sovereignty'
 status: Done
 assignee: []
 created_date: '2025-12-04 20:25'
-updated_date: '2025-12-04 20:51'
+updated_date: '2025-12-04 23:24'
 labels:
   - feature
   - google
@@ -68,4 +68,18 @@ Implemented core Google Data Sovereignty module:
 - index.ts: Main module with GoogleDataService class and singleton pattern
 
 TypeScript compilation passes - all core modules implemented
+
+Committed and pushed to feature/google-export branch (e69ed0e)
+
+All core modules implemented and working: OAuth, encryption, database, share, backup
+
+Gmail, Drive, and Calendar importers working correctly
+
+Photos importer has 403 error on some thumbnail URLs - needs investigation:
+
+- May require proper OAuth consent screen verification
+
+- baseUrl might need different approach for non-public photos
+
+- Consider using Photos API mediaItems.get for base URLs instead of direct thumbnail access
 <!-- SECTION:NOTES:END -->
