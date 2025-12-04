@@ -1,9 +1,11 @@
 ---
 id: task-028
 title: OSM Canvas Integration Foundation
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2025-12-04 21:12'
+updated_date: '2025-12-04 21:12'
 labels:
   - feature
   - mapping
