@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useCallback, useRef, useEffect } from 'react'
 import {
   MDXEditor,
   headingsPlugin,
@@ -62,12 +62,28 @@ export class MarkdownShape extends BaseBoxShapeUtil<IMarkdownShape> {
     const [isToolbarMinimized, setIsToolbarMinimized] = useState(false)
     const editorRef = useRef<MDXEditorMethods>(null)
 
-    // Dark mode detection
-    const isDarkMode = useMemo(() => {
+    // Dark mode detection with reactive updates
+    const [isDarkMode, setIsDarkMode] = useState(() => {
       if (typeof document !== 'undefined') {
         return document.documentElement.classList.contains('dark')
       }
       return false
+    })
+
+    // Listen for dark mode changes
+    useEffect(() => {
+      if (typeof document === 'undefined') return
+
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.attributeName === 'class') {
+            setIsDarkMode(document.documentElement.classList.contains('dark'))
+          }
+        })
+      })
+
+      observer.observe(document.documentElement, { attributes: true })
+      return () => observer.disconnect()
     }, [])
 
     // Use the pinning hook
@@ -160,6 +176,7 @@ export class MarkdownShape extends BaseBoxShapeUtil<IMarkdownShape> {
               ref={editorRef}
               markdown={shape.props.text || ''}
               onChange={handleChange}
+              className={isDarkMode ? 'dark-theme' : ''}
               contentEditableClassName="mdx-editor-content"
               plugins={[
                 // Core formatting
