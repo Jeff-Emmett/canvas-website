@@ -21,19 +21,36 @@ function minimalSanitizeRecord(record: any): any {
     if (typeof sanitized.opacity !== 'number') sanitized.opacity = 1
     if (!sanitized.meta || typeof sanitized.meta !== 'object') sanitized.meta = {}
     // NOTE: Index assignment is handled by assignSequentialIndices() during format conversion
-    // Here we only ensure index exists with a valid format, not strictly validate
-    // This preserves layer order that was established during conversion
-    // tldraw uses fractional indexing: a0, a1, b10, c100, a1V4rr, etc.
-    // - First letter (a-z) indicates integer part length (a=1 digit, b=2 digits, etc.)
-    // - Uppercase (A-Z) for negative/special indices
+    // Here we validate using tldraw's fractional indexing rules
+    // The first letter encodes integer part length: a=1 digit, b=2 digits, c=3 digits, etc.
+    // Examples: "a0"-"a9", "b10"-"b99", "c100"-"c999", with optional fraction "a1V4rr"
+    // Invalid: "b1" (b expects 2 digits but has 1)
     if (!sanitized.index || typeof sanitized.index !== 'string' || sanitized.index.length === 0) {
-      // Only assign default if truly missing
       sanitized.index = 'a1'
-    } else if (!/^[a-zA-Z][a-zA-Z0-9]+$/.test(sanitized.index)) {
-      // Accept any letter followed by alphanumeric characters
-      // Only reset clearly invalid formats (e.g., numbers, empty, single char)
-      console.warn(`⚠️ MinimalSanitization: Invalid index format "${sanitized.index}" for shape ${sanitized.id}`)
-      sanitized.index = 'a1'
+    } else {
+      // Validate fractional indexing format
+      let isValid = false
+      const prefix = sanitized.index[0]
+      const rest = sanitized.index.slice(1)
+
+      if (/^[a-zA-Z]/.test(sanitized.index) && /^[a-zA-Z][a-zA-Z0-9]+$/.test(sanitized.index)) {
+        if (prefix >= 'a' && prefix <= 'z') {
+          // Calculate expected minimum digit count: a=1, b=2, c=3, etc.
+          const expectedDigits = prefix.charCodeAt(0) - 'a'.charCodeAt(0) + 1
+          const integerMatch = rest.match(/^(\d+)/)
+          if (integerMatch && integerMatch[1].length >= expectedDigits) {
+            isValid = true
+          }
+        } else if (prefix >= 'A' && prefix <= 'Z') {
+          // Uppercase for negative/special indices - allow
+          isValid = true
+        }
+      }
+
+      if (!isValid) {
+        console.warn(`⚠️ MinimalSanitization: Invalid index format "${sanitized.index}" for shape ${sanitized.id}`)
+        sanitized.index = 'a1'
+      }
     }
     if (!sanitized.parentId) sanitized.parentId = 'page:page'
     

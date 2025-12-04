@@ -68,18 +68,50 @@ import "@/css/style.css"
 import "@/css/obsidian-browser.css"
 
 // Helper to validate and fix tldraw IndexKey format
-// tldraw uses fractional indexing: a0, a1, b10, c100, a1V4rr, etc.
-// - First letter (a-z) indicates integer part length (a=1 digit, b=2 digits, etc.)
-// - Uppercase (A-Z) for negative/special indices
+// tldraw uses fractional indexing where the first letter encodes integer part length:
+// - 'a' = 1-digit integer (a0-a9), 'b' = 2-digit (b10-b99), 'c' = 3-digit (c100-c999), etc.
+// - Optional fractional part can follow (a1V, a1V4rr, etc.)
+// Common invalid formats from old data: "b1" (b expects 2 digits but has 1)
 function sanitizeIndex(index: any): IndexKey {
   if (!index || typeof index !== 'string' || index.length === 0) {
     return 'a1' as IndexKey
   }
-  // Valid: letter followed by alphanumeric characters
+
+  // Must start with a letter
+  if (!/^[a-zA-Z]/.test(index)) {
+    return 'a1' as IndexKey
+  }
+
+  // Check fractional indexing rules for lowercase prefixes
+  const prefix = index[0]
+  const rest = index.slice(1)
+
+  if (prefix >= 'a' && prefix <= 'z') {
+    // Calculate expected minimum digit count: a=1, b=2, c=3, etc.
+    const expectedDigits = prefix.charCodeAt(0) - 'a'.charCodeAt(0) + 1
+
+    // Extract the integer part (leading digits)
+    const integerMatch = rest.match(/^(\d+)/)
+    if (!integerMatch) {
+      // No digits at all - invalid
+      return 'a1' as IndexKey
+    }
+
+    const integerPart = integerMatch[1]
+
+    // Check if integer part has correct number of digits for the prefix
+    if (integerPart.length < expectedDigits) {
+      // Invalid: "b1" has b (expects 2 digits) but only has 1 digit
+      // Convert to safe format
+      return 'a1' as IndexKey
+    }
+  }
+
+  // Check overall format: letter followed by alphanumeric
   if (/^[a-zA-Z][a-zA-Z0-9]+$/.test(index)) {
     return index as IndexKey
   }
-  // Fallback for invalid formats
+
   return 'a1' as IndexKey
 }
 
