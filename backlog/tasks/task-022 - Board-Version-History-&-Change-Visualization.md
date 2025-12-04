@@ -1,10 +1,10 @@
 ---
 id: task-022
 title: Board Version History & Change Visualization
-status: In Progress
+status: To Do
 assignee: []
 created_date: '2025-12-04 12:59'
-updated_date: '2025-12-04 13:05'
+updated_date: '2025-12-04 13:09'
 labels:
   - feature
   - collaboration
@@ -97,4 +97,10 @@ Implement board permissions, R2 backup version browsing/restoration, and visual 
 4. Otherwise → VIEWER
 
 **PIN grants EDITOR access (not configurable)**
+
+**Detailed implementation plan saved to worktree:**
+- Branch: `feature/version-history`
+- Worktree: `/home/jeffe/Github/canvas-website-branch-worktrees/version-history`
+- Plan file: `backlog/tasks/task-023 - Version-History-Permissions-Implementation-Plan.md`
+- Pushed to: gitea.jeffemmett.com
 <!-- SECTION:NOTES:END -->
