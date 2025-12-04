@@ -1,10 +1,10 @@
 ---
 id: task-022
 title: Board Version History & Change Visualization
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2025-12-04 12:59'
-updated_date: '2025-12-04 13:02'
+updated_date: '2025-12-04 13:05'
 labels:
   - feature
   - collaboration
@@ -84,4 +84,17 @@ Implement board permissions, R2 backup version browsing/restoration, and visual 
 - Signed-in users → EDITOR by default
 - Board owner can override with specific permissions
 - This prevents anonymous vandalism while enabling easy collaboration
+
+**Final Access Model:**
+- New board created by signed-in user → auto OWNER
+- Existing unclaimed board → 'Claim admin' button
+- Anonymous users cannot claim boards
+
+**Access Logic:**
+1. Has email permission → Access at assigned role
+2. Signed in + no PIN set → EDITOR
+3. Knows PIN → EDITOR (session-based)
+4. Otherwise → VIEWER
+
+**PIN grants EDITOR access (not configurable)**
 <!-- SECTION:NOTES:END -->
