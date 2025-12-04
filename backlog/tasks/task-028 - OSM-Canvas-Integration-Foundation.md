@@ -5,7 +5,7 @@ status: In Progress
 assignee:
   - '@claude'
 created_date: '2025-12-04 21:12'
-updated_date: '2025-12-04 21:24'
+updated_date: '2025-12-04 21:34'
 labels:
   - feature
   - mapping
@@ -36,8 +36,8 @@ This is the foundation that task-024 (Route Planning) and other spatial features
 - [x] #2 Coordinate transformation functions (geo ↔ canvas) working accurately
 - [ ] #3 Zoom levels map to appropriate tile zoom levels
 - [ ] #4 Pan/zoom gestures work smoothly with tile loading
-- [ ] #5 Shapes can be placed with lat/lng coordinates
-- [ ] #6 Basic MapLibre GL or Leaflet integration pattern established
+- [x] #5 Shapes can be placed with lat/lng coordinates
+- [x] #6 Basic MapLibre GL or Leaflet integration pattern established
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -57,4 +57,17 @@ This is the foundation that task-024 (Route Planning) and other spatial features
 ### In Progress:
 - Wiring up MapLibre GL JS in useMapInstance hook
 - Creating MapShapeUtil for tldraw canvas integration
+
+### Additional Progress:
+- Fixed MapLibre attributionControl type issue
+- Created MapShapeUtil.tsx with full tldraw integration
+- Created MapTool.ts for placing map shapes
+- Registered MapShape and MapTool in Board.tsx
+- Map shape features:
+  - Resizable map window
+  - Interactive pan/zoom toggle
+  - Location presets (NYC, London, Tokyo, SF, Paris)
+  - Live coordinate display
+  - Pin to view support
+  - Tag system integration
 <!-- SECTION:NOTES:END -->
