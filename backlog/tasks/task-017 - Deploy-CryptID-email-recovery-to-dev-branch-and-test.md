@@ -4,6 +4,7 @@ title: Deploy CryptID email recovery to dev branch and test
 status: To Do
 assignee: []
 created_date: '2025-12-04 12:00'
+updated_date: '2025-12-04 12:02'
 labels:
   - feature
   - cryptid
@@ -11,8 +12,8 @@ labels:
   - testing
   - dev-branch
 dependencies:
-  - task-015
-  - task-016
+  - task-018
+  - task-019
 priority: high
 ---
 
