@@ -1,9 +1,11 @@
 ---
 id: task-029
 title: zkGPS Protocol Design
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2025-12-04 21:12'
+updated_date: '2025-12-04 23:21'
 labels:
   - feature
   - privacy
