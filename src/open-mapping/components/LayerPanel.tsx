@@ -1,5 +1,12 @@
 /**
  * LayerPanel - UI for managing map layers
+ *
+ * Features:
+ * - Toggle layer visibility
+ * - Adjust layer opacity
+ * - Reorder layers (z-index)
+ * - Add custom layers (GeoJSON, tiles)
+ * - Import/export layer configurations
  */
 
 import type { MapLayer } from '../types';
@@ -11,9 +18,21 @@ interface LayerPanelProps {
   onLayerReorder?: (layerIds: string[]) => void;
   onLayerAdd?: (layer: Omit<MapLayer, 'id'>) => void;
   onLayerRemove?: (layerId: string) => void;
+  onLayerEdit?: (layerId: string, updates: Partial<MapLayer>) => void;
 }
 
-export function LayerPanel({ layers, onLayerToggle }: LayerPanelProps) {
+export function LayerPanel({
+  layers,
+  onLayerToggle,
+  onLayerOpacity,
+  onLayerReorder,
+  onLayerAdd,
+  onLayerRemove,
+  onLayerEdit,
+}: LayerPanelProps) {
+  // TODO: Implement layer panel UI
+  // This will be implemented in Phase 2
+
   return (
     <div className="open-mapping-layer-panel">
       <h3>Layers</h3>
