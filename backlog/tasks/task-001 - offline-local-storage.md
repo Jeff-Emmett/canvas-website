@@ -1,10 +1,10 @@
 ---
 id: task-001
 title: offline local storage
-status: To Do
+status: Done
 assignee: []
 created_date: '2025-12-03 23:42'
-updated_date: '2025-12-04 20:27'
+updated_date: '2025-12-04 20:35'
 labels:
   - feature
   - offline
@@ -31,10 +31,22 @@ Existing code locations:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Real WebSocket connection state tracking (not hardcoded 'online')
-- [ ] #2 navigator.onLine integration for network detection
-- [ ] #3 UI indicator component showing connection status
-- [ ] #4 Visual feedback when working offline
-- [ ] #5 Auto-reconnect with status updates
+- [x] #1 Real WebSocket connection state tracking (not hardcoded 'online')
+- [x] #2 navigator.onLine integration for network detection
+- [x] #3 UI indicator component showing connection status
+- [x] #4 Visual feedback when working offline
+- [x] #5 Auto-reconnect with status updates
 - [ ] #6 Safari 7-day eviction mitigation (service worker or periodic touch)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implemented connection status tracking:
+- Added ConnectionState type and tracking in CloudflareAdapter
+- Added navigator.onLine integration for network detection
+- Exposed connectionState and isNetworkOnline from useAutomergeSync hook
+- Created ConnectionStatusIndicator component with visual feedback
+- Shows status only when not connected (connecting/reconnecting/disconnected/offline)
+- Auto-hides when connected and online
+<!-- SECTION:NOTES:END -->
