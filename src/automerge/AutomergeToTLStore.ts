@@ -3,28 +3,45 @@ import * as Automerge from "@automerge/automerge"
 
 // Helper function to validate if a string is a valid tldraw IndexKey
 // tldraw uses fractional indexing based on https://observablehq.com/@dgreensp/implementing-fractional-indexing
-// Valid indices have an integer part (letter indicating length) followed by digits and optional alphanumeric fraction
-// Examples: "a0", "a1", "a1V", "a24sT", "a1V4rr"
-// Invalid: "b1" (old format), simple sequential numbers
+// The first letter encodes integer part length: a=1 digit, b=2 digits, c=3 digits, etc.
+// Examples: "a0"-"a9", "b10"-"b99", "c100"-"c999", with optional fraction "a1V4rr"
+// Invalid: "b1" (b expects 2 digits but has 1), simple sequential numbers
 function isValidIndexKey(index: string): boolean {
   if (!index || typeof index !== 'string' || index.length === 0) {
     return false
   }
 
-  // tldraw uses fractional indexing where:
-  // - First character is a lowercase letter indicating integer part length (a=1, b=2, c=3, etc.)
-  // - Followed by alphanumeric characters for the value and optional jitter
-  // Examples: "a0", "a1", "b10", "b99", "c100", "a1V4rr", "b10Lz"
-  //
-  // Also uppercase letters for negative indices (Z=1, Y=2, etc.)
-
-  // Valid fractional index: lowercase letter followed by alphanumeric characters
-  if (/^[a-z][a-zA-Z0-9]+$/.test(index)) {
-    return true
+  // Must start with a letter
+  if (!/^[a-zA-Z]/.test(index)) {
+    return false
   }
 
-  // Also allow uppercase prefix for negative/very high indices
-  if (/^[A-Z][a-zA-Z0-9]+$/.test(index)) {
+  const prefix = index[0]
+  const rest = index.slice(1)
+
+  // For lowercase prefixes, validate digit count matches the prefix
+  if (prefix >= 'a' && prefix <= 'z') {
+    // Calculate expected minimum digit count: a=1, b=2, c=3, etc.
+    const expectedDigits = prefix.charCodeAt(0) - 'a'.charCodeAt(0) + 1
+
+    // Extract the integer part (leading digits)
+    const integerMatch = rest.match(/^(\d+)/)
+    if (!integerMatch) {
+      // No digits at all - invalid
+      return false
+    }
+
+    const integerPart = integerMatch[1]
+
+    // Check if integer part has correct number of digits for the prefix
+    if (integerPart.length < expectedDigits) {
+      // Invalid: "b1" has b (expects 2 digits) but only has 1 digit
+      return false
+    }
+  }
+
+  // Check overall format: letter followed by alphanumeric
+  if (/^[a-zA-Z][a-zA-Z0-9]+$/.test(index)) {
     return true
   }
 
