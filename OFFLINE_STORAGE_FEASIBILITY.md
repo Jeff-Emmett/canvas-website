@@ -215,3 +215,22 @@ This is a **medium-complexity** feature that's very feasible. Automerge's archit
 
 The biggest benefit is that Automerge's CRDT nature means you don't need to write complex merge logic - it handles conflict resolution automatically.
 
+---
+
+## Related: Google Data Sovereignty
+
+Beyond canvas document storage, we also support importing and securely storing Google Workspace data locally. See **[docs/GOOGLE_DATA_SOVEREIGNTY.md](./docs/GOOGLE_DATA_SOVEREIGNTY.md)** for the complete architecture covering:
+
+- **Gmail** - Import and encrypt emails locally
+- **Drive** - Import and encrypt documents locally
+- **Photos** - Import thumbnails with on-demand full resolution
+- **Calendar** - Import and encrypt events locally
+
+Key principles:
+1. **Local-first**: All data stored in encrypted IndexedDB
+2. **User-controlled encryption**: Keys derived from WebCrypto auth, never leave browser
+3. **Selective sharing**: Choose what to share to canvas boards
+4. **Optional R2 backup**: Encrypted cloud backup (you hold the keys)
+
+This builds on the same IndexedDB + Automerge foundation described above.
+
