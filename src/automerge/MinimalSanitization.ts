@@ -23,13 +23,15 @@ function minimalSanitizeRecord(record: any): any {
     // NOTE: Index assignment is handled by assignSequentialIndices() during format conversion
     // Here we only ensure index exists with a valid format, not strictly validate
     // This preserves layer order that was established during conversion
-    // Valid formats: a1, a2, a10, a1V, a1Lz, etc. (fractional indexing)
+    // tldraw uses fractional indexing: a0, a1, b10, c100, a1V4rr, etc.
+    // - First letter (a-z) indicates integer part length (a=1 digit, b=2 digits, etc.)
+    // - Uppercase (A-Z) for negative/special indices
     if (!sanitized.index || typeof sanitized.index !== 'string' || sanitized.index.length === 0) {
       // Only assign default if truly missing
       sanitized.index = 'a1'
-    } else if (!/^a\d/.test(sanitized.index) && !/^Z[a-z]/i.test(sanitized.index)) {
-      // Accept any index starting with 'a' + digit, or 'Z' prefix
-      // Only reset clearly invalid formats
+    } else if (!/^[a-zA-Z][a-zA-Z0-9]+$/.test(sanitized.index)) {
+      // Accept any letter followed by alphanumeric characters
+      // Only reset clearly invalid formats (e.g., numbers, empty, single char)
       console.warn(`⚠️ MinimalSanitization: Invalid index format "${sanitized.index}" for shape ${sanitized.id}`)
       sanitized.index = 'a1'
     }

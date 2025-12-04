@@ -747,11 +747,12 @@ export class AutomergeDurableObject {
     shapesNeedingIndex.sort((a, b) => a.originalIndex - b.originalIndex)
 
     // Check if shapes already have valid indices we should preserve
-    // Valid index: starts with 'a' followed by digits, optionally followed by alphanumeric jitter
+    // Valid tldraw fractional index: starts with a lowercase letter followed by alphanumeric characters
+    // Examples: a1, a2, b1, c10, a1V, a1Lz, etc. (the letter increments as indices grow)
     const isValidIndex = (idx: any): boolean => {
       if (!idx || typeof idx !== 'string' || idx.length === 0) return false
-      // Valid fractional index format: a1, a2, a1V, a10, a1Lz, etc.
-      if (/^a\d/.test(idx)) return true
+      // Valid fractional index format: lowercase letter followed by alphanumeric (a1, b1, c10, a1V, etc.)
+      if (/^[a-z][a-zA-Z0-9]+$/.test(idx)) return true
       // Also allow 'Z' prefix for very high indices
       if (/^Z[a-z]/i.test(idx)) return true
       return false

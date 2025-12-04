@@ -68,20 +68,18 @@ import "@/css/style.css"
 import "@/css/obsidian-browser.css"
 
 // Helper to validate and fix tldraw IndexKey format
-// Valid: "a0", "a1", "a24sT", "a1V4rr" - Invalid: "b1", "c1" (old format)
+// tldraw uses fractional indexing: a0, a1, b10, c100, a1V4rr, etc.
+// - First letter (a-z) indicates integer part length (a=1 digit, b=2 digits, etc.)
+// - Uppercase (A-Z) for negative/special indices
 function sanitizeIndex(index: any): IndexKey {
   if (!index || typeof index !== 'string' || index.length === 0) {
     return 'a1' as IndexKey
   }
-  // Old format "b1", "c1" etc are invalid (single letter + single digit)
-  if (/^[b-z]\d$/i.test(index)) {
-    return 'a1' as IndexKey
-  }
-  // Valid: starts with 'a' followed by at least one digit
-  if (/^a\d/.test(index)) {
+  // Valid: letter followed by alphanumeric characters
+  if (/^[a-zA-Z][a-zA-Z0-9]+$/.test(index)) {
     return index as IndexKey
   }
-  // Fallback
+  // Fallback for invalid formats
   return 'a1' as IndexKey
 }
 
