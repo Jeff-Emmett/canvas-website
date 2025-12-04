@@ -29,6 +29,10 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
   const [suggestedUsername, setSuggestedUsername] = useState<string>('');
   const [emailLinkSent, setEmailLinkSent] = useState(false);
   const [pendingCryptId, setPendingCryptId] = useState<string | null>(null);
+  const [needsUsername, setNeedsUsername] = useState(false);
+  const [newAccountUsername, setNewAccountUsername] = useState('');
+  const [isNewAccountFlow, setIsNewAccountFlow] = useState(false);
+  const [needsEmailVerificationFlow, setNeedsEmailVerificationFlow] = useState(false);
   const [browserSupport, setBrowserSupport] = useState<{
     supported: boolean;
     secure: boolean;
@@ -130,15 +134,24 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
 
   /**
    * Handle email link request (Device B - new device)
+   * Combined flow: This will verify email AND link device in one step
    */
   const handleEmailLinkRequest = async () => {
     if (!email) return;
+
+    // If we need a username but don't have one, show the username form
+    if (needsUsername && !newAccountUsername.trim()) {
+      setError('Please enter a CryptID username to create your account');
+      return;
+    }
 
     setError(null);
     setIsLoading(true);
 
     try {
-      const result = await requestDeviceLink(email);
+      const result = await requestDeviceLink(email, {
+        cryptidUsername: needsUsername ? newAccountUsername.trim() : undefined
+      });
 
       if (result.success) {
         if (result.alreadyLinked) {
@@ -155,12 +168,29 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
           // Email sent - show waiting message
           setEmailLinkSent(true);
           setPendingCryptId(result.cryptidUsername || null);
-          addNotification('Verification email sent! Check your inbox.', 'success');
+          setNeedsUsername(false);
+          setIsNewAccountFlow(result.isNewAccount || false);
+          setNeedsEmailVerificationFlow(result.needsEmailVerification || false);
+
+          // Contextual message based on flow type
+          if (result.isNewAccount) {
+            addNotification('Setup email sent! Check your inbox to complete registration.', 'success');
+          } else if (result.needsEmailVerification) {
+            addNotification('Verification email sent! This will verify your email and link this device.', 'success');
+          } else {
+            addNotification('Device link email sent! Check your inbox.', 'success');
+          }
         } else {
           setError('Failed to send verification email');
         }
       } else {
-        setError(result.error || 'Failed to request device link');
+        // Handle needsUsername response from server
+        if (result.needsUsername) {
+          setNeedsUsername(true);
+          setError('No account found for this email. Please choose a CryptID username to create your account.');
+        } else {
+          setError(result.error || 'Failed to request device link');
+        }
       }
     } catch (err) {
       console.error('Email link request error:', err);
@@ -252,21 +282,41 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
 
   // Email link sent - waiting for user to click verification
   if (authMode === 'email-link' && emailLinkSent) {
+    // Determine contextual messaging
+    const getHeadline = () => {
+      if (isNewAccountFlow) return 'Complete Your Setup';
+      if (needsEmailVerificationFlow) return 'Verify & Connect';
+      return 'Check Your Email';
+    };
+
+    const getDescription = () => {
+      if (isNewAccountFlow) {
+        return 'Click the link in the email to verify your email and set up your CryptID account on this device.';
+      }
+      if (needsEmailVerificationFlow) {
+        return 'Click the link to verify your email and connect this device to your account in one step.';
+      }
+      return 'Click the link in the email to complete sign in on this device.';
+    };
+
     return (
       <div className="crypto-login-container">
-        <h2>Check Your Email</h2>
+        <h2>{getHeadline()}</h2>
         <div className="email-link-pending">
           <div className="email-icon">📧</div>
           <p>We sent a verification link to:</p>
           <p className="email-address"><strong>{email}</strong></p>
           {pendingCryptId && (
             <p className="cryptid-info">
-              This will link this device to CryptID: <strong>{pendingCryptId}</strong>
+              {isNewAccountFlow
+                ? <>Your CryptID will be: <strong>{pendingCryptId}</strong></>
+                : <>This will link this device to CryptID: <strong>{pendingCryptId}</strong></>
+              }
             </p>
           )}
           <p className="email-instructions">
-            Click the link in the email to complete sign in on this device.
-            The link expires in 1 hour.
+            {getDescription()}
+            {' '}The link expires in 1 hour.
           </p>
           <button
             onClick={() => {
@@ -274,6 +324,8 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
               setAuthMode('login');
               setEmail('');
               setPendingCryptId(null);
+              setIsNewAccountFlow(false);
+              setNeedsEmailVerificationFlow(false);
             }}
             className="toggle-button"
           >
@@ -293,11 +345,12 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
   if (authMode === 'email-link') {
     return (
       <div className="crypto-login-container">
-        <h2>Sign In with Email</h2>
+        <h2>{needsUsername ? 'Create CryptID Account' : 'Sign In with Email'}</h2>
         <div className="crypto-info">
           <p>
-            Enter the email address linked to your CryptID account.
-            We'll send a verification link to complete sign in on this device.
+            {needsUsername
+              ? 'No account found for this email. Choose a CryptID username to create your account.'
+              : 'Enter your email address to sign in or create an account. One click will verify your email and link this device.'}
           </p>
         </div>
 
@@ -308,22 +361,48 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
               type="email"
               id="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                // Reset needsUsername when email changes
+                if (needsUsername) {
+                  setNeedsUsername(false);
+                  setNewAccountUsername('');
+                }
+              }}
               placeholder="Enter your email..."
               required
-              disabled={isLoading}
+              disabled={isLoading || needsUsername}
               autoComplete="email"
             />
           </div>
+
+          {needsUsername && (
+            <div className="form-group">
+              <label htmlFor="newAccountUsername">CryptID Username</label>
+              <input
+                type="text"
+                id="newAccountUsername"
+                value={newAccountUsername}
+                onChange={(e) => setNewAccountUsername(e.target.value)}
+                placeholder="Choose a username..."
+                required
+                disabled={isLoading}
+                autoComplete="username"
+                minLength={3}
+                maxLength={20}
+              />
+              <p className="field-hint">This will be your unique CryptID identity</p>
+            </div>
+          )}
 
           {error && <div className="error-message">{error}</div>}
 
           <button
             type="submit"
-            disabled={isLoading || !email.trim()}
+            disabled={isLoading || !email.trim() || (needsUsername && !newAccountUsername.trim())}
             className="crypto-auth-button"
           >
-            {isLoading ? 'Sending...' : 'Send Verification Link'}
+            {isLoading ? 'Sending...' : needsUsername ? 'Create Account & Send Link' : 'Send Verification Link'}
           </button>
         </form>
 
@@ -333,6 +412,8 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
               setAuthMode('login');
               setError(null);
               setEmail('');
+              setNeedsUsername(false);
+              setNewAccountUsername('');
             }}
             disabled={isLoading}
             className="toggle-button"

@@ -264,7 +264,10 @@ export async function handleVerifyEmail(
 /**
  * Request to link a new device (Device B enters email)
  * POST /auth/request-device-link
- * Body: { email, publicKey, deviceName }
+ * Body: { email, publicKey, deviceName, cryptidUsername? }
+ *
+ * Combined flow: If email not verified yet, this will verify email AND link device
+ * in one step when user clicks the link. Saves user time vs separate flows.
  */
 export async function handleRequestDeviceLink(
   request: Request,
@@ -275,12 +278,22 @@ export async function handleRequestDeviceLink(
       email: string;
       publicKey: string;
       deviceName?: string;
+      cryptidUsername?: string; // Optional: for new accounts being set up
     };
 
-    const { email, publicKey, deviceName } = body;
+    const { email, publicKey, deviceName, cryptidUsername: providedUsername } = body;
 
     if (!email || !publicKey) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return new Response(JSON.stringify({ error: 'Invalid email format' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -294,34 +307,56 @@ export async function handleRequestDeviceLink(
       });
     }
 
-    // Check if email exists and is verified
-    const user = await db.prepare(
-      'SELECT * FROM users WHERE email = ? AND email_verified = 1'
+    // Check if this public key is already registered
+    const existingKey = await db.prepare(
+      'SELECT dk.*, u.cryptid_username FROM device_keys dk JOIN users u ON dk.user_id = u.id WHERE dk.public_key = ?'
+    ).bind(publicKey).first<DeviceKey & { cryptid_username: string }>();
+
+    if (existingKey) {
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Device already linked',
+        cryptidUsername: existingKey.cryptid_username,
+        alreadyLinked: true
+      }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Check if email exists in system (verified or not)
+    let user = await db.prepare(
+      'SELECT * FROM users WHERE email = ?'
     ).bind(email).first<User>();
 
-    if (!user) {
+    const isNewAccount = !user;
+    const needsEmailVerification = !user || !user.email_verified;
+
+    // If no user exists and no username provided, we need a username
+    if (!user && !providedUsername) {
       return new Response(JSON.stringify({
-        error: 'No verified CryptID account found for this email'
+        error: 'No account found for this email. Please provide a CryptID username to create an account.',
+        needsUsername: true
       }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    // Check if this public key is already registered
-    const existingKey = await db.prepare(
-      'SELECT * FROM device_keys WHERE public_key = ?'
-    ).bind(publicKey).first<DeviceKey>();
+    // Create user if doesn't exist
+    if (!user && providedUsername) {
+      const userId = generateUUID();
+      await db.prepare(
+        'INSERT INTO users (id, email, cryptid_username, email_verified) VALUES (?, ?, ?, 0)'
+      ).bind(userId, email, providedUsername).run();
 
-    if (existingKey) {
-      return new Response(JSON.stringify({
-        success: true,
-        message: 'Device already linked',
-        cryptidUsername: user.cryptid_username,
-        alreadyLinked: true
-      }), {
-        headers: { 'Content-Type': 'application/json' },
-      });
+      user = {
+        id: userId,
+        email,
+        cryptid_username: providedUsername,
+        email_verified: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
     }
 
     const userAgent = request.headers.get('User-Agent') || null;
@@ -329,37 +364,65 @@ export async function handleRequestDeviceLink(
     // Clean up old tokens
     await cleanupExpiredTokens(db);
 
-    // Create device link token (1 hour expiry for security)
+    // Create combined device link + email verification token
+    // Uses 'device_link' type but will also verify email when clicked
     const token = generateToken();
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
 
     await db.prepare(
       'INSERT INTO verification_tokens (id, email, token, token_type, public_key, device_name, user_agent, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
     ).bind(generateUUID(), email, token, 'device_link', publicKey, deviceName || 'New Device', userAgent, expiresAt).run();
 
-    // Send device link email
+    // Send combined verification email
     const linkUrl = `${env.APP_URL || 'https://jeffemmett.com'}/link-device?token=${token}`;
-    const emailSent = await sendEmail(
-      env,
-      email,
-      'Link new device to your CryptID',
+
+    // Different email content based on whether this is new account or existing
+    const emailSubject = isNewAccount
+      ? 'Complete your CryptID setup'
+      : needsEmailVerification
+        ? 'Verify email and link device to your CryptID'
+        : 'Link new device to your CryptID';
+
+    const emailContent = isNewAccount
+      ? `
+      <h2>Complete Your CryptID Setup</h2>
+      <p>Click the link below to verify your email and set up your CryptID: <strong>${user!.cryptid_username}</strong></p>
+      <p><strong>Device:</strong> ${deviceName || 'New Device'}</p>
+      <p><a href="${linkUrl}" style="display: inline-block; padding: 12px 24px; background: #4f46e5; color: white; text-decoration: none; border-radius: 6px;">Complete Setup</a></p>
+      <p>Or copy this link: ${linkUrl}</p>
+      <p>This link expires in 1 hour.</p>
+      <p style="color: #666; font-size: 12px;">If you didn't request this, you can safely ignore this email.</p>
       `
+      : needsEmailVerification
+      ? `
+      <h2>Verify Email & Link Device</h2>
+      <p>Click the link below to verify your email and link this device to your CryptID: <strong>${user!.cryptid_username}</strong></p>
+      <p><strong>Device:</strong> ${deviceName || 'New Device'}</p>
+      <p><a href="${linkUrl}" style="display: inline-block; padding: 12px 24px; background: #4f46e5; color: white; text-decoration: none; border-radius: 6px;">Verify & Link Device</a></p>
+      <p>Or copy this link: ${linkUrl}</p>
+      <p>This link expires in 1 hour.</p>
+      <p style="color: #c00; font-size: 12px;"><strong>If you didn't request this, do not click the link.</strong></p>
+      `
+      : `
       <h2>New Device Link Request</h2>
-      <p>Someone is trying to link a new device to your CryptID: <strong>${user.cryptid_username}</strong></p>
+      <p>Someone is trying to link a new device to your CryptID: <strong>${user!.cryptid_username}</strong></p>
       <p><strong>Device:</strong> ${deviceName || 'New Device'}</p>
       <p>If this was you, click the button below to approve:</p>
       <p><a href="${linkUrl}" style="display: inline-block; padding: 12px 24px; background: #4f46e5; color: white; text-decoration: none; border-radius: 6px;">Approve Device</a></p>
       <p>Or copy this link: ${linkUrl}</p>
       <p>This link expires in 1 hour.</p>
       <p style="color: #c00; font-size: 12px;"><strong>If you didn't request this, do not click the link.</strong> Someone may be trying to access your account.</p>
-      `
-    );
+      `;
+
+    const emailSent = await sendEmail(env, email, emailSubject, emailContent);
 
     return new Response(JSON.stringify({
       success: true,
       message: emailSent ? 'Verification email sent to your address' : 'Failed to send email',
       emailSent,
-      cryptidUsername: user.cryptid_username
+      cryptidUsername: user!.cryptid_username,
+      isNewAccount,
+      needsEmailVerification
     }), {
       headers: { 'Content-Type': 'application/json' },
     });
@@ -376,6 +439,10 @@ export async function handleRequestDeviceLink(
 /**
  * Complete device link (clicked from email on Device B)
  * GET /auth/link-device/:token
+ *
+ * Combined flow: This also verifies email if not already verified.
+ * User clicks link from Device B, which links the device AND verifies the email
+ * in one action - saving the user from needing to do two separate verifications.
  */
 export async function handleLinkDevice(
   token: string,
@@ -414,6 +481,9 @@ export async function handleLinkDevice(
       });
     }
 
+    // Track if we're also verifying email
+    const wasEmailUnverified = user.email_verified === 0;
+
     // Add the new device key
     await db.prepare(
       'INSERT INTO device_keys (id, user_id, public_key, device_name, user_agent) VALUES (?, ?, ?, ?, ?)'
@@ -425,6 +495,14 @@ export async function handleLinkDevice(
       tokenRecord.user_agent
     ).run();
 
+    // COMBINED FLOW: Also verify email if not already verified
+    // This saves the user from needing to click a separate email verification link
+    if (wasEmailUnverified) {
+      await db.prepare(
+        "UPDATE users SET email_verified = 1, updated_at = datetime('now') WHERE id = ?"
+      ).bind(user.id).run();
+    }
+
     // Mark token as used
     await db.prepare(
       'UPDATE verification_tokens SET used = 1 WHERE id = ?'
@@ -432,9 +510,13 @@ export async function handleLinkDevice(
 
     return new Response(JSON.stringify({
       success: true,
-      message: 'Device linked successfully',
+      message: wasEmailUnverified
+        ? 'Device linked and email verified successfully'
+        : 'Device linked successfully',
       cryptidUsername: user.cryptid_username,
-      email: user.email
+      email: user.email,
+      emailVerified: true, // Now definitely verified
+      emailWasJustVerified: wasEmailUnverified
     }), {
       headers: { 'Content-Type': 'application/json' },
     });

@@ -30,6 +30,13 @@ export interface DeviceLinkResult {
   alreadyLinked?: boolean;
   emailSent?: boolean;
   error?: string;
+  // Combined flow fields
+  isNewAccount?: boolean;
+  needsEmailVerification?: boolean;
+  needsUsername?: boolean;
+  // Completion fields
+  emailVerified?: boolean;
+  emailWasJustVerified?: boolean;
 }
 
 export interface LookupResult {
@@ -130,16 +137,21 @@ export async function checkEmailStatus(cryptidUsername: string): Promise<LookupR
  * Request to link a new device using email
  * Called from Device B (new device)
  *
- * Flow:
+ * Combined Flow:
  * 1. Generate new keypair on Device B
- * 2. Send email + publicKey to server
+ * 2. Send email + publicKey (+ optional username for new accounts) to server
  * 3. Server sends verification email
  * 4. User clicks link in email (on Device B)
- * 5. Device B's key is linked to the account
+ * 5. Device B's key is linked AND email is verified in one step
+ *
+ * If email is not found and no username provided, server returns needsUsername: true
  */
 export async function requestDeviceLink(
   email: string,
-  deviceName?: string
+  options?: {
+    deviceName?: string;
+    cryptidUsername?: string; // Required for new accounts
+  }
 ): Promise<DeviceLinkResult & { publicKey?: string }> {
   try {
     // Generate a new keypair for this device
@@ -168,7 +180,8 @@ export async function requestDeviceLink(
       body: JSON.stringify({
         email,
         publicKey,
-        deviceName: deviceName || getDeviceName()
+        deviceName: options?.deviceName || getDeviceName(),
+        cryptidUsername: options?.cryptidUsername
       }),
     });
 
@@ -177,7 +190,8 @@ export async function requestDeviceLink(
     if (!response.ok) {
       return {
         success: false,
-        error: data.error || 'Failed to request device link'
+        error: data.error || 'Failed to request device link',
+        needsUsername: data.needsUsername
       };
     }
 
@@ -189,6 +203,8 @@ export async function requestDeviceLink(
         email,
         publicKey,
         cryptidUsername: data.cryptidUsername,
+        isNewAccount: data.isNewAccount,
+        needsEmailVerification: data.needsEmailVerification,
         timestamp: Date.now()
       }));
     }
@@ -408,7 +424,12 @@ export function hasPendingDeviceLink(): boolean {
 /**
  * Get pending device link info
  */
-export function getPendingDeviceLink(): { email: string; cryptidUsername: string } | null {
+export function getPendingDeviceLink(): {
+  email: string;
+  cryptidUsername: string;
+  isNewAccount?: boolean;
+  needsEmailVerification?: boolean;
+} | null {
   const pending = sessionStorage.getItem('pendingDeviceLink');
   if (!pending) return null;
 
@@ -417,7 +438,9 @@ export function getPendingDeviceLink(): { email: string; cryptidUsername: string
     if (Date.now() - data.timestamp < 60 * 60 * 1000) {
       return {
         email: data.email,
-        cryptidUsername: data.cryptidUsername
+        cryptidUsername: data.cryptidUsername,
+        isNewAccount: data.isNewAccount,
+        needsEmailVerification: data.needsEmailVerification
       };
     }
     return null;
