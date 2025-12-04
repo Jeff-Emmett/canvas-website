@@ -48,7 +48,7 @@ export class MarkdownShape extends BaseBoxShapeUtil<IMarkdownShape> {
 
   getDefaultProps(): IMarkdownShape['props'] {
     return {
-      w: 500,
+      w: 650,
       h: 400,
       text: '',
       pinnedToView: false,
@@ -236,47 +236,54 @@ export class MarkdownShape extends BaseBoxShapeUtil<IMarkdownShape> {
                 // Toolbar
                 toolbarPlugin({
                   toolbarContents: () => (
-                    <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: '4px' }}>
-                      <button
-                        onClick={() => setIsToolbarMinimized(!isToolbarMinimized)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          cursor: 'pointer',
-                          padding: '4px 6px',
-                          fontSize: '12px',
-                          borderRadius: '4px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                        title={isToolbarMinimized ? 'Expand toolbar' : 'Collapse toolbar'}
-                      >
-                        {isToolbarMinimized ? '▶' : '▼'}
-                      </button>
-                      {!isToolbarMinimized && (
-                        <>
-                          <UndoRedo />
-                          <Separator />
-                          <BoldItalicUnderlineToggles />
-                          <Separator />
-                          <BlockTypeSelect />
-                          <Separator />
-                          <ListsToggle />
-                          <Separator />
-                          <CreateLink />
-                          <InsertTable />
-                          <Separator />
-                          <DiffSourceToggleWrapper>
-                            <></>
-                          </DiffSourceToggleWrapper>
-                        </>
-                      )}
-                    </div>
+                    isToolbarMinimized ? (
+                      // When minimized, show nothing - the toggle button is rendered outside
+                      <></>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: '4px' }}>
+                        <UndoRedo />
+                        <Separator />
+                        <BoldItalicUnderlineToggles />
+                        <Separator />
+                        <BlockTypeSelect />
+                        <Separator />
+                        <ListsToggle />
+                        <Separator />
+                        <CreateLink />
+                        <InsertTable />
+                        <Separator />
+                        <DiffSourceToggleWrapper>
+                          <></>
+                        </DiffSourceToggleWrapper>
+                      </div>
+                    )
                   )
                 }),
               ]}
             />
+            {/* Toolbar toggle button - fixed position, doesn't move */}
+            <button
+              onClick={() => setIsToolbarMinimized(!isToolbarMinimized)}
+              style={{
+                position: 'absolute',
+                top: '6px',
+                right: '8px',
+                background: isDarkMode ? 'rgba(42, 42, 42, 0.9)' : 'rgba(249, 250, 251, 0.9)',
+                border: `1px solid ${isDarkMode ? '#404040' : '#e5e7eb'}`,
+                cursor: 'pointer',
+                padding: '4px 6px',
+                fontSize: '10px',
+                borderRadius: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: isDarkMode ? '#e4e4e4' : '#374151',
+                zIndex: 10,
+              }}
+              title={isToolbarMinimized ? "Show toolbar" : "Hide toolbar"}
+            >
+              {isToolbarMinimized ? '▼' : '▲'}
+            </button>
           </div>
 
           {/* Custom styles for the MDXEditor */}
@@ -292,12 +299,12 @@ export class MarkdownShape extends BaseBoxShapeUtil<IMarkdownShape> {
               flex-shrink: 0;
               border-bottom: 1px solid #e5e7eb;
               background: #f9fafb;
-              padding: 4px 8px;
-              gap: 2px;
+              padding: 4px 6px;
+              padding-right: 36px; /* Space for toggle button */
+              gap: 1px;
               flex-wrap: nowrap;
-              overflow-x: auto;
-              overflow-y: hidden;
-              min-height: ${isToolbarMinimized ? '32px' : 'auto'};
+              overflow: hidden;
+              display: ${isToolbarMinimized ? 'none' : 'flex'};
             }
 
             .mdxeditor [role="toolbar"] button {
