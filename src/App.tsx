@@ -35,6 +35,9 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import CryptoLogin from './components/auth/CryptoLogin';
 import CryptoDebug from './components/auth/CryptoDebug';
 
+// Import Google Data test component
+import { GoogleDataTest } from './components/GoogleDataTest';
+
 inject();
 
 // Initialize Daily.co call object with error handling
@@ -168,6 +171,9 @@ const AppWithProviders = () => {
                       <LocationDashboardRoute />
                     </OptionalAuthRoute>
                   } />
+                  {/* Google Data routes */}
+                  <Route path="/google" element={<GoogleDataTest />} />
+                  <Route path="/oauth/google/callback" element={<GoogleDataTest />} />
                 </Routes>
               </BrowserRouter>
             </DailyProvider>
