@@ -6,7 +6,7 @@ import { getRunPodConfig, getRunPodTextConfig, getOllamaConfig } from "@/lib/cli
 export async function llm(
 	userPrompt: string,
 	onToken: (partialResponse: string, done?: boolean) => void,
-	customPersonality?: string,
+	customSystemPromptOrPersonality?: string,
 ) {
 	// Validate the callback function
 	if (typeof onToken !== 'function') {
@@ -46,9 +46,19 @@ export async function llm(
 		};
 	}
 	
-	// Override personality if custom personality is provided
-	if (customPersonality) {
-		settings.personality = customPersonality;
+	// Check if custom system prompt or personality is provided
+	// If it looks like a full system prompt (long text), store it for direct use
+	// If it looks like a personality ID (short), look it up from AI_PERSONALITIES
+	let customSystemPrompt: string | null = null;
+	if (customSystemPromptOrPersonality) {
+		// If it's longer than 100 chars, treat it as a full system prompt
+		// Personality IDs are short like "web-developer", "creative-writer", etc.
+		if (customSystemPromptOrPersonality.length > 100) {
+			customSystemPrompt = customSystemPromptOrPersonality;
+		} else {
+			// It's a personality ID - look it up
+			settings.personality = customSystemPromptOrPersonality;
+		}
 	}
 	
 	const availableKeys = settings.keys || {}
@@ -89,7 +99,7 @@ export async function llm(
 			attemptedProviders.push(`${provider} (${model})`);
 			
 			// Add retry logic for temporary failures
-			await callProviderAPIWithRetry(provider, apiKey, model, userPrompt, onToken, settings, endpointId);
+			await callProviderAPIWithRetry(provider, apiKey, model, userPrompt, onToken, settings, endpointId, customSystemPrompt);
 			console.log(`✅ Successfully used ${provider} API (${model})`);
 			return; // Success, exit the function
 		} catch (error) {
@@ -109,7 +119,7 @@ export async function llm(
 						attemptedProviders.push(`${provider} (${fallbackModel})`);
 						const providerInfo = availableProviders.find(p => p.provider === provider);
 						const endpointId = (providerInfo as any)?.endpointId;
-						await callProviderAPIWithRetry(provider, apiKey, fallbackModel, userPrompt, onToken, settings, endpointId);
+						await callProviderAPIWithRetry(provider, apiKey, fallbackModel, userPrompt, onToken, settings, endpointId, customSystemPrompt);
 						console.log(`✅ Successfully used ${provider} API with fallback model ${fallbackModel}`);
 						fallbackSucceeded = true;
 						return; // Success, exit the function
@@ -424,20 +434,21 @@ function isValidApiKey(provider: string, apiKey: string): boolean {
 
 // Helper function to call API with retry logic
 async function callProviderAPIWithRetry(
-	provider: string, 
-	apiKey: string, 
-	model: string, 
-	userPrompt: string, 
+	provider: string,
+	apiKey: string,
+	model: string,
+	userPrompt: string,
 	onToken: (partialResponse: string, done?: boolean) => void,
 	settings?: any,
 	endpointId?: string,
+	customSystemPrompt?: string | null,
 	maxRetries: number = 2
 ) {
 	let lastError: Error | null = null;
 	
 	for (let attempt = 1; attempt <= maxRetries; attempt++) {
 		try {
-			await callProviderAPI(provider, apiKey, model, userPrompt, onToken, settings, endpointId);
+			await callProviderAPI(provider, apiKey, model, userPrompt, onToken, settings, endpointId, customSystemPrompt);
 			return; // Success
 		} catch (error) {
 			lastError = error as Error;
@@ -525,16 +536,25 @@ function getSystemPrompt(settings: any): string {
 
 // Helper function to call the appropriate provider API
 async function callProviderAPI(
-	provider: string, 
-	apiKey: string, 
-	model: string, 
-	userPrompt: string, 
+	provider: string,
+	apiKey: string,
+	model: string,
+	userPrompt: string,
 	onToken: (partialResponse: string, done?: boolean) => void,
 	settings?: any,
-	endpointId?: string
+	endpointId?: string,
+	customSystemPrompt?: string | null
 ) {
 	let partial = "";
-	const systemPrompt = settings ? getSystemPrompt(settings) : 'You are a helpful assistant.';
+	// Use custom system prompt if provided, otherwise fall back to personality-based prompt
+	const systemPrompt = customSystemPrompt || (settings ? getSystemPrompt(settings) : 'You are a helpful assistant.');
+
+	// Debug: log which system prompt is being used
+	if (customSystemPrompt) {
+		console.log(`🧠 Using custom system prompt (${customSystemPrompt.length} chars)`);
+	} else {
+		console.log(`🧠 Using personality-based system prompt: ${settings?.personality || 'default'}`);
+	}
 
 	if (provider === 'ollama') {
 		// Ollama API integration via AI Orchestrator
