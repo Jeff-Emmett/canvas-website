@@ -1,10 +1,10 @@
 ---
 id: task-017
 title: Deploy CryptID email recovery to dev branch and test
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2025-12-04 12:00'
-updated_date: '2025-12-04 12:02'
+updated_date: '2025-12-04 13:24'
 labels:
   - feature
   - cryptid
