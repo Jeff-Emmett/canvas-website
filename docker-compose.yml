@@ -1,0 +1,32 @@
+# Canvas Website Docker Compose
+# Staging deployment at staging.jeffemmett.com
+# Production deployment at jeffemmett.com (once tested)
+
+services:
+  canvas-website:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - VITE_TLDRAW_WORKER_URL=https://jeffemmett-canvas.jeffemmett.workers.dev
+        # Add other build args from .env if needed
+    container_name: canvas-website
+    restart: unless-stopped
+    labels:
+      # Staging deployment
+      - "traefik.enable=true"
+      - "traefik.http.routers.canvas-staging.rule=Host(`staging.jeffemmett.com`)"
+      - "traefik.http.routers.canvas-staging.entrypoints=web"
+      - "traefik.http.services.canvas-staging.loadbalancer.server.port=80"
+      - "traefik.docker.network=traefik-public"
+    networks:
+      - traefik-public
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  traefik-public:
+    external: true
