@@ -6,21 +6,20 @@ export interface Environment {
 	TLDRAW_BUCKET: R2Bucket
 	BOARD_BACKUPS_BUCKET: R2Bucket
 	AUTOMERGE_DURABLE_OBJECT: DurableObjectNamespace
+	CRYPTID_DB: D1Database
 	DAILY_API_KEY: string;
 	DAILY_DOMAIN: string;
-	// CryptID auth bindings
-	CRYPTID_DB?: D1Database;
-	SENDGRID_API_KEY?: string;
-	CRYPTID_EMAIL_FROM?: string;
-	APP_URL?: string;
+	SENDGRID_API_KEY: string;
+	CRYPTID_EMAIL_FROM: string;
+	APP_URL: string;
 }
 
-// CryptID types for auth
+// CryptID Database Types
 export interface User {
 	id: string;
 	cryptid_username: string;
 	email: string | null;
-	email_verified: boolean;
+	email_verified: number;
 	created_at: string;
 	updated_at: string;
 }
@@ -37,15 +36,13 @@ export interface DeviceKey {
 
 export interface VerificationToken {
 	id: string;
-	user_id: string;
+	email: string;
 	token: string;
-	type: 'email_verification' | 'device_link';
+	token_type: 'email_verify' | 'device_link';
+	public_key: string | null;
+	device_name: string | null;
+	user_agent: string | null;
 	expires_at: string;
+	used: number;
 	created_at: string;
-	metadata: string | null;
-	// Metadata fields that get parsed from JSON
-	email?: string;
-	public_key?: string;
-	device_name?: string;
-	user_agent?: string;
 }

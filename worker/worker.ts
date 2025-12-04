@@ -1,6 +1,15 @@
 import { AutoRouter, cors, error, IRequest } from "itty-router"
 import { handleAssetDownload, handleAssetUpload } from "./assetUploads"
 import { Environment } from "./types"
+import {
+  handleLinkEmail,
+  handleVerifyEmail,
+  handleRequestDeviceLink,
+  handleLinkDevice,
+  handleLookup,
+  handleGetDevices,
+  handleRevokeDevice
+} from "./cryptidAuth"
 
 // make sure our sync durable objects are made available to cloudflare
 export { AutomergeDurableObject } from "./AutomergeDurableObject"
@@ -799,6 +808,25 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
       })
     }
   })
+
+  // CryptID Authentication Routes
+  .post("/auth/link-email", (request, env) => handleLinkEmail(request, env))
+
+  .get("/auth/verify-email/:token", (request, env) =>
+    handleVerifyEmail(request.params.token, env))
+
+  .post("/auth/request-device-link", (request, env) =>
+    handleRequestDeviceLink(request, env))
+
+  .get("/auth/link-device/:token", (request, env) =>
+    handleLinkDevice(request.params.token, env))
+
+  .post("/auth/lookup", (request, env) => handleLookup(request, env))
+
+  .post("/auth/devices", (request, env) => handleGetDevices(request, env))
+
+  .delete("/auth/devices/:deviceId", (request, env) =>
+    handleRevokeDevice(request.params.deviceId, request, env))
 
 async function backupAllBoards(env: Environment) {
   try {

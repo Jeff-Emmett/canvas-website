@@ -17,6 +17,8 @@ import "@/css/crypto-auth.css"; // Import crypto auth styles
 import "@/css/starred-boards.css"; // Import starred boards styles
 import "@/css/user-profile.css"; // Import user profile styles
 import { Dashboard } from "./routes/Dashboard";
+import { VerifyEmail } from "./routes/VerifyEmail";
+import { LinkDevice } from "./routes/LinkDevice";
 import { useState, useEffect } from 'react';
 
 // Import React Context providers
@@ -121,6 +123,10 @@ const AppWithProviders = () => {
 
                   {/* Auth routes */}
                   <Route path="/login/" element={<AuthPage />} />
+
+                  {/* Email verification routes (no trailing slash for email links) */}
+                  <Route path="/verify-email" element={<VerifyEmail />} />
+                  <Route path="/link-device" element={<LinkDevice />} />
 
                   {/* Optional auth routes */}
                   <Route path="/" element={
