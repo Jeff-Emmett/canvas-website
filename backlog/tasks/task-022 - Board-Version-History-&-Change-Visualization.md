@@ -4,7 +4,7 @@ title: Board Version History & Change Visualization
 status: To Do
 assignee: []
 created_date: '2025-12-04 12:59'
-updated_date: '2025-12-04 13:00'
+updated_date: '2025-12-04 13:02'
 labels:
   - feature
   - collaboration
@@ -75,3 +75,13 @@ Implement board permissions, R2 backup version browsing/restoration, and visual 
 - [ ] #11 Changes show user attribution (who made the change)
 - [ ] #12 Changes can be marked as seen
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+**Permission Model Clarification:**
+- Anonymous users → VIEWER (read-only)
+- Signed-in users → EDITOR by default
+- Board owner can override with specific permissions
+- This prevents anonymous vandalism while enabling easy collaboration
+<!-- SECTION:NOTES:END -->
