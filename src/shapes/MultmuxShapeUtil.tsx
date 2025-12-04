@@ -249,9 +249,33 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
       term.loadAddon(fitAddon)
       term.open(terminalRef.current)
 
-      // Small delay to ensure container is sized
+      // Force xterm elements to fill container completely
+      const applyFullSizeStyles = () => {
+        if (!terminalRef.current) return
+
+        // Get all xterm elements and force them to fill container
+        const xterm = terminalRef.current.querySelector('.xterm') as HTMLElement
+        const xtermScreen = terminalRef.current.querySelector('.xterm-screen') as HTMLElement
+        const xtermViewport = terminalRef.current.querySelector('.xterm-viewport') as HTMLElement
+
+        if (xterm) {
+          xterm.style.width = '100%'
+          xterm.style.height = '100%'
+        }
+        if (xtermScreen) {
+          xtermScreen.style.width = '100%'
+          xtermScreen.style.height = '100%'
+        }
+        if (xtermViewport) {
+          xtermViewport.style.width = '100%'
+          xtermViewport.style.height = '100%'
+        }
+      }
+
+      // Small delay to ensure container is sized, then fit and apply styles
       setTimeout(() => {
         fitAddon.fit()
+        applyFullSizeStyles()
       }, 100)
 
       xtermRef.current = term
@@ -266,12 +290,61 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
 
     // Fit terminal when shape resizes
     useEffect(() => {
-      if (fitAddonRef.current && xtermRef.current) {
-        setTimeout(() => {
-          fitAddonRef.current?.fit()
-        }, 50)
+      if (fitAddonRef.current && xtermRef.current && terminalRef.current) {
+        // Use requestAnimationFrame to ensure DOM has updated
+        requestAnimationFrame(() => {
+          // Double-check the terminal container exists and has dimensions
+          if (terminalRef.current && terminalRef.current.clientWidth > 0 && terminalRef.current.clientHeight > 0) {
+            try {
+              fitAddonRef.current?.fit()
+            } catch (e) {
+              console.warn('Failed to fit terminal:', e)
+            }
+          }
+        })
       }
     }, [shape.props.w, shape.props.h, isMinimized])
+
+    // Also add a ResizeObserver for more reliable resize detection
+    useEffect(() => {
+      if (!terminalRef.current || !fitAddonRef.current) return
+
+      const resizeObserver = new ResizeObserver(() => {
+        if (fitAddonRef.current && xtermRef.current && terminalRef.current) {
+          requestAnimationFrame(() => {
+            try {
+              fitAddonRef.current?.fit()
+
+              // Reapply full-size styles after fit
+              const xterm = terminalRef.current?.querySelector('.xterm') as HTMLElement
+              const xtermScreen = terminalRef.current?.querySelector('.xterm-screen') as HTMLElement
+              const xtermViewport = terminalRef.current?.querySelector('.xterm-viewport') as HTMLElement
+
+              if (xterm) {
+                xterm.style.width = '100%'
+                xterm.style.height = '100%'
+              }
+              if (xtermScreen) {
+                xtermScreen.style.width = '100%'
+                xtermScreen.style.height = '100%'
+              }
+              if (xtermViewport) {
+                xtermViewport.style.width = '100%'
+                xtermViewport.style.height = '100%'
+              }
+            } catch (e) {
+              // Ignore fit errors during rapid resizing
+            }
+          })
+        }
+      })
+
+      resizeObserver.observe(terminalRef.current)
+
+      return () => {
+        resizeObserver.disconnect()
+      }
+    }, [shape.props.token]) // Re-create observer when terminal is initialized
 
     // WebSocket connection
     useEffect(() => {
@@ -649,19 +722,14 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
           shapeId={shape.id}
           isPinnedToView={shape.props.pinnedToView}
           onPinToggle={handlePinToggle}
-          tags={shape.props.tags}
-          onTagsChange={(newTags) => {
-            this.editor.updateShape<IMultmuxShape>({
-              id: shape.id,
-              type: 'Multmux',
-              props: { ...shape.props, tags: newTags }
-            })
-          }}
-          tagsEditable={true}
+          tags={[]} // Hide tags for terminal to maximize terminal area
+          tagsEditable={false}
         >
           <div style={{
+            flex: '1 1 0',
+            minHeight: 0,
+            minWidth: 0,
             width: '100%',
-            height: '100%',
             backgroundColor: '#1e1e2e',
             color: '#cdd6f4',
             fontFamily: 'monospace',
@@ -669,6 +737,8 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
             pointerEvents: 'all',
             display: 'flex',
             flexDirection: 'column',
+            overflow: 'hidden',
+            boxSizing: 'border-box',
           }}>
             {/* Status bar */}
             <div style={{
@@ -678,6 +748,7 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
+              flexShrink: 0, // Don't shrink the status bar
             }}>
               <span>
                 {connected ? '🟢 Connected' : '🔴 Disconnected'}
@@ -691,9 +762,13 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
             <div
               ref={terminalRef}
               style={{
-                flex: 1,
-                padding: '4px',
+                flex: '1 1 0',
+                minHeight: 0,
+                minWidth: 0,
                 overflow: 'hidden',
+                position: 'relative',
+                boxSizing: 'border-box',
+                backgroundColor: '#1e1e2e', // Match terminal background to hide gaps
               }}
               onPointerDown={(e) => {
                 // Allow pointer events for text selection but stop propagation to prevent tldraw interactions
