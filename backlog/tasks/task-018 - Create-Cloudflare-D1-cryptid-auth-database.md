@@ -4,6 +4,7 @@ title: Create Cloudflare D1 cryptid-auth database
 status: To Do
 assignee: []
 created_date: '2025-12-04 12:02'
+updated_date: '2025-12-04 12:02'
 labels:
   - infrastructure
   - cloudflare
@@ -40,3 +41,63 @@ Create the D1 database on Cloudflare for CryptID authentication system. This is 
 - [ ] #4 Schema from worker/schema.sql deployed to both databases
 - [ ] #5 Verified tables exist: users, device_keys, verification_tokens
 <!-- AC:END -->
+
+## Implementation Plan
+
+<!-- SECTION:PLAN:BEGIN -->
+## Implementation Steps
+
+### 1. Create D1 Databases
+Run from local machine or Netcup (requires wrangler CLI):
+
+```bash
+cd /home/jeffe/Github/canvas-website
+
+# Create production database
+wrangler d1 create cryptid-auth
+
+# Create dev database
+wrangler d1 create cryptid-auth-dev
+```
+
+### 2. Update wrangler.toml
+Replace placeholder IDs with actual database IDs from step 1:
+
+```toml
+[[d1_databases]]
+binding = "CRYPTID_DB"
+database_name = "cryptid-auth"
+database_id = "<PROD_ID_FROM_STEP_1>"
+
+[[env.dev.d1_databases]]
+binding = "CRYPTID_DB"
+database_name = "cryptid-auth-dev"
+database_id = "<DEV_ID_FROM_STEP_1>"
+```
+
+### 3. Deploy Schema
+```bash
+# Deploy to dev first
+wrangler d1 execute cryptid-auth-dev --file=./worker/schema.sql
+
+# Then production
+wrangler d1 execute cryptid-auth --file=./worker/schema.sql
+```
+
+### 4. Verify Tables
+```bash
+# Check dev
+wrangler d1 execute cryptid-auth-dev --command="SELECT name FROM sqlite_master WHERE type='table';"
+
+# Expected output:
+# - users
+# - device_keys
+# - verification_tokens
+```
+
+### 5. Commit wrangler.toml Changes
+```bash
+git add wrangler.toml
+git commit -m "chore: add D1 database IDs for cryptid-auth"
+```
+<!-- SECTION:PLAN:END -->
