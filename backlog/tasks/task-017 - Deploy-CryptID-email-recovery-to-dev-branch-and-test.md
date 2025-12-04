@@ -4,7 +4,7 @@ title: Deploy CryptID email recovery to dev branch and test
 status: To Do
 assignee: []
 created_date: '2025-12-04 12:00'
-updated_date: '2025-12-04 12:02'
+updated_date: '2025-12-04 12:27'
 labels:
   - feature
   - cryptid
@@ -51,3 +51,13 @@ Push the existing CryptID email recovery code changes to dev branch and test the
 - [ ] #7 Profile shows linked email and devices
 - [ ] #8 No console errors in happy path
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Branch created: `feature/cryptid-email-recovery`
+
+Code committed and pushed to Gitea
+
+PR available at: https://gitea.jeffemmett.com/jeffemmett/canvas-website/compare/main...feature/cryptid-email-recovery
+<!-- SECTION:NOTES:END -->
