@@ -544,6 +544,28 @@ export class AutomergeDurableObject {
           hash = ((hash << 5) - hash) + Math.floor(record.x + record.y)
           hash = hash & hash
         }
+        // CRITICAL: Include text content in hash for Markdown and similar shapes
+        // This ensures text changes are detected for R2 persistence
+        if (record.props?.text !== undefined && typeof record.props.text === 'string') {
+          hash = ((hash << 5) - hash) + record.props.text.length
+          hash = hash & hash
+          // Include first 50 chars for better collision resistance
+          const textSample = record.props.text.substring(0, 50)
+          for (let j = 0; j < textSample.length; j++) {
+            hash = ((hash << 5) - hash) + textSample.charCodeAt(j)
+            hash = hash & hash
+          }
+        }
+        // Also include content for ObsNote shapes
+        if (record.props?.content !== undefined && typeof record.props.content === 'string') {
+          hash = ((hash << 5) - hash) + record.props.content.length
+          hash = hash & hash
+          const contentSample = record.props.content.substring(0, 50)
+          for (let j = 0; j < contentSample.length; j++) {
+            hash = ((hash << 5) - hash) + contentSample.charCodeAt(j)
+            hash = hash & hash
+          }
+        }
       }
     }
 
@@ -713,6 +735,91 @@ export class AutomergeDurableObject {
     return this.roomPromise
   }
 
+  /**
+   * Assign sequential indices to shapes to preserve layer order during format conversion.
+   * Uses tldraw's fractional indexing format: a1, a2, a3, etc.
+   * Shapes are sorted by their original array index to maintain the order they were stored in.
+   */
+  private assignSequentialIndices(store: any, shapesNeedingIndex: { id: string, originalIndex: number }[]): void {
+    if (shapesNeedingIndex.length === 0) return
+
+    // Sort shapes by their original array index to preserve layer order
+    shapesNeedingIndex.sort((a, b) => a.originalIndex - b.originalIndex)
+
+    // Check if shapes already have valid indices we should preserve
+    // Valid index: starts with 'a' followed by digits, optionally followed by alphanumeric jitter
+    const isValidIndex = (idx: any): boolean => {
+      if (!idx || typeof idx !== 'string' || idx.length === 0) return false
+      // Valid fractional index format: a1, a2, a1V, a10, a1Lz, etc.
+      if (/^a\d/.test(idx)) return true
+      // Also allow 'Z' prefix for very high indices
+      if (/^Z[a-z]/i.test(idx)) return true
+      return false
+    }
+
+    // Count how many shapes have valid indices
+    let validIndexCount = 0
+    let invalidIndexCount = 0
+    const existingIndices: string[] = []
+
+    for (const { id } of shapesNeedingIndex) {
+      const shape = store[id]
+      if (shape && isValidIndex(shape.index)) {
+        validIndexCount++
+        existingIndices.push(shape.index)
+      } else {
+        invalidIndexCount++
+      }
+    }
+
+    console.log(`📊 Index assignment check: ${validIndexCount} valid, ${invalidIndexCount} invalid out of ${shapesNeedingIndex.length} shapes`)
+
+    // If all shapes have valid indices, preserve them
+    if (invalidIndexCount === 0) {
+      console.log(`✅ All shapes have valid indices, preserving existing layer order`)
+      return
+    }
+
+    // If some have valid indices and some don't, we need to be careful
+    // Assign new indices only to shapes that need them, fitting them into the existing sequence
+    if (validIndexCount > 0 && invalidIndexCount > 0) {
+      console.log(`⚠️ Mixed valid/invalid indices detected. Assigning new indices to ${invalidIndexCount} shapes while preserving ${validIndexCount} valid indices.`)
+
+      // For simplicity, if we have a mix, reassign all shapes to ensure proper ordering
+      // This is safer than trying to interleave new indices between existing ones
+      console.log(`🔄 Reassigning all shape indices to ensure consistent layer order`)
+    }
+
+    // Assign sequential indices: a1, a2, a3, etc.
+    // Using simple integer increments provides clear layer ordering
+    let indexCounter = 1
+    const assignedIndices: string[] = []
+
+    for (const { id, originalIndex } of shapesNeedingIndex) {
+      const shape = store[id]
+      if (!shape) continue
+
+      const newIndex = `a${indexCounter}`
+      const oldIndex = shape.index
+
+      if (oldIndex !== newIndex) {
+        shape.index = newIndex
+        assignedIndices.push(`${id}: ${oldIndex || 'undefined'} -> ${newIndex}`)
+      }
+
+      indexCounter++
+    }
+
+    if (assignedIndices.length > 0) {
+      console.log(`🔢 Assigned sequential indices to ${assignedIndices.length} shapes:`)
+      // Log first 10 assignments for debugging
+      assignedIndices.slice(0, 10).forEach(msg => console.log(`   ${msg}`))
+      if (assignedIndices.length > 10) {
+        console.log(`   ... and ${assignedIndices.length - 10} more`)
+      }
+    }
+  }
+
   private convertAutomergeToStore(automergeDoc: any[]): any {
     const store: any = {}
     const conversionStats = {
@@ -723,51 +830,65 @@ export class AutomergeDurableObject {
       errorDetails: [] as string[],
       customRecords: [] as string[] // Track custom record IDs (obsidian_vault, etc.)
     }
-    
+
+    // Track shapes that need index assignment for layer order preservation
+    const shapesNeedingIndex: { id: string, originalIndex: number }[] = []
+
     // Convert each Automerge record to store format
-    automergeDoc.forEach((record: any, index: number) => {
+    automergeDoc.forEach((record: any, arrayIndex: number) => {
       try {
         // Validate record structure
         if (!record) {
           conversionStats.skipped++
-          conversionStats.errorDetails.push(`Record at index ${index} is null or undefined`)
+          conversionStats.errorDetails.push(`Record at index ${arrayIndex} is null or undefined`)
           return
         }
-        
+
         if (!record.state) {
           conversionStats.skipped++
-          conversionStats.errorDetails.push(`Record at index ${index} missing state property`)
+          conversionStats.errorDetails.push(`Record at index ${arrayIndex} missing state property`)
           return
         }
-        
+
         if (!record.state.id) {
           conversionStats.skipped++
-          conversionStats.errorDetails.push(`Record at index ${index} missing state.id`)
+          conversionStats.errorDetails.push(`Record at index ${arrayIndex} missing state.id`)
           return
         }
-        
+
         // Validate ID is a string
         if (typeof record.state.id !== 'string') {
           conversionStats.skipped++
-          conversionStats.errorDetails.push(`Record at index ${index} has invalid state.id type: ${typeof record.state.id}`)
+          conversionStats.errorDetails.push(`Record at index ${arrayIndex} has invalid state.id type: ${typeof record.state.id}`)
           return
         }
-        
+
         // Track custom records (obsidian_vault, etc.)
         if (record.state.id.startsWith('obsidian_vault:')) {
           conversionStats.customRecords.push(record.state.id)
         }
-        
+
         // Extract the state and use it as the store record
         store[record.state.id] = record.state
+
+        // Track shapes that need index assignment (preserve array order for layer order)
+        if (record.state.typeName === 'shape') {
+          shapesNeedingIndex.push({ id: record.state.id, originalIndex: arrayIndex })
+        }
+
         conversionStats.converted++
       } catch (error) {
         conversionStats.errors++
-        const errorMsg = `Error converting record at index ${index}: ${error instanceof Error ? error.message : String(error)}`
+        const errorMsg = `Error converting record at index ${arrayIndex}: ${error instanceof Error ? error.message : String(error)}`
         conversionStats.errorDetails.push(errorMsg)
         console.error(`❌ Conversion error:`, errorMsg)
       }
     })
+
+    // CRITICAL: Assign sequential indices to shapes to preserve layer order
+    // Shapes earlier in the array should have lower indices (rendered first/behind)
+    // Use fractional indexing format: a1, a2, a3, etc.
+    this.assignSequentialIndices(store, shapesNeedingIndex)
     
     console.log(`📊 Automerge to Store conversion statistics:`, {
       total: conversionStats.total,
@@ -1073,7 +1194,7 @@ export class AutomergeDurableObject {
       store: {},
       schema: oldDoc.schema || this.createEmptyDocument().schema
     }
-    
+
     const migrationStats = {
       total: 0,
       converted: 0,
@@ -1083,60 +1204,69 @@ export class AutomergeDurableObject {
       recordTypes: {} as Record<string, number>,
       customRecords: [] as string[] // Track custom record IDs (obsidian_vault, etc.)
     }
-    
+
+    // Track shapes for layer order preservation
+    const shapesNeedingIndex: { id: string, originalIndex: number }[] = []
+
     // Convert documents array to store object
     if (oldDoc.documents && Array.isArray(oldDoc.documents)) {
       migrationStats.total = oldDoc.documents.length
-      
-      oldDoc.documents.forEach((doc: any, index: number) => {
+
+      oldDoc.documents.forEach((doc: any, arrayIndex: number) => {
         try {
           // Validate document structure
           if (!doc) {
             migrationStats.skipped++
-            migrationStats.errorDetails.push(`Document at index ${index} is null or undefined`)
+            migrationStats.errorDetails.push(`Document at index ${arrayIndex} is null or undefined`)
             return
           }
-          
+
           if (!doc.state) {
             migrationStats.skipped++
-            migrationStats.errorDetails.push(`Document at index ${index} missing state property`)
+            migrationStats.errorDetails.push(`Document at index ${arrayIndex} missing state property`)
             return
           }
-          
+
           if (!doc.state.id) {
             migrationStats.skipped++
-            migrationStats.errorDetails.push(`Document at index ${index} missing state.id`)
+            migrationStats.errorDetails.push(`Document at index ${arrayIndex} missing state.id`)
             return
           }
-          
+
           if (!doc.state.typeName) {
             migrationStats.skipped++
-            migrationStats.errorDetails.push(`Document at index ${index} missing state.typeName (id: ${doc.state.id})`)
+            migrationStats.errorDetails.push(`Document at index ${arrayIndex} missing state.typeName (id: ${doc.state.id})`)
             return
           }
-          
+
           // Validate ID is a string
           if (typeof doc.state.id !== 'string') {
             migrationStats.skipped++
-            migrationStats.errorDetails.push(`Document at index ${index} has invalid state.id type: ${typeof doc.state.id}`)
+            migrationStats.errorDetails.push(`Document at index ${arrayIndex} has invalid state.id type: ${typeof doc.state.id}`)
             return
           }
-          
+
           // Track record types
           const typeName = doc.state.typeName
           migrationStats.recordTypes[typeName] = (migrationStats.recordTypes[typeName] || 0) + 1
-          
+
           // Track custom records (obsidian_vault, etc.)
           if (doc.state.id.startsWith('obsidian_vault:')) {
             migrationStats.customRecords.push(doc.state.id)
           }
-          
+
           // Extract the state and use it as the store record
           (newDoc.store as any)[doc.state.id] = doc.state
+
+          // Track shapes for layer order preservation
+          if (doc.state.typeName === 'shape') {
+            shapesNeedingIndex.push({ id: doc.state.id, originalIndex: arrayIndex })
+          }
+
           migrationStats.converted++
         } catch (error) {
           migrationStats.errors++
-          const errorMsg = `Error migrating document at index ${index}: ${error instanceof Error ? error.message : String(error)}`
+          const errorMsg = `Error migrating document at index ${arrayIndex}: ${error instanceof Error ? error.message : String(error)}`
           migrationStats.errorDetails.push(errorMsg)
           console.error(`❌ Migration error:`, errorMsg)
         }
@@ -1144,7 +1274,10 @@ export class AutomergeDurableObject {
     } else {
       console.warn(`⚠️ migrateDocumentsToStore: oldDoc.documents is not an array or doesn't exist`)
     }
-    
+
+    // CRITICAL: Assign sequential indices to shapes to preserve layer order
+    this.assignSequentialIndices(newDoc.store, shapesNeedingIndex)
+
     // Count shapes after migration
     const shapeCount = Object.values(newDoc.store).filter((r: any) => r?.typeName === 'shape').length
     
@@ -1253,24 +1386,13 @@ export class AutomergeDurableObject {
             record.meta = {}
             needsUpdate = true
           }
-          // CRITICAL: IndexKey must follow tldraw's fractional indexing format
-          // Valid format: starts with 'a' followed by digits, optionally followed by alphanumeric jitter
-          // Examples: "a1", "a2", "a10", "a1V", "a24sT", "a1V4rr" (fractional between a1 and a2)
-          // Invalid: "c1", "b1" (old non-fractional format - single letter + single digit)
-          // tldraw uses fractional-indexing-jittered library: https://observablehq.com/@dgreensp/implementing-fractional-indexing
-          const isValidIndex = (idx: any): boolean => {
-            if (!idx || typeof idx !== 'string' || idx.length === 0) return false
-            // Old format "b1", "c1" etc are invalid (single letter + single digit)
-            if (/^[b-z]\d$/i.test(idx)) return false
-            // Valid: starts with 'a' followed by at least one digit
-            if (/^a\d/.test(idx)) return true
-            // Also allow 'Z' prefix for very high indices
-            if (/^Z[a-z]/i.test(idx)) return true
-            return false
-          }
-          if (!isValidIndex(record.index)) {
-            console.log(`🔧 Server: Fixing invalid index "${record.index}" to "a1" for shape ${record.id}`)
-            record.index = 'a1' // Required index property for all shapes - must be valid IndexKey format
+          // NOTE: Index assignment is now handled by assignSequentialIndices() during format conversion
+          // We only need to ensure index exists, not validate the format here
+          // This preserves layer order that was established during conversion
+          if (!record.index || typeof record.index !== 'string') {
+            // Only assign a default if truly missing - the conversion functions should have handled this
+            console.log(`⚠️ Server: Shape ${record.id} missing index after conversion, assigning fallback`)
+            record.index = 'a1'
             needsUpdate = true
           }
           

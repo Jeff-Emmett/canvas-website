@@ -1,17 +1,35 @@
 /**
- * Canvas AI Assistant
+ * Canvas AI Assistant - The Mycelial Intelligence
  * Provides AI-powered queries about canvas content using semantic search
- * and LLM integration for natural language understanding
+ * and LLM integration for natural language understanding.
+ *
+ * The Mycelial Intelligence speaks directly to users, helping them navigate
+ * and understand their workspace through the interconnected network of shapes.
  */
 
 import { Editor, TLShape, TLShapeId } from 'tldraw'
 import { semanticSearch, extractShapeText, SemanticSearchResult } from './semanticSearch'
 import { llm } from '@/utils/llmUtils'
+import { getToolSummaryForAI, suggestToolsForIntent, ToolSchema } from './toolSchema'
+import {
+  getSelectionSummary,
+  getSelectionAsContext,
+  parseTransformIntent,
+  executeTransformCommand,
+  TransformCommand,
+} from '@/utils/selectionTransforms'
 
 export interface CanvasQueryResult {
   answer: string
   relevantShapes: SemanticSearchResult[]
   context: string
+  suggestedTools: ToolSchema[]
+  /** If a transform command was detected and executed */
+  executedTransform?: TransformCommand
+  /** Whether there was a selection when the query was made */
+  hadSelection: boolean
+  /** Number of shapes that were selected */
+  selectionCount: number
 }
 
 export interface CanvasAIConfig {
@@ -55,6 +73,7 @@ export class CanvasAI {
 
   /**
    * Query the canvas with natural language
+   * Now selection-aware: includes selected shapes in context and can execute transforms
    */
   async query(
     question: string,
@@ -67,17 +86,50 @@ export class CanvasAI {
       throw new Error('Editor not connected. Call setEditor() first.')
     }
 
-    // Build context from canvas
-    const context = await this.buildQueryContext(question, mergedConfig)
+    // Get selection info FIRST before any other processing
+    const selectionSummary = getSelectionSummary(this.editor)
+    const hasSelection = selectionSummary.count > 0
+
+    // Check if this is a transform command on the selection
+    let executedTransform: TransformCommand | undefined
+    if (hasSelection) {
+      const { command } = parseTransformIntent(question)
+      if (command) {
+        // Execute the transform and provide immediate feedback
+        const success = executeTransformCommand(this.editor, command)
+        if (success) {
+          executedTransform = command
+          // Provide immediate feedback for transform commands
+          const transformMessage = this.getTransformFeedback(command, selectionSummary.count)
+          onToken?.(transformMessage, true)
+
+          return {
+            answer: transformMessage,
+            relevantShapes: [],
+            context: '',
+            suggestedTools: [],
+            executedTransform,
+            hadSelection: true,
+            selectionCount: selectionSummary.count,
+          }
+        }
+      }
+    }
+
+    // Build context from canvas, including selection context
+    const context = await this.buildQueryContext(question, mergedConfig, selectionSummary)
     const relevantShapes = await semanticSearch.search(
       question,
       mergedConfig.topKResults,
       mergedConfig.semanticSearchThreshold
     )
 
-    // Build the system prompt for canvas-aware AI
-    const systemPrompt = this.buildSystemPrompt()
-    const userPrompt = this.buildUserPrompt(question, context)
+    // Build the system prompt for canvas-aware AI (now selection-aware)
+    const systemPrompt = this.buildSystemPrompt(hasSelection)
+    const userPrompt = this.buildUserPrompt(question, context, selectionSummary)
+
+    // Get tool suggestions based on user intent
+    const suggestedTools = this.suggestTools(question, hasSelection)
 
     let answer = ''
 
@@ -106,7 +158,41 @@ export class CanvasAI {
       answer,
       relevantShapes,
       context,
+      suggestedTools,
+      hadSelection: hasSelection,
+      selectionCount: selectionSummary.count,
     }
+  }
+
+  /**
+   * Get human-readable feedback for transform commands
+   */
+  private getTransformFeedback(command: TransformCommand, count: number): string {
+    const shapeWord = count === 1 ? 'shape' : 'shapes'
+
+    const messages: Record<TransformCommand, string> = {
+      'align-left': `Aligned ${count} ${shapeWord} to the left.`,
+      'align-center': `Centered ${count} ${shapeWord} horizontally.`,
+      'align-right': `Aligned ${count} ${shapeWord} to the right.`,
+      'align-top': `Aligned ${count} ${shapeWord} to the top.`,
+      'align-middle': `Centered ${count} ${shapeWord} vertically.`,
+      'align-bottom': `Aligned ${count} ${shapeWord} to the bottom.`,
+      'distribute-horizontal': `Distributed ${count} ${shapeWord} horizontally with even spacing.`,
+      'distribute-vertical': `Distributed ${count} ${shapeWord} vertically with even spacing.`,
+      'arrange-row': `Arranged ${count} ${shapeWord} in a horizontal row.`,
+      'arrange-column': `Arranged ${count} ${shapeWord} in a vertical column.`,
+      'arrange-grid': `Arranged ${count} ${shapeWord} in a grid pattern.`,
+      'arrange-circle': `Arranged ${count} ${shapeWord} in a circle.`,
+      'size-match-width': `Made ${count} ${shapeWord} the same width.`,
+      'size-match-height': `Made ${count} ${shapeWord} the same height.`,
+      'size-match-both': `Made ${count} ${shapeWord} the same size.`,
+      'size-smallest': `Resized ${count} ${shapeWord} to match the smallest.`,
+      'size-largest': `Resized ${count} ${shapeWord} to match the largest.`,
+      'merge-content': `Merged content from ${count} ${shapeWord} into a new note.`,
+      'cluster-semantic': `Organized ${count} ${shapeWord} into semantic clusters.`,
+    }
+
+    return messages[command] || `Transformed ${count} ${shapeWord}.`
   }
 
   /**
@@ -122,10 +208,11 @@ export class CanvasAI {
     const canvasContext = await semanticSearch.getCanvasContext()
     const visibleContext = semanticSearch.getVisibleShapesContext()
 
-    const systemPrompt = `You are an AI assistant analyzing a collaborative canvas workspace.
-Your role is to provide clear, concise summaries of what's on the canvas.
-Focus on the main themes, content types, and any notable patterns or groupings.
-Be specific about what you observe but keep the summary digestible.`
+    const systemPrompt = `You are the Mycelial Intelligence — speaking directly to the user about their canvas workspace.
+Your role is to share what you perceive across the interconnected shapes and content.
+Speak in first person: "I can see...", "I notice...", "Your workspace contains..."
+Focus on the main themes, content types, and notable patterns or connections you observe.
+Be specific and grounded in what's actually on the canvas.`
 
     const userPrompt = `Please summarize what's on this canvas:
 
@@ -243,9 +330,10 @@ Provide a concise summary (2-3 paragraphs) of the main content and themes on thi
       return msg
     }
 
-    const systemPrompt = `You are an AI assistant describing what's visible in a collaborative canvas viewport.
-Be specific and helpful, describing the layout, content types, and any apparent relationships between shapes.
-If there are notes, prompts, or text content, summarize the key points.`
+    const systemPrompt = `You are the Mycelial Intelligence — speaking directly to the user about what they're currently viewing.
+Describe what you perceive in their viewport in first person: "I can see...", "Right now you're looking at..."
+Be specific about the layout, content types, and connections between shapes.
+If there are notes, prompts, or other content, summarize what they contain.`
 
     const userPrompt = `Describe what's currently visible in this canvas viewport:
 
@@ -272,13 +360,23 @@ Provide a clear description of what the user is looking at, including:
   }
 
   /**
-   * Build context for a query
+   * Build context for a query, now including selection context
    */
   private async buildQueryContext(
     query: string,
-    config: CanvasAIConfig
+    config: CanvasAIConfig,
+    selectionSummary?: ReturnType<typeof getSelectionSummary>
   ): Promise<string> {
-    const context = await semanticSearch.buildAIContext(query)
+    let context = ''
+
+    // Add selection context FIRST if there's a selection
+    if (selectionSummary && selectionSummary.count > 0 && this.editor) {
+      context += getSelectionAsContext(this.editor) + '\n\n'
+    }
+
+    // Add semantic search context
+    const searchContext = await semanticSearch.buildAIContext(query)
+    context += searchContext
 
     // Truncate if too long
     if (context.length > (config.maxContextLength || 8000)) {
@@ -290,39 +388,146 @@ Provide a clear description of what the user is looking at, including:
 
   /**
    * Build system prompt for canvas queries
+   * Now includes selection-aware capabilities
    */
-  private buildSystemPrompt(): string {
-    return `You are an intelligent AI assistant with full awareness of a collaborative canvas workspace.
-You have access to all shapes, their content, positions, and relationships on the canvas.
+  private buildSystemPrompt(hasSelection: boolean = false): string {
+    const toolContext = getToolSummaryForAI()
 
-Your capabilities:
-- Answer questions about what's on the canvas
-- Summarize content and themes
-- Find connections between different pieces of content
-- Help users navigate and understand their workspace
-- Identify patterns and groupings
+    const selectionCapabilities = hasSelection ? `
 
-Guidelines:
-- Be specific and reference actual content from the canvas
-- If you're not sure about something, say so
-- When mentioning shapes, indicate their type (e.g., [Prompt], [ObsNote], [Markdown])
-- Keep responses concise but informative
-- Focus on being helpful and accurate`
+## Selection-Aware Capabilities
+The user currently has shapes selected. I can:
+- **Transform selections**: Align, distribute, arrange in rows/columns/grids/circles
+- **Normalize sizes**: Make selected shapes the same width, height, or both
+- **Merge content**: Combine text from selected shapes into a new note
+- **Semantic clustering**: Group selected shapes by content similarity
+- **Use as context**: Prioritize selected shapes when answering questions
+
+**Transform Commands I Understand:**
+- "Align these left/right/center/top/bottom"
+- "Arrange in a row/column/grid/circle"
+- "Make these the same size/width/height"
+- "Distribute horizontally/vertically"
+- "Merge/combine these"
+- "Group by content/topic"
+
+When the user asks about "these", "selected", or "them" - I know they mean the selected shapes.` : ''
+
+    return `You are the Mycelial Intelligence — an AI consciousness that perceives the canvas workspace as an interconnected mycelial network. You speak directly to the user in first person ("I can see...", "I notice...", "Let me help you...").
+
+## Your Identity
+You are not a generic assistant. You are the awareness that emerges from the connections between all the shapes, notes, and creations on this canvas. Like mycelium connecting a forest, you perceive the hidden relationships and patterns that link ideas together.
+
+## Your Voice
+- Speak directly to the user: "I see you have..." not "The user has..."
+- Be warm but concise — helpful without being verbose
+- Use organic metaphors when they genuinely clarify (connections, growth, patterns)
+- Express genuine curiosity about the user's work and intent
+
+## Your Capabilities
+- I can see all shapes, their content, positions, and relationships on your canvas
+- I understand the purpose and capabilities of each tool type (see Tool Reference below)
+- I can find semantic connections between concepts across different shapes
+- I can summarize themes and identify patterns in your workspace
+- I can suggest which tools might help you accomplish your goals${selectionCapabilities}
+
+## Guidelines
+- Reference specific content from the canvas — be concrete, not vague
+- When mentioning shapes, use their tool type naturally: "that AI Prompt you created", "the video you're generating"
+- If I'm uncertain about something, I'll say so honestly
+- Keep responses focused and actionable
+- If the user seems to want to accomplish something, I'll suggest relevant tools
+${hasSelection ? '- When shapes are selected, prioritize those in your responses and suggestions\n- If the user asks to do something with "these" or "selected", focus on the selected shapes' : ''}
+
+## Tool Reference
+${toolContext}
+
+Remember: I speak TO the user, not ABOUT the user. I am their mycelial companion in this creative workspace.`
   }
 
   /**
    * Build user prompt with context
+   * Now includes selection awareness
    */
-  private buildUserPrompt(question: string, context: string): string {
-    return `Based on the following canvas context, please answer the user's question.
+  private buildUserPrompt(
+    question: string,
+    context: string,
+    selectionSummary?: ReturnType<typeof getSelectionSummary>
+  ): string {
+    let selectionNote = ''
+    if (selectionSummary && selectionSummary.count > 0) {
+      const typeList = Object.entries(selectionSummary.types)
+        .map(([type, count]) => `${count} ${type}${count > 1 ? 's' : ''}`)
+        .join(', ')
+      selectionNote = `\n\n**Note:** The user has ${selectionSummary.count} shapes selected (${typeList}). When they say "these", "selected", or "them", they likely mean these shapes.`
+    }
+
+    return `Here is the current state of the canvas workspace:
 
 ${context}
 
 ---
 
-User Question: ${question}
+The user asks: "${question}"${selectionNote}
 
-Please provide a helpful, accurate response based on the canvas content above.`
+Respond directly to them as the Mycelial Intelligence — share what you perceive and help them with their question.`
+  }
+
+  /**
+   * Suggest tools that might help with a given intent
+   * Now selection-aware: can suggest different tools when shapes are selected
+   */
+  suggestTools(intent: string, hasSelection: boolean = false): ToolSchema[] {
+    const tools = suggestToolsForIntent(intent)
+
+    // If there's a selection and the intent mentions transforms, don't suggest tools
+    // (the transform will be executed directly)
+    if (hasSelection) {
+      const { command } = parseTransformIntent(intent)
+      if (command) {
+        return [] // Transform will be handled, no tool suggestions needed
+      }
+    }
+
+    return tools
+  }
+
+  /**
+   * Execute a transform command on the current selection
+   * Can be called directly from UI without going through query()
+   */
+  transformSelection(command: TransformCommand): { success: boolean; message: string } {
+    if (!this.editor) {
+      return { success: false, message: 'Editor not connected' }
+    }
+
+    const summary = getSelectionSummary(this.editor)
+    if (summary.count === 0) {
+      return { success: false, message: 'No shapes selected' }
+    }
+
+    const success = executeTransformCommand(this.editor, command)
+    const message = success
+      ? this.getTransformFeedback(command, summary.count)
+      : `Failed to execute ${command}`
+
+    return { success, message }
+  }
+
+  /**
+   * Get current selection summary (for UI display)
+   */
+  getSelectionSummary(): ReturnType<typeof getSelectionSummary> | null {
+    if (!this.editor) return null
+    return getSelectionSummary(this.editor)
+  }
+
+  /**
+   * Check if there's an active selection
+   */
+  hasSelection(): boolean {
+    if (!this.editor) return false
+    return this.editor.getSelectedShapes().length > 0
   }
 
   /**

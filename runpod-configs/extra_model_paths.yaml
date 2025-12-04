@@ -1,0 +1,63 @@
+# ComfyUI Model Paths Configuration
+# Updated to include /runpod-volume/ paths for all model types
+# This allows models to be loaded from the network volume for faster cold starts
+
+comfyui:
+    base_path: /ComfyUI/
+    is_default: true
+
+    # Checkpoints - check network volume first, then local
+    checkpoints: |
+        /runpod-volume/models/checkpoints/
+        models/checkpoints/
+
+    # CLIP models
+    clip: |
+        /runpod-volume/models/clip/
+        models/clip/
+
+    # CLIP Vision models (e.g., clip_vision_h.safetensors)
+    clip_vision: |
+        /runpod-volume/models/clip_vision/
+        models/clip_vision/
+
+    # Config files
+    configs: models/configs/
+
+    # ControlNet models
+    controlnet: |
+        /runpod-volume/models/controlnet/
+        models/controlnet/
+
+    # Diffusion models (Wan2.2 model files)
+    diffusion_models: |
+        /runpod-volume/models/diffusion_models/
+        /runpod-volume/models/
+        models/diffusion_models/
+        models/unet/
+
+    # Text embeddings
+    embeddings: |
+        /runpod-volume/models/embeddings/
+        models/embeddings/
+
+    # LoRA models
+    loras: |
+        /runpod-volume/loras/
+        /runpod-volume/models/loras/
+        models/loras/
+
+    # Text encoders (e.g., umt5-xxl-enc-bf16.safetensors)
+    text_encoders: |
+        /runpod-volume/models/text_encoders/
+        models/text_encoders/
+
+    # Upscale models
+    upscale_models: |
+        /runpod-volume/models/upscale_models/
+        models/upscale_models/
+
+    # VAE models (e.g., Wan2_1_VAE_bf16.safetensors)
+    vae: |
+        /runpod-volume/models/vae/
+        models/vae/

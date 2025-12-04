@@ -20,11 +20,17 @@ function minimalSanitizeRecord(record: any): any {
     if (typeof sanitized.isLocked !== 'boolean') sanitized.isLocked = false
     if (typeof sanitized.opacity !== 'number') sanitized.opacity = 1
     if (!sanitized.meta || typeof sanitized.meta !== 'object') sanitized.meta = {}
-    // CRITICAL: IndexKey must follow tldraw's fractional indexing format
-    // Valid format: starts with 'a' followed by digits, optionally followed by uppercase letters
-    // Examples: "a1", "a2", "a10", "a1V" (fractional between a1 and a2)
-    // Invalid: "c1", "b1", "z999" (must start with 'a')
-    if (!sanitized.index || typeof sanitized.index !== 'string' || !/^a\d+[A-Z]*$/.test(sanitized.index)) {
+    // NOTE: Index assignment is handled by assignSequentialIndices() during format conversion
+    // Here we only ensure index exists with a valid format, not strictly validate
+    // This preserves layer order that was established during conversion
+    // Valid formats: a1, a2, a10, a1V, a1Lz, etc. (fractional indexing)
+    if (!sanitized.index || typeof sanitized.index !== 'string' || sanitized.index.length === 0) {
+      // Only assign default if truly missing
+      sanitized.index = 'a1'
+    } else if (!/^a\d/.test(sanitized.index) && !/^Z[a-z]/i.test(sanitized.index)) {
+      // Accept any index starting with 'a' + digit, or 'Z' prefix
+      // Only reset clearly invalid formats
+      console.warn(`⚠️ MinimalSanitization: Invalid index format "${sanitized.index}" for shape ${sanitized.id}`)
       sanitized.index = 'a1'
     }
     if (!sanitized.parentId) sanitized.parentId = 'page:page'

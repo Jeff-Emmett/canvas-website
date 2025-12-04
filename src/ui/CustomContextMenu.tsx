@@ -226,23 +226,24 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
         </TldrawUiMenuSubmenu>
       </TldrawUiMenuGroup>
 
-      {/* Creation Tools Group */}
+      {/* Creation Tools Group - Always available regardless of selection */}
       <TldrawUiMenuGroup id="creation-tools">
-        <TldrawUiMenuItem {...tools.VideoChat} disabled={hasSelection} />
-        <TldrawUiMenuItem {...tools.ChatBox} disabled={hasSelection} />
-        <TldrawUiMenuItem {...tools.Embed} disabled={hasSelection} />
-        <TldrawUiMenuItem {...tools.SlideShape} disabled={hasSelection} />
-        <TldrawUiMenuItem {...tools.Markdown} disabled={hasSelection} />
-        <TldrawUiMenuItem {...tools.MycrozineTemplate} disabled={hasSelection} />
-        <TldrawUiMenuItem {...tools.Prompt} disabled={hasSelection} />
-        <TldrawUiMenuItem {...tools.ObsidianNote} disabled={hasSelection} />
-        <TldrawUiMenuItem {...tools.Transcription} disabled={hasSelection} />
-        <TldrawUiMenuItem {...tools.FathomMeetings} disabled={hasSelection} />
-        <TldrawUiMenuItem {...tools.Holon} disabled={hasSelection} />
-        <TldrawUiMenuItem {...tools.ImageGen} disabled={hasSelection} />
-        <TldrawUiMenuItem {...tools.VideoGen} disabled={hasSelection} />
-        <TldrawUiMenuItem {...tools.Multmux} disabled={hasSelection} />
-        {/* MycelialIntelligence moved to permanent UI bar */}
+        <TldrawUiMenuSubmenu id="tools-dropdown" label="Create Tool">
+          <TldrawUiMenuItem {...tools.Prompt} />
+          <TldrawUiMenuItem {...tools.ChatBox} />
+          <TldrawUiMenuItem {...tools.ImageGen} />
+          <TldrawUiMenuItem {...tools.VideoGen} />
+          <TldrawUiMenuItem {...tools.Markdown} />
+          <TldrawUiMenuItem {...tools.ObsidianNote} />
+          <TldrawUiMenuItem {...tools.Transcription} />
+          <TldrawUiMenuItem {...tools.Embed} />
+          <TldrawUiMenuItem {...tools.Holon} />
+          <TldrawUiMenuItem {...tools.Multmux} />
+          <TldrawUiMenuItem {...tools.SlideShape} />
+          <TldrawUiMenuItem {...tools.VideoChat} />
+          <TldrawUiMenuItem {...tools.FathomMeetings} />
+          <TldrawUiMenuItem {...tools.MycrozineTemplate} />
+        </TldrawUiMenuSubmenu>
       </TldrawUiMenuGroup>
 
       {/* Collections Group */}
