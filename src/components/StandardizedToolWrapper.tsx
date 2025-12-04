@@ -1,4 +1,29 @@
-import React, { useState, ReactNode, useEffect, useRef } from 'react'
+import React, { useState, ReactNode, useEffect, useRef, useMemo } from 'react'
+
+// Hook to detect dark mode
+function useIsDarkMode() {
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof document !== 'undefined') {
+      return document.documentElement.classList.contains('dark')
+    }
+    return false
+  })
+
+  useEffect(() => {
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'class') {
+          setIsDark(document.documentElement.classList.contains('dark'))
+        }
+      })
+    })
+
+    observer.observe(document.documentElement, { attributes: true })
+    return () => observer.disconnect()
+  }, [])
+
+  return isDark
+}
 
 export interface StandardizedToolWrapperProps {
   /** The title to display in the header */
@@ -64,6 +89,28 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
   const [isEditingTags, setIsEditingTags] = useState(false)
   const [editingTagInput, setEditingTagInput] = useState('')
   const tagInputRef = useRef<HTMLInputElement>(null)
+  const isDarkMode = useIsDarkMode()
+
+  // Dark mode aware colors
+  const colors = useMemo(() => isDarkMode ? {
+    contentBg: '#1a1a1a',
+    tagsBg: '#252525',
+    tagsBorder: '#404040',
+    tagBg: '#4a5568',
+    tagText: '#e4e4e4',
+    addTagBg: '#4a5568',
+    inputBg: '#333333',
+    inputBorder: '#555555',
+  } : {
+    contentBg: 'white',
+    tagsBg: '#f8f9fa',
+    tagsBorder: '#e0e0e0',
+    tagBg: '#6b7280',
+    tagText: 'white',
+    addTagBg: '#9ca3af',
+    inputBg: 'white',
+    inputBorder: '#9ca3af',
+  }, [isDarkMode])
 
   // Bring selected shape to front when it becomes selected
   useEffect(() => {
@@ -107,13 +154,13 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
   const wrapperStyle: React.CSSProperties = {
     width: typeof width === 'number' ? `${width}px` : width,
     height: isMinimized ? 40 : (typeof height === 'number' ? `${height}px` : height), // Minimized height is just the header
-    backgroundColor: "white",
+    backgroundColor: colors.contentBg,
     border: isSelected ? `2px solid ${primaryColor}` : `1px solid ${primaryColor}40`,
     borderRadius: "8px",
     overflow: "hidden",
-    boxShadow: isSelected 
-      ? `0 0 0 2px ${primaryColor}40, 0 4px 8px rgba(0,0,0,0.15)` 
-      : '0 2px 4px rgba(0,0,0,0.1)',
+    boxShadow: isSelected
+      ? `0 0 0 2px ${primaryColor}40, 0 4px 8px rgba(0,0,0,${isDarkMode ? '0.4' : '0.15'})`
+      : `0 2px 4px rgba(0,0,0,${isDarkMode ? '0.3' : '0.1'})`,
     display: 'flex',
     flexDirection: 'column',
     fontFamily: "Inter, sans-serif",
@@ -210,20 +257,20 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
 
   const tagsContainerStyle: React.CSSProperties = {
     padding: '8px 12px',
-    borderTop: '1px solid #e0e0e0',
+    borderTop: `1px solid ${colors.tagsBorder}`,
     display: 'flex',
     flexWrap: 'wrap',
     gap: '4px',
     alignItems: 'center',
     minHeight: '32px',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: colors.tagsBg,
     flexShrink: 0,
     touchAction: 'manipulation', // Improve touch responsiveness
   }
 
   const tagStyle: React.CSSProperties = {
-    backgroundColor: '#6b7280',
-    color: 'white',
+    backgroundColor: colors.tagBg,
+    color: colors.tagText,
     padding: '4px 8px', // Increased padding for better touch target
     borderRadius: '12px',
     fontSize: '10px',
@@ -237,18 +284,20 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
   }
 
   const tagInputStyle: React.CSSProperties = {
-    border: '1px solid #9ca3af',
+    border: `1px solid ${colors.inputBorder}`,
     borderRadius: '12px',
     padding: '2px 6px',
     fontSize: '10px',
     outline: 'none',
     minWidth: '60px',
     flex: 1,
+    backgroundColor: colors.inputBg,
+    color: isDarkMode ? '#e4e4e4' : '#333',
   }
 
   const addTagButtonStyle: React.CSSProperties = {
-    backgroundColor: '#9ca3af',
-    color: 'white',
+    backgroundColor: colors.addTagBg,
+    color: colors.tagText,
     border: 'none',
     borderRadius: '12px',
     padding: '4px 10px', // Increased padding for better touch target

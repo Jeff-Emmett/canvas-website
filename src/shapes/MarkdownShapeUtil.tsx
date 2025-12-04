@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react'
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import {
   MDXEditor,
   headingsPlugin,
@@ -59,7 +59,16 @@ export class MarkdownShape extends BaseBoxShapeUtil<IMarkdownShape> {
   component(shape: IMarkdownShape) {
     const isSelected = this.editor.getSelectedShapeIds().includes(shape.id)
     const [isMinimized, setIsMinimized] = useState(false)
+    const [isToolbarMinimized, setIsToolbarMinimized] = useState(false)
     const editorRef = useRef<MDXEditorMethods>(null)
+
+    // Dark mode detection
+    const isDarkMode = useMemo(() => {
+      if (typeof document !== 'undefined') {
+        return document.documentElement.classList.contains('dark')
+      }
+      return false
+    }, [])
 
     // Use the pinning hook
     usePinnedToView(this.editor, shape.id, shape.props.pinnedToView)
@@ -136,7 +145,7 @@ export class MarkdownShape extends BaseBoxShapeUtil<IMarkdownShape> {
             style={{
               width: '100%',
               height: '100%',
-              backgroundColor: '#FFFFFF',
+              backgroundColor: isDarkMode ? '#1a1a1a' : '#FFFFFF',
               pointerEvents: 'all',
               overflow: 'hidden',
               display: 'flex',
@@ -210,22 +219,43 @@ export class MarkdownShape extends BaseBoxShapeUtil<IMarkdownShape> {
                 // Toolbar
                 toolbarPlugin({
                   toolbarContents: () => (
-                    <>
-                      <UndoRedo />
-                      <Separator />
-                      <BoldItalicUnderlineToggles />
-                      <Separator />
-                      <BlockTypeSelect />
-                      <Separator />
-                      <ListsToggle />
-                      <Separator />
-                      <CreateLink />
-                      <InsertTable />
-                      <Separator />
-                      <DiffSourceToggleWrapper>
-                        <></>
-                      </DiffSourceToggleWrapper>
-                    </>
+                    <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: '4px' }}>
+                      <button
+                        onClick={() => setIsToolbarMinimized(!isToolbarMinimized)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '4px 6px',
+                          fontSize: '12px',
+                          borderRadius: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        title={isToolbarMinimized ? 'Expand toolbar' : 'Collapse toolbar'}
+                      >
+                        {isToolbarMinimized ? '▶' : '▼'}
+                      </button>
+                      {!isToolbarMinimized && (
+                        <>
+                          <UndoRedo />
+                          <Separator />
+                          <BoldItalicUnderlineToggles />
+                          <Separator />
+                          <BlockTypeSelect />
+                          <Separator />
+                          <ListsToggle />
+                          <Separator />
+                          <CreateLink />
+                          <InsertTable />
+                          <Separator />
+                          <DiffSourceToggleWrapper>
+                            <></>
+                          </DiffSourceToggleWrapper>
+                        </>
+                      )}
+                    </div>
                   )
                 }),
               ]}
@@ -247,7 +277,10 @@ export class MarkdownShape extends BaseBoxShapeUtil<IMarkdownShape> {
               background: #f9fafb;
               padding: 4px 8px;
               gap: 2px;
-              flex-wrap: wrap;
+              flex-wrap: nowrap;
+              overflow-x: auto;
+              overflow-y: hidden;
+              min-height: ${isToolbarMinimized ? '32px' : 'auto'};
             }
 
             .mdxeditor [role="toolbar"] button {
@@ -268,8 +301,34 @@ export class MarkdownShape extends BaseBoxShapeUtil<IMarkdownShape> {
             .mdxeditor .mdxeditor-root-contenteditable {
               flex: 1;
               overflow-y: auto;
+              overflow-x: hidden;
               padding: 12px 16px;
               min-height: 0;
+            }
+
+            /* Custom scrollbar styling - vertical only, auto-hide */
+            .mdxeditor .mdxeditor-root-contenteditable::-webkit-scrollbar {
+              width: 8px;
+              height: 0; /* No horizontal scrollbar */
+            }
+
+            .mdxeditor .mdxeditor-root-contenteditable::-webkit-scrollbar-track {
+              background: transparent;
+            }
+
+            .mdxeditor .mdxeditor-root-contenteditable::-webkit-scrollbar-thumb {
+              background: rgba(0, 0, 0, 0.2);
+              border-radius: 4px;
+            }
+
+            .mdxeditor .mdxeditor-root-contenteditable::-webkit-scrollbar-thumb:hover {
+              background: rgba(0, 0, 0, 0.3);
+            }
+
+            /* Firefox scrollbar */
+            .mdxeditor .mdxeditor-root-contenteditable {
+              scrollbar-width: thin;
+              scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
             }
 
             .mdx-editor-content {
