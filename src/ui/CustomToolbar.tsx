@@ -15,8 +15,17 @@ import { createShapeId } from "tldraw"
 import type { ObsidianObsNote } from "../lib/obsidianImporter"
 import { HolonData } from "../lib/HoloSphereService"
 import { FathomMeetingsPanel } from "../components/FathomMeetingsPanel"
-import { isFathomApiKeyConfigured } from "../lib/fathomApiKey"
-import { UserSettingsModal } from "./UserSettingsModal"
+import { getFathomApiKey, saveFathomApiKey, removeFathomApiKey, isFathomApiKeyConfigured } from "../lib/fathomApiKey"
+
+// AI tool model configurations for the dropdown
+const AI_TOOLS = [
+  { id: 'chat', name: 'Chat', icon: '💬', model: 'llama3.1:8b', provider: 'Ollama', type: 'local' },
+  { id: 'make-real', name: 'Make Real', icon: '🔧', model: 'claude-sonnet-4-5', provider: 'Anthropic', type: 'cloud' },
+  { id: 'image-gen', name: 'Image Gen', icon: '🎨', model: 'SDXL', provider: 'RunPod', type: 'gpu' },
+  { id: 'video-gen', name: 'Video Gen', icon: '🎬', model: 'Wan2.1', provider: 'RunPod', type: 'gpu' },
+  { id: 'transcription', name: 'Transcribe', icon: '🎤', model: 'Web Speech', provider: 'Browser', type: 'local' },
+  { id: 'mycelial', name: 'Mycelial', icon: '🍄', model: 'llama3.1:70b', provider: 'Ollama', type: 'local' },
+]
 
 // Dark mode utilities
 const getDarkMode = (): boolean => {
@@ -42,7 +51,6 @@ export function CustomToolbar() {
 
   const { session, setSession, clearSession } = useAuth()
   const [showProfilePopup, setShowProfilePopup] = useState(false)
-  const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [showVaultBrowser, setShowVaultBrowser] = useState(false)
   const [showHolonBrowser, setShowHolonBrowser] = useState(false)
   const [vaultBrowserMode, setVaultBrowserMode] = useState<'keyboard' | 'button'>('keyboard')
@@ -50,10 +58,23 @@ export function CustomToolbar() {
   const profilePopupRef = useRef<HTMLDivElement>(null)
   const [isDarkMode, setIsDarkMode] = useState(getDarkMode())
 
+  // Dropdown section states
+  const [expandedSection, setExpandedSection] = useState<'none' | 'ai' | 'integrations'>('none')
+  const [hasFathomApiKey, setHasFathomApiKey] = useState(false)
+  const [showFathomInput, setShowFathomInput] = useState(false)
+  const [fathomKeyInput, setFathomKeyInput] = useState('')
+
   // Initialize dark mode on mount
   useEffect(() => {
     setDarkMode(isDarkMode)
   }, [])
+
+  // Check Fathom API key status
+  useEffect(() => {
+    if (session.authed && session.username) {
+      setHasFathomApiKey(isFathomApiKeyConfigured(session.username))
+    }
+  }, [session.authed, session.username])
 
   const toggleDarkMode = () => {
     const newMode = !isDarkMode
@@ -528,7 +549,7 @@ export function CustomToolbar() {
             </button>
 
             {showProfilePopup && (
-              <div ref={profilePopupRef} className="profile-dropdown">
+              <div ref={profilePopupRef} className="profile-dropdown" style={{ width: '280px', maxHeight: '80vh', overflowY: 'auto' }}>
                 <div className="profile-dropdown-header">
                   <div className="profile-avatar">
                     <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
@@ -550,22 +571,9 @@ export function CustomToolbar() {
                   <span>My Saved Boards</span>
                 </a>
 
-                <button
-                  className="profile-dropdown-item"
-                  onClick={() => {
-                    setShowProfilePopup(false)
-                    setShowSettingsModal(true)
-                  }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z"/>
-                    <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z"/>
-                  </svg>
-                  <span>Settings</span>
-                </button>
-
                 <div className="profile-dropdown-divider" />
 
+                {/* General Settings */}
                 <button className="profile-dropdown-item" onClick={toggleDarkMode}>
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                     {isDarkMode ? (
@@ -576,6 +584,303 @@ export function CustomToolbar() {
                   </svg>
                   <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
                 </button>
+
+                <div className="profile-dropdown-divider" />
+
+                {/* AI Models Section */}
+                <button
+                  className="profile-dropdown-item"
+                  onClick={() => setExpandedSection(expandedSection === 'ai' ? 'none' : 'ai')}
+                  style={{ justifyContent: 'space-between' }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '14px' }}>🤖</span>
+                    <span>AI Models</span>
+                  </span>
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                    style={{ transform: expandedSection === 'ai' ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
+                  >
+                    <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+                  </svg>
+                </button>
+
+                {expandedSection === 'ai' && (
+                  <div style={{ padding: '8px 12px', backgroundColor: 'var(--color-muted-2, #f5f5f5)' }}>
+                    <p style={{ fontSize: '10px', color: 'var(--color-text-2, #666)', marginBottom: '8px' }}>
+                      Local models are free. Cloud models require API keys.
+                    </p>
+                    {AI_TOOLS.map((tool) => (
+                      <div
+                        key={tool.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '6px 0',
+                          borderBottom: '1px solid var(--color-muted-1, #eee)',
+                        }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>
+                          <span>{tool.icon}</span>
+                          <span>{tool.name}</span>
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '9px',
+                            padding: '2px 6px',
+                            borderRadius: '10px',
+                            backgroundColor: tool.type === 'local' ? '#d1fae5' : tool.type === 'gpu' ? '#e0e7ff' : '#fef3c7',
+                            color: tool.type === 'local' ? '#065f46' : tool.type === 'gpu' ? '#3730a3' : '#92400e',
+                            fontWeight: 500,
+                          }}
+                        >
+                          {tool.model}
+                        </span>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => {
+                        addDialog({
+                          id: "api-keys",
+                          component: ({ onClose: dialogClose }: { onClose: () => void }) => (
+                            <SettingsDialog
+                              onClose={() => {
+                                dialogClose()
+                                removeDialog("api-keys")
+                                checkApiKeys()
+                              }}
+                            />
+                          ),
+                        })
+                      }}
+                      style={{
+                        width: '100%',
+                        marginTop: '8px',
+                        padding: '6px 10px',
+                        fontSize: '11px',
+                        fontWeight: 500,
+                        backgroundColor: 'var(--color-primary, #3b82f6)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {hasApiKey ? 'Manage API Keys' : 'Add API Keys'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Integrations Section */}
+                <button
+                  className="profile-dropdown-item"
+                  onClick={() => setExpandedSection(expandedSection === 'integrations' ? 'none' : 'integrations')}
+                  style={{ justifyContent: 'space-between' }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '14px' }}>🔗</span>
+                    <span>Integrations</span>
+                  </span>
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                    style={{ transform: expandedSection === 'integrations' ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
+                  >
+                    <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+                  </svg>
+                </button>
+
+                {expandedSection === 'integrations' && (
+                  <div style={{ padding: '8px 12px', backgroundColor: 'var(--color-muted-2, #f5f5f5)' }}>
+                    {/* Obsidian Vault */}
+                    <div style={{ marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 500 }}>
+                          <span>📁</span> Obsidian Vault
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '9px',
+                            padding: '2px 6px',
+                            borderRadius: '10px',
+                            backgroundColor: session.obsidianVaultName ? '#d1fae5' : '#fef3c7',
+                            color: session.obsidianVaultName ? '#065f46' : '#92400e',
+                            fontWeight: 500,
+                          }}
+                        >
+                          {session.obsidianVaultName ? 'Connected' : 'Not Set'}
+                        </span>
+                      </div>
+                      {session.obsidianVaultName && (
+                        <p style={{ fontSize: '10px', color: '#059669', marginBottom: '4px' }}>{session.obsidianVaultName}</p>
+                      )}
+                      <button
+                        onClick={() => {
+                          window.dispatchEvent(new CustomEvent('open-obsidian-browser'))
+                          setShowProfilePopup(false)
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '5px 8px',
+                          fontSize: '10px',
+                          backgroundColor: 'white',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {session.obsidianVaultName ? 'Change Vault' : 'Connect Vault'}
+                      </button>
+                    </div>
+
+                    {/* Fathom Meetings */}
+                    <div style={{ paddingTop: '8px', borderTop: '1px solid var(--color-muted-1, #ddd)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 500 }}>
+                          <span>🎥</span> Fathom Meetings
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '9px',
+                            padding: '2px 6px',
+                            borderRadius: '10px',
+                            backgroundColor: hasFathomApiKey ? '#d1fae5' : '#fef3c7',
+                            color: hasFathomApiKey ? '#065f46' : '#92400e',
+                            fontWeight: 500,
+                          }}
+                        >
+                          {hasFathomApiKey ? 'Connected' : 'Not Set'}
+                        </span>
+                      </div>
+
+                      {showFathomInput ? (
+                        <div>
+                          <input
+                            type="password"
+                            value={fathomKeyInput}
+                            onChange={(e) => setFathomKeyInput(e.target.value)}
+                            placeholder="Enter Fathom API key..."
+                            style={{
+                              width: '100%',
+                              padding: '6px 8px',
+                              fontSize: '11px',
+                              border: '1px solid #ddd',
+                              borderRadius: '4px',
+                              marginBottom: '6px',
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && fathomKeyInput.trim()) {
+                                saveFathomApiKey(fathomKeyInput.trim(), session.username)
+                                setHasFathomApiKey(true)
+                                setShowFathomInput(false)
+                                setFathomKeyInput('')
+                              } else if (e.key === 'Escape') {
+                                setShowFathomInput(false)
+                                setFathomKeyInput('')
+                              }
+                            }}
+                            autoFocus
+                          />
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            <button
+                              onClick={() => {
+                                if (fathomKeyInput.trim()) {
+                                  saveFathomApiKey(fathomKeyInput.trim(), session.username)
+                                  setHasFathomApiKey(true)
+                                  setShowFathomInput(false)
+                                  setFathomKeyInput('')
+                                }
+                              }}
+                              style={{
+                                flex: 1,
+                                padding: '5px',
+                                fontSize: '10px',
+                                backgroundColor: 'var(--color-primary, #3b82f6)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowFathomInput(false)
+                                setFathomKeyInput('')
+                              }}
+                              style={{
+                                flex: 1,
+                                padding: '5px',
+                                fontSize: '10px',
+                                backgroundColor: 'white',
+                                border: '1px solid #ddd',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                          <a
+                            href="https://app.usefathom.com/settings/integrations"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ display: 'block', fontSize: '9px', color: '#3b82f6', marginTop: '6px', textDecoration: 'none' }}
+                          >
+                            Get API key from Fathom →
+                          </a>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button
+                            onClick={() => {
+                              setShowFathomInput(true)
+                              const currentKey = getFathomApiKey(session.username)
+                              if (currentKey) setFathomKeyInput(currentKey)
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: '5px 8px',
+                              fontSize: '10px',
+                              backgroundColor: 'white',
+                              border: '1px solid #ddd',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {hasFathomApiKey ? 'Change Key' : 'Add API Key'}
+                          </button>
+                          {hasFathomApiKey && (
+                            <button
+                              onClick={() => {
+                                removeFathomApiKey(session.username)
+                                setHasFathomApiKey(false)
+                              }}
+                              style={{
+                                padding: '5px 8px',
+                                fontSize: '10px',
+                                backgroundColor: '#fee2e2',
+                                color: '#dc2626',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Disconnect
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="profile-dropdown-divider" />
 
@@ -597,15 +902,6 @@ export function CustomToolbar() {
           </div>
         )}
       </div>
-
-      {/* Settings Modal */}
-      {showSettingsModal && (
-        <UserSettingsModal
-          onClose={() => setShowSettingsModal(false)}
-          isDarkMode={isDarkMode}
-          onToggleDarkMode={toggleDarkMode}
-        />
-      )}
       <DefaultToolbar>
         <DefaultToolbarContent />
         {tools["VideoChat"] && (

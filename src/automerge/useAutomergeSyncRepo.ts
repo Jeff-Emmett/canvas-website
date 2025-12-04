@@ -3,7 +3,7 @@ import { TLStoreSnapshot, InstancePresenceRecordType, getIndexAbove, IndexKey } 
 import { CloudflareNetworkAdapter } from "./CloudflareAdapter"
 import { useAutomergeStoreV2, useAutomergePresence } from "./useAutomergeStoreV2"
 import { TLStoreWithStatus } from "@tldraw/tldraw"
-import { Repo, parseAutomergeUrl, stringifyAutomergeUrl, AutomergeUrl } from "@automerge/automerge-repo"
+import { Repo, parseAutomergeUrl, stringifyAutomergeUrl, AutomergeUrl, DocumentId } from "@automerge/automerge-repo"
 import { DocHandle } from "@automerge/automerge-repo"
 import { IndexedDBStorageAdapter } from "@automerge/automerge-repo-storage-indexeddb"
 import { getDocumentId, saveDocumentId } from "./documentIdMapping"
@@ -175,11 +175,31 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
       if (record.type) recordHash += record.type
       
       // For shapes, include x, y, w, h for position/size changes
+      // Also include text content for shapes that have it (Markdown, ObsNote, etc.)
       if (record.typeName === 'shape') {
         if (typeof record.x === 'number') recordHash += `x${record.x}`
         if (typeof record.y === 'number') recordHash += `y${record.y}`
         if (typeof record.props?.w === 'number') recordHash += `w${record.props.w}`
         if (typeof record.props?.h === 'number') recordHash += `h${record.props.h}`
+        // CRITICAL: Include text content in hash for Markdown and similar shapes
+        // This ensures text changes trigger R2 persistence
+        if (typeof record.props?.text === 'string' && record.props.text.length > 0) {
+          // Include text length and a sample of content for change detection
+          recordHash += `t${record.props.text.length}`
+          // Include first 100 chars and last 50 chars to detect changes anywhere in the text
+          recordHash += record.props.text.substring(0, 100)
+          if (record.props.text.length > 150) {
+            recordHash += record.props.text.substring(record.props.text.length - 50)
+          }
+        }
+        // Also include content for ObsNote shapes
+        if (typeof record.props?.content === 'string' && record.props.content.length > 0) {
+          recordHash += `c${record.props.content.length}`
+          recordHash += record.props.content.substring(0, 100)
+          if (record.props.content.length > 150) {
+            recordHash += record.props.content.substring(record.props.content.length - 50)
+          }
+        }
       }
       
       // Simple hash of the record string
@@ -370,9 +390,23 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
         if (storedDocumentId) {
           console.log(`Found stored document ID for room ${roomId}: ${storedDocumentId}`)
           try {
-            // Try to find the existing document in the repo (loads from IndexedDB)
-            // repo.find() returns a Promise<DocHandle>
-            const foundHandle = await repo.find<TLStoreSnapshot>(storedDocumentId as AutomergeUrl)
+            // Parse the URL to get the DocumentId
+            const parsed = parseAutomergeUrl(storedDocumentId as AutomergeUrl)
+            const docId = parsed.documentId
+
+            // Check if the document is already loaded in the repo's handles cache
+            // This prevents "Cannot create a reference to an existing document object" error
+            const existingHandle = repo.handles[docId] as DocHandle<TLStoreSnapshot> | undefined
+
+            let foundHandle: DocHandle<TLStoreSnapshot>
+            if (existingHandle) {
+              console.log(`Document ${docId} already in repo cache, reusing handle`)
+              foundHandle = existingHandle
+            } else {
+              // Try to find the existing document in the repo (loads from IndexedDB)
+              // repo.find() returns a Promise<DocHandle>
+              foundHandle = await repo.find<TLStoreSnapshot>(storedDocumentId as AutomergeUrl)
+            }
             await foundHandle.whenReady()
             handle = foundHandle
 

@@ -1,7 +1,257 @@
-import React, { useState, useRef, useEffect, useCallback } from "react"
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { useEditor } from "tldraw"
 import { canvasAI, useCanvasAI } from "@/lib/canvasAI"
 import { useWebSpeechTranscription } from "@/hooks/useWebSpeechTranscription"
+import { ToolSchema } from "@/lib/toolSchema"
+import { spawnTools, spawnTool } from "@/utils/toolSpawner"
+import { TransformCommand } from "@/utils/selectionTransforms"
+
+// Copy icon component
+const CopyIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+  </svg>
+)
+
+// Check icon for copy confirmation
+const CheckIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <polyline points="20 6 9 17 4 12"/>
+  </svg>
+)
+
+// Simple markdown-like renderer for code blocks and basic formatting
+function renderMessageContent(content: string): React.ReactNode {
+  // Split by code blocks first
+  const parts = content.split(/(```[\s\S]*?```)/g)
+
+  return parts.map((part, i) => {
+    // Code block
+    if (part.startsWith('```') && part.endsWith('```')) {
+      const lines = part.slice(3, -3).split('\n')
+      const language = lines[0]?.trim() || ''
+      const code = language ? lines.slice(1).join('\n') : lines.join('\n')
+
+      return (
+        <CodeBlock key={i} code={code.trim()} language={language} />
+      )
+    }
+
+    // Regular text - handle inline code and basic formatting
+    return (
+      <span key={i}>
+        {part.split(/(`[^`]+`)/g).map((segment, j) => {
+          if (segment.startsWith('`') && segment.endsWith('`')) {
+            return (
+              <code
+                key={j}
+                style={{
+                  background: 'rgba(0, 0, 0, 0.06)',
+                  padding: '1px 4px',
+                  borderRadius: '3px',
+                  fontSize: '0.9em',
+                  fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace',
+                }}
+              >
+                {segment.slice(1, -1)}
+              </code>
+            )
+          }
+          return segment
+        })}
+      </span>
+    )
+  })
+}
+
+// Code block component with copy button
+function CodeBlock({ code, language }: { code: string; language: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
+  }
+
+  return (
+    <div
+      style={{
+        position: 'relative',
+        margin: '8px 0',
+        borderRadius: '6px',
+        overflow: 'hidden',
+        background: 'rgba(0, 0, 0, 0.04)',
+        border: '1px solid rgba(0, 0, 0, 0.08)',
+      }}
+    >
+      {language && (
+        <div
+          style={{
+            padding: '4px 10px',
+            fontSize: '10px',
+            fontWeight: 500,
+            color: '#666',
+            background: 'rgba(0, 0, 0, 0.03)',
+            borderBottom: '1px solid rgba(0, 0, 0, 0.06)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <span>{language}</span>
+          <button
+            onClick={handleCopy}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '2px 6px',
+              borderRadius: '4px',
+              color: copied ? '#10b981' : '#666',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontSize: '10px',
+              transition: 'all 0.2s',
+            }}
+            title="Copy code"
+          >
+            {copied ? <CheckIcon /> : <CopyIcon />}
+            {copied ? 'Copied!' : 'Copy'}
+          </button>
+        </div>
+      )}
+      <pre
+        style={{
+          margin: 0,
+          padding: '10px 12px',
+          overflow: 'auto',
+          fontSize: '12px',
+          lineHeight: '1.5',
+          fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace',
+          maxHeight: '200px',
+        }}
+      >
+        <code>{code}</code>
+      </pre>
+      {!language && (
+        <button
+          onClick={handleCopy}
+          style={{
+            position: 'absolute',
+            top: '6px',
+            right: '6px',
+            background: 'rgba(255,255,255,0.9)',
+            border: '1px solid rgba(0,0,0,0.1)',
+            cursor: 'pointer',
+            padding: '4px 8px',
+            borderRadius: '4px',
+            color: copied ? '#10b981' : '#666',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            fontSize: '10px',
+            transition: 'all 0.2s',
+          }}
+          title="Copy code"
+        >
+          {copied ? <CheckIcon /> : <CopyIcon />}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// Message bubble component with copy functionality
+interface MessageBubbleProps {
+  content: string
+  role: 'user' | 'assistant'
+  colors: {
+    userBubble: string
+    assistantBubble: string
+    border: string
+    text: string
+    textMuted: string
+  }
+}
+
+function MessageBubble({ content, role, colors }: MessageBubbleProps) {
+  const [copied, setCopied] = useState(false)
+  const [showCopy, setShowCopy] = useState(false)
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(content)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
+  }
+
+  const renderedContent = useMemo(() => renderMessageContent(content), [content])
+
+  return (
+    <div
+      style={{
+        position: 'relative',
+        alignSelf: role === 'user' ? 'flex-end' : 'flex-start',
+        maxWidth: '85%',
+      }}
+      onMouseEnter={() => setShowCopy(true)}
+      onMouseLeave={() => setShowCopy(false)}
+    >
+      <div
+        style={{
+          padding: '8px 12px',
+          borderRadius: role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+          backgroundColor: role === 'user' ? colors.userBubble : colors.assistantBubble,
+          border: `1px solid ${role === 'user' ? 'rgba(16, 185, 129, 0.2)' : colors.border}`,
+          color: colors.text,
+          fontSize: '13px',
+          lineHeight: '1.5',
+          wordBreak: 'break-word',
+          userSelect: 'text',
+          cursor: 'text',
+        }}
+      >
+        {renderedContent}
+      </div>
+
+      {/* Copy button on hover */}
+      {showCopy && role === 'assistant' && content.length > 20 && (
+        <button
+          onClick={handleCopy}
+          style={{
+            position: 'absolute',
+            top: '4px',
+            right: '-28px',
+            background: 'rgba(255,255,255,0.95)',
+            border: '1px solid rgba(0,0,0,0.1)',
+            borderRadius: '4px',
+            padding: '4px',
+            cursor: 'pointer',
+            color: copied ? '#10b981' : colors.textMuted,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.15s',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+          }}
+          title={copied ? 'Copied!' : 'Copy message'}
+        >
+          {copied ? <CheckIcon /> : <CopyIcon />}
+        </button>
+      )}
+    </div>
+  )
+}
 
 // Microphone icon component
 const MicrophoneIcon = ({ isListening }: { isListening: boolean }) => (
@@ -43,6 +293,479 @@ const ExpandIcon = ({ isExpanded }: { isExpanded: boolean }) => (
   </svg>
 )
 
+// Tool suggestion card component
+interface ToolCardProps {
+  tool: ToolSchema
+  onSpawn: (tool: ToolSchema) => void
+  isSpawned: boolean
+}
+
+const ToolCard = ({ tool, onSpawn, isSpawned }: ToolCardProps) => {
+  const [isHovered, setIsHovered] = useState(false)
+
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation()
+        if (!isSpawned) onSpawn(tool)
+      }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      disabled={isSpawned}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '8px 12px',
+        borderRadius: '12px',
+        border: `1px solid ${isSpawned ? 'rgba(16, 185, 129, 0.3)' : isHovered ? tool.primaryColor : 'rgba(229, 231, 235, 0.8)'}`,
+        background: isSpawned
+          ? 'rgba(16, 185, 129, 0.1)'
+          : isHovered
+            ? `${tool.primaryColor}15`
+            : 'rgba(255, 255, 255, 0.8)',
+        cursor: isSpawned ? 'default' : 'pointer',
+        transition: 'all 0.2s ease',
+        transform: isHovered && !isSpawned ? 'translateY(-1px)' : 'none',
+        boxShadow: isHovered && !isSpawned
+          ? `0 4px 12px ${tool.primaryColor}25`
+          : '0 1px 3px rgba(0,0,0,0.08)',
+        opacity: isSpawned ? 0.7 : 1,
+      }}
+      title={isSpawned ? `${tool.displayName} already spawned` : `Spawn ${tool.displayName} on canvas`}
+    >
+      <span style={{ fontSize: '16px' }}>{tool.icon}</span>
+      <span style={{
+        fontSize: '12px',
+        fontWeight: 500,
+        color: isSpawned ? '#10b981' : isHovered ? tool.primaryColor : '#374151',
+        whiteSpace: 'nowrap',
+      }}>
+        {tool.displayName}
+      </span>
+      {isSpawned && (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="#10b981">
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+        </svg>
+      )}
+    </button>
+  )
+}
+
+// Prompt suggestion chip for selection transforms
+interface PromptSuggestionProps {
+  label: string
+  onClick: () => void
+}
+
+const PromptSuggestion = ({ label, onClick }: PromptSuggestionProps) => {
+  const [isHovered, setIsHovered] = useState(false)
+
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick()
+      }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        padding: '4px 10px',
+        borderRadius: '14px',
+        border: '1px solid rgba(139, 92, 246, 0.25)',
+        background: isHovered
+          ? 'rgba(139, 92, 246, 0.12)'
+          : 'rgba(139, 92, 246, 0.06)',
+        cursor: 'pointer',
+        transition: 'all 0.15s ease',
+        fontSize: '11px',
+        fontWeight: 500,
+        color: isHovered ? '#7c3aed' : '#8b5cf6',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {label}
+    </button>
+  )
+}
+
+// Follow-up suggestion chip with category-based styling
+interface FollowUpChipProps {
+  suggestion: FollowUpSuggestion
+  onClick: () => void
+}
+
+const CATEGORY_COLORS = {
+  organize: { bg: 'rgba(59, 130, 246, 0.08)', border: 'rgba(59, 130, 246, 0.25)', text: '#3b82f6', hover: 'rgba(59, 130, 246, 0.15)' },
+  expand: { bg: 'rgba(16, 185, 129, 0.08)', border: 'rgba(16, 185, 129, 0.25)', text: '#10b981', hover: 'rgba(16, 185, 129, 0.15)' },
+  refine: { bg: 'rgba(245, 158, 11, 0.08)', border: 'rgba(245, 158, 11, 0.25)', text: '#f59e0b', hover: 'rgba(245, 158, 11, 0.15)' },
+  connect: { bg: 'rgba(139, 92, 246, 0.08)', border: 'rgba(139, 92, 246, 0.25)', text: '#8b5cf6', hover: 'rgba(139, 92, 246, 0.15)' },
+  create: { bg: 'rgba(236, 72, 153, 0.08)', border: 'rgba(236, 72, 153, 0.25)', text: '#ec4899', hover: 'rgba(236, 72, 153, 0.15)' },
+}
+
+const FollowUpChip = ({ suggestion, onClick }: FollowUpChipProps) => {
+  const [isHovered, setIsHovered] = useState(false)
+  const colors = CATEGORY_COLORS[suggestion.category]
+
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick()
+      }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '4px',
+        padding: '5px 10px',
+        borderRadius: '14px',
+        border: `1px solid ${colors.border}`,
+        background: isHovered ? colors.hover : colors.bg,
+        cursor: 'pointer',
+        transition: 'all 0.15s ease',
+        fontSize: '11px',
+        fontWeight: 500,
+        color: colors.text,
+        whiteSpace: 'nowrap',
+        transform: isHovered ? 'translateY(-1px)' : 'none',
+        boxShadow: isHovered ? `0 2px 8px ${colors.border}` : 'none',
+      }}
+      title={suggestion.prompt}
+    >
+      {suggestion.icon && <span style={{ fontSize: '12px' }}>{suggestion.icon}</span>}
+      {suggestion.label}
+    </button>
+  )
+}
+
+// Selection transform suggestions that appear when shapes are selected
+const SELECTION_SUGGESTIONS = [
+  { label: 'arrange in a row', prompt: 'arrange in a row' },
+  { label: 'arrange in a column', prompt: 'arrange in a column' },
+  { label: 'arrange in a grid', prompt: 'arrange in a grid' },
+  { label: 'make same size', prompt: 'make these the same size' },
+  { label: 'align left', prompt: 'align left' },
+  { label: 'distribute evenly', prompt: 'distribute horizontally' },
+  { label: 'group by topic', prompt: 'cluster by semantic content' },
+]
+
+// Follow-up suggestions that appear after an action to guide the next step
+interface FollowUpSuggestion {
+  label: string
+  prompt: string
+  icon?: string
+  category: 'organize' | 'expand' | 'refine' | 'connect' | 'create'
+}
+
+// Context-aware follow-up suggestions based on what just happened
+type FollowUpContext =
+  | { type: 'transform'; command: TransformCommand; shapeCount: number }
+  | { type: 'tool_spawned'; toolId: string; toolName: string }
+  | { type: 'ai_response'; hadSelection: boolean; topicKeywords: string[] }
+  | { type: 'selection'; count: number; shapeTypes: Record<string, number> }
+
+// Follow-up suggestions after transform commands
+const TRANSFORM_FOLLOWUPS: Record<string, FollowUpSuggestion[]> = {
+  // After arranging in a row
+  'arrange-row': [
+    { label: 'make same size', prompt: 'make these the same size', icon: '📐', category: 'refine' },
+    { label: 'add labels', prompt: 'add a label above each shape', icon: '🏷️', category: 'expand' },
+    { label: 'connect with arrows', prompt: 'draw arrows connecting these in sequence', icon: '→', category: 'connect' },
+    { label: 'group these', prompt: 'create a frame around these shapes', icon: '📦', category: 'organize' },
+  ],
+  // After arranging in a column
+  'arrange-column': [
+    { label: 'make same width', prompt: 'make these the same width', icon: '↔️', category: 'refine' },
+    { label: 'number them', prompt: 'add numbers before each item', icon: '🔢', category: 'expand' },
+    { label: 'connect vertically', prompt: 'draw arrows connecting these from top to bottom', icon: '↓', category: 'connect' },
+    { label: 'add header', prompt: 'create a title above this column', icon: '📝', category: 'expand' },
+  ],
+  // After arranging in a grid
+  'arrange-grid': [
+    { label: 'make uniform', prompt: 'make all shapes the same size', icon: '⊞', category: 'refine' },
+    { label: 'add row labels', prompt: 'label each row', icon: '🏷️', category: 'expand' },
+    { label: 'color by type', prompt: 'color code these by their content type', icon: '🎨', category: 'refine' },
+    { label: 'create matrix', prompt: 'add column and row headers to make a matrix', icon: '📊', category: 'expand' },
+  ],
+  // After arranging in a circle
+  'arrange-circle': [
+    { label: 'add center node', prompt: 'add a central connecting node', icon: '⭕', category: 'expand' },
+    { label: 'connect to center', prompt: 'draw lines from each to the center', icon: '🕸️', category: 'connect' },
+    { label: 'label the cycle', prompt: 'add a title for this cycle diagram', icon: '📝', category: 'expand' },
+  ],
+  // After aligning
+  'align-left': [
+    { label: 'distribute vertically', prompt: 'distribute these evenly vertically', icon: '↕️', category: 'refine' },
+    { label: 'make same width', prompt: 'make these the same width', icon: '↔️', category: 'refine' },
+  ],
+  'align-right': [
+    { label: 'distribute vertically', prompt: 'distribute these evenly vertically', icon: '↕️', category: 'refine' },
+  ],
+  'align-center': [
+    { label: 'stack vertically', prompt: 'arrange these in a column', icon: '⬇️', category: 'organize' },
+  ],
+  'align-top': [
+    { label: 'distribute horizontally', prompt: 'distribute these evenly horizontally', icon: '↔️', category: 'refine' },
+  ],
+  'align-bottom': [
+    { label: 'distribute horizontally', prompt: 'distribute these evenly horizontally', icon: '↔️', category: 'refine' },
+  ],
+  // After distributing
+  'distribute-horizontal': [
+    { label: 'align tops', prompt: 'align these to the top', icon: '⬆️', category: 'refine' },
+    { label: 'make same size', prompt: 'make these the same size', icon: '📐', category: 'refine' },
+    { label: 'connect in sequence', prompt: 'draw arrows between these', icon: '→', category: 'connect' },
+  ],
+  'distribute-vertical': [
+    { label: 'align left', prompt: 'align these to the left', icon: '⬅️', category: 'refine' },
+    { label: 'make same size', prompt: 'make these the same size', icon: '📐', category: 'refine' },
+  ],
+  // After size normalization
+  'size-match-both': [
+    { label: 'arrange in grid', prompt: 'arrange in a grid', icon: '⊞', category: 'organize' },
+    { label: 'align centers', prompt: 'align horizontally centered', icon: '↔️', category: 'refine' },
+  ],
+  'size-match-width': [
+    { label: 'arrange in column', prompt: 'arrange in a column', icon: '⬇️', category: 'organize' },
+  ],
+  'size-match-height': [
+    { label: 'arrange in row', prompt: 'arrange in a row', icon: '➡️', category: 'organize' },
+  ],
+  // After merging content
+  'merge-content': [
+    { label: 'summarize merged', prompt: 'summarize this combined content', icon: '📝', category: 'refine' },
+    { label: 'extract themes', prompt: 'identify the main themes in this content', icon: '🎯', category: 'expand' },
+    { label: 'create outline', prompt: 'organize this into an outline', icon: '📋', category: 'organize' },
+  ],
+  // After semantic clustering
+  'cluster-semantic': [
+    { label: 'label clusters', prompt: 'add a label to each cluster', icon: '🏷️', category: 'expand' },
+    { label: 'connect related', prompt: 'draw connections between related clusters', icon: '🔗', category: 'connect' },
+    { label: 'create overview', prompt: 'create a summary of all clusters', icon: '📊', category: 'expand' },
+  ],
+}
+
+// Follow-up suggestions after spawning tools
+const TOOL_SPAWN_FOLLOWUPS: Record<string, FollowUpSuggestion[]> = {
+  Prompt: [
+    { label: 'what should I ask?', prompt: 'suggest good prompts for my current canvas content', icon: '💡', category: 'expand' },
+    { label: 'use my notes', prompt: 'use content from my notes as context', icon: '📝', category: 'connect' },
+  ],
+  ImageGen: [
+    { label: 'style suggestions', prompt: 'what visual styles would work well with my content?', icon: '🎨', category: 'expand' },
+    { label: 'from my notes', prompt: 'suggest an image based on my notes', icon: '📝', category: 'connect' },
+  ],
+  VideoGen: [
+    { label: 'from image', prompt: 'which of my images would make a good video?', icon: '🖼️', category: 'connect' },
+    { label: 'motion ideas', prompt: 'suggest motion effects for my content', icon: '✨', category: 'expand' },
+  ],
+  Markdown: [
+    { label: 'summarize canvas', prompt: 'summarize what\'s on my canvas into this note', icon: '📋', category: 'connect' },
+    { label: 'create outline', prompt: 'create an outline from my current shapes', icon: '📝', category: 'organize' },
+  ],
+  ChatBox: [
+    { label: 'discuss canvas', prompt: 'what would be good to discuss about my canvas content?', icon: '💬', category: 'expand' },
+  ],
+  Transcription: [
+    { label: 'start recording', prompt: 'what should I talk about based on my canvas?', icon: '🎤', category: 'expand' },
+  ],
+}
+
+// Generic follow-ups based on canvas state
+const CANVAS_STATE_FOLLOWUPS = {
+  manyShapes: [
+    { label: 'organize all', prompt: 'help me organize everything on this canvas', icon: '🗂️', category: 'organize' as const },
+    { label: 'find patterns', prompt: 'what patterns do you see in my content?', icon: '🔍', category: 'expand' as const },
+    { label: 'identify themes', prompt: 'what are the main themes across my shapes?', icon: '🎯', category: 'expand' as const },
+  ],
+  hasText: [
+    { label: 'summarize all', prompt: 'create a summary of all text content', icon: '📝', category: 'organize' as const },
+    { label: 'find connections', prompt: 'what connections exist between my notes?', icon: '🔗', category: 'connect' as const },
+  ],
+  hasImages: [
+    { label: 'describe images', prompt: 'what themes are in my images?', icon: '🖼️', category: 'expand' as const },
+    { label: 'animate one', prompt: 'which image should I animate?', icon: '🎬', category: 'create' as const },
+  ],
+  hasAI: [
+    { label: 'continue creating', prompt: 'what should I create next?', icon: '✨', category: 'create' as const },
+  ],
+}
+
+// Tool-specific helpful prompts when a single tool is selected
+interface ToolPromptInfo {
+  placeholder: string
+  helpPrompt: string
+  canDirectInput: boolean
+  inputLabel?: string
+}
+
+const TOOL_PROMPTS: Record<string, ToolPromptInfo> = {
+  Prompt: {
+    placeholder: 'Type here to send to your AI Prompt...',
+    helpPrompt: 'What should I ask this AI prompt about?',
+    canDirectInput: true,
+    inputLabel: 'Send to Prompt',
+  },
+  ImageGen: {
+    placeholder: 'Describe the image you want to generate...',
+    helpPrompt: 'Describe your desired image based on my canvas content',
+    canDirectInput: true,
+    inputLabel: 'Generate Image',
+  },
+  VideoGen: {
+    placeholder: 'Describe the motion/animation you want...',
+    helpPrompt: 'What kind of motion should this video have?',
+    canDirectInput: true,
+    inputLabel: 'Generate Video',
+  },
+  ChatBox: {
+    placeholder: 'Send a message to this chat...',
+    helpPrompt: 'What topic should we discuss in this chat?',
+    canDirectInput: true,
+    inputLabel: 'Send to Chat',
+  },
+  Markdown: {
+    placeholder: 'Add content to this note...',
+    helpPrompt: 'What should I write in this note based on my canvas?',
+    canDirectInput: true,
+    inputLabel: 'Add to Note',
+  },
+  ObsNote: {
+    placeholder: 'Add to this observation...',
+    helpPrompt: 'What observation should I add here?',
+    canDirectInput: true,
+    inputLabel: 'Add Note',
+  },
+  Transcription: {
+    placeholder: 'Ask about transcription...',
+    helpPrompt: 'What should I record or transcribe?',
+    canDirectInput: false,
+  },
+  Embed: {
+    placeholder: 'Enter a URL to embed...',
+    helpPrompt: 'What should I embed here?',
+    canDirectInput: true,
+    inputLabel: 'Embed URL',
+  },
+  Holon: {
+    placeholder: 'Enter a Holon ID...',
+    helpPrompt: 'Which Holon should I connect to?',
+    canDirectInput: true,
+    inputLabel: 'Connect Holon',
+  },
+}
+
+// Helper to get selected tool info
+function getSelectedToolInfo(
+  selectionInfo: { count: number; types: Record<string, number> } | null
+): { toolType: string; promptInfo: ToolPromptInfo } | null {
+  if (!selectionInfo || selectionInfo.count !== 1) return null
+
+  const types = Object.keys(selectionInfo.types)
+  if (types.length !== 1) return null
+
+  const toolType = types[0]
+  const promptInfo = TOOL_PROMPTS[toolType]
+  if (!promptInfo) return null
+
+  return { toolType, promptInfo }
+}
+
+// Generate follow-up suggestions based on context
+function getFollowUpSuggestions(context: FollowUpContext): FollowUpSuggestion[] {
+  switch (context.type) {
+    case 'transform': {
+      const commandFollowups = TRANSFORM_FOLLOWUPS[context.command] || []
+      // Add generic suggestions if we have few specific ones
+      if (commandFollowups.length < 2 && context.shapeCount > 1) {
+        return [
+          ...commandFollowups,
+          { label: 'create summary', prompt: 'summarize these shapes', icon: '📝', category: 'expand' },
+          { label: 'find similar', prompt: 'find other shapes related to these', icon: '🔍', category: 'connect' },
+        ]
+      }
+      return commandFollowups
+    }
+
+    case 'tool_spawned': {
+      return TOOL_SPAWN_FOLLOWUPS[context.toolId] || [
+        { label: 'how to use', prompt: `how do I best use ${context.toolName}?`, icon: '❓', category: 'expand' },
+      ]
+    }
+
+    case 'ai_response': {
+      const suggestions: FollowUpSuggestion[] = []
+
+      // Context-aware follow-ups
+      if (context.hadSelection) {
+        suggestions.push(
+          { label: 'do more with these', prompt: 'what else can I do with these selected shapes?', icon: '✨', category: 'expand' },
+          { label: 'find related', prompt: 'find shapes related to my selection', icon: '🔍', category: 'connect' }
+        )
+      }
+
+      // Topic-based suggestions
+      if (context.topicKeywords.length > 0) {
+        suggestions.push(
+          { label: 'expand on this', prompt: `tell me more about ${context.topicKeywords[0]}`, icon: '📖', category: 'expand' },
+          { label: 'create visual', prompt: `create an image about ${context.topicKeywords[0]}`, icon: '🎨', category: 'create' }
+        )
+      }
+
+      // Default suggestions
+      if (suggestions.length < 2) {
+        suggestions.push(
+          { label: 'what next?', prompt: 'what should I work on next?', icon: '➡️', category: 'expand' },
+          { label: 'organize ideas', prompt: 'help me organize my ideas', icon: '🗂️', category: 'organize' }
+        )
+      }
+
+      return suggestions.slice(0, 4)
+    }
+
+    case 'selection': {
+      // For selections, show arrangement options based on count and types
+      if (context.count >= 3) {
+        return [
+          { label: 'arrange in grid', prompt: 'arrange in a grid', icon: '⊞', category: 'organize' },
+          { label: 'cluster by topic', prompt: 'cluster by semantic content', icon: '🎯', category: 'organize' },
+        ]
+      }
+      return []
+    }
+
+    default:
+      return []
+  }
+}
+
+// Extract likely topic keywords from AI response
+function extractTopicKeywords(response: string): string[] {
+  // Simple extraction - look for quoted terms or capitalized phrases
+  const keywords: string[] = []
+
+  // Find quoted phrases
+  const quoted = response.match(/"([^"]+)"/g)
+  if (quoted) {
+    keywords.push(...quoted.map(q => q.replace(/"/g, '')).slice(0, 2))
+  }
+
+  // Find terms after "about", "regarding", "for"
+  const aboutMatch = response.match(/(?:about|regarding|for)\s+([A-Za-z][A-Za-z\s]{2,20}?)(?:[,.]|\s(?:and|or|in|on|to))/gi)
+  if (aboutMatch) {
+    keywords.push(...aboutMatch.map(m => m.replace(/^(?:about|regarding|for)\s+/i, '').replace(/[,.\s]+$/, '')).slice(0, 2))
+  }
+
+  return [...new Set(keywords)].slice(0, 3)
+}
+
 // Hook to detect dark mode
 const useDarkMode = () => {
   const [isDark, setIsDark] = useState(() =>
@@ -74,6 +797,10 @@ const ACCENT_COLOR = "#10b981" // Emerald green
 interface ConversationMessage {
   role: 'user' | 'assistant'
   content: string
+  suggestedTools?: ToolSchema[]
+  followUpSuggestions?: FollowUpSuggestion[]
+  /** If this was a transform command result */
+  executedTransform?: TransformCommand
 }
 
 export function MycelialIntelligenceBar() {
@@ -92,9 +819,167 @@ export function MycelialIntelligenceBar() {
   const [indexingProgress, setIndexingProgress] = useState(0)
   const [isIndexing, setIsIndexing] = useState(false)
   const [isHovering, setIsHovering] = useState(false)
+  const [suggestedTools, setSuggestedTools] = useState<ToolSchema[]>([])
+  const [spawnedToolIds, setSpawnedToolIds] = useState<Set<string>>(new Set())
+  const [selectionInfo, setSelectionInfo] = useState<{
+    count: number
+    types: Record<string, number>
+  } | null>(null)
+  const [followUpSuggestions, setFollowUpSuggestions] = useState<FollowUpSuggestion[]>([])
+  const [lastTransform, setLastTransform] = useState<TransformCommand | null>(null)
+  const [toolInputMode, setToolInputMode] = useState<{ toolType: string; shapeId: string } | null>(null)
+
+  // Derived state: get selected tool info
+  const selectedToolInfo = getSelectedToolInfo(selectionInfo)
 
   // Initialize canvas AI with editor
   useCanvasAI(editor)
+
+  // Track selection changes - use direct selection query for reliability
+  useEffect(() => {
+    if (!editor) return
+
+    const updateSelection = () => {
+      const selectedShapes = editor.getSelectedShapes()
+      if (selectedShapes.length > 0) {
+        // Count shape types
+        const types: Record<string, number> = {}
+        for (const shape of selectedShapes) {
+          types[shape.type] = (types[shape.type] || 0) + 1
+        }
+        setSelectionInfo({
+          count: selectedShapes.length,
+          types,
+        })
+
+        // If single tool selected, track it for direct input mode
+        if (selectedShapes.length === 1) {
+          const shape = selectedShapes[0]
+          if (TOOL_PROMPTS[shape.type]) {
+            setToolInputMode({ toolType: shape.type, shapeId: shape.id as string })
+          } else {
+            setToolInputMode(null)
+          }
+        } else {
+          setToolInputMode(null)
+        }
+      } else {
+        setSelectionInfo(null)
+        setToolInputMode(null)
+      }
+    }
+
+    // Initial check
+    updateSelection()
+
+    // Subscribe to all store changes and filter for selection
+    const unsubscribe = editor.store.listen(updateSelection, { scope: 'all' })
+
+    return () => {
+      unsubscribe()
+    }
+  }, [editor])
+
+  // Handle prompt suggestion click - fills in the prompt and submits
+  const handleSuggestionClick = useCallback((suggestionPrompt: string) => {
+    setPrompt(suggestionPrompt)
+    // Use setTimeout to allow state to update, then submit
+    setTimeout(() => {
+      // Trigger submit with the suggestion
+      const submitPrompt = async () => {
+        if (!suggestionPrompt.trim()) return
+
+        const newHistory: ConversationMessage[] = [
+          ...conversationHistory,
+          { role: 'user', content: suggestionPrompt }
+        ]
+
+        setConversationHistory(newHistory)
+        setIsLoading(true)
+        setIsExpanded(true)
+        setStreamingResponse("")
+        setPrompt('')
+        setFollowUpSuggestions([]) // Clear previous follow-ups
+
+        try {
+          const { isIndexing: currentlyIndexing } = canvasAI.getIndexingStatus()
+          if (!currentlyIndexing) {
+            setIsIndexing(true)
+            await canvasAI.indexCanvas((progress) => {
+              setIndexingProgress(progress)
+            })
+            setIsIndexing(false)
+            setIndexingProgress(100)
+          }
+
+          let fullResponse = ''
+          let tools: ToolSchema[] = []
+
+          const result = await canvasAI.query(
+            suggestionPrompt,
+            (partial, done) => {
+              fullResponse = partial
+              setStreamingResponse(partial)
+              if (done) {
+                setIsLoading(false)
+              }
+            }
+          )
+
+          tools = result.suggestedTools || []
+          setSuggestedTools(tools)
+          setSpawnedToolIds(new Set())
+
+          // Generate follow-up suggestions based on result
+          let newFollowUps: FollowUpSuggestion[] = []
+          if (result.executedTransform) {
+            // Transform was executed - suggest next steps
+            setLastTransform(result.executedTransform)
+            newFollowUps = getFollowUpSuggestions({
+              type: 'transform',
+              command: result.executedTransform,
+              shapeCount: result.selectionCount,
+            })
+          } else {
+            // Regular AI response - suggest based on content
+            const keywords = extractTopicKeywords(fullResponse)
+            newFollowUps = getFollowUpSuggestions({
+              type: 'ai_response',
+              hadSelection: result.hadSelection,
+              topicKeywords: keywords,
+            })
+          }
+          setFollowUpSuggestions(newFollowUps)
+
+          const updatedHistory: ConversationMessage[] = [
+            ...newHistory,
+            {
+              role: 'assistant',
+              content: fullResponse,
+              suggestedTools: tools,
+              followUpSuggestions: newFollowUps,
+              executedTransform: result.executedTransform,
+            }
+          ]
+
+          setConversationHistory(updatedHistory)
+          setStreamingResponse("")
+          setIsLoading(false)
+        } catch (error) {
+          console.error('Mycelial Intelligence query error:', error)
+          const errorMessage = error instanceof Error ? error.message : 'An error occurred'
+          setConversationHistory([
+            ...newHistory,
+            { role: 'assistant', content: `Error: ${errorMessage}` }
+          ])
+          setStreamingResponse("")
+          setIsLoading(false)
+          setFollowUpSuggestions([])
+        }
+      }
+      submitPrompt()
+    }, 0)
+  }, [conversationHistory])
 
   // Theme-aware colors
   const colors = {
@@ -176,6 +1061,7 @@ export function MycelialIntelligenceBar() {
 
     // Clear prompt immediately
     setPrompt('')
+    setFollowUpSuggestions([]) // Clear previous follow-ups
 
     const newHistory: ConversationMessage[] = [
       ...conversationHistory,
@@ -201,7 +1087,9 @@ export function MycelialIntelligenceBar() {
       }
 
       let fullResponse = ''
-      await canvasAI.query(
+      let tools: ToolSchema[] = []
+
+      const result = await canvasAI.query(
         trimmedPrompt,
         (partial, done) => {
           fullResponse = partial
@@ -212,9 +1100,42 @@ export function MycelialIntelligenceBar() {
         }
       )
 
+      // Capture suggested tools from the result
+      tools = result.suggestedTools || []
+      setSuggestedTools(tools)
+      // Reset spawned tracking for new suggestions
+      setSpawnedToolIds(new Set())
+
+      // Generate follow-up suggestions based on result
+      let newFollowUps: FollowUpSuggestion[] = []
+      if (result.executedTransform) {
+        // Transform was executed - suggest next steps
+        setLastTransform(result.executedTransform)
+        newFollowUps = getFollowUpSuggestions({
+          type: 'transform',
+          command: result.executedTransform,
+          shapeCount: result.selectionCount,
+        })
+      } else {
+        // Regular AI response - suggest based on content
+        const keywords = extractTopicKeywords(fullResponse)
+        newFollowUps = getFollowUpSuggestions({
+          type: 'ai_response',
+          hadSelection: result.hadSelection,
+          topicKeywords: keywords,
+        })
+      }
+      setFollowUpSuggestions(newFollowUps)
+
       const updatedHistory: ConversationMessage[] = [
         ...newHistory,
-        { role: 'assistant', content: fullResponse }
+        {
+          role: 'assistant',
+          content: fullResponse,
+          suggestedTools: tools,
+          followUpSuggestions: newFollowUps,
+          executedTransform: result.executedTransform,
+        }
       ]
 
       setConversationHistory(updatedHistory)
@@ -233,6 +1154,7 @@ export function MycelialIntelligenceBar() {
       setConversationHistory(errorHistory)
       setStreamingResponse("")
       setIsLoading(false)
+      setFollowUpSuggestions([])
     }
   }, [prompt, isLoading, conversationHistory])
 
@@ -241,9 +1163,145 @@ export function MycelialIntelligenceBar() {
     setIsExpanded(prev => !prev)
   }, [])
 
-  const collapsedHeight = 48
+  // Handle sending input directly to a selected tool
+  const handleDirectToolInput = useCallback((input: string) => {
+    if (!editor || !toolInputMode) return
+
+    const shape = editor.getShape(toolInputMode.shapeId as any)
+    if (!shape) return
+
+    const toolType = toolInputMode.toolType
+
+    // Update the shape's content based on tool type
+    switch (toolType) {
+      case 'Prompt':
+      case 'ChatBox':
+        // For AI tools, set the prompt/message
+        editor.updateShape({
+          id: shape.id,
+          type: shape.type,
+          props: { ...shape.props as any, prompt: input },
+        })
+        break
+
+      case 'ImageGen':
+        // For image generation, set the prompt
+        editor.updateShape({
+          id: shape.id,
+          type: shape.type,
+          props: { ...shape.props as any, prompt: input },
+        })
+        break
+
+      case 'VideoGen':
+        // For video generation, set the motion prompt
+        editor.updateShape({
+          id: shape.id,
+          type: shape.type,
+          props: { ...shape.props as any, motionPrompt: input },
+        })
+        break
+
+      case 'Markdown':
+      case 'ObsNote':
+        // For notes, append to or set content
+        const currentContent = (shape.props as any).content || ''
+        const newContent = currentContent
+          ? `${currentContent}\n\n${input}`
+          : input
+        editor.updateShape({
+          id: shape.id,
+          type: shape.type,
+          props: { ...shape.props as any, content: newContent },
+        })
+        break
+
+      case 'Embed':
+        // For embed, set the URL
+        editor.updateShape({
+          id: shape.id,
+          type: shape.type,
+          props: { ...shape.props as any, url: input },
+        })
+        break
+
+      case 'Holon':
+        // For Holon, set the holon ID
+        editor.updateShape({
+          id: shape.id,
+          type: shape.type,
+          props: { ...shape.props as any, holonId: input },
+        })
+        break
+
+      default:
+        console.log(`Direct input not implemented for ${toolType}`)
+    }
+
+    // Clear the prompt
+    setPrompt('')
+
+    // Show confirmation in conversation
+    setConversationHistory(prev => [
+      ...prev,
+      { role: 'user', content: `[Sent to ${TOOL_PROMPTS[toolType]?.inputLabel || toolType}]: ${input}` },
+      { role: 'assistant', content: `I've added that to your ${toolType}. You can see it updated on the canvas.` }
+    ])
+  }, [editor, toolInputMode])
+
+  // Handle spawning a single tool
+  const handleSpawnTool = useCallback((tool: ToolSchema) => {
+    if (!editor) return
+
+    // Get viewport center for spawn position
+    const viewportBounds = editor.getViewportPageBounds()
+    const centerX = viewportBounds.x + viewportBounds.w / 2
+    const centerY = viewportBounds.y + viewportBounds.h / 2 + 50 // Offset below MI bar
+
+    const shapeId = spawnTool(editor, tool.id, { x: centerX, y: centerY }, {
+      selectAfterSpawn: true,
+    })
+
+    if (shapeId) {
+      // Track that this tool was spawned
+      setSpawnedToolIds(prev => new Set([...prev, tool.id]))
+
+      // Generate follow-up suggestions for the spawned tool
+      const newFollowUps = getFollowUpSuggestions({
+        type: 'tool_spawned',
+        toolId: tool.id,
+        toolName: tool.displayName,
+      })
+      setFollowUpSuggestions(newFollowUps)
+
+      console.log(`Spawned ${tool.displayName} on canvas`)
+    }
+  }, [editor])
+
+  // Handle spawning all suggested tools
+  const handleSpawnAllTools = useCallback(() => {
+    if (!editor || suggestedTools.length === 0) return
+
+    const toolsToSpawn = suggestedTools.filter(t => !spawnedToolIds.has(t.id))
+    if (toolsToSpawn.length === 0) return
+
+    const ids = spawnTools(editor, toolsToSpawn, {
+      arrangement: toolsToSpawn.length <= 2 ? 'horizontal' : 'grid',
+      selectAfterSpawn: true,
+      zoomToFit: toolsToSpawn.length > 2,
+    })
+
+    if (ids.length > 0) {
+      setSpawnedToolIds(prev => new Set([...prev, ...toolsToSpawn.map(t => t.id)]))
+      console.log(`Spawned ${ids.length} tools on canvas`)
+    }
+  }, [editor, suggestedTools, spawnedToolIds])
+
+  // Height: taller when showing suggestion chips (single tool or 2+ selected)
+  const showSuggestions = selectedToolInfo || (selectionInfo && selectionInfo.count > 1)
+  const collapsedHeight = showSuggestions ? 76 : 48
   const expandedHeight = 400
-  const barWidth = 520
+  const barWidth = 520 // Consistent width
   const height = isExpanded ? expandedHeight : collapsedHeight
 
   return (
@@ -280,51 +1338,90 @@ export function MycelialIntelligenceBar() {
           WebkitBackdropFilter: 'blur(16px)',
         }}
       >
-        {/* Collapsed: Single-line prompt bar */}
+        {/* Collapsed: Single-line prompt bar with optional suggestions */}
         {!isExpanded && (
           <div style={{
             display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
+            flexDirection: 'column',
+            gap: '4px',
             padding: '6px 10px 6px 14px',
             height: '100%',
+            justifyContent: 'center',
           }}>
-            {/* Mushroom + Brain icon */}
-            <span style={{
-              fontSize: '16px',
-              opacity: 0.9,
-              flexShrink: 0,
+            {/* Main input row */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
             }}>
-              🍄🧠
-            </span>
+              {/* Mushroom + Brain icon with selection count badge */}
+              <div style={{
+                position: 'relative',
+                flexShrink: 0,
+              }}>
+                <span style={{
+                  fontSize: '16px',
+                  opacity: 0.9,
+                }}>
+                  🍄🧠
+                </span>
+                {selectionInfo && (
+                  <span style={{
+                    position: 'absolute',
+                    top: '-4px',
+                    right: '-8px',
+                    background: '#8b5cf6',
+                    color: 'white',
+                    fontSize: '9px',
+                    fontWeight: 600,
+                    padding: '1px 4px',
+                    borderRadius: '8px',
+                    minWidth: '14px',
+                    textAlign: 'center',
+                  }}>
+                    {selectionInfo.count}
+                  </span>
+                )}
+              </div>
 
-            {/* Input field */}
-            <input
-              ref={inputRef}
-              type="text"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => {
-                e.stopPropagation()
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  handleSubmit()
+              {/* Input field - context-aware placeholder */}
+              <input
+                ref={inputRef}
+                type="text"
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  e.stopPropagation()
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    // Direct tool input mode if single tool selected
+                    if (selectedToolInfo?.promptInfo.canDirectInput && prompt.trim()) {
+                      handleDirectToolInput(prompt.trim())
+                    } else {
+                      handleSubmit()
+                    }
+                  }
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+                onFocus={(e) => e.stopPropagation()}
+                placeholder={
+                  selectedToolInfo
+                    ? selectedToolInfo.promptInfo.placeholder
+                    : selectionInfo && selectionInfo.count > 1
+                      ? `${selectionInfo.count} selected — try a suggestion below...`
+                      : "Ask mi anything about this workspace..."
                 }
-              }}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => e.stopPropagation()}
-              onFocus={(e) => e.stopPropagation()}
-              placeholder="Ask mi anything about this workspace..."
-              style={{
-                flex: 1,
-                background: 'transparent',
-                border: 'none',
-                padding: '8px 4px',
-                fontSize: '14px',
-                color: colors.inputText,
-                outline: 'none',
-              }}
-            />
+                style={{
+                  flex: 1,
+                  background: 'transparent',
+                  border: 'none',
+                  padding: '8px 4px',
+                  fontSize: '14px',
+                  color: colors.inputText,
+                  outline: 'none',
+                }}
+              />
 
             {/* Indexing indicator */}
             {isIndexing && (
@@ -368,34 +1465,48 @@ export function MycelialIntelligenceBar() {
               </button>
             )}
 
-            {/* Send button (compact, pill shape) */}
+            {/* Send button - shows tool-specific label when tool selected */}
             <button
               onClick={(e) => {
                 e.stopPropagation()
-                handleSubmit()
+                if (selectedToolInfo?.promptInfo.canDirectInput && prompt.trim()) {
+                  handleDirectToolInput(prompt.trim())
+                } else {
+                  handleSubmit()
+                }
               }}
               onPointerDown={(e) => e.stopPropagation()}
               disabled={!prompt.trim() || isLoading}
               style={{
                 height: '34px',
-                padding: '0 14px',
+                padding: selectedToolInfo ? '0 12px' : '0 14px',
                 borderRadius: '17px',
                 border: 'none',
                 background: prompt.trim() && !isLoading
-                  ? ACCENT_COLOR
+                  ? selectedToolInfo ? '#6366f1' : ACCENT_COLOR
                   : colors.inputBg,
                 cursor: prompt.trim() && !isLoading ? 'pointer' : 'default',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                gap: '4px',
                 color: prompt.trim() && !isLoading ? 'white' : colors.textMuted,
                 transition: 'all 0.2s ease',
                 flexShrink: 0,
                 opacity: prompt.trim() && !isLoading ? 1 : 0.5,
+                fontSize: '11px',
+                fontWeight: 500,
               }}
-              title="Send"
+              title={selectedToolInfo?.promptInfo.inputLabel || "Send"}
             >
-              <SendIcon />
+              {selectedToolInfo && prompt.trim() ? (
+                <>
+                  <span style={{ fontSize: '12px' }}>→</span>
+                  {selectedToolInfo.promptInfo.inputLabel}
+                </>
+              ) : (
+                <SendIcon />
+              )}
             </button>
 
             {/* Expand button if there's history */}
@@ -424,6 +1535,57 @@ export function MycelialIntelligenceBar() {
               >
                 <ExpandIcon isExpanded={false} />
               </button>
+            )}
+            </div>
+
+            {/* Prompt suggestions row - context-aware */}
+            {/* Show tool-specific help when single tool selected */}
+            {selectedToolInfo && (
+              <div
+                style={{
+                  display: 'flex',
+                  gap: '6px',
+                  paddingTop: '2px',
+                  paddingLeft: '28px',
+                  overflowX: 'auto',
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none',
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <PromptSuggestion
+                  label={`💡 ${selectedToolInfo.toolType} ideas`}
+                  onClick={() => handleSuggestionClick(selectedToolInfo.promptInfo.helpPrompt)}
+                />
+                <PromptSuggestion
+                  label="use canvas context"
+                  onClick={() => handleSuggestionClick(`Use content from my canvas to help fill this ${selectedToolInfo.toolType}`)}
+                />
+              </div>
+            )}
+
+            {/* Show transform suggestions when multiple shapes selected */}
+            {!selectedToolInfo && selectionInfo && selectionInfo.count > 1 && (
+              <div
+                style={{
+                  display: 'flex',
+                  gap: '6px',
+                  paddingTop: '2px',
+                  paddingLeft: '28px', // Align with input field
+                  overflowX: 'auto',
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none',
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                {SELECTION_SUGGESTIONS.slice(0, 5).map((suggestion) => (
+                  <PromptSuggestion
+                    key={suggestion.label}
+                    label={suggestion.label}
+                    onClick={() => handleSuggestionClick(suggestion.prompt)}
+                  />
+                ))}
+              </div>
             )}
           </div>
         )}
@@ -506,57 +1668,231 @@ export function MycelialIntelligenceBar() {
                   fontSize: '13px',
                   textAlign: 'center',
                   padding: '20px 16px',
+                  lineHeight: '1.6',
                 }}>
-                  I can search, summarize, and find connections across all your workspace content.
+                  <div style={{ marginBottom: '8px' }}>
+                    I'm your Mycelial Intelligence — the awareness connecting all shapes and ideas in your workspace.
+                  </div>
+                  <div style={{ opacity: 0.8, fontSize: '12px' }}>
+                    Ask me about what's on your canvas, how to use the tools, or what connections I perceive between your ideas.
+                  </div>
                 </div>
               )}
 
               {conversationHistory.map((msg, idx) => (
-                <div
-                  key={idx}
-                  style={{
-                    alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                    maxWidth: '85%',
-                    padding: '8px 12px',
-                    borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                    backgroundColor: msg.role === 'user' ? colors.userBubble : colors.assistantBubble,
-                    border: `1px solid ${msg.role === 'user' ? 'rgba(16, 185, 129, 0.2)' : colors.border}`,
-                    color: colors.text,
-                    fontSize: '13px',
-                    lineHeight: '1.5',
-                    whiteSpace: 'pre-wrap',
-                  }}
-                >
-                  {msg.content}
-                </div>
+                <React.Fragment key={idx}>
+                  <MessageBubble
+                    content={msg.content}
+                    role={msg.role}
+                    colors={colors}
+                  />
+
+                  {/* Tool suggestions for assistant messages */}
+                  {msg.role === 'assistant' && msg.suggestedTools && msg.suggestedTools.length > 0 && (
+                    <div
+                      style={{
+                        alignSelf: 'flex-start',
+                        maxWidth: '100%',
+                        padding: '10px',
+                        marginTop: '6px',
+                        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(99, 102, 241, 0.05) 100%)',
+                        borderRadius: '12px',
+                        border: '1px solid rgba(16, 185, 129, 0.15)',
+                      }}
+                    >
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: '8px',
+                      }}>
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          color: ACCENT_COLOR,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                        }}>
+                          Suggested Tools
+                        </span>
+                        {msg.suggestedTools.length > 1 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleSpawnAllTools()
+                            }}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            style={{
+                              fontSize: '11px',
+                              padding: '4px 10px',
+                              borderRadius: '8px',
+                              border: `1px solid ${ACCENT_COLOR}`,
+                              background: 'transparent',
+                              color: ACCENT_COLOR,
+                              cursor: 'pointer',
+                              fontWeight: 500,
+                              transition: 'all 0.2s ease',
+                            }}
+                            title="Spawn all suggested tools on canvas"
+                          >
+                            Spawn All
+                          </button>
+                        )}
+                      </div>
+                      <div style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '8px',
+                      }}>
+                        {msg.suggestedTools.map((tool) => (
+                          <ToolCard
+                            key={tool.id}
+                            tool={tool}
+                            onSpawn={handleSpawnTool}
+                            isSpawned={spawnedToolIds.has(tool.id)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Follow-up suggestions for assistant messages */}
+                  {msg.role === 'assistant' && msg.followUpSuggestions && msg.followUpSuggestions.length > 0 && (
+                    <div
+                      style={{
+                        alignSelf: 'flex-start',
+                        maxWidth: '100%',
+                        padding: '8px',
+                        marginTop: '6px',
+                      }}
+                    >
+                      <div style={{
+                        fontSize: '10px',
+                        fontWeight: 500,
+                        color: colors.textMuted,
+                        marginBottom: '6px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                      }}>
+                        Next Steps
+                      </div>
+                      <div style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '6px',
+                      }}>
+                        {msg.followUpSuggestions.map((suggestion, i) => (
+                          <FollowUpChip
+                            key={`${suggestion.label}-${i}`}
+                            suggestion={suggestion}
+                            onClick={() => handleSuggestionClick(suggestion.prompt)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </React.Fragment>
               ))}
 
               {/* Streaming response */}
               {streamingResponse && (
-                <div style={{
-                  alignSelf: 'flex-start',
-                  maxWidth: '85%',
-                  padding: '8px 12px',
-                  borderRadius: '14px 14px 14px 4px',
-                  backgroundColor: colors.assistantBubble,
-                  border: `1px solid ${colors.border}`,
-                  color: colors.text,
-                  fontSize: '13px',
-                  lineHeight: '1.5',
-                  whiteSpace: 'pre-wrap',
-                }}>
-                  {streamingResponse}
-                  {isLoading && (
-                    <span style={{
-                      display: 'inline-block',
-                      width: '2px',
-                      height: '14px',
-                      backgroundColor: ACCENT_COLOR,
-                      marginLeft: '2px',
-                      animation: 'blink 1s infinite',
-                    }} />
+                <>
+                  <div style={{
+                    alignSelf: 'flex-start',
+                    maxWidth: '85%',
+                    padding: '8px 12px',
+                    borderRadius: '14px 14px 14px 4px',
+                    backgroundColor: colors.assistantBubble,
+                    border: `1px solid ${colors.border}`,
+                    color: colors.text,
+                    fontSize: '13px',
+                    lineHeight: '1.5',
+                    wordBreak: 'break-word',
+                    userSelect: 'text',
+                    cursor: 'text',
+                  }}>
+                    {renderMessageContent(streamingResponse)}
+                    {isLoading && (
+                      <span style={{
+                        display: 'inline-block',
+                        width: '2px',
+                        height: '14px',
+                        backgroundColor: ACCENT_COLOR,
+                        marginLeft: '2px',
+                        animation: 'blink 1s infinite',
+                      }} />
+                    )}
+                  </div>
+
+                  {/* Show suggested tools while streaming if available */}
+                  {suggestedTools.length > 0 && (
+                    <div
+                      style={{
+                        alignSelf: 'flex-start',
+                        maxWidth: '100%',
+                        padding: '10px',
+                        marginTop: '6px',
+                        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(99, 102, 241, 0.05) 100%)',
+                        borderRadius: '12px',
+                        border: '1px solid rgba(16, 185, 129, 0.15)',
+                      }}
+                    >
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: '8px',
+                      }}>
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          color: ACCENT_COLOR,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                        }}>
+                          Suggested Tools
+                        </span>
+                        {suggestedTools.length > 1 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleSpawnAllTools()
+                            }}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            style={{
+                              fontSize: '11px',
+                              padding: '4px 10px',
+                              borderRadius: '8px',
+                              border: `1px solid ${ACCENT_COLOR}`,
+                              background: 'transparent',
+                              color: ACCENT_COLOR,
+                              cursor: 'pointer',
+                              fontWeight: 500,
+                              transition: 'all 0.2s ease',
+                            }}
+                            title="Spawn all suggested tools on canvas"
+                          >
+                            Spawn All
+                          </button>
+                        )}
+                      </div>
+                      <div style={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '8px',
+                      }}>
+                        {suggestedTools.map((tool) => (
+                          <ToolCard
+                            key={tool.id}
+                            tool={tool}
+                            onSpawn={handleSpawnTool}
+                            isSpawned={spawnedToolIds.has(tool.id)}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   )}
-                </div>
+                </>
               )}
 
               {/* Loading indicator */}
@@ -570,6 +1906,49 @@ export function MycelialIntelligenceBar() {
                   <span className="loading-dot" style={{ backgroundColor: ACCENT_COLOR }} />
                   <span className="loading-dot" style={{ backgroundColor: ACCENT_COLOR, animationDelay: '0.2s' }} />
                   <span className="loading-dot" style={{ backgroundColor: ACCENT_COLOR, animationDelay: '0.4s' }} />
+                </div>
+              )}
+
+              {/* Current follow-up suggestions - shown at bottom when not loading */}
+              {!isLoading && followUpSuggestions.length > 0 && (
+                <div
+                  style={{
+                    alignSelf: 'flex-start',
+                    maxWidth: '100%',
+                    padding: '10px',
+                    marginTop: '4px',
+                    background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.04) 0%, rgba(16, 185, 129, 0.04) 100%)',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(99, 102, 241, 0.1)',
+                  }}
+                >
+                  <div style={{
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    color: '#6366f1',
+                    marginBottom: '8px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}>
+                    <span>✨</span>
+                    Try next
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '6px',
+                  }}>
+                    {followUpSuggestions.slice(0, 4).map((suggestion, i) => (
+                      <FollowUpChip
+                        key={`current-${suggestion.label}-${i}`}
+                        suggestion={suggestion}
+                        onClick={() => handleSuggestionClick(suggestion.prompt)}
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

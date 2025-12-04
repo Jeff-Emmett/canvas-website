@@ -60,6 +60,7 @@ import { Collection, initializeGlobalCollections } from "@/collections"
 import { GraphLayoutCollection } from "@/graph/GraphLayoutCollection"
 import { GestureTool } from "@/GestureTool"
 import { CmdK } from "@/CmdK"
+import { setupMultiPasteHandler } from "@/utils/multiPasteHandler"
 
 
 import "react-cmdk/dist/cmdk.css"
@@ -918,11 +919,19 @@ export function Board() {
     };
 
     document.addEventListener('keydown', handleKeyDown, true); // Use capture phase to intercept early
-    
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown, true);
     };
   }, [editor, automergeHandle]);
+
+  // Set up multi-paste handler to support pasting multiple images/URLs at once
+  useEffect(() => {
+    if (!editor) return;
+
+    const cleanup = setupMultiPasteHandler(editor);
+    return cleanup;
+  }, [editor]);
 
   // Only render Tldraw when store is ready and synced
   // Tldraw will automatically render shapes as they're added via patches (like in dev)

@@ -36,14 +36,23 @@ interface RunPodJobResponse {
   [key: string]: any
 }
 
+// Individual image entry in the history
+interface GeneratedImage {
+  id: string
+  prompt: string
+  imageUrl: string
+  timestamp: number
+}
+
 type IImageGen = TLBaseShape<
   "ImageGen",
   {
     w: number
     h: number
     prompt: string
-    imageUrl: string | null
+    imageHistory: GeneratedImage[] // Thread of all generated images (newest first)
     isLoading: boolean
+    loadingPrompt: string | null // The prompt currently being generated
     error: string | null
     endpointId?: string // Optional custom endpoint ID
     tags: string[]
@@ -291,8 +300,9 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
       w: this.DEFAULT_WIDTH,
       h: this.DEFAULT_HEIGHT,
       prompt: "",
-      imageUrl: null,
+      imageHistory: [],
       isLoading: false,
+      loadingPrompt: null,
       error: null,
       tags: ['image', 'ai-generated'],
       pinnedToView: false,
@@ -326,15 +336,15 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
 
     const generateImage = async (prompt: string) => {
       console.log("🎨 ImageGen: Generating image with prompt:", prompt)
-      
-      // Clear any previous errors
+
+      // Store the prompt being used and clear any previous errors
       editor.updateShape<IImageGen>({
         id: shape.id,
         type: "ImageGen",
         props: {
           error: null,
           isLoading: true,
-          imageUrl: null
+          loadingPrompt: prompt
         },
       })
 
@@ -357,12 +367,25 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
 
           console.log("✅ ImageGen: Mock image generated:", mockImageUrl)
 
+          // Get current shape to access existing history
+          const currentShape = editor.getShape<IImageGen>(shape.id)
+          const currentHistory = currentShape?.props.imageHistory || []
+
+          // Create new image entry
+          const newImage: GeneratedImage = {
+            id: `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            prompt: prompt,
+            imageUrl: mockImageUrl,
+            timestamp: Date.now()
+          }
+
           editor.updateShape<IImageGen>({
             id: shape.id,
             type: "ImageGen",
             props: {
-              imageUrl: mockImageUrl,
+              imageHistory: [newImage, ...currentHistory], // Prepend new image
               isLoading: false,
+              loadingPrompt: null,
               error: null
             },
           })
@@ -438,12 +461,26 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
 
           if (imageUrl) {
             console.log('✅ ImageGen: Image generated successfully')
+
+            // Get current shape to access existing history
+            const currentShape = editor.getShape<IImageGen>(shape.id)
+            const currentHistory = currentShape?.props.imageHistory || []
+
+            // Create new image entry
+            const newImage: GeneratedImage = {
+              id: `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+              prompt: prompt,
+              imageUrl: imageUrl,
+              timestamp: Date.now()
+            }
+
             editor.updateShape<IImageGen>({
               id: shape.id,
               type: "ImageGen",
               props: {
-                imageUrl: imageUrl,
+                imageHistory: [newImage, ...currentHistory], // Prepend new image
                 isLoading: false,
+                loadingPrompt: null,
                 error: null
               },
             })
@@ -505,6 +542,7 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
           type: "ImageGen",
           props: {
             isLoading: false,
+            loadingPrompt: null,
             error: userFriendlyError
           },
         })
@@ -583,93 +621,307 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
             overflow: 'auto',
             backgroundColor: '#fafafa'
           }}>
-            {/* Image Display */}
-            {shape.props.imageUrl && !shape.props.isLoading && (
-              <div
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: "#fff",
-                  borderRadius: "6px",
-                  overflow: "hidden",
-                  minHeight: 0,
-                  border: '1px solid #e0e0e0',
-                }}
-              >
-                <img
-                  src={shape.props.imageUrl}
-                  alt={shape.props.prompt || "Generated image"}
-                  style={{
-                    maxWidth: "100%",
-                    maxHeight: "100%",
-                    objectFit: "contain",
-                  }}
-                  onError={(_e) => {
-                    console.error("❌ ImageGen: Failed to load image:", shape.props.imageUrl)
-                    editor.updateShape<IImageGen>({
-                      id: shape.id,
-                      type: "ImageGen",
-                      props: {
-                        error: "Failed to load generated image",
-                        imageUrl: null
-                      },
-                    })
-                  }}
-                />
-              </div>
-            )}
-
-            {/* Loading State */}
-            {shape.props.isLoading && (
-              <div
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: "#fff",
-                  borderRadius: "6px",
-                  gap: 12,
-                  border: '1px solid #e0e0e0',
-                }}
-              >
+            {/* Image Thread - scrollable history of generated images */}
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                overflow: 'auto',
+                minHeight: 0,
+              }}
+            >
+              {/* Loading State - shown at top when generating */}
+              {shape.props.isLoading && (
                 <div
                   style={{
-                    width: 40,
-                    height: 40,
-                    border: "4px solid #f3f3f3",
-                    borderTop: `4px solid ${ImageGenShape.PRIMARY_COLOR}`,
-                    borderRadius: "50%",
-                    animation: "spin 1s linear infinite",
+                    display: "flex",
+                    flexDirection: "column",
+                    backgroundColor: "#fff",
+                    borderRadius: "6px",
+                    border: '1px solid #e0e0e0',
+                    overflow: 'hidden',
                   }}
-                />
-                <span style={{ color: "#666", fontSize: "14px" }}>
-                  Generating image...
-                </span>
-              </div>
-            )}
+                >
+                  <div
+                    style={{
+                      padding: '24px',
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 12,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 40,
+                        height: 40,
+                        border: "4px solid #f3f3f3",
+                        borderTop: `4px solid ${ImageGenShape.PRIMARY_COLOR}`,
+                        borderRadius: "50%",
+                        animation: "spin 1s linear infinite",
+                      }}
+                    />
+                    <span style={{ color: "#666", fontSize: "14px" }}>
+                      Generating image...
+                    </span>
+                  </div>
+                  {shape.props.loadingPrompt && (
+                    <div
+                      style={{
+                        borderTop: '1px solid #e0e0e0',
+                        padding: '8px 10px',
+                        backgroundColor: '#f8f8f8',
+                        fontSize: '11px',
+                        color: '#666',
+                        lineHeight: '1.3',
+                      }}
+                    >
+                      <span style={{ fontWeight: 500, color: '#888' }}>Prompt: </span>
+                      {shape.props.loadingPrompt}
+                    </div>
+                  )}
+                </div>
+              )}
 
-            {/* Empty State */}
-            {!shape.props.imageUrl && !shape.props.isLoading && !shape.props.error && (
-              <div
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: "#fff",
-                  borderRadius: "6px",
-                  color: "#999",
-                  fontSize: "14px",
-                  border: '1px solid #e0e0e0',
-                }}
-              >
-                Generated image will appear here
-              </div>
-            )}
+              {/* Image History - each image as a card */}
+              {shape.props.imageHistory.map((image, index) => (
+                <div
+                  key={image.id}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    backgroundColor: "#fff",
+                    borderRadius: "6px",
+                    overflow: "hidden",
+                    border: index === 0 && !shape.props.isLoading ? `2px solid ${ImageGenShape.PRIMARY_COLOR}` : '1px solid #e0e0e0',
+                  }}
+                >
+                  {/* Image */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      overflow: "hidden",
+                      maxHeight: index === 0 ? '300px' : '150px',
+                      backgroundColor: '#fafafa',
+                    }}
+                  >
+                    <img
+                      src={image.imageUrl}
+                      alt={image.prompt}
+                      style={{
+                        maxWidth: "100%",
+                        maxHeight: "100%",
+                        objectFit: "contain",
+                      }}
+                      onError={(_e) => {
+                        console.error("❌ ImageGen: Failed to load image:", image.imageUrl)
+                        // Remove this image from history
+                        const newHistory = shape.props.imageHistory.filter(img => img.id !== image.id)
+                        editor.updateShape<IImageGen>({
+                          id: shape.id,
+                          type: "ImageGen",
+                          props: { imageHistory: newHistory },
+                        })
+                      }}
+                    />
+                  </div>
+                  {/* Prompt and action buttons */}
+                  <div
+                    style={{
+                      borderTop: '1px solid #e0e0e0',
+                      padding: '8px 10px',
+                      backgroundColor: '#f8f8f8',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px',
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: '11px',
+                        color: '#666',
+                        lineHeight: '1.3',
+                        maxHeight: index === 0 ? '40px' : '24px',
+                        overflow: 'auto',
+                        wordBreak: 'break-word',
+                      }}
+                      title={image.prompt}
+                    >
+                      <span style={{ fontWeight: 500, color: '#888' }}>Prompt: </span>
+                      {image.prompt}
+                    </div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: '6px',
+                      }}
+                    >
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation()
+                          try {
+                            const imageUrl = image.imageUrl
+                            if (!imageUrl) return
+
+                            // For base64 images, convert directly
+                            if (imageUrl.startsWith('data:')) {
+                              const response = await fetch(imageUrl)
+                              const blob = await response.blob()
+                              await navigator.clipboard.write([
+                                new ClipboardItem({ [blob.type]: blob })
+                              ])
+                            } else {
+                              // For URLs, fetch the image first
+                              const response = await fetch(imageUrl)
+                              const blob = await response.blob()
+                              await navigator.clipboard.write([
+                                new ClipboardItem({ [blob.type]: blob })
+                              ])
+                            }
+                            console.log('✅ ImageGen: Image copied to clipboard')
+                          } catch (err) {
+                            console.error('❌ ImageGen: Failed to copy image:', err)
+                            // Fallback: copy the URL
+                            await navigator.clipboard.writeText(image.imageUrl)
+                            console.log('✅ ImageGen: Image URL copied to clipboard (fallback)')
+                          }
+                        }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        style={{
+                          flex: 1,
+                          padding: '6px 10px',
+                          backgroundColor: '#fff',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          fontWeight: 500,
+                          color: '#555',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '4px',
+                          transition: 'background-color 0.15s',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f0f0f0')}
+                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#fff')}
+                      >
+                        <span>📋</span> Copy
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const imageUrl = image.imageUrl
+                          if (!imageUrl) return
+
+                          // Create download link
+                          const link = document.createElement('a')
+                          link.href = imageUrl
+
+                          // Generate filename from prompt
+                          const promptSlug = (image.prompt || 'image')
+                            .slice(0, 30)
+                            .toLowerCase()
+                            .replace(/[^a-z0-9]+/g, '-')
+                            .replace(/^-|-$/g, '')
+                          const timestamp = new Date(image.timestamp).toISOString().slice(0, 10)
+                          link.download = `${promptSlug}-${timestamp}.png`
+
+                          document.body.appendChild(link)
+                          link.click()
+                          document.body.removeChild(link)
+                          console.log('✅ ImageGen: Image download initiated')
+                        }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        style={{
+                          flex: 1,
+                          padding: '6px 10px',
+                          backgroundColor: ImageGenShape.PRIMARY_COLOR,
+                          border: 'none',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          fontWeight: 500,
+                          color: '#fff',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '4px',
+                          transition: 'opacity 0.15s',
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.9')}
+                        onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+                      >
+                        <span>⬇️</span> Download
+                      </button>
+                      {/* Delete button for history items */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const newHistory = shape.props.imageHistory.filter(img => img.id !== image.id)
+                          editor.updateShape<IImageGen>({
+                            id: shape.id,
+                            type: "ImageGen",
+                            props: { imageHistory: newHistory },
+                          })
+                        }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        style={{
+                          padding: '6px 10px',
+                          backgroundColor: '#fff',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                          fontWeight: 500,
+                          color: '#999',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          transition: 'background-color 0.15s, color 0.15s',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#fee'
+                          e.currentTarget.style.color = '#c33'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = '#fff'
+                          e.currentTarget.style.color = '#999'
+                        }}
+                        title="Remove from history"
+                      >
+                        <span>🗑️</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Empty State */}
+              {shape.props.imageHistory.length === 0 && !shape.props.isLoading && !shape.props.error && (
+                <div
+                  style={{
+                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "#fff",
+                    borderRadius: "6px",
+                    color: "#999",
+                    fontSize: "14px",
+                    border: '1px solid #e0e0e0',
+                    minHeight: '150px',
+                  }}
+                >
+                  Generated images will appear here
+                </div>
+              )}
+            </div>
 
             {/* Input Section */}
             <div

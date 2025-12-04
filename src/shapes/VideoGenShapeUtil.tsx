@@ -5,7 +5,7 @@ import {
   Rectangle2d,
   TLBaseShape,
 } from "tldraw"
-import React, { useState } from "react"
+import React, { useState, useRef, useEffect } from "react"
 import { getRunPodVideoConfig } from "@/lib/clientConfig"
 import { StandardizedToolWrapper } from "@/components/StandardizedToolWrapper"
 import { usePinnedToView } from "@/hooks/usePinnedToView"
@@ -28,6 +28,8 @@ type IVideoGen = TLBaseShape<
     w: number
     h: number
     prompt: string
+    imageUrl: string // Input image URL for I2V generation
+    imageBase64: string // Uploaded image as base64 for I2V generation
     videoUrl: string | null
     isLoading: boolean
     error: string | null
@@ -47,13 +49,15 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
   getDefaultProps(): IVideoGen['props'] {
     return {
       w: 500,
-      h: 450,
+      h: 540,
       prompt: "",
+      imageUrl: "", // Input image URL for I2V generation
+      imageBase64: "", // Uploaded image as base64
       videoUrl: null,
       isLoading: false,
       error: null,
       duration: 3,
-      model: "wan2.1-i2v",
+      model: "wan2.2",
       tags: ['video', 'ai-generated'],
       pinnedToView: false
     }
@@ -71,12 +75,32 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
   component(shape: IVideoGen) {
     // Capture editor reference to avoid stale 'this' during drag operations
     const editor = this.editor
+
+    // Debug: log what's in shape props on each render
+    console.log('🎬 VideoGen render - shape.props.videoUrl:', shape.props.videoUrl?.substring(0, 80) || 'null')
+
     const [prompt, setPrompt] = useState(shape.props.prompt)
+    const [imageUrl, setImageUrl] = useState(shape.props.imageUrl)
+    const [imageBase64, setImageBase64] = useState(shape.props.imageBase64)
     const [isGenerating, setIsGenerating] = useState(shape.props.isLoading)
     const [error, setError] = useState<string | null>(shape.props.error)
     const [videoUrl, setVideoUrl] = useState<string | null>(shape.props.videoUrl)
     const [isMinimized, setIsMinimized] = useState(false)
+    const fileInputRef = useRef<HTMLInputElement>(null)
     const isSelected = editor.getSelectedShapeIds().includes(shape.id)
+
+    // Determine mode based on whether an image is provided
+    const hasImage = imageUrl.trim() || imageBase64
+    const mode = hasImage ? 'i2v' : 't2v'
+
+    // Sync video URL from shape props when it changes externally
+    // This ensures the displayed video matches the shape's stored videoUrl
+    useEffect(() => {
+      if (shape.props.videoUrl !== videoUrl) {
+        console.log('🎬 VideoGen: Syncing videoUrl from shape props:', shape.props.videoUrl?.substring(0, 50))
+        setVideoUrl(shape.props.videoUrl)
+      }
+    }, [shape.props.videoUrl])
 
     // Pin to view functionality
     usePinnedToView(editor, shape.id, shape.props.pinnedToView)
@@ -89,10 +113,50 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
       })
     }
 
+    // Handle file upload
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setError('Please upload an image file (JPEG, PNG, etc.)')
+        return
+      }
+
+      // Validate file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        setError('Image must be less than 10MB')
+        return
+      }
+
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string
+        setImageBase64(base64)
+        setImageUrl('') // Clear URL if uploading
+        setError(null)
+      }
+      reader.onerror = () => {
+        setError('Failed to read image file')
+      }
+      reader.readAsDataURL(file)
+    }
+
     const handleGenerate = async () => {
       if (!prompt.trim()) {
-        setError("Please enter a prompt")
+        setError("Please enter a prompt describing the video")
         return
+      }
+
+      // Validate image URL if provided
+      if (imageUrl.trim()) {
+        try {
+          new URL(imageUrl)
+        } catch {
+          setError("Please enter a valid image URL (must start with http:// or https://)")
+          return
+        }
       }
 
       // Check RunPod config
@@ -102,16 +166,32 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
         return
       }
 
-      console.log('🎬 VideoGen: Starting generation with prompt:', prompt)
+      const currentMode = (imageUrl.trim() || imageBase64) ? 'i2v' : 't2v'
+      console.log(`🎬 VideoGen: Starting ${currentMode.toUpperCase()} generation`)
+      console.log('🎬 VideoGen: Prompt:', prompt)
+      if (currentMode === 'i2v') {
+        console.log('🎬 VideoGen: Image source:', imageUrl ? 'URL' : 'Uploaded')
+      }
+
+      // Clear any existing video and set loading state
       setIsGenerating(true)
       setError(null)
+      setVideoUrl(null) // Clear old video immediately
 
-      // Update shape to show loading state
-      editor.updateShape({
-        id: shape.id,
-        type: shape.type,
-        props: { ...shape.props, isLoading: true, error: null }
-      })
+      // Update shape to show loading state and clear old video
+      const currentShape = editor.getShape(shape.id) as IVideoGen | undefined
+      if (currentShape) {
+        editor.updateShape({
+          id: shape.id,
+          type: shape.type,
+          props: {
+            ...currentShape.props,
+            isLoading: true,
+            error: null,
+            videoUrl: null // Clear old video from shape props
+          }
+        })
+      }
 
       try {
         const { apiKey, endpointId } = runpodConfig
@@ -123,29 +203,45 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
         // Generate a random seed for reproducibility
         const seed = Math.floor(Math.random() * 2147483647)
 
-        // ComfyUI workflow parameters required by the Wan2.1 handler
+        // Wan2.2 parameters
+        // Note: Portrait orientation (480x832) works better than landscape
+        // Length is in frames: 81 frames ≈ 3 seconds at ~27fps output
+        const framesPerSecond = 27 // Wan2.2 output fps
+        const frameLength = Math.min(Math.max(shape.props.duration * framesPerSecond, 41), 121) // 41-121 frames supported
+
+        // Build input payload based on mode
+        const inputPayload: Record<string, any> = {
+          prompt: prompt,
+          negative_prompt: "blurry, distorted, low quality, static, frozen",
+          width: 480,           // Portrait width (Wan2.2 optimal)
+          height: 832,          // Portrait height (Wan2.2 optimal)
+          length: frameLength,  // Total frames (81 ≈ 3 seconds)
+          steps: 10,            // Inference steps (10 is optimal for speed/quality)
+          cfg: 2.0,             // CFG scale - lower works better for Wan2.2
+          seed: seed,
+          context_overlap: 48,  // Frame overlap for temporal consistency
+        }
+
+        // Add image for I2V mode
+        if (currentMode === 'i2v') {
+          if (imageUrl.trim()) {
+            inputPayload.image_url = imageUrl
+          } else if (imageBase64) {
+            // Strip data URL prefix if present, send just the base64
+            const base64Data = imageBase64.includes(',')
+              ? imageBase64.split(',')[1]
+              : imageBase64
+            inputPayload.image = base64Data
+          }
+        }
+
         const response = await fetch(runUrl, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            input: {
-              prompt: prompt,
-              duration: shape.props.duration,
-              model: shape.props.model,
-              seed: seed,
-              cfg: 6.0,           // CFG scale - guidance strength
-              steps: 30,          // Inference steps
-              width: 832,         // Video width (Wan2.1 optimal)
-              height: 480,        // Video height (Wan2.1 optimal)
-              fps: 16,            // Frames per second
-              num_frames: shape.props.duration * 16, // Total frames based on duration
-              denoise: 1.0,       // Full denoising for text-to-video
-              scheduler: "euler", // Sampler scheduler
-            }
-          })
+          body: JSON.stringify({ input: inputPayload })
         })
 
         if (!response.ok) {
@@ -187,35 +283,60 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
           console.log(`🎬 VideoGen: Poll ${attempts}/${maxAttempts}, status:`, statusData.status)
 
           if (statusData.status === 'COMPLETED') {
-            // Extract video URL from output
-            let url = ''
+            // Extract video from output - can be URL or base64 data
+            let videoData = ''
+
             if (typeof statusData.output === 'string') {
-              url = statusData.output
+              // Direct string output - could be URL or base64
+              videoData = statusData.output
+            } else if (statusData.output?.video) {
+              // Base64 video data in output.video field
+              videoData = statusData.output.video
             } else if (statusData.output?.video_url) {
-              url = statusData.output.video_url
+              videoData = statusData.output.video_url
             } else if (statusData.output?.url) {
-              url = statusData.output.url
+              videoData = statusData.output.url
             }
 
-            if (url) {
-              console.log('✅ VideoGen: Generation complete, URL:', url)
-              setVideoUrl(url)
+            if (videoData) {
+              // Check if it's base64 data (doesn't start with http)
+              let finalUrl = videoData
+              if (!videoData.startsWith('http') && !videoData.startsWith('data:')) {
+                // Convert base64 to data URL
+                finalUrl = `data:video/mp4;base64,${videoData}`
+                console.log('✅ VideoGen: Generation complete, converted base64 to data URL')
+                console.log('✅ VideoGen: Base64 length:', videoData.length, 'chars')
+              } else {
+                console.log('✅ VideoGen: Generation complete, URL:', finalUrl.substring(0, 100))
+              }
+
+              // Log the data URL prefix to verify format
+              console.log('✅ VideoGen: Final URL prefix:', finalUrl.substring(0, 50))
+
+              // Update local state immediately
+              setVideoUrl(finalUrl)
               setIsGenerating(false)
 
-              editor.updateShape({
-                id: shape.id,
-                type: shape.type,
-                props: {
-                  ...shape.props,
-                  videoUrl: url,
-                  isLoading: false,
-                  prompt: prompt
-                }
-              })
+              // Get fresh shape data to avoid stale props
+              const currentShape = editor.getShape(shape.id)
+              if (currentShape) {
+                editor.updateShape({
+                  id: shape.id,
+                  type: shape.type,
+                  props: {
+                    ...(currentShape as IVideoGen).props,
+                    videoUrl: finalUrl,
+                    isLoading: false,
+                    prompt: prompt,
+                    imageUrl: imageUrl,
+                    imageBase64: imageBase64
+                  }
+                })
+              }
               return
             } else {
-              console.log('⚠️ VideoGen: Completed but no video URL in output:', statusData.output)
-              throw new Error('Video generation completed but no video URL returned')
+              console.log('⚠️ VideoGen: Completed but no video in output:', JSON.stringify(statusData.output))
+              throw new Error('Video generation completed but no video data returned')
             }
           } else if (statusData.status === 'FAILED') {
             throw new Error(statusData.error || 'Video generation failed')
@@ -258,7 +379,7 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
     return (
       <HTMLContainer id={shape.id}>
         <StandardizedToolWrapper
-          title="🎬 Video Generator (Wan2.1)"
+          title="🎬 Video Generator (Wan2.2)"
           primaryColor={VideoGenShape.PRIMARY_COLOR}
           isSelected={isSelected}
           width={shape.props.w}
@@ -300,20 +421,155 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
           }}>
             {!videoUrl && (
               <>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {/* Mode indicator */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 12px',
+                  backgroundColor: mode === 'i2v' ? '#e8f4fd' : '#f0e8fd',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  color: mode === 'i2v' ? '#1976d2' : '#7c3aed'
+                }}>
+                  <span style={{ fontWeight: '600' }}>
+                    {mode === 'i2v' ? '🖼️ Image-to-Video' : '✨ Text-to-Video'}
+                  </span>
+                  <span style={{ opacity: 0.8 }}>
+                    {mode === 'i2v' ? '(animates your image)' : '(generates from text only)'}
+                  </span>
+                </div>
+
+                {/* Image Input Section */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <label style={{ color: '#555', fontSize: '12px', fontWeight: '600' }}>
-                    Video Prompt
+                    Source Image (optional)
+                  </label>
+
+                  {/* Image preview or upload area */}
+                  {(imageUrl || imageBase64) ? (
+                    <div style={{ position: 'relative' }}>
+                      <img
+                        src={imageBase64 || imageUrl}
+                        alt="Preview"
+                        style={{
+                          width: '100%',
+                          maxHeight: '100px',
+                          objectFit: 'contain',
+                          borderRadius: '6px',
+                          backgroundColor: '#f5f5f5'
+                        }}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none'
+                          setError('Failed to load image from URL')
+                        }}
+                      />
+                      <button
+                        onClick={() => {
+                          setImageUrl('')
+                          setImageBase64('')
+                        }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        disabled={isGenerating}
+                        style={{
+                          position: 'absolute',
+                          top: '4px',
+                          right: '4px',
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '50%',
+                          border: 'none',
+                          backgroundColor: 'rgba(0,0,0,0.6)',
+                          color: '#fff',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      {/* Upload button */}
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        disabled={isGenerating}
+                        style={{
+                          flex: 1,
+                          padding: '12px',
+                          backgroundColor: '#f5f5f5',
+                          border: '2px dashed #ccc',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          color: '#666',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        📤 Upload Image
+                      </button>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileUpload}
+                        style={{ display: 'none' }}
+                      />
+                    </div>
+                  )}
+
+                  {/* URL input (collapsible) */}
+                  {!imageBase64 && (
+                    <input
+                      type="url"
+                      value={imageUrl}
+                      onChange={(e) => {
+                        setImageUrl(e.target.value)
+                        setImageBase64('')
+                      }}
+                      placeholder="Or paste image URL..."
+                      disabled={isGenerating}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
+                      style={{
+                        width: '100%',
+                        padding: '8px 10px',
+                        backgroundColor: '#fff',
+                        color: '#333',
+                        border: '1px solid #ddd',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  )}
+                </div>
+
+                {/* Prompt */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <label style={{ color: '#555', fontSize: '12px', fontWeight: '600' }}>
+                    {mode === 'i2v' ? 'Motion Prompt *' : 'Video Prompt *'}
                   </label>
                   <textarea
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
-                    placeholder="Describe the video you want to generate..."
+                    placeholder={mode === 'i2v'
+                      ? "Describe the motion (e.g., 'gentle camera pan, wind blowing')"
+                      : "Describe the video scene (e.g., 'a cat walking through a forest')"
+                    }
                     disabled={isGenerating}
                     onPointerDown={(e) => e.stopPropagation()}
                     onMouseDown={(e) => e.stopPropagation()}
                     style={{
                       width: '100%',
-                      minHeight: '80px',
+                      minHeight: '50px',
                       padding: '10px',
                       backgroundColor: '#fff',
                       color: '#333',
@@ -334,8 +590,8 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                     </label>
                     <input
                       type="number"
-                      min="1"
-                      max="10"
+                      min="2"
+                      max="4"
                       value={shape.props.duration}
                       onChange={(e) => {
                         editor.updateShape({
@@ -379,7 +635,7 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                       opacity: isGenerating || !prompt.trim() ? 0.6 : 1
                     }}
                   >
-                    {isGenerating ? 'Generating...' : 'Generate Video'}
+                    {isGenerating ? 'Generating...' : (mode === 'i2v' ? 'Animate Image' : 'Generate Video')}
                   </button>
                 </div>
 
@@ -406,10 +662,16 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                   color: '#666',
                   lineHeight: '1.5'
                 }}>
-                  <div><strong>Note:</strong> Video generation uses RunPod GPU</div>
-                  <div>Cost: ~$0.50 per video | Processing: 1-5 minutes</div>
+                  <div><strong>Wan2.2 Video Generation</strong></div>
+                  <div>
+                    {mode === 'i2v'
+                      ? 'Animates your image based on the motion prompt'
+                      : 'Creates video from your text description'
+                    }
+                  </div>
+                  <div style={{ marginTop: '4px' }}>Output: 480x832 portrait | ~3 seconds</div>
                   <div style={{ marginTop: '4px', opacity: 0.8 }}>
-                    First request may take longer due to GPU cold start
+                    Processing: 2-6 minutes (includes GPU warm-up)
                   </div>
                 </div>
               </>
@@ -418,11 +680,14 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
             {videoUrl && (
               <>
                 <video
+                  key={videoUrl.substring(0, 100)} // Force reload when URL changes
                   src={videoUrl}
                   controls
                   autoPlay
                   loop
                   onPointerDown={(e) => e.stopPropagation()}
+                  onLoadedData={() => console.log('🎬 VideoGen: Video loaded successfully')}
+                  onError={(e) => console.error('🎬 VideoGen: Video load error:', e)}
                   style={{
                     width: '100%',
                     maxHeight: '280px',
@@ -447,10 +712,12 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                     onClick={() => {
                       setVideoUrl(null)
                       setPrompt("")
+                      setImageUrl("")
+                      setImageBase64("")
                       editor.updateShape({
                         id: shape.id,
                         type: shape.type,
-                        props: { ...shape.props, videoUrl: null, prompt: "" }
+                        props: { ...shape.props, videoUrl: null, prompt: "", imageUrl: "", imageBase64: "" }
                       })
                     }}
                     onPointerDown={(e) => e.stopPropagation()}
