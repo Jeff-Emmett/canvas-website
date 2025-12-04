@@ -1,0 +1,332 @@
+/**
+ * Version History Visual Effects
+ *
+ * These styles create the visual diff highlighting for:
+ * - New shapes (yellow glow animation)
+ * - Deleted shapes (dimmed with restore option)
+ * - Modified shapes (subtle blue indicator)
+ */
+
+/* === New Shape Glow Effect === */
+
+@keyframes newShapeGlow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.7);
+    filter: drop-shadow(0 0 0 rgba(251, 191, 36, 0));
+  }
+  50% {
+    box-shadow: 0 0 20px 8px rgba(251, 191, 36, 0.4);
+    filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.5));
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0);
+    filter: drop-shadow(0 0 0 rgba(251, 191, 36, 0));
+  }
+}
+
+@keyframes newShapePulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+/* Applied to shape containers with new shapes */
+.tl-shape.shape-new {
+  animation: newShapeGlow 2s ease-in-out infinite, newShapePulse 2s ease-in-out infinite;
+}
+
+/* Glow indicator overlay for new shapes */
+.shape-new-indicator {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 12px;
+  height: 12px;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  z-index: 1000;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
+}
+
+/* === Deleted Shape Ghost Effect === */
+
+.shape-deleted-ghost {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0.25;
+  filter: grayscale(100%);
+  border: 2px dashed #9ca3af;
+  border-radius: 4px;
+  transition: opacity 0.3s ease;
+}
+
+.shape-deleted-ghost:hover {
+  opacity: 0.5;
+  pointer-events: auto;
+}
+
+.shape-deleted-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.1);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  border-radius: 4px;
+}
+
+.shape-deleted-ghost:hover .shape-deleted-overlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.restore-deleted-button {
+  padding: 6px 12px;
+  background: #10b981;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.restore-deleted-button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.25);
+}
+
+/* === Modified Shape Indicator === */
+
+.tl-shape.shape-modified {
+  position: relative;
+}
+
+.tl-shape.shape-modified::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  border: 2px solid rgba(59, 130, 246, 0.3);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.shape-modified-indicator {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  width: 10px;
+  height: 10px;
+  background: #3b82f6;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  z-index: 1000;
+}
+
+/* === Version History Button === */
+
+.version-history-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.version-history-button:hover {
+  background-color: var(--color-muted-2, rgba(0,0,0,0.05));
+}
+
+.version-history-button.active {
+  background-color: var(--color-muted-2, rgba(0,0,0,0.08));
+}
+
+.version-history-button:active {
+  transform: scale(0.95);
+}
+
+/* === Version History Panel === */
+
+.version-history-panel {
+  font-family: var(--font-body);
+}
+
+.version-history-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.version-history-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.version-history-panel::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.version-history-panel::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* === Timeline View (for version stepping) === */
+
+.version-timeline {
+  position: relative;
+  padding-left: 24px;
+}
+
+.version-timeline::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--border-color, #e5e7eb);
+}
+
+.version-timeline-item {
+  position: relative;
+  padding: 8px 0;
+}
+
+.version-timeline-item::before {
+  content: '';
+  position: absolute;
+  left: -18px;
+  top: 12px;
+  width: 10px;
+  height: 10px;
+  background: white;
+  border: 2px solid var(--color-primary, #3b82f6);
+  border-radius: 50%;
+}
+
+.version-timeline-item.current::before {
+  background: var(--color-primary, #3b82f6);
+}
+
+/* === Dark Mode Support === */
+
+.dark .version-history-panel {
+  background-color: var(--bg-color, #1f2937);
+  border-color: var(--border-color, #374151);
+}
+
+.dark .shape-deleted-ghost {
+  border-color: #6b7280;
+}
+
+.dark .version-history-button:hover {
+  background-color: rgba(255,255,255,0.1);
+}
+
+.dark .version-history-panel::-webkit-scrollbar-thumb {
+  background: #4b5563;
+}
+
+.dark .version-history-panel::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* === Animation for Fading Out Glow === */
+
+.shape-new.glow-fading {
+  animation: newShapeGlowFadeOut 3s ease-out forwards;
+}
+
+@keyframes newShapeGlowFadeOut {
+  0% {
+    box-shadow: 0 0 15px 5px rgba(251, 191, 36, 0.4);
+    filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.5));
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0);
+    filter: drop-shadow(0 0 0 rgba(251, 191, 36, 0));
+  }
+}
+
+/* === Deleted Shape Floating Indicator === */
+
+.deleted-shapes-floating-indicator {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(239, 68, 68, 0.9);
+  color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  z-index: 10000;
+  backdrop-filter: blur(4px);
+}
+
+.deleted-shapes-floating-indicator:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+}
+
+.deleted-shapes-floating-indicator svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* === Transition Animations === */
+
+.version-panel-enter {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.version-panel-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
+}
+
+.version-panel-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.version-panel-exit-active {
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity 150ms ease-in, transform 150ms ease-in;
+}

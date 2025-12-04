@@ -1,4 +1,5 @@
 @import url("reset.css");
+@import url("version-history.css");
 
 :root {
   --border-radius: 10px;

@@ -16,6 +16,7 @@ import {
   useValue,
 } from "tldraw"
 import { SlidesPanel } from "@/slides/SlidesPanel"
+import { DeletedShapesOverlay } from "@/components/DeletedShapesOverlay"
 
 // Custom People Menu component for showing connected users
 function CustomPeopleMenu() {
@@ -233,6 +234,7 @@ function CustomInFrontOfCanvas() {
       <MycelialIntelligenceBar />
       <FocusLockIndicator />
       <CommandPalette />
+      <DeletedShapesOverlay />
     </>
   )
 }

@@ -8,6 +8,7 @@ import { SettingsDialog } from "./SettingsDialog"
 import { useAuth } from "../context/AuthContext"
 import LoginButton from "../components/auth/LoginButton"
 import StarBoardButton from "../components/StarBoardButton"
+import VersionHistoryButton from "../components/VersionHistoryButton"
 import { ObsidianVaultBrowser } from "../components/ObsidianVaultBrowser"
 import { HolonBrowser } from "../components/HolonBrowser"
 import { ObsNoteShape } from "../shapes/ObsNoteShapeUtil"
@@ -534,6 +535,7 @@ export function CustomToolbar() {
       >
         <LoginButton className="toolbar-btn" />
         <StarBoardButton className="toolbar-btn" />
+        <VersionHistoryButton className="toolbar-btn" />
 
         {session.authed && (
           <div style={{ position: "relative" }}>

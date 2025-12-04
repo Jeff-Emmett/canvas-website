@@ -905,7 +905,7 @@ router
     try {
       // Simple test to check R2 access
       const testResult = await env.TLDRAW_BUCKET.list({ prefix: 'rooms/', limit: 1 })
-      
+
       return new Response(JSON.stringify({
         success: true,
         message: 'R2 access test successful',
@@ -921,6 +921,170 @@ router
         message: 'R2 access test failed',
         error: (error as Error).message
       }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+  // === Version History API ===
+  .get("/api/versions/:roomId", async (request, env) => {
+    try {
+      const roomId = request.params.roomId
+      if (!roomId) {
+        return new Response(JSON.stringify({ error: 'Room ID is required' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      // List all version snapshots from the backups folder
+      const backupPrefix = `backups/${roomId}/`
+      const listResult = await env.TLDRAW_BUCKET.list({ prefix: backupPrefix })
+
+      const versions = await Promise.all(
+        listResult.objects.map(async (obj) => {
+          // Extract timestamp from backup filename (format: backups/roomId/timestamp.json)
+          const filename = obj.key.replace(backupPrefix, '')
+          const timestamp = parseInt(filename.replace('.json', ''), 10)
+
+          // Try to get shape count from the backup
+          let shapeCount = 0
+          try {
+            const backupData = await env.TLDRAW_BUCKET.get(obj.key)
+            if (backupData) {
+              const json = JSON.parse(await backupData.text())
+              if (json.store) {
+                shapeCount = Object.values(json.store).filter((r: any) =>
+                  r && typeof r === 'object' && (r as any).typeName === 'shape'
+                ).length
+              }
+            }
+          } catch {
+            // Ignore errors getting shape count
+          }
+
+          return {
+            id: obj.key,
+            timestamp: isNaN(timestamp) ? obj.uploaded.getTime() : timestamp,
+            source: 'r2' as const,
+            shapeCount,
+          }
+        })
+      )
+
+      // Sort by timestamp descending (newest first)
+      versions.sort((a, b) => b.timestamp - a.timestamp)
+
+      return new Response(JSON.stringify({ versions }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('Version list failed:', error)
+      return new Response(JSON.stringify({
+        error: 'Failed to list versions',
+        message: (error as Error).message
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+  .get("/api/versions/:roomId/:versionId", async (request, env) => {
+    try {
+      const { roomId, versionId } = request.params
+      if (!roomId || !versionId) {
+        return new Response(JSON.stringify({ error: 'Room ID and Version ID are required' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      // Get the specific version from R2
+      // versionId might be the full key or just the timestamp
+      const key = versionId.startsWith('backups/') ? versionId : `backups/${roomId}/${versionId}.json`
+      const versionData = await env.TLDRAW_BUCKET.get(key)
+
+      if (!versionData) {
+        return new Response(JSON.stringify({ error: 'Version not found' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      const json = await versionData.text()
+      return new Response(json, {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('Get version failed:', error)
+      return new Response(JSON.stringify({
+        error: 'Failed to get version',
+        message: (error as Error).message
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+  .post("/api/versions/:roomId/:versionId", async (request, env) => {
+    try {
+      const { roomId, versionId } = request.params
+      if (!roomId || !versionId) {
+        return new Response(JSON.stringify({ error: 'Room ID and Version ID are required' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      // Parse request body to check action
+      const body = await request.json().catch(() => ({})) as { action?: string }
+      if (body.action !== 'revert') {
+        return new Response(JSON.stringify({ error: 'Invalid action. Use action: "revert"' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      // Get the version to revert to
+      const key = versionId.startsWith('backups/') ? versionId : `backups/${roomId}/${versionId}.json`
+      const versionData = await env.TLDRAW_BUCKET.get(key)
+
+      if (!versionData) {
+        return new Response(JSON.stringify({ error: 'Version not found' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      // Create a backup of the current state before reverting
+      const currentRoom = await env.TLDRAW_BUCKET.get(`rooms/${roomId}`)
+      if (currentRoom) {
+        const backupTimestamp = Date.now()
+        const backupKey = `backups/${roomId}/${backupTimestamp}-pre-revert.json`
+        await env.TLDRAW_BUCKET.put(backupKey, await currentRoom.text())
+        console.log(`Created pre-revert backup: ${backupKey}`)
+      }
+
+      // Overwrite the current room data with the version data
+      const versionJson = await versionData.text()
+      await env.TLDRAW_BUCKET.put(`rooms/${roomId}`, versionJson)
+
+      console.log(`Reverted room ${roomId} to version ${versionId}`)
+
+      return new Response(JSON.stringify({
+        success: true,
+        message: `Successfully reverted to version`,
+        roomId,
+        versionId
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('Revert failed:', error)
+      return new Response(JSON.stringify({
+        error: 'Failed to revert to version',
+        message: (error as Error).message
+      }), {
+        status: 500,
         headers: { 'Content-Type': 'application/json' }
       })
     }
