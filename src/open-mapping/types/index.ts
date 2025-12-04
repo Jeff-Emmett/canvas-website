@@ -2,11 +2,14 @@
  * Open Mapping Type Definitions
  */
 
+// ============================================================================
 // Core Geographic Types
+// ============================================================================
+
 export interface Coordinate {
   lat: number;
   lng: number;
-  alt?: number;
+  alt?: number; // elevation in meters
 }
 
 export interface BoundingBox {
@@ -16,7 +19,10 @@ export interface BoundingBox {
   west: number;
 }
 
+// ============================================================================
 // Waypoint & Route Types
+// ============================================================================
+
 export interface Waypoint {
   id: string;
   coordinate: Coordinate;
@@ -26,7 +32,7 @@ export interface Waypoint {
   color?: string;
   arrivalTime?: Date;
   departureTime?: Date;
-  stayDuration?: number;
+  stayDuration?: number; // minutes
   budget?: WaypointBudget;
   metadata?: Record<string, unknown>;
 }
@@ -51,10 +57,10 @@ export interface Route {
 }
 
 export interface RouteSummary {
-  distance: number;
-  duration: number;
-  ascent?: number;
-  descent?: number;
+  distance: number; // meters
+  duration: number; // seconds
+  ascent?: number;  // meters
+  descent?: number; // meters
   cost?: RouteCost;
 }
 
@@ -66,7 +72,7 @@ export interface RouteCost {
 }
 
 export interface RouteLeg {
-  startWaypoint: string;
+  startWaypoint: string; // waypoint id
   endWaypoint: string;
   distance: number;
   duration: number;
@@ -107,7 +113,10 @@ export interface RouteMetadata {
   shareLink?: string;
 }
 
+// ============================================================================
 // Routing Profiles & Options
+// ============================================================================
+
 export type RoutingProfile =
   | 'car' | 'truck' | 'motorcycle'
   | 'bicycle' | 'mountain_bike' | 'road_bike'
@@ -121,7 +130,7 @@ export interface RoutingOptions {
   avoidHighways?: boolean;
   avoidFerries?: boolean;
   preferScenic?: boolean;
-  alternatives?: number;
+  alternatives?: number; // number of alternative routes to compute
   departureTime?: Date;
   arrivalTime?: Date;
   optimize?: OptimizationType;
@@ -139,7 +148,10 @@ export interface RoutingConstraints {
   vehicleWidth?: number;
 }
 
+// ============================================================================
 // Layer Management
+// ============================================================================
+
 export interface MapLayer {
   id: string;
   name: string;
@@ -175,7 +187,10 @@ export interface LayerStyle {
   iconSize?: number;
 }
 
+// ============================================================================
 // Collaboration Types
+// ============================================================================
+
 export interface CollaborationSession {
   id: string;
   name: string;
@@ -212,7 +227,10 @@ export interface MapViewport {
   pitch: number;
 }
 
-// Calendar & Scheduling
+// ============================================================================
+// Calendar & Scheduling Integration
+// ============================================================================
+
 export interface TripItinerary {
   id: string;
   name: string;
@@ -262,10 +280,13 @@ export interface BudgetItem {
   date?: Date;
   waypointId?: string;
   eventId?: string;
-  receipt?: string;
+  receipt?: string; // URL or file path
 }
 
+// ============================================================================
 // Service Configurations
+// ============================================================================
+
 export interface RoutingServiceConfig {
   provider: 'osrm' | 'valhalla' | 'graphhopper' | 'openrouteservice';
   baseUrl: string;
