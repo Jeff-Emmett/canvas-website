@@ -1,9 +1,10 @@
 ---
 id: task-025
 title: 'Google Export: Local-First Data Sovereignty'
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2025-12-04 20:25'
+updated_date: '2025-12-04 20:28'
 labels:
   - feature
   - google
@@ -36,3 +37,9 @@ Architecture docs in: docs/GOOGLE_DATA_SOVEREIGNTY.md
 - [ ] #8 Share to board functionality
 - [ ] #9 R2 encrypted backup/restore
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Starting implementation - reviewed architecture doc GOOGLE_DATA_SOVEREIGNTY.md
+<!-- SECTION:NOTES:END -->
