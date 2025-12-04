@@ -4,7 +4,7 @@ title: Version History & Reversion System with Visual Diffs
 status: Done
 assignee: []
 created_date: '2025-12-04 21:44'
-updated_date: '2025-12-04 23:01'
+updated_date: '2025-12-04 23:23'
 labels:
   - feature
   - version-control
@@ -36,16 +36,16 @@ Key features:
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Version history button renders next to star button with time-rewind icon
-- [ ] #2 Clicking button opens popup showing list of historical versions
-- [ ] #3 User can select a version to preview or revert to
-- [ ] #4 Newly added shapes since last user visit have yellow glow effect
-- [ ] #5 Deleted shapes show dimmed with 'undo discard' option
-- [ ] #6 Version navigation respects user permissions (admin/editor/viewer)
-- [ ] #7 Works with R2 backup snapshots for coarse-grained history
+- [x] #1 Version history button renders next to star button with time-rewind icon
+- [x] #2 Clicking button opens popup showing list of historical versions
+- [x] #3 User can select a version to preview or revert to
+- [x] #4 Newly added shapes since last user visit have yellow glow effect
+- [x] #5 Deleted shapes show dimmed with 'undo discard' option
+- [x] #6 Version navigation respects user permissions (admin/editor/viewer)
+- [x] #7 Works with R2 backup snapshots for coarse-grained history
 - [ ] #8 Leverages Automerge CRDT for fine-grained change tracking
-- [ ] #9 User's last-seen state stored in localStorage for diff comparison
-- [ ] #10 Visual effects are subtle and non-intrusive
+- [x] #9 User's last-seen state stored in localStorage for diff comparison
+- [x] #10 Visual effects are subtle and non-intrusive
 <!-- AC:END -->
 
 ## Implementation Notes
