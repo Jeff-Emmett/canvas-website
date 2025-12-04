@@ -1,9 +1,11 @@
 ---
 id: task-031
 title: Alternative Map Lens System
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2025-12-04 21:12'
+updated_date: '2025-12-04 23:37'
 labels:
   - feature
   - mapping
