@@ -4,6 +4,7 @@ title: Markdown Tool UX Improvements
 status: Done
 assignee: []
 created_date: '2025-12-04 06:29'
+updated_date: '2025-12-04 06:29'
 labels:
   - feature
   - ui
@@ -26,8 +27,18 @@ Improve the Markdown tool user experience with better scrollbar behavior and col
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Scrollbar is vertical only
-- [ ] #2 Scrollbar hides when not needed
-- [ ] #3 Toolbar has minimize/expand toggle
-- [ ] #4 Full window is editing area
+- [x] #1 Scrollbar is vertical only
+- [x] #2 Scrollbar hides when not needed
+- [x] #3 Toolbar has minimize/expand toggle
+- [x] #4 Full window is editing area
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Implementation completed in `src/shapes/MarkdownShapeUtil.tsx`:
+- Added `overflow-x: hidden` to content area
+- Custom scrollbar styling with thin width and auto-hide
+- Added toggle button in toolbar that collapses/expands formatting options
+- `isToolbarMinimized` state controls toolbar visibility
+<!-- SECTION:NOTES:END -->
