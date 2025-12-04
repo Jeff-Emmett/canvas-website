@@ -1,9 +1,11 @@
 ---
 id: task-030
 title: Mycelial Signal Propagation System
-status: To Do
-assignee: []
+status: In Progress
+assignee:
+  - '@claude'
 created_date: '2025-12-04 21:12'
+updated_date: '2025-12-04 23:30'
 labels:
   - feature
   - mapping
