@@ -46,8 +46,8 @@ function renderMessageContent(content: string): React.ReactNode {
             return (
               <code
                 key={j}
+                className="mi-inline-code"
                 style={{
-                  background: 'rgba(0, 0, 0, 0.06)',
                   padding: '1px 4px',
                   borderRadius: '3px',
                   fontSize: '0.9em',
@@ -828,6 +828,34 @@ export function MycelialIntelligenceBar() {
   const [followUpSuggestions, setFollowUpSuggestions] = useState<FollowUpSuggestion[]>([])
   const [lastTransform, setLastTransform] = useState<TransformCommand | null>(null)
   const [toolInputMode, setToolInputMode] = useState<{ toolType: string; shapeId: string } | null>(null)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+
+  // Detect when modals/dialogs are open to fade the bar
+  useEffect(() => {
+    const checkForModals = () => {
+      // Check for common modal/dialog overlays
+      const hasSettingsModal = document.querySelector('.settings-modal-overlay') !== null
+      const hasTldrawDialog = document.querySelector('[data-state="open"][role="dialog"]') !== null
+      const hasAuthModal = document.querySelector('.auth-modal-overlay') !== null
+      const hasPopup = document.querySelector('.profile-popup') !== null
+
+      setIsModalOpen(hasSettingsModal || hasTldrawDialog || hasAuthModal || hasPopup)
+    }
+
+    // Initial check
+    checkForModals()
+
+    // Use MutationObserver to detect DOM changes
+    const observer = new MutationObserver(checkForModals)
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'style', 'data-state']
+    })
+
+    return () => observer.disconnect()
+  }, [])
 
   // Derived state: get selected tool info
   const selectedToolInfo = getSelectedToolInfo(selectionInfo)
@@ -982,7 +1010,21 @@ export function MycelialIntelligenceBar() {
   }, [conversationHistory])
 
   // Theme-aware colors
-  const colors = {
+  const colors = isDark ? {
+    background: 'rgba(30, 30, 30, 0.98)',
+    backgroundHover: 'rgba(40, 40, 40, 1)',
+    border: 'rgba(70, 70, 70, 0.8)',
+    borderHover: 'rgba(90, 90, 90, 1)',
+    text: '#e4e4e4',
+    textMuted: '#a1a1aa',
+    inputBg: 'rgba(50, 50, 50, 0.8)',
+    inputBorder: 'rgba(70, 70, 70, 1)',
+    inputText: '#e4e4e4',
+    shadow: '0 8px 32px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3)',
+    shadowHover: '0 12px 40px rgba(0, 0, 0, 0.5), 0 6px 20px rgba(0, 0, 0, 0.4)',
+    userBubble: 'rgba(16, 185, 129, 0.2)',
+    assistantBubble: 'rgba(50, 50, 50, 0.9)',
+  } : {
     background: 'rgba(255, 255, 255, 0.98)',
     backgroundHover: 'rgba(255, 255, 255, 1)',
     border: 'rgba(229, 231, 235, 0.8)',
@@ -1300,9 +1342,17 @@ export function MycelialIntelligenceBar() {
   // Height: taller when showing suggestion chips (single tool or 2+ selected)
   const showSuggestions = selectedToolInfo || (selectionInfo && selectionInfo.count > 1)
   const collapsedHeight = showSuggestions ? 76 : 48
-  const expandedHeight = 400
+  const maxExpandedHeight = 400
   const barWidth = 520 // Consistent width
-  const height = isExpanded ? expandedHeight : collapsedHeight
+
+  // Calculate dynamic height when expanded based on content
+  // Header: ~45px, Input area: ~56px, padding: ~24px = ~125px fixed
+  // Each message is roughly 50-80px, we'll let CSS handle the actual sizing
+  const hasContent = conversationHistory.length > 0 || streamingResponse
+  // Minimum expanded height when there's no content (just empty state)
+  const minExpandedHeight = 180
+  // Use auto height with max constraint when expanded
+  const height = isExpanded ? 'auto' : collapsedHeight
 
   return (
     <div
@@ -1314,9 +1364,13 @@ export function MycelialIntelligenceBar() {
         left: '50%',
         transform: 'translateX(-50%)',
         width: barWidth,
-        height,
-        zIndex: 99999,
-        pointerEvents: 'auto',
+        height: isExpanded ? 'auto' : collapsedHeight,
+        minHeight: isExpanded ? minExpandedHeight : collapsedHeight,
+        maxHeight: isExpanded ? maxExpandedHeight : collapsedHeight,
+        zIndex: isModalOpen ? 1 : 99999, // Lower z-index when modals are open
+        pointerEvents: isModalOpen ? 'none' : 'auto', // Disable interactions when modal is open
+        opacity: isModalOpen ? 0.3 : 1, // Fade when modal is open
+        transition: 'opacity 0.2s ease, z-index 0s',
       }}
       onPointerEnter={() => setIsHovering(true)}
       onPointerLeave={() => setIsHovering(false)}
@@ -1325,6 +1379,8 @@ export function MycelialIntelligenceBar() {
         style={{
           width: '100%',
           height: '100%',
+          minHeight: isExpanded ? minExpandedHeight : collapsedHeight,
+          maxHeight: isExpanded ? maxExpandedHeight : collapsedHeight,
           background: isHovering ? colors.backgroundHover : colors.background,
           borderRadius: isExpanded ? '20px' : '24px',
           border: `1px solid ${isHovering ? colors.borderHover : colors.border}`,
@@ -1600,6 +1656,7 @@ export function MycelialIntelligenceBar() {
               justifyContent: 'space-between',
               padding: '10px 14px',
               borderBottom: `1px solid ${colors.border}`,
+              flexShrink: 0,
             }}>
               <div style={{
                 display: 'flex',
@@ -1652,7 +1709,8 @@ export function MycelialIntelligenceBar() {
             <div
               ref={chatContainerRef}
               style={{
-                flex: 1,
+                flex: '1 1 auto',
+                minHeight: 0, // Allow flex shrinking below content size
                 overflowY: 'auto',
                 padding: '12px',
                 display: 'flex',
@@ -1756,41 +1814,6 @@ export function MycelialIntelligenceBar() {
                     </div>
                   )}
 
-                  {/* Follow-up suggestions for assistant messages */}
-                  {msg.role === 'assistant' && msg.followUpSuggestions && msg.followUpSuggestions.length > 0 && (
-                    <div
-                      style={{
-                        alignSelf: 'flex-start',
-                        maxWidth: '100%',
-                        padding: '8px',
-                        marginTop: '6px',
-                      }}
-                    >
-                      <div style={{
-                        fontSize: '10px',
-                        fontWeight: 500,
-                        color: colors.textMuted,
-                        marginBottom: '6px',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                      }}>
-                        Next Steps
-                      </div>
-                      <div style={{
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: '6px',
-                      }}>
-                        {msg.followUpSuggestions.map((suggestion, i) => (
-                          <FollowUpChip
-                            key={`${suggestion.label}-${i}`}
-                            suggestion={suggestion}
-                            onClick={() => handleSuggestionClick(suggestion.prompt)}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </React.Fragment>
               ))}
 
@@ -1824,74 +1847,6 @@ export function MycelialIntelligenceBar() {
                     )}
                   </div>
 
-                  {/* Show suggested tools while streaming if available */}
-                  {suggestedTools.length > 0 && (
-                    <div
-                      style={{
-                        alignSelf: 'flex-start',
-                        maxWidth: '100%',
-                        padding: '10px',
-                        marginTop: '6px',
-                        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(99, 102, 241, 0.05) 100%)',
-                        borderRadius: '12px',
-                        border: '1px solid rgba(16, 185, 129, 0.15)',
-                      }}
-                    >
-                      <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        marginBottom: '8px',
-                      }}>
-                        <span style={{
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          color: ACCENT_COLOR,
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.05em',
-                        }}>
-                          Suggested Tools
-                        </span>
-                        {suggestedTools.length > 1 && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleSpawnAllTools()
-                            }}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            style={{
-                              fontSize: '11px',
-                              padding: '4px 10px',
-                              borderRadius: '8px',
-                              border: `1px solid ${ACCENT_COLOR}`,
-                              background: 'transparent',
-                              color: ACCENT_COLOR,
-                              cursor: 'pointer',
-                              fontWeight: 500,
-                              transition: 'all 0.2s ease',
-                            }}
-                            title="Spawn all suggested tools on canvas"
-                          >
-                            Spawn All
-                          </button>
-                        )}
-                      </div>
-                      <div style={{
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: '8px',
-                      }}>
-                        {suggestedTools.map((tool) => (
-                          <ToolCard
-                            key={tool.id}
-                            tool={tool}
-                            onSpawn={handleSpawnTool}
-                            isSpawned={spawnedToolIds.has(tool.id)}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </>
               )}
 
@@ -1909,8 +1864,8 @@ export function MycelialIntelligenceBar() {
                 </div>
               )}
 
-              {/* Current follow-up suggestions - shown at bottom when not loading */}
-              {!isLoading && followUpSuggestions.length > 0 && (
+              {/* Combined "Try next" section - tools + follow-up suggestions in one scrollable row */}
+              {!isLoading && (followUpSuggestions.length > 0 || suggestedTools.length > 0) && (
                 <div
                   style={{
                     alignSelf: 'flex-start',
@@ -1923,25 +1878,68 @@ export function MycelialIntelligenceBar() {
                   }}
                 >
                   <div style={{
-                    fontSize: '10px',
-                    fontWeight: 600,
-                    color: '#6366f1',
-                    marginBottom: '8px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '4px',
+                    justifyContent: 'space-between',
+                    marginBottom: '8px',
                   }}>
-                    <span>✨</span>
-                    Try next
+                    <div style={{
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      color: '#6366f1',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}>
+                      <span>✨</span>
+                      Try next
+                    </div>
+                    {suggestedTools.length > 1 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleSpawnAllTools()
+                        }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        style={{
+                          fontSize: '10px',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          border: `1px solid ${ACCENT_COLOR}`,
+                          background: 'transparent',
+                          color: ACCENT_COLOR,
+                          cursor: 'pointer',
+                          fontWeight: 500,
+                          transition: 'all 0.2s ease',
+                        }}
+                        title="Spawn all suggested tools on canvas"
+                      >
+                        Spawn All
+                      </button>
+                    )}
                   </div>
                   <div style={{
                     display: 'flex',
-                    flexWrap: 'wrap',
                     gap: '6px',
+                    overflowX: 'auto',
+                    overflowY: 'hidden',
+                    paddingBottom: '4px',
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: 'rgba(99, 102, 241, 0.3) transparent',
                   }}>
-                    {followUpSuggestions.slice(0, 4).map((suggestion, i) => (
+                    {/* Suggested tools first */}
+                    {suggestedTools.map((tool) => (
+                      <ToolCard
+                        key={tool.id}
+                        tool={tool}
+                        onSpawn={handleSpawnTool}
+                        isSpawned={spawnedToolIds.has(tool.id)}
+                      />
+                    ))}
+                    {/* Then follow-up prompts */}
+                    {followUpSuggestions.map((suggestion, i) => (
                       <FollowUpChip
                         key={`current-${suggestion.label}-${i}`}
                         suggestion={suggestion}
@@ -1960,6 +1958,7 @@ export function MycelialIntelligenceBar() {
               gap: '8px',
               padding: '10px 12px',
               borderTop: `1px solid ${colors.border}`,
+              flexShrink: 0,
             }}>
               <input
                 ref={inputRef}

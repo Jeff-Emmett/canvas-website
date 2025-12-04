@@ -1,6 +1,6 @@
 # Canvas Website Docker Compose
-# Staging deployment at staging.jeffemmett.com
-# Production deployment at jeffemmett.com (once tested)
+# Production: jeffemmett.com, www.jeffemmett.com
+# Staging: staging.jeffemmett.com
 
 services:
   canvas-website:
@@ -13,8 +13,12 @@ services:
     container_name: canvas-website
     restart: unless-stopped
     labels:
-      # Staging deployment
       - "traefik.enable=true"
+      # Production deployment (jeffemmett.com and www)
+      - "traefik.http.routers.canvas-prod.rule=Host(`jeffemmett.com`) || Host(`www.jeffemmett.com`)"
+      - "traefik.http.routers.canvas-prod.entrypoints=web"
+      - "traefik.http.services.canvas-prod.loadbalancer.server.port=80"
+      # Staging deployment (keep for testing)
       - "traefik.http.routers.canvas-staging.rule=Host(`staging.jeffemmett.com`)"
       - "traefik.http.routers.canvas-staging.entrypoints=web"
       - "traefik.http.services.canvas-staging.loadbalancer.server.port=80"
