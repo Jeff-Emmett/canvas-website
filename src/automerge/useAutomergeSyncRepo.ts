@@ -20,31 +20,23 @@ import { getDocumentId, saveDocumentId } from "./documentIdMapping"
 function isValidTldrawIndex(index: string): boolean {
   if (!index || typeof index !== 'string' || index.length === 0) return false
 
-  // The first character indicates the integer part length:
-  // 'a' = 1 digit, 'b' = 2 digits, etc. for positive integers
-  // 'Z' = 1 digit, 'Y' = 2 digits, etc. for negative integers
-  // But for normal shapes, 'a' followed by a digit is the most common pattern
+  // tldraw uses fractional indexing where:
+  // - First character is a lowercase letter indicating integer part length (a=1, b=2, c=3, etc.)
+  // - Followed by alphanumeric characters for the value and optional jitter
+  // Examples: "a0", "a1", "b10", "b99", "c100", "a1V4rr", "b10Lz"
+  //
+  // Also uppercase letters for negative indices (Z=1, Y=2, etc.)
 
-  // Simple patterns that are DEFINITELY invalid for tldraw:
-  // "b1", "c1", "d1" etc - these are old non-fractional indices (single letter + single digit)
-  // These were used before tldraw switched to fractional indexing
-  if (/^[b-z]\d$/i.test(index)) {
-    return false
-  }
-
-  // Valid tldraw indices should start with lowercase 'a' followed by digits
-  // and optionally more alphanumeric characters for the fractional/jitter part
-  // Examples from actual tldraw: "a0", "a1", "a24sT", "a1V4rr"
-  if (/^a\d/.test(index)) {
+  // Valid fractional index: lowercase letter followed by alphanumeric characters
+  if (/^[a-z][a-zA-Z0-9]+$/.test(index)) {
     return true
   }
 
-  // Also allow 'Z' prefix for very high indices (though rare)
-  if (/^Z[a-z]/i.test(index)) {
+  // Also allow uppercase prefix for negative/very high indices
+  if (/^[A-Z][a-zA-Z0-9]+$/.test(index)) {
     return true
   }
 
-  // If none of the above, it's likely invalid
   return false
 }
 
