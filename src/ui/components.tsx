@@ -55,7 +55,7 @@ function CustomPeopleMenu() {
     try {
       const { GoogleDataService } = await import('../lib/google')
       const service = GoogleDataService.getInstance()
-      await service.authenticate()
+      await service.authenticate(['drive'])
       setGoogleConnected(true)
     } catch (error) {
       console.error('Google auth failed:', error)
