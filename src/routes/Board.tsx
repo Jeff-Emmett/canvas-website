@@ -49,6 +49,9 @@ import { MultmuxTool } from "@/tools/MultmuxTool"
 import { MultmuxShape } from "@/shapes/MultmuxShapeUtil"
 // MycelialIntelligence moved to permanent UI bar - shape kept for backwards compatibility
 import { MycelialIntelligenceShape } from "@/shapes/MycelialIntelligenceShapeUtil"
+// Open Mapping - OSM map shape for geographic visualization
+import { MapShape } from "@/shapes/MapShapeUtil"
+import { MapTool } from "@/tools/MapTool"
 import {
   lockElement,
   unlockElement,
@@ -61,6 +64,7 @@ import { GraphLayoutCollection } from "@/graph/GraphLayoutCollection"
 import { GestureTool } from "@/GestureTool"
 import { CmdK } from "@/CmdK"
 import { setupMultiPasteHandler } from "@/utils/multiPasteHandler"
+import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator"
 
 
 import "react-cmdk/dist/cmdk.css"
@@ -141,6 +145,7 @@ const customShapeUtils = [
   VideoGenShape,
   MultmuxShape,
   MycelialIntelligenceShape, // Deprecated - kept for backwards compatibility
+  MapShape, // Open Mapping - OSM map shape
 ]
 const customTools = [
   ChatBoxTool,
@@ -158,6 +163,7 @@ const customTools = [
   ImageGenTool,
   VideoGenTool,
   MultmuxTool,
+  MapTool, // Open Mapping - OSM map tool
 ]
 
 // Debug: Log tool and shape registration info
@@ -370,13 +376,13 @@ export function Board() {
 
   // Use Automerge sync for all environments
   const storeWithHandle = useAutomergeSync(storeConfig)
-  const store = { 
-    store: storeWithHandle.store, 
+  const store = {
+    store: storeWithHandle.store,
     status: storeWithHandle.status,
-    ...('connectionStatus' in storeWithHandle ? { connectionStatus: storeWithHandle.connectionStatus } : {}),
     error: storeWithHandle.error
   }
   const automergeHandle = (storeWithHandle as any).handle
+  const { connectionState, isNetworkOnline } = storeWithHandle
   const [editor, setEditor] = useState<Editor | null>(null)
 
   useEffect(() => {
@@ -1101,6 +1107,10 @@ export function Board() {
         >
           <CmdK />
         </Tldraw>
+        <ConnectionStatusIndicator
+          connectionState={connectionState}
+          isNetworkOnline={isNetworkOnline}
+        />
       </div>
     </AutomergeHandleProvider>
   )

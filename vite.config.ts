@@ -87,7 +87,9 @@ export default defineConfig(({ mode }) => {
     },
     optimizeDeps: {
       include: [
-        '@xenova/transformers'
+        '@xenova/transformers',
+        '@xterm/xterm',
+        '@xterm/addon-fit'
       ],
       exclude: [
         // Exclude problematic modules from pre-bundling
