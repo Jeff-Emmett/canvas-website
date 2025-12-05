@@ -107,13 +107,14 @@ export class GoogleItemShape extends BaseBoxShapeUtil<IGoogleItemShape> {
       return date.toLocaleDateString()
     }
 
-    const handleMakeShared = () => {
+    const handleToggleVisibility = () => {
+      const newVisibility = isLocal ? 'shared' : 'local'
       // Dispatch event for Phase 5 permission flow
       window.dispatchEvent(new CustomEvent('request-visibility-change', {
         detail: {
           shapeId: shape.id,
           currentVisibility: shape.props.visibility,
-          newVisibility: 'shared',
+          newVisibility,
           title: shape.props.title,
         }
       }))
@@ -182,11 +183,11 @@ export class GoogleItemShape extends BaseBoxShapeUtil<IGoogleItemShape> {
             }}
             title={isLocal
               ? 'Private - Only you can see (click to share)'
-              : 'Shared - Visible to collaborators'
+              : 'Shared - Visible to collaborators (click to make private)'
             }
             onClick={(e) => {
               e.stopPropagation()
-              if (isLocal) handleMakeShared()
+              handleToggleVisibility()
             }}
             onPointerDown={(e) => e.stopPropagation()}
           >

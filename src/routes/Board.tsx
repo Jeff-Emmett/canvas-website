@@ -53,6 +53,7 @@ import { MycelialIntelligenceShape } from "@/shapes/MycelialIntelligenceShapeUti
 import { PrivateWorkspaceShape } from "@/shapes/PrivateWorkspaceShapeUtil"
 import { PrivateWorkspaceTool } from "@/tools/PrivateWorkspaceTool"
 import { PrivateWorkspaceManager } from "@/components/PrivateWorkspaceManager"
+import { VisibilityChangeManager } from "@/components/VisibilityChangeManager"
 import { GoogleItemShape } from "@/shapes/GoogleItemShapeUtil"
 import { GoogleItemTool } from "@/tools/GoogleItemTool"
 import {
@@ -1111,6 +1112,7 @@ export function Board() {
         >
           <CmdK />
           <PrivateWorkspaceManager />
+          <VisibilityChangeManager />
         </Tldraw>
       </div>
     </AutomergeHandleProvider>
