@@ -13,6 +13,11 @@ ip = "0.0.0.0"
 local_protocol = "http"
 upstream_protocol = "https"
 
+[dev.miniflare]
+kv_persist = true
+r2_persist = true
+durable_objects_persist = true
+
 [durable_objects]
 bindings = [
     { name = "AUTOMERGE_DURABLE_OBJECT", class_name = "AutomergeDurableObject" },

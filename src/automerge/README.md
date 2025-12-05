@@ -47,6 +47,6 @@ To switch from TLdraw sync to Automerge sync:
 
 1. Update the Board component to use `useAutomergeSync`
 2. Deploy the new worker with Automerge Durable Object
-3. Update the URI to use `/automerge/connect/` instead of `/connect/`
+3. The CloudflareAdapter will automatically connect to `/connect/{roomId}` via WebSocket
 
-The migration is backward compatible - existing TLdraw sync will continue to work while you test the new system.
+The migration is backward compatible - the system will handle both legacy and new document formats.

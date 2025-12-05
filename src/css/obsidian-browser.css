@@ -1237,3 +1237,33 @@ mark {
   background-color: #fafafa;
   overscroll-behavior: contain;
 }
+
+/* Mobile Touch Interaction Improvements for Obsidian Browser */
+.obsidian-browser button,
+.connect-vault-button,
+.close-button,
+.view-button,
+.disconnect-vault-button,
+.select-all-button,
+.bulk-import-button,
+.tag-button,
+.retry-button,
+.load-vault-button,
+.method-button,
+.submit-button,
+.back-button,
+.folder-picker-button,
+.clear-search-button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Ensure adequate touch target sizes on mobile */
+@media (max-width: 768px) {
+  .obsidian-browser button,
+  .view-button,
+  .tag-button {
+    min-height: 44px;
+    padding: 10px 16px;
+  }
+}

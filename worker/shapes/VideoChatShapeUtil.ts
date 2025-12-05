@@ -19,6 +19,7 @@ export type IVideoChatShape = TLBaseShape<
     }>
     meetingToken: string | null
     isOwner: boolean
+    pinnedToView: boolean
   }
 >
 
@@ -42,7 +43,8 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
       isTranscribing: false,
       transcriptionHistory: [],
       meetingToken: null,
-      isOwner: false
+      isOwner: false,
+      pinnedToView: false
     }
   }
 

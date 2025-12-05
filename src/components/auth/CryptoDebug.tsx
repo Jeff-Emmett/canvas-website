@@ -145,7 +145,7 @@ const CryptoDebug: React.FC = () => {
       const storedUsers = JSON.parse(localStorage.getItem('registeredUsers') || '[]');
       addResult(`All registered users: ${JSON.stringify(storedUsers)}`);
       
-      // Filter for users with valid keys (same logic as CryptoLogin)
+      // Filter for users with valid keys (same logic as CryptID)
       const validUsers = storedUsers.filter((user: string) => {
         const publicKey = localStorage.getItem(`${user}_publicKey`);
         if (!publicKey) return false;

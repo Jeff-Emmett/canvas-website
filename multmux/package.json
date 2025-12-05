@@ -1,0 +1,19 @@
+{
+  "name": "multmux",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Collaborative terminal tool with tmux backend",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -ws",
+    "dev:server": "npm run dev -w @multmux/server",
+    "dev:cli": "npm run dev -w @multmux/cli",
+    "start:server": "npm run start -w @multmux/server"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

@@ -31,9 +31,10 @@ function getShapeBounds(editor: Editor, shape: TLShape | string): Box | null {
 export function resolveOverlaps(editor: Editor, shapeId: string): void {
   const allShapes = editor.getCurrentPageShapes()
   const customShapeTypes = [
-    'ObsNote', 'ObsidianBrowser', 'HolonBrowser', 'VideoChat', 'FathomTranscript',
-    'Transcription', 'Holon', 'LocationShare', 'FathomMeetingsBrowser', 'Prompt',
-    'Embed', 'Slide', 'Markdown', 'SharedPiano', 'MycrozineTemplate', 'ChatBox'
+    'ObsNote', 'ObsidianBrowser', 'HolonBrowser', 'VideoChat',
+    'Transcription', 'Holon', 'FathomMeetingsBrowser', 'Prompt',
+    'Embed', 'Slide', 'Markdown', 'MycrozineTemplate', 'ChatBox',
+    'ImageGen', 'VideoGen', 'Multmux'
   ]
   
   const shape = editor.getShape(shapeId as TLShapeId)
@@ -118,9 +119,10 @@ export function findNonOverlappingPosition(
 ): { x: number; y: number } {
   const allShapes = editor.getCurrentPageShapes()
   const customShapeTypes = [
-    'ObsNote', 'ObsidianBrowser', 'HolonBrowser', 'VideoChat', 'FathomTranscript',
-    'Transcription', 'Holon', 'LocationShare', 'FathomMeetingsBrowser', 'Prompt',
-    'Embed', 'Slide', 'Markdown', 'SharedPiano', 'MycrozineTemplate', 'ChatBox'
+    'ObsNote', 'ObsidianBrowser', 'HolonBrowser', 'VideoChat',
+    'Transcription', 'Holon', 'FathomMeetingsBrowser', 'Prompt',
+    'Embed', 'Slide', 'Markdown', 'MycrozineTemplate', 'ChatBox',
+    'ImageGen', 'VideoGen', 'Multmux'
   ]
   
   const existingShapes = allShapes.filter(

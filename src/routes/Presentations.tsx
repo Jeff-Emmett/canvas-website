@@ -12,8 +12,8 @@ export function Presentations() {
           support collective action and community self-organization.
         </p>
         <p>
-          For more of my work, check out my <a href="/">main page</a> or 
-          <a href="/contact">get in touch</a>.
+          For more of my work, check out my <a href="/">main page</a> or
+          <a href="/contact/">get in touch</a>.
         </p>
       </div>
 

@@ -1,27 +1,20 @@
-import "tldraw/tldraw.css"
-import "@/css/style.css"
-import { Default } from "@/routes/Default"
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom"
-import { Contact } from "@/routes/Contact"
-import { Board } from "./routes/Board"
-import { Inbox } from "./routes/Inbox"
-import { Presentations } from "./routes/Presentations"
-import { Resilience } from "./routes/Resilience"
-import { inject } from "@vercel/analytics"
-import { createRoot } from "react-dom/client"
-import { DailyProvider } from "@daily-co/daily-react"
-import Daily from "@daily-co/daily-js"
 import "tldraw/tldraw.css";
 import "@/css/style.css";
 import "@/css/auth.css"; // Import auth styles
 import "@/css/crypto-auth.css"; // Import crypto auth styles
 import "@/css/starred-boards.css"; // Import starred boards styles
 import "@/css/user-profile.css"; // Import user profile styles
-import "@/css/location.css"; // Import location sharing styles
+import { Default } from "@/routes/Default";
+import { BrowserRouter, Route, Routes, Navigate, useParams } from "react-router-dom";
+import { Contact } from "@/routes/Contact";
+import { Board } from "./routes/Board";
+import { Inbox } from "./routes/Inbox";
+import { Presentations } from "./routes/Presentations";
+import { Resilience } from "./routes/Resilience";
 import { Dashboard } from "./routes/Dashboard";
-import { LocationShareCreate } from "./routes/LocationShareCreate";
-import { LocationShareView } from "./routes/LocationShareView";
-import { LocationDashboardRoute } from "./routes/LocationDashboardRoute";
+import { createRoot } from "react-dom/client";
+import { DailyProvider } from "@daily-co/daily-react";
+import Daily from "@daily-co/daily-js";
 import { useState, useEffect } from 'react';
 
 // Import React Context providers
@@ -32,13 +25,11 @@ import NotificationsDisplay from './components/NotificationsDisplay';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Import auth components
-import CryptoLogin from './components/auth/CryptoLogin';
+import CryptID from './components/auth/CryptID';
 import CryptoDebug from './components/auth/CryptoDebug';
 
 // Import Google Data test component
 import { GoogleDataTest } from './components/GoogleDataTest';
-
-inject();
 
 // Initialize Daily.co call object with error handling
 let callObject: any = null;
@@ -78,6 +69,14 @@ const OptionalAuthRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 /**
+ * Component to redirect board URLs without trailing slashes
+ */
+const RedirectBoardSlug = () => {
+  const { slug } = useParams<{ slug: string }>();
+  return <Navigate to={`/board/${slug}/`} replace />;
+};
+
+/**
  * Main App with context providers
  */
 const AppWithProviders = () => {
@@ -95,7 +94,7 @@ const AppWithProviders = () => {
 
     return (
       <div className="auth-page">
-        <CryptoLogin onSuccess={() => window.location.href = '/'} />
+        <CryptID onSuccess={() => window.location.href = '/'} />
       </div>
     );
   };
@@ -111,64 +110,58 @@ const AppWithProviders = () => {
                 <NotificationsDisplay />
                 
                 <Routes>
+                  {/* Redirect routes without trailing slashes to include them */}
+                  <Route path="/login" element={<Navigate to="/login/" replace />} />
+                  <Route path="/contact" element={<Navigate to="/contact/" replace />} />
+                  <Route path="/board/:slug" element={<RedirectBoardSlug />} />
+                  <Route path="/inbox" element={<Navigate to="/inbox/" replace />} />
+                  <Route path="/debug" element={<Navigate to="/debug/" replace />} />
+                  <Route path="/dashboard" element={<Navigate to="/dashboard/" replace />} />
+                  <Route path="/presentations" element={<Navigate to="/presentations/" replace />} />
+                  <Route path="/presentations/resilience" element={<Navigate to="/presentations/resilience/" replace />} />
+
                   {/* Auth routes */}
-                  <Route path="/login" element={<AuthPage />} />
-                  
+                  <Route path="/login/" element={<AuthPage />} />
+
                   {/* Optional auth routes */}
                   <Route path="/" element={
                     <OptionalAuthRoute>
                       <Default />
                     </OptionalAuthRoute>
                   } />
-                  <Route path="/contact" element={
+                  <Route path="/contact/" element={
                     <OptionalAuthRoute>
                       <Contact />
                     </OptionalAuthRoute>
                   } />
-                  <Route path="/board/:slug" element={
+                  <Route path="/board/:slug/" element={
                     <OptionalAuthRoute>
                       <Board />
                     </OptionalAuthRoute>
                   } />
-                  <Route path="/inbox" element={
+                  <Route path="/inbox/" element={
                     <OptionalAuthRoute>
                       <Inbox />
                     </OptionalAuthRoute>
                   } />
-                  <Route path="/debug" element={
+                  <Route path="/debug/" element={
                     <OptionalAuthRoute>
                       <CryptoDebug />
                     </OptionalAuthRoute>
                   } />
-                  <Route path="/dashboard" element={
+                  <Route path="/dashboard/" element={
                     <OptionalAuthRoute>
                       <Dashboard />
                     </OptionalAuthRoute>
                   } />
-                  <Route path="/presentations" element={
+                  <Route path="/presentations/" element={
                     <OptionalAuthRoute>
                       <Presentations />
                     </OptionalAuthRoute>
                   } />
-                  <Route path="/presentations/resilience" element={
+                  <Route path="/presentations/resilience/" element={
                     <OptionalAuthRoute>
                       <Resilience />
-                    </OptionalAuthRoute>
-                  } />
-                  {/* Location sharing routes */}
-                  <Route path="/share-location" element={
-                    <OptionalAuthRoute>
-                      <LocationShareCreate />
-                    </OptionalAuthRoute>
-                  } />
-                  <Route path="/location/:token" element={
-                    <OptionalAuthRoute>
-                      <LocationShareView />
-                    </OptionalAuthRoute>
-                  } />
-                  <Route path="/location-dashboard" element={
-                    <OptionalAuthRoute>
-                      <LocationDashboardRoute />
                     </OptionalAuthRoute>
                   } />
                   {/* Google Data routes */}

@@ -115,7 +115,7 @@ export async function saveDocumentId(roomId: string, documentId: string): Promis
       }
 
       request.onsuccess = () => {
-        console.log(`📝 Saved document mapping: ${roomId} → ${documentId}`)
+        console.log(`Saved document mapping: ${roomId} -> ${documentId}`)
         resolve()
       }
     })
@@ -171,7 +171,7 @@ export async function deleteDocumentMapping(roomId: string): Promise<void> {
       }
 
       request.onsuccess = () => {
-        console.log(`🗑️ Deleted document mapping for: ${roomId}`)
+        console.log(`Deleted document mapping for: ${roomId}`)
         resolve()
       }
     })
@@ -238,7 +238,7 @@ export async function cleanupOldMappings(maxAgeDays: number = 30): Promise<numbe
           deletedCount++
           cursor.continue()
         } else {
-          console.log(`🧹 Cleaned up ${deletedCount} old document mappings`)
+          console.log(`Cleaned up ${deletedCount} old document mappings`)
           resolve(deletedCount)
         }
       }

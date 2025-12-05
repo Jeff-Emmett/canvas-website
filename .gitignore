@@ -175,3 +175,4 @@ dist
 .env.*.local
 .dev.vars
 .env.production
+.aider*

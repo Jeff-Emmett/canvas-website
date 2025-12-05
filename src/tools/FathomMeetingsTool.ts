@@ -18,6 +18,7 @@ export class FathomMeetingsIdle extends StateNode {
   
   tooltipElement?: HTMLDivElement
   mouseMoveHandler?: (e: MouseEvent) => void
+  isCreatingShape = false // Flag to prevent multiple shapes from being created
 
   override onEnter = () => {
     // Set cursor to cross (looks like +)
@@ -84,6 +85,12 @@ export class FathomMeetingsIdle extends StateNode {
   override onPointerDown = (info?: any) => {
     console.log('📍 FathomMeetingsTool: onPointerDown called', { info, fullInfo: JSON.stringify(info) })
     
+    // Prevent multiple shapes from being created if user clicks multiple times
+    if (this.isCreatingShape) {
+      console.log('📍 FathomMeetingsTool: Shape creation already in progress, ignoring click')
+      return
+    }
+    
     // CRITICAL: Only proceed if we have a valid pointer event with a point AND button
     // This prevents shapes from being created when tool is selected (without a click)
     // A real click will have both a point and a button property
@@ -96,11 +103,26 @@ export class FathomMeetingsIdle extends StateNode {
       return
     }
     
-    // Additional check: ensure this is a primary button click (left mouse button = 0)
+    // CRITICAL: Ensure this is a primary button click (left mouse button = 0)
     // This prevents accidental triggers from other pointer events
-    if (info.button !== 0 && info.button !== undefined) {
+    if (info.button !== 0) {
       console.log('📍 FathomMeetingsTool: Non-primary button click, ignoring', { button: info.button })
       return
+    }
+    
+    // CRITICAL: Additional validation - ensure this is a real click on the canvas
+    // Check that the event target is the canvas or a canvas child, not a UI element
+    if (info.target && typeof info.target === 'object') {
+      const target = info.target as HTMLElement
+      // If clicking on UI elements (toolbar, menus, etc), don't create shape
+      if (target.closest('[data-tldraw-ui]') || 
+          target.closest('.tlui-menu') || 
+          target.closest('.tlui-toolbar') ||
+          target.closest('[role="menu"]') ||
+          target.closest('[role="toolbar"]')) {
+        console.log('📍 FathomMeetingsTool: Click on UI element, ignoring')
+        return
+      }
     }
     
     // Get the click position in page coordinates
@@ -149,6 +171,21 @@ export class FathomMeetingsIdle extends StateNode {
       return
     }
     
+    // CRITICAL: Final validation - ensure this is a deliberate click, not a programmatic trigger
+    // Check that we have valid, non-zero coordinates (0,0 is often a default/fallback value)
+    if (clickX === 0 && clickY === 0) {
+      console.warn('⚠️ FathomMeetingsTool: Click position is (0,0) - likely not a real click, ignoring')
+      return
+    }
+    
+    // CRITICAL: Only create shape if tool is actually active (not just selected)
+    // Double-check that we're in the idle state and tool is properly selected
+    const currentTool = this.editor.getCurrentToolId()
+    if (currentTool !== 'fathom-meetings') {
+      console.warn('⚠️ FathomMeetingsTool: Tool not active, ignoring click', { currentTool })
+      return
+    }
+    
     // Create a new FathomMeetingsBrowser shape at the click location
     this.createFathomMeetingsBrowserShape(clickX, clickY)
   }
@@ -161,6 +198,8 @@ export class FathomMeetingsIdle extends StateNode {
   
   override onExit = () => {
     this.cleanupTooltip()
+    // Reset flag when exiting the tool
+    this.isCreatingShape = false
   }
   
   private cleanupTooltip = () => {
@@ -178,6 +217,9 @@ export class FathomMeetingsIdle extends StateNode {
   }
 
   private createFathomMeetingsBrowserShape(clickX: number, clickY: number) {
+    // Set flag to prevent multiple shapes from being created
+    this.isCreatingShape = true
+    
     try {
       console.log('📍 FathomMeetingsTool: createFathomMeetingsBrowserShape called', { clickX, clickY })
       
@@ -224,22 +266,32 @@ export class FathomMeetingsIdle extends StateNode {
         this.editor.setCamera(currentCamera, { animation: { duration: 0 } })
       }
 
-      // Select the new shape and switch to select tool
+      // Select the new shape and switch to select tool immediately
+      // This ensures the tool switches right after shape creation
+      // Ensure shape ID has the "shape:" prefix (required by TLDraw validation)
+      const shapeId = browserShape.id.startsWith('shape:') 
+        ? browserShape.id 
+        : `shape:${browserShape.id}`
+      const cameraBeforeSelect = this.editor.getCamera()
+      this.editor.stopCameraAnimation()
+      this.editor.setSelectedShapes([shapeId] as any)
+      this.editor.setCurrentTool('select')
+      
+      // Restore camera if it changed during selection
+      const cameraAfterSelect = this.editor.getCamera()
+      if (cameraBeforeSelect.x !== cameraAfterSelect.x || cameraBeforeSelect.y !== cameraAfterSelect.y || cameraBeforeSelect.z !== cameraAfterSelect.z) {
+        this.editor.setCamera(cameraBeforeSelect, { animation: { duration: 0 } })
+      }
+      
+      // Reset flag after a short delay to allow the tool switch to complete
       setTimeout(() => {
-        // Preserve camera position when selecting
-        const cameraBeforeSelect = this.editor.getCamera()
-        this.editor.stopCameraAnimation()
-        this.editor.setSelectedShapes([`shape:${browserShape.id}`] as any)
-        this.editor.setCurrentTool('select')
-        // Restore camera if it changed during selection
-        const cameraAfterSelect = this.editor.getCamera()
-        if (cameraBeforeSelect.x !== cameraAfterSelect.x || cameraBeforeSelect.y !== cameraAfterSelect.y || cameraBeforeSelect.z !== cameraAfterSelect.z) {
-          this.editor.setCamera(cameraBeforeSelect, { animation: { duration: 0 } })
-        }
-      }, 100)
+        this.isCreatingShape = false
+      }, 200)
 
     } catch (error) {
       console.error('❌ Error creating FathomMeetingsBrowser shape:', error)
+      // Reset flag on error
+      this.isCreatingShape = false
       throw error // Re-throw to see the full error
     }
   }

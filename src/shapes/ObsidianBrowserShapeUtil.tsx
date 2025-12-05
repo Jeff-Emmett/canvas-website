@@ -11,12 +11,15 @@ import { createShapeId } from "tldraw"
 import { findNonOverlappingPosition } from "@/utils/shapeCollisionUtils"
 import { StandardizedToolWrapper } from "../components/StandardizedToolWrapper"
 import { AuthContext } from "../context/AuthContext"
+import { usePinnedToView } from "../hooks/usePinnedToView"
 
 type IObsidianBrowser = TLBaseShape<
   "ObsidianBrowser",
   {
     w: number
     h: number
+    pinnedToView: boolean
+    tags: string[]
   }
 >
 
@@ -27,6 +30,8 @@ export class ObsidianBrowserShape extends BaseBoxShapeUtil<IObsidianBrowser> {
     return {
       w: 800,
       h: 600,
+      pinnedToView: false,
+      tags: ['obsidian', 'browser'],
     }
   }
 
@@ -38,6 +43,9 @@ export class ObsidianBrowserShape extends BaseBoxShapeUtil<IObsidianBrowser> {
     const [isOpen, setIsOpen] = useState(true)
     const [isMinimized, setIsMinimized] = useState(false)
     const isSelected = this.editor.getSelectedShapeIds().includes(shape.id)
+
+    // Use the pinning hook to keep the shape fixed to viewport when pinned
+    usePinnedToView(this.editor, shape.id, shape.props.pinnedToView)
     
     // Wrapper component to access auth context
     const ObsidianBrowserContent: React.FC<{ vaultName?: string }> = ({ vaultName }) => {
@@ -271,14 +279,23 @@ export class ObsidianBrowserShape extends BaseBoxShapeUtil<IObsidianBrowser> {
 
     const handleClose = () => {
       setIsOpen(false)
-      // Delete the browser shape after a short delay
-      setTimeout(() => {
-        this.editor.deleteShape(shape.id)
-      }, 100)
+      // Delete the browser shape immediately so it's tracked in undo/redo history
+      this.editor.deleteShape(shape.id)
     }
 
     const handleMinimize = () => {
       setIsMinimized(!isMinimized)
+    }
+
+    const handlePinToggle = () => {
+      this.editor.updateShape<IObsidianBrowser>({
+        id: shape.id,
+        type: shape.type,
+        props: {
+          ...shape.props,
+          pinnedToView: !shape.props.pinnedToView,
+        },
+      })
     }
 
       // Custom header content with vault information
@@ -328,6 +345,20 @@ export class ObsidianBrowserShape extends BaseBoxShapeUtil<IObsidianBrowser> {
             editor={this.editor}
             shapeId={shape.id}
             headerContent={headerContent}
+            isPinnedToView={shape.props.pinnedToView}
+            onPinToggle={handlePinToggle}
+            tags={shape.props.tags}
+            onTagsChange={(newTags) => {
+              this.editor.updateShape<IObsidianBrowser>({
+                id: shape.id,
+                type: 'ObsidianBrowser',
+                props: {
+                  ...shape.props,
+                  tags: newTags,
+                }
+              })
+            }}
+            tagsEditable={true}
           >
             <ObsidianVaultBrowser
               key={`obsidian-browser-${shape.id}`}

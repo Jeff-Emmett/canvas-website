@@ -3,7 +3,7 @@ import { ObsNoteShape } from "@/shapes/ObsNoteShapeUtil"
 import { findNonOverlappingPosition } from "@/utils/shapeCollisionUtils"
 
 export class ObsNoteTool extends StateNode {
-  static override id = "obs_note"
+  static override id = "ObsidianNote"
   static override initial = "idle"
   static override children = () => [ObsNoteIdle]
 

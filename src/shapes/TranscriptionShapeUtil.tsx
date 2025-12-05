@@ -7,6 +7,7 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from "react"
 import { useWhisperTranscription } from "../hooks/useWhisperTranscriptionSimple"
 import { useWebSpeechTranscription } from "../hooks/useWebSpeechTranscription"
 import { StandardizedToolWrapper } from "../components/StandardizedToolWrapper"
+import { usePinnedToView } from "../hooks/usePinnedToView"
 
 type ITranscription = TLBaseShape<
   "Transcription",
@@ -19,6 +20,8 @@ type ITranscription = TLBaseShape<
     isTranscribing?: boolean
     isPaused?: boolean
     fixedHeight?: boolean // New property to control resizing
+    pinnedToView: boolean
+    tags: string[]
   }
 >
 
@@ -77,6 +80,8 @@ export class TranscriptionShape extends BaseBoxShapeUtil<ITranscription> {
       isTranscribing: false,
       isPaused: false,
       fixedHeight: true, // Start with fixed height
+      pinnedToView: false,
+      tags: ['transcription'],
     }
   }
 
@@ -93,6 +98,9 @@ export class TranscriptionShape extends BaseBoxShapeUtil<ITranscription> {
     const isSelected = this.editor.getSelectedShapeIds().includes(shape.id)
     const isMountedRef = useRef(true)
     const stopRecordingRef = useRef<(() => void | Promise<void>) | null>(null)
+
+    // Use the pinning hook to keep the shape fixed to viewport when pinned
+    usePinnedToView(this.editor, shape.id, shape.props.pinnedToView)
 
     // Local Whisper model is always available (no API key needed)
     const isLocalWhisperAvailable = true
@@ -550,6 +558,17 @@ export class TranscriptionShape extends BaseBoxShapeUtil<ITranscription> {
       this.editor.deleteShape(shape.id)
     }
 
+    const handlePinToggle = () => {
+      this.editor.updateShape<ITranscription>({
+        id: shape.id,
+        type: shape.type,
+        props: {
+          ...shape.props,
+          pinnedToView: !shape.props.pinnedToView,
+        },
+      })
+    }
+
 
     const contentStyle: React.CSSProperties = {
       padding: '12px',
@@ -666,6 +685,20 @@ export class TranscriptionShape extends BaseBoxShapeUtil<ITranscription> {
           headerContent={headerContent}
           editor={this.editor}
           shapeId={shape.id}
+          isPinnedToView={shape.props.pinnedToView}
+          onPinToggle={handlePinToggle}
+          tags={shape.props.tags}
+          onTagsChange={(newTags) => {
+            this.editor.updateShape<ITranscription>({
+              id: shape.id,
+              type: 'Transcription',
+              props: {
+                ...shape.props,
+                tags: newTags,
+              }
+            })
+          }}
+          tagsEditable={true}
         >
         
         <div style={contentStyle}>

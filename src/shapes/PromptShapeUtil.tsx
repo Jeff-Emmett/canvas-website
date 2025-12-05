@@ -14,6 +14,8 @@ import { AI_PERSONALITIES } from "@/lib/settings"
 import { isShapeOfType } from "@/propagators/utils"
 import { findNonOverlappingPosition } from "@/utils/shapeCollisionUtils"
 import React, { useState } from "react"
+import { StandardizedToolWrapper } from "../components/StandardizedToolWrapper"
+import { usePinnedToView } from "../hooks/usePinnedToView"
 
 type IPrompt = TLBaseShape<
   "Prompt",
@@ -25,6 +27,8 @@ type IPrompt = TLBaseShape<
     agentBinding: string | null
     personality?: string
     error?: string | null
+    pinnedToView: boolean
+    tags: string[]
   }
 >
 
@@ -44,6 +48,9 @@ const CheckIcon = () => (
 export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
   static override type = "Prompt" as const
 
+  // LLM Prompt theme color: Pink/Magenta (Rainbow)
+  static readonly PRIMARY_COLOR = "#ec4899"
+
   FIXED_HEIGHT = 500 as const
   MIN_WIDTH = 200 as const
   PADDING = 4 as const
@@ -55,15 +62,18 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
       prompt: "",
       value: "",
       agentBinding: null,
+      pinnedToView: false,
+      tags: ['llm', 'prompt'],
     }
   }
 
   // Override getGeometry to ensure the selector box always matches the rendered component height
   getGeometry(shape: IPrompt): Geometry2d {
+    // isFilled must be true for proper hit testing and nearestPoint calculation
     return new Rectangle2d({
-      width: shape.props.w,
-      height: Math.max(shape.props.h, this.FIXED_HEIGHT),
-      isFilled: false,
+      width: Math.max(shape.props.w, 1),
+      height: Math.max(shape.props.h, this.FIXED_HEIGHT, 1),
+      isFilled: true,
     })
   }
 
@@ -358,38 +368,86 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
 
     const isSelected = this.editor.getSelectedShapeIds().includes(shape.id)
     const [isHovering, setIsHovering] = useState(false)
+    const [isMinimized, setIsMinimized] = useState(false)
+
+    // Use the pinning hook
+    usePinnedToView(this.editor, shape.id, shape.props.pinnedToView)
+
+    const handleClose = () => {
+      this.editor.deleteShape(shape.id)
+    }
+
+    const handleMinimize = () => {
+      setIsMinimized(!isMinimized)
+    }
+
+    const handlePinToggle = () => {
+      this.editor.updateShape<IPrompt>({
+        id: shape.id,
+        type: shape.type,
+        props: {
+          ...shape.props,
+          pinnedToView: !shape.props.pinnedToView,
+        },
+      })
+    }
 
     return (
-      <HTMLContainer
-        style={{
-          borderRadius: 6,
-          border: "1px solid lightgrey",
-          padding: this.PADDING,
-          height: this.FIXED_HEIGHT,
-          width: shape.props.w,
-          pointerEvents: isSelected || isHovering ? "all" : "none",
-          backgroundColor: "#efefef",
-          overflow: "visible",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          alignItems: "stretch",
-          outline: shape.props.agentBinding ? "2px solid orange" : "none",
-        }}
-        //TODO: FIX SCROLL IN PROMPT CHAT WHEN HOVERING OVER ELEMENT
-        onPointerEnter={() => setIsHovering(true)}
-        onPointerLeave={() => setIsHovering(false)}
-        onWheel={(e) => {
-          if (isSelected || isHovering) {
-            e.preventDefault()
-            e.stopPropagation()
-            
-            if (chatContainerRef.current) {
-              chatContainerRef.current.scrollTop += e.deltaY
-            }
-          }
-        }}
-      >
+      <HTMLContainer style={{ width: shape.props.w, height: shape.props.h }}>
+        <StandardizedToolWrapper
+          title="LLM Prompt"
+          primaryColor={PromptShape.PRIMARY_COLOR}
+          isSelected={isSelected}
+          width={shape.props.w}
+          height={shape.props.h}
+          onClose={handleClose}
+          onMinimize={handleMinimize}
+          isMinimized={isMinimized}
+          editor={this.editor}
+          shapeId={shape.id}
+          isPinnedToView={shape.props.pinnedToView}
+          onPinToggle={handlePinToggle}
+          tags={shape.props.tags}
+          onTagsChange={(newTags) => {
+            this.editor.updateShape<IPrompt>({
+              id: shape.id,
+              type: 'Prompt',
+              props: {
+                ...shape.props,
+                tags: newTags,
+              }
+            })
+          }}
+          tagsEditable={true}
+        >
+          <div
+            style={{
+              height: '100%',
+              width: '100%',
+              padding: this.PADDING,
+              pointerEvents: isSelected || isHovering ? "all" : "none",
+              backgroundColor: "#efefef",
+              overflow: "visible",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              alignItems: "stretch",
+              outline: shape.props.agentBinding ? "2px solid orange" : "none",
+            }}
+            //TODO: FIX SCROLL IN PROMPT CHAT WHEN HOVERING OVER ELEMENT
+            onPointerEnter={() => setIsHovering(true)}
+            onPointerLeave={() => setIsHovering(false)}
+            onWheel={(e) => {
+              if (isSelected || isHovering) {
+                e.preventDefault()
+                e.stopPropagation()
+
+                if (chatContainerRef.current) {
+                  chatContainerRef.current.scrollTop += e.deltaY
+                }
+              }
+            }}
+          >
         <div
           ref={chatContainerRef}
           style={{
@@ -676,6 +734,8 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
             {copyButtonText}
           </button>
         </div>
+        </div>
+        </StandardizedToolWrapper>
       </HTMLContainer>
     )
   }

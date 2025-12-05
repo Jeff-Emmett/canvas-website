@@ -73,7 +73,6 @@ Custom shape types are preserved:
 - ObsNote
 - Holon
 - FathomMeetingsBrowser
-- FathomTranscript
 - HolonBrowser
 - LocationShare
 - ObsidianBrowser

@@ -2,6 +2,30 @@
 
 :root {
   --border-radius: 10px;
+  --bg-color: #ffffff;
+  --text-color: #24292e;
+  --border-color: #e1e4e8;
+  --code-bg: #e4e9ee;
+  --code-color: #38424c;
+  --hover-bg: #f6f8fa;
+  --tool-bg: #f5f5f5;
+  --tool-text: #333333;
+  --tool-border: #d0d0d0;
+}
+
+html.dark {
+  --bg-color: #1a1a1a;
+  --text-color: #e4e4e4;
+  --border-color: #404040;
+  --code-bg: #2d2d2d;
+  --code-color: #e4e4e4;
+  --hover-bg: #2d2d2d;
+  --tool-bg: #2a2a2a;
+  --tool-text: #e0e0e0;
+  --tool-border: #555555;
+  --card-bg: #252525;
+  --input-bg: #333333;
+  --muted-text: #a1a1aa;
 }
 
 html,
@@ -11,6 +35,9 @@ body {
   min-height: 100vh;
   min-height: -webkit-fill-available;
   height: 100%;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 video {
@@ -28,7 +55,7 @@ main {
   font-family: "Recursive";
   font-variation-settings: "MONO" 1;
   font-variation-settings: "CASL" 1;
-  color: #24292e;
+  color: var(--text-color);
 }
 
 h1 {
@@ -92,9 +119,9 @@ pre>code {
 }
 
 code {
-  background-color: #e4e9ee;
+  background-color: var(--code-bg);
   width: 100%;
-  color: #38424c;
+  color: var(--code-color);
   padding: 0.2em 0.4em;
   border-radius: 4px;
 }
@@ -809,4 +836,1118 @@ p:has(+ ol) {
   padding-right: 0.1em;
   padding-left: 0.1em;
   color: #fc8958;
+}
+
+/* Mobile Touch Interaction Improvements */
+button,
+input[type="button"],
+input[type="submit"],
+[role="button"],
+.clickable {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Ensure adequate touch target sizes on mobile */
+@media (max-width: 768px) {
+  button,
+  input[type="button"],
+  input[type="submit"],
+  [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* ========================================
+   Tool/Shape Consistent Grey Backgrounds
+   ======================================== */
+
+/* Apply consistent grey background to all custom shapes/tools */
+.chat-container,
+.embed-container,
+.markdown-container,
+.prompt-container,
+.obs-note-container,
+.transcription-container,
+.holon-container,
+.video-chat-container,
+.slide-container,
+.fathom-meetings-browser-container,
+.obsidian-browser-container,
+.holon-browser-container,
+.multmux-container {
+  background-color: var(--tool-bg) !important;
+  color: var(--tool-text) !important;
+  border: 1px solid var(--tool-border) !important;
+}
+
+/* Input fields within tools */
+.chat-container input,
+.chat-container textarea,
+.prompt-container input,
+.prompt-container textarea,
+.markdown-container input,
+.markdown-container textarea,
+.embed-container input {
+  background-color: var(--bg-color) !important;
+  color: var(--text-color) !important;
+  border: 1px solid var(--tool-border) !important;
+}
+
+/* Buttons within tools */
+.chat-container button,
+.prompt-container button,
+.embed-container button {
+  background-color: var(--code-bg) !important;
+  color: var(--code-color) !important;
+  border: 1px solid var(--tool-border) !important;
+}
+
+.chat-container button:hover,
+.prompt-container button:hover,
+.embed-container button:hover {
+  background-color: var(--hover-bg) !important;
+}
+
+/* ========================================
+   Mycelial Intelligence Styles
+   ======================================== */
+
+/* Mycelium network path animation */
+.mycelium-path {
+  animation: mycelium-flow 4s ease-in-out infinite;
+  stroke-dasharray: 10 5;
+}
+
+@keyframes mycelium-flow {
+  0%, 100% {
+    stroke-dashoffset: 0;
+    opacity: 0.1;
+  }
+  50% {
+    stroke-dashoffset: 30;
+    opacity: 0.3;
+  }
+}
+
+/* Loading dots animation */
+.loading-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  opacity: 0.3;
+  animation: loading-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes loading-pulse {
+  0%, 80%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Typing cursor blink */
+@keyframes blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Voice recording pulse animation */
+@keyframes voice-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 15px rgba(0, 255, 136, 0);
+  }
+}
+
+.voice-recording {
+  animation: voice-pulse 2s ease-in-out infinite;
+}
+
+/* Glow effect on hover for MI buttons */
+.mi-button:hover {
+  filter: drop-shadow(0 0 10px rgba(0, 255, 136, 0.5));
+}
+
+/* Mycelial Intelligence input focus state */
+.mi-input:focus {
+  border-color: #00ff88 !important;
+  box-shadow: 0 0 15px rgba(0, 255, 136, 0.2) !important;
+}
+
+/* Scrollbar styling for MI chat */
+.mi-chat-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.mi-chat-container::-webkit-scrollbar-track {
+  background: rgba(0, 255, 136, 0.05);
+  border-radius: 3px;
+}
+
+.mi-chat-container::-webkit-scrollbar-thumb {
+  background: rgba(0, 255, 136, 0.3);
+  border-radius: 3px;
+}
+
+.mi-chat-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 255, 136, 0.5);
+}
+
+/* ========================================
+   Toolbar and Share Zone Alignment
+   ======================================== */
+
+/* Position the share zone (people menu) in the top right */
+.tlui-share-zone {
+  position: fixed !important;
+  top: 8px !important;
+  right: 12px !important;
+  z-index: 99998 !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+/* Custom people menu styling */
+.custom-people-menu {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(8px);
+}
+
+html.dark .custom-people-menu {
+  background: rgba(45, 55, 72, 0.95);
+}
+
+/* People dropdown styling */
+.people-dropdown {
+  backdrop-filter: blur(8px);
+}
+
+html.dark .people-dropdown {
+  background: rgba(30, 30, 30, 0.98) !important;
+}
+
+/* Ensure custom toolbar buttons don't overlap with share zone */
+/* Position to the left of the people menu with adequate spacing */
+.toolbar-container {
+  position: fixed !important;
+  top: 8px !important;
+  /* Leave enough room for people menu - accounts for multiple users */
+  right: 140px !important;
+  z-index: 99999 !important;
+  display: flex !important;
+  gap: 8px !important;
+  align-items: center !important;
+}
+
+/* Move the tldraw style panel (color picker) below the top-right UI */
+.tlui-style-panel__wrapper {
+  top: 52px !important;
+}
+
+/* ========================================
+   Unified Toolbar Button Styles
+   ======================================== */
+
+.toolbar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 12px;
+  height: 32px;
+  min-height: 32px;
+  background: var(--tool-bg);
+  color: var(--tool-text);
+  border: 1px solid var(--tool-border);
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.toolbar-btn:hover {
+  background: var(--hover-bg);
+  border-color: var(--border-color);
+}
+
+.toolbar-btn svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.profile-btn {
+  padding: 6px 10px;
+  height: 32px;
+}
+
+.profile-username {
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ========================================
+   Profile Dropdown Styles
+   ======================================== */
+
+.profile-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 240px;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 100000;
+  overflow: hidden;
+}
+
+.profile-dropdown-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--code-bg);
+}
+
+.profile-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--tool-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--tool-text);
+}
+
+.profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.profile-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-color);
+}
+
+.profile-label {
+  font-size: 11px;
+  color: var(--tool-text);
+  opacity: 0.7;
+}
+
+.profile-dropdown-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 0;
+}
+
+.profile-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  color: var(--text-color);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.profile-dropdown-item:hover {
+  background: var(--hover-bg);
+}
+
+.profile-dropdown-item svg {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.profile-dropdown-item.danger {
+  color: #ef4444;
+}
+
+.profile-dropdown-item.danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.profile-dropdown-warning {
+  padding: 10px 16px;
+  font-size: 11px;
+  color: #d97706;
+  background: rgba(217, 119, 6, 0.1);
+  border-left: 3px solid #d97706;
+}
+
+/* ========================================
+   Settings Modal Styles
+   ======================================== */
+
+.settings-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100001;
+  backdrop-filter: blur(4px);
+}
+
+.settings-modal {
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.settings-modal-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.settings-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--tool-text);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.settings-close-btn:hover {
+  background: var(--hover-bg);
+  color: var(--text-color);
+}
+
+.settings-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+  padding: 0 20px;
+}
+
+.settings-tab {
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--tool-text);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-bottom: -1px;
+}
+
+.settings-tab:hover {
+  color: var(--text-color);
+}
+
+.settings-tab.active {
+  color: #3b82f6;
+  border-bottom-color: #3b82f6;
+}
+
+.settings-content {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.settings-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.settings-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.settings-item-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.settings-item-description {
+  font-size: 12px;
+  color: var(--tool-text);
+  opacity: 0.8;
+}
+
+.settings-item-status {
+  flex-shrink: 0;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+}
+
+.status-badge.success {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+}
+
+.status-badge.warning {
+  background: rgba(234, 179, 8, 0.15);
+  color: #eab308;
+}
+
+.settings-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--tool-bg);
+  border: 1px solid var(--tool-border);
+  border-radius: 6px;
+  color: var(--tool-text);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.settings-toggle-btn:hover {
+  background: var(--hover-bg);
+}
+
+.toggle-icon {
+  font-size: 14px;
+}
+
+.settings-action-btn {
+  width: 100%;
+  padding: 10px 16px;
+  background: #3b82f6;
+  border: none;
+  border-radius: 6px;
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.settings-action-btn:hover {
+  background: #2563eb;
+}
+
+.settings-action-btn.secondary {
+  background: var(--tool-bg);
+  color: var(--tool-text);
+  border: 1px solid var(--tool-border);
+}
+
+.settings-action-btn.secondary:hover {
+  background: var(--hover-bg);
+}
+
+.settings-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 8px 0;
+}
+
+.settings-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-input {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg-color);
+  border: 1px solid var(--tool-border);
+  border-radius: 6px;
+  color: var(--text-color);
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.settings-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.settings-input-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.settings-btn-sm {
+  flex: 1;
+  padding: 8px 12px;
+  background: var(--tool-bg);
+  border: 1px solid var(--tool-border);
+  border-radius: 6px;
+  color: var(--tool-text);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.settings-btn-sm:hover {
+  background: var(--hover-bg);
+}
+
+.settings-btn-sm.primary {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: white;
+}
+
+.settings-btn-sm.primary:hover {
+  background: #2563eb;
+}
+
+.settings-button-group {
+  display: flex;
+  gap: 8px;
+}
+
+.settings-button-group .settings-action-btn {
+  flex: 1;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .toolbar-container {
+    right: 90px !important;
+    gap: 6px !important;
+  }
+
+  .tlui-share-zone {
+    right: 8px !important;
+  }
+
+  .custom-people-menu {
+    padding: 4px 6px;
+    gap: 2px;
+  }
+
+  .profile-username {
+    display: none;
+  }
+
+  .toolbar-btn {
+    padding: 4px 8px;
+    height: 28px;
+    min-height: 28px;
+    font-size: 12px;
+  }
+
+  .toolbar-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .settings-modal {
+    max-width: calc(100% - 32px);
+    margin: 16px;
+  }
+}
+
+/* ========================================
+   Dark Mode Comprehensive Styles
+   ======================================== */
+
+/* Dark mode for blockquotes */
+html.dark blockquote {
+  background-color: #2d2d2d;
+  border-left-color: #555;
+  color: #e0e0e0;
+}
+
+/* Dark mode for tables */
+html.dark table th,
+html.dark table td {
+  border-color: #404040;
+}
+
+html.dark table th {
+  background-color: #2d2d2d;
+}
+
+html.dark table tr:nth-child(even) {
+  background-color: #252525;
+}
+
+/* Dark mode for navigation links */
+html.dark .nav-link {
+  color: #60a5fa;
+}
+
+html.dark .nav-link:hover {
+  background-color: #2d2d2d;
+  border-color: #404040;
+}
+
+/* Dark mode for list markers */
+html.dark ol li::marker,
+html.dark ul li::marker {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Dark mode for loading indicator */
+html.dark .loading {
+  background-color: #2d2d2d;
+  border-color: #404040;
+  color: #e4e4e4;
+}
+
+/* Dark mode for presentations */
+html.dark .presentation-card {
+  border-color: #404040;
+  background-color: #252525;
+}
+
+html.dark .presentation-card:hover {
+  border-color: #60a5fa;
+}
+
+html.dark .presentation-card h3 {
+  color: #e4e4e4;
+}
+
+html.dark .presentation-card p {
+  color: #a1a1aa;
+}
+
+html.dark .presentation-meta {
+  border-top-color: #404040;
+  background-color: #252525;
+}
+
+html.dark .presentation-meta span {
+  color: #a1a1aa;
+}
+
+html.dark .presentation-meta a {
+  color: #60a5fa;
+}
+
+html.dark .presentations-info {
+  background-color: #252525;
+  border-left-color: #60a5fa;
+}
+
+html.dark .presentations-info h3 {
+  color: #e4e4e4;
+}
+
+html.dark .presentations-info p {
+  color: #a1a1aa;
+}
+
+html.dark .presentation-info {
+  background-color: #252525;
+  border-left-color: #60a5fa;
+}
+
+html.dark .presentation-info h1 {
+  color: #e4e4e4;
+}
+
+html.dark .video-clips h2,
+html.dark .video-section h3 {
+  color: #e4e4e4;
+}
+
+html.dark .presentation-embed h2 {
+  color: #e4e4e4;
+}
+
+/* Dark mode for command palette */
+html.dark [cmdk-dialog] {
+  background-color: #1a1a1a;
+  border-color: #404040;
+}
+
+html.dark [cmdk-dialog] input {
+  background-color: #252525;
+  color: #e4e4e4;
+}
+
+html.dark [cmdk-dialog] input:focus {
+  background-color: #2d2d2d;
+}
+
+html.dark [cmdk-item]:hover {
+  background-color: #2d2d2d;
+}
+
+html.dark [cmdk-item] .tlui-kbd {
+  border-color: #404040;
+}
+
+/* Dark mode for lock indicator */
+html.dark .lock-indicator {
+  background: #2d2d2d;
+}
+
+html.dark .lock-indicator:hover {
+  background: #3d3d3d;
+}
+
+/* Dark mode for overflowing container */
+html.dark .overflowing {
+  background-color: #1a1a1a;
+}
+
+/* Dark mode for tldraw html layer markdown */
+html.dark .tl-html-layer code {
+  background-color: #2d2d2d;
+  color: #e4e4e4;
+}
+
+html.dark .tl-html-layer pre {
+  background-color: #1e1e2e;
+  color: #cdd6f4;
+}
+
+html.dark .tl-html-layer blockquote {
+  border-left-color: #555;
+  color: #a1a1aa;
+}
+
+html.dark .tl-html-layer th,
+html.dark .tl-html-layer td {
+  border-color: #404040;
+}
+
+html.dark .tl-html-layer tr:nth-child(2n) {
+  background-color: #252525;
+}
+
+/* Dark mode for Mycelial Intelligence inline code */
+html.dark .mi-inline-code {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #e4e4e4 !important;
+}
+
+/* Dark mode for MDXEditor (Markdown tool) */
+html.dark .mdxeditor {
+  background-color: #1a1a1a !important;
+}
+
+html.dark .mdxeditor [role="toolbar"] {
+  background: #252525 !important;
+  border-bottom-color: #404040 !important;
+}
+
+html.dark .mdxeditor [role="toolbar"] button {
+  color: #e4e4e4 !important;
+}
+
+html.dark .mdxeditor [role="toolbar"] button:hover {
+  background: #3d3d3d !important;
+}
+
+html.dark .mdxeditor [role="toolbar"] button[data-state="on"] {
+  background: rgba(20, 184, 166, 0.2) !important;
+  color: #14b8a6 !important;
+}
+
+html.dark .mdxeditor .mdxeditor-root-contenteditable {
+  background: #1a1a1a !important;
+}
+
+html.dark .mdx-editor-content {
+  color: #e4e4e4 !important;
+}
+
+html.dark .mdx-editor-content h1 {
+  color: #f4f4f5 !important;
+}
+
+html.dark .mdx-editor-content h2 {
+  color: #e4e4e5 !important;
+}
+
+html.dark .mdx-editor-content h3 {
+  color: #d4d4d5 !important;
+}
+
+html.dark .mdx-editor-content blockquote {
+  background: #252525 !important;
+  border-left-color: #14b8a6 !important;
+}
+
+html.dark .mdx-editor-content code {
+  background: #2d2d2d !important;
+  color: #e4e4e4 !important;
+}
+
+html.dark .mdx-editor-content th {
+  background: #252525 !important;
+}
+
+html.dark .mdx-editor-content th,
+html.dark .mdx-editor-content td {
+  border-color: #404040 !important;
+}
+
+html.dark .mdx-editor-content hr {
+  border-top-color: #404040 !important;
+}
+
+html.dark .mdx-editor-content a {
+  color: #2dd4bf !important;
+}
+
+html.dark .mdxeditor [role="toolbar"] select {
+  background: #252525 !important;
+  border-color: #404040 !important;
+  color: #e4e4e4 !important;
+}
+
+/* Dark mode for StandardizedToolWrapper */
+html.dark .tool-wrapper-content {
+  background-color: #1a1a1a !important;
+}
+
+/* Dark mode for UserSettingsModal inline-styled elements */
+/* Using attribute selectors to target inline-styled divs */
+html.dark .settings-modal [style*="backgroundColor: #f9fafb"],
+html.dark .settings-modal [style*="background-color: #f9fafb"] {
+  background-color: #252525 !important;
+  border-color: #404040 !important;
+}
+
+html.dark .settings-modal [style*="backgroundColor: #fef3c7"],
+html.dark .settings-modal [style*="background-color: #fef3c7"] {
+  background-color: #3d3620 !important;
+  border-color: #665930 !important;
+}
+
+html.dark .settings-modal [style*="color: #374151"] {
+  color: #e4e4e4 !important;
+}
+
+html.dark .settings-modal [style*="color: #1f2937"] {
+  color: #f4f4f5 !important;
+}
+
+html.dark .settings-modal [style*="color: #6b7280"] {
+  color: #a1a1aa !important;
+}
+
+html.dark .settings-modal [style*="color: #92400e"] {
+  color: #fbbf24 !important;
+}
+
+html.dark .settings-modal [style*="borderTop: 1px solid #e5e7eb"],
+html.dark .settings-modal [style*="border-top: 1px solid #e5e7eb"] {
+  border-top-color: #404040 !important;
+}
+
+html.dark .settings-modal [style*="backgroundColor: #f8fafc"],
+html.dark .settings-modal [style*="background-color: #f8fafc"] {
+  background-color: #252525 !important;
+  border-color: #404040 !important;
+}
+
+/* Dark mode for settings modal cards */
+html.dark .settings-section [style*="background-color"] {
+  background-color: #252525 !important;
+}
+
+/* Dark mode for AI tool cards in settings */
+html.dark .settings-section h3 {
+  color: #e4e4e4 !important;
+}
+
+/* Dark mode for chat messages in PromptShape */
+html.dark .prompt-container [style*="backgroundColor: white"],
+html.dark .prompt-container [style*="background-color: white"] {
+  background-color: #1a1a1a !important;
+}
+
+html.dark .prompt-container [style*="backgroundColor: #efefef"],
+html.dark .prompt-container [style*="background-color: #efefef"] {
+  background-color: #252525 !important;
+}
+
+html.dark .prompt-container [style*="backgroundColor: #f0f0f0"],
+html.dark .prompt-container [style*="background-color: #f0f0f0"] {
+  background-color: #3d3d3d !important;
+  color: #e4e4e4 !important;
+}
+
+/* Dark mode chat bubbles */
+html.dark [style*="backgroundColor: #f0f0f0"][style*="borderRadius: 18px"] {
+  background-color: #3d3d3d !important;
+  color: #e4e4e4 !important;
+}
+
+/* Dark mode for ObsNote and other shapes */
+html.dark .obs-note-container,
+html.dark .transcription-container,
+html.dark .holon-container {
+  background-color: #1a1a1a !important;
+}
+
+/* Dark mode for FathomMeetingsBrowser and ObsidianBrowser */
+html.dark .fathom-meetings-browser-container,
+html.dark .obsidian-browser-container,
+html.dark .holon-browser-container {
+  background-color: #1a1a1a !important;
+}
+
+/* Dark mode for chat container */
+html.dark .chat-container {
+  background-color: #1a1a1a !important;
+}
+
+html.dark .chat-container .messages-container {
+  background-color: #1a1a1a !important;
+}
+
+html.dark .chat-container .message {
+  background-color: #252525 !important;
+  border-color: #404040 !important;
+  color: #e4e4e4 !important;
+}
+
+html.dark .chat-container .message.own-message {
+  background-color: #1e3a5f !important;
+}
+
+html.dark .chat-container .message-input {
+  background-color: #252525 !important;
+  border-color: #404040 !important;
+  color: #e4e4e4 !important;
+}
+
+html.dark .chat-container .send-button {
+  background-color: #3b82f6 !important;
+}
+
+/* Dark mode for ImageGen and VideoGen shapes */
+html.dark .image-gen-container,
+html.dark .video-gen-container {
+  background-color: #1a1a1a !important;
+}
+
+/* Dark mode for all input fields in tools */
+html.dark input[type="text"],
+html.dark input[type="email"],
+html.dark input[type="password"],
+html.dark textarea,
+html.dark select {
+  background-color: var(--input-bg) !important;
+  border-color: var(--tool-border) !important;
+  color: var(--text-color) !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: var(--muted-text) !important;
+}
+
+/* Dark mode for error messages */
+html.dark [style*="backgroundColor: #fee"],
+html.dark [style*="background-color: #fee"] {
+  background-color: #3d2020 !important;
+  border-color: #5c3030 !important;
+  color: #f87171 !important;
+}
+
+/* Dark mode for success messages */
+html.dark [style*="backgroundColor: #d1fae5"],
+html.dark [style*="background-color: #d1fae5"] {
+  background-color: #1a3d2e !important;
+  color: #34d399 !important;
+}
+
+/* Dark mode for links in general */
+html.dark a:not([class]) {
+  color: #60a5fa;
+}
+
+/* Ensure proper contrast for buttons in dark mode */
+html.dark button:not([class*="primary"]):not([style*="background"]) {
+  background-color: var(--tool-bg);
+  color: var(--tool-text);
+  border-color: var(--tool-border);
+}
+
+html.dark button:not([class*="primary"]):not([style*="background"]):hover {
+  background-color: var(--hover-bg);
 }

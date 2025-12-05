@@ -10,8 +10,9 @@ import {
   TldrawUiInput,
 } from "tldraw"
 import React from "react"
-import { PROVIDERS, AI_PERSONALITIES } from "../lib/settings"
+import { PROVIDERS, AI_PERSONALITIES, OLLAMA_MODELS } from "../lib/settings"
 import { useAuth } from "../context/AuthContext"
+import { getOllamaConfig } from "../lib/clientConfig"
 
 export function SettingsDialog({ onClose }: TLUiDialogProps) {
   const { session } = useAuth()
@@ -68,7 +69,7 @@ export function SettingsDialog({ onClose }: TLUiDialogProps) {
           }
         }
       }
-      
+
       // Fallback to global settings
       const stored = localStorage.getItem("openai_api_key")
       if (stored) {
@@ -87,23 +88,67 @@ export function SettingsDialog({ onClose }: TLUiDialogProps) {
     }
   })
 
+  const [ollamaModel, setOllamaModel] = React.useState(() => {
+    try {
+      // First try to get user-specific settings if logged in
+      if (session.authed && session.username) {
+        const userApiKeys = localStorage.getItem(`${session.username}_api_keys`)
+        if (userApiKeys) {
+          try {
+            const parsed = JSON.parse(userApiKeys)
+            if (parsed.ollamaModel) {
+              return parsed.ollamaModel
+            }
+          } catch (e) {
+            // Continue to fallback
+          }
+        }
+      }
+
+      // Fallback to global settings
+      const stored = localStorage.getItem("openai_api_key")
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored)
+          if (parsed.ollamaModel) {
+            return parsed.ollamaModel
+          }
+        } catch (e) {
+          // Continue to fallback
+        }
+      }
+      return 'llama3.1:8b'
+    } catch (e) {
+      return 'llama3.1:8b'
+    }
+  })
+
+  // Check if Ollama is configured
+  const ollamaConfig = getOllamaConfig()
+
   const handleKeyChange = (provider: string, value: string) => {
     const newKeys = { ...apiKeys, [provider]: value }
     setApiKeys(newKeys)
-    saveSettings(newKeys, personality)
+    saveSettings(newKeys, personality, ollamaModel)
   }
 
   const handlePersonalityChange = (newPersonality: string) => {
     setPersonality(newPersonality)
-    saveSettings(apiKeys, newPersonality)
+    saveSettings(apiKeys, newPersonality, ollamaModel)
   }
 
-  const saveSettings = (keys: any, personalityValue: string) => {
+  const handleOllamaModelChange = (newModel: string) => {
+    setOllamaModel(newModel)
+    saveSettings(apiKeys, personality, newModel)
+  }
+
+  const saveSettings = (keys: any, personalityValue: string, ollamaModelValue: string) => {
     // Save to localStorage with the new structure
     const settings = {
       keys: keys,
       provider: 'openai', // Default provider
       models: Object.fromEntries(PROVIDERS.map((provider) => [provider.id, provider.models[0]])),
+      ollamaModel: ollamaModelValue,
       personality: personalityValue,
     }
     
@@ -160,12 +205,83 @@ export function SettingsDialog({ onClose }: TLUiDialogProps) {
               ))}
             </select>
           </div>
-          
+
+          {/* Ollama Model Selector - Only show if Ollama is configured */}
+          {ollamaConfig && (
+            <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: "12px" }}>
+                <span style={{ fontSize: "20px" }}>🦙</span>
+                <h3 style={{ fontSize: "16px", fontWeight: "600", margin: 0 }}>
+                  Private AI Model
+                </h3>
+                <span style={{
+                  fontSize: "11px",
+                  color: "#059669",
+                  backgroundColor: "#d1fae5",
+                  padding: "2px 8px",
+                  borderRadius: "9999px",
+                  fontWeight: "500"
+                }}>
+                  FREE
+                </span>
+              </div>
+              <p style={{
+                fontSize: "12px",
+                color: "#6b7280",
+                marginBottom: "12px",
+                lineHeight: "1.4"
+              }}>
+                Running on your private server. No API key needed - select quality vs speed.
+              </p>
+              <select
+                value={ollamaModel}
+                onChange={(e) => handleOllamaModelChange(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "10px 12px",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "6px",
+                  fontSize: "14px",
+                  backgroundColor: "white",
+                  cursor: "pointer"
+                }}
+              >
+                {OLLAMA_MODELS.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name} - {model.description}
+                  </option>
+                ))}
+              </select>
+              <div style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginTop: "8px",
+                fontSize: "11px",
+                color: "#9ca3af"
+              }}>
+                <span>Server: {ollamaConfig.url}</span>
+                <span>
+                  Model size: {OLLAMA_MODELS.find(m => m.id === ollamaModel)?.size || 'Unknown'}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* API Keys Section */}
           <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: "16px" }}>
-            <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "16px" }}>
-              API Keys
+            <h3 style={{ fontSize: "16px", fontWeight: "600", marginBottom: "8px" }}>
+              Cloud API Keys
             </h3>
+            <p style={{
+              fontSize: "12px",
+              color: "#6b7280",
+              marginBottom: "16px",
+              lineHeight: "1.4"
+            }}>
+              {ollamaConfig
+                ? "Optional fallback - used when private AI is unavailable."
+                : "Enter API keys to use cloud AI services."}
+            </p>
           {PROVIDERS.map((provider) => (
             <div key={provider.id} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>

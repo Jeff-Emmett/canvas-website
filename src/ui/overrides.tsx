@@ -8,13 +8,22 @@ import {
 import {
   cameraHistory,
   copyLinkToCurrentView,
+  copyFocusLink,
   lockElement,
   revertCamera,
   unlockElement,
+  unlockCameraFocus,
   zoomToSelection,
 } from "./cameraUtils"
 import { saveToPdf } from "../utils/pdfUtils"
-import { searchText } from "../utils/searchUtils"
+import {
+  searchText,
+  searchSemantic,
+  askCanvasAI,
+  indexCanvasForSearch,
+  explainViewport,
+  findSimilarToSelection
+} from "../utils/searchUtils"
 import { EmbedShape, IEmbedShape } from "@/shapes/EmbedShapeUtil"
 import { moveToSlide } from "@/slides/useSlides"
 import { ISlideShape } from "@/shapes/SlideShapeUtil"
@@ -90,7 +99,7 @@ export const overrides: TLUiOverrides = {
         id: "VideoChat",
         icon: "video",
         label: "Video Chat",
-        kbd: "alt+v",
+        kbd: "ctrl+shift+v",
         readonlyOk: true,
         type: "VideoChat",
         onSelect: () => editor.setCurrentTool("VideoChat"),
@@ -99,7 +108,7 @@ export const overrides: TLUiOverrides = {
         id: "ChatBox",
         icon: "chat",
         label: "Chat",
-        kbd: "alt+c",
+        kbd: "ctrl+shift+c",
         readonlyOk: true,
         type: "ChatBox",
         onSelect: () => editor.setCurrentTool("ChatBox"),
@@ -108,7 +117,7 @@ export const overrides: TLUiOverrides = {
         id: "Embed",
         icon: "embed",
         label: "Embed",
-        kbd: "alt+e",
+        kbd: "ctrl+shift+e",
         readonlyOk: true,
         type: "Embed",
         onSelect: () => editor.setCurrentTool("Embed"),
@@ -117,7 +126,7 @@ export const overrides: TLUiOverrides = {
         id: "Slide",
         icon: "slides",
         label: "Slide",
-        kbd: "alt+s",
+        kbd: "ctrl+shift+s",
         type: "Slide",
         readonlyOk: true,
         onSelect: () => {
@@ -128,7 +137,7 @@ export const overrides: TLUiOverrides = {
         id: "Markdown",
         icon: "markdown",
         label: "Markdown",
-        kbd: "alt+m",
+        kbd: "ctrl+shift+m",
         readonlyOk: true,
         type: "Markdown",
         onSelect: () => editor.setCurrentTool("Markdown"),
@@ -138,27 +147,18 @@ export const overrides: TLUiOverrides = {
         icon: "rectangle",
         label: "Mycrozine Template",
         type: "MycrozineTemplate",
-        kbd: "alt+z",
+        kbd: "ctrl+shift+z",
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("MycrozineTemplate"),
       },
       Prompt: {
         id: "Prompt",
         icon: "prompt",
-        label: "Prompt",
+        label: "LLM Prompt",
         type: "Prompt",
-        kbd: "alt+l",
+        kbd: "ctrl+shift+l",
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("Prompt"),
-      },
-      SharedPiano: {
-        id: "SharedPiano",
-        icon: "music",
-        label: "Shared Piano",
-        type: "SharedPiano",
-        kbd: "alt+p",
-        readonlyOk: true,
-        onSelect: () => editor.setCurrentTool("SharedPiano"),
       },
       gesture: {
         id: "gesture",
@@ -169,55 +169,68 @@ export const overrides: TLUiOverrides = {
         onSelect: () => editor.setCurrentTool("gesture"),
       },
       ObsidianNote: {
-        id: "obs_note",
+        id: "ObsidianNote",
         icon: "file-text",
         label: "Obsidian Note",
-        kbd: "alt+o",
+        kbd: "ctrl+shift+o",
         readonlyOk: true,
         type: "ObsNote",
-        onSelect: () => editor.setCurrentTool("obs_note"),
+        onSelect: () => editor.setCurrentTool("ObsidianNote"),
       },
       Transcription: {
-        id: "transcription",
+        id: "Transcription",
         icon: "microphone",
         label: "Transcription",
-        kbd: "alt+t",
+        kbd: "ctrl+shift+t",
         readonlyOk: true,
         type: "Transcription",
-        onSelect: () => editor.setCurrentTool("transcription"),
-      },
-      FathomTranscript: {
-        id: "fathom-transcript",
-        icon: "file-text",
-        label: "Fathom Transcript",
-        kbd: "alt+f",
-        readonlyOk: true,
-        type: "FathomTranscript",
-        onSelect: () => {
-          // Dispatch custom event to open Fathom meetings panel
-          const event = new CustomEvent('open-fathom-meetings')
-          window.dispatchEvent(event)
-        },
+        onSelect: () => editor.setCurrentTool("Transcription"),
       },
       Holon: {
-        id: "holon",
+        id: "Holon",
         icon: "circle",
         label: "Holon",
-        kbd: "alt+h",
+        kbd: "ctrl+shift+h",
         readonlyOk: true,
         type: "Holon",
-        onSelect: () => editor.setCurrentTool("holon"),
+        onSelect: () => editor.setCurrentTool("Holon"),
       },
       FathomMeetings: {
         id: "fathom-meetings",
         icon: "calendar",
         label: "Fathom Meetings",
-        kbd: "alt+f",
+        kbd: "ctrl+shift+f",
         readonlyOk: true,
         // Removed type property to prevent automatic shape creation
         // Shape creation is handled manually in FathomMeetingsTool.onPointerDown
         onSelect: () => editor.setCurrentTool("fathom-meetings"),
       },
+      ImageGen: {
+        id: "ImageGen",
+        icon: "image",
+        label: "Image Generation",
+        kbd: "ctrl+shift+i",
+        readonlyOk: true,
+        type: "ImageGen",
+        onSelect: () => editor.setCurrentTool("ImageGen"),
+      },
+      VideoGen: {
+        id: "VideoGen",
+        icon: "video",
+        label: "Video Generation",
+        kbd: "ctrl+shift+g",
+        readonlyOk: true,
+        onSelect: () => editor.setCurrentTool("VideoGen"),
+      },
+      Multmux: {
+        id: "Multmux",
+        icon: "terminal",
+        label: "Terminal",
+        kbd: "ctrl+shift+k",
+        readonlyOk: true,
+        onSelect: () => editor.setCurrentTool("Multmux"),
+      },
+      // MycelialIntelligence removed - now a permanent UI bar (MycelialIntelligenceBar.tsx)
       hand: {
         ...tools.hand,
         onDoubleClick: (info: any) => {
@@ -278,14 +291,32 @@ export const overrides: TLUiOverrides = {
       copyLinkToCurrentView: {
         id: "copy-link-to-current-view",
         label: "Copy Link to Current View",
-        kbd: "alt+c",
+        kbd: "ctrl+alt+c",
         onSelect: () => copyLinkToCurrentView(editor),
+        readonlyOk: true,
+      },
+      copyFocusLink: {
+        id: "copy-focus-link",
+        label: "Copy Focus Link (Locked View)",
+        kbd: "ctrl+alt+f",
+        onSelect: () => {
+          if (editor.getSelectedShapeIds().length > 0) {
+            copyFocusLink(editor)
+          }
+        },
+        readonlyOk: true,
+      },
+      unlockCameraFocus: {
+        id: "unlock-camera-focus",
+        label: "Unlock Camera",
+        kbd: "escape",
+        onSelect: () => unlockCameraFocus(editor),
         readonlyOk: true,
       },
       revertCamera: {
         id: "revert-camera",
         label: "Revert Camera",
-        kbd: "alt+b",
+        kbd: "ctrl+alt+b",
         onSelect: () => {
           if (cameraHistory.length > 0) {
             revertCamera(editor)
@@ -317,7 +348,7 @@ export const overrides: TLUiOverrides = {
       saveToPdf: {
         id: "save-to-pdf",
         label: "Save Selection as PDF",
-        kbd: "alt+p",
+        kbd: "ctrl+alt+p",
         onSelect: () => {
           if (editor.getSelectedShapeIds().length > 0) {
             saveToPdf(editor)
@@ -404,10 +435,99 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: () => searchText(editor),
       },
+      semanticSearch: {
+        id: "semantic-search",
+        label: "Semantic Search (AI)",
+        kbd: "shift+s",
+        readonlyOk: true,
+        onSelect: async () => {
+          try {
+            await searchSemantic(editor)
+          } catch (error) {
+            console.error("Semantic search error:", error)
+          }
+        },
+      },
+      askCanvasAI: {
+        id: "ask-canvas-ai",
+        label: "Ask AI About Canvas",
+        kbd: "shift+a",
+        readonlyOk: true,
+        onSelect: async () => {
+          try {
+            // Create a simple modal/prompt for AI response
+            const answer = await askCanvasAI(editor, undefined, (partial, done) => {
+              // Log streaming response to console for now
+              if (!done) {
+                console.log("AI response:", partial)
+              }
+            })
+            if (answer) {
+              // Could display in a UI element - for now show alert with result
+              console.log("Canvas AI answer:", answer)
+            }
+          } catch (error) {
+            console.error("Canvas AI error:", error)
+          }
+        },
+      },
+      indexCanvas: {
+        id: "index-canvas",
+        label: "Index Canvas for AI Search",
+        kbd: "ctrl+shift+i",
+        readonlyOk: true,
+        onSelect: async () => {
+          try {
+            console.log("Starting canvas indexing...")
+            await indexCanvasForSearch(editor, (progress) => {
+              console.log(`Indexing progress: ${progress.toFixed(1)}%`)
+            })
+            console.log("Canvas indexing complete!")
+          } catch (error) {
+            console.error("Canvas indexing error:", error)
+          }
+        },
+      },
+      explainViewport: {
+        id: "explain-viewport",
+        label: "Explain Current View",
+        kbd: "shift+e",
+        readonlyOk: true,
+        onSelect: async () => {
+          try {
+            console.log("Analyzing viewport...")
+            await explainViewport(editor, (partial, done) => {
+              if (!done) {
+                console.log("Viewport analysis:", partial)
+              }
+            })
+          } catch (error) {
+            console.error("Viewport explanation error:", error)
+          }
+        },
+      },
+      findSimilar: {
+        id: "find-similar",
+        label: "Find Similar Shapes",
+        kbd: "shift+f",
+        readonlyOk: true,
+        onSelect: async () => {
+          if (editor.getSelectedShapeIds().length === 0) {
+            console.log("Select a shape first to find similar ones")
+            return
+          }
+          try {
+            const results = await findSimilarToSelection(editor)
+            console.log(`Found ${results.length} similar shapes`)
+          } catch (error) {
+            console.error("Find similar error:", error)
+          }
+        },
+      },
       llm: {
         id: "llm",
         label: "Run LLM Prompt",
-        kbd: "alt+g",
+        kbd: "ctrl+alt+r",
         readonlyOk: true,
         onSelect: () => {
 
@@ -500,7 +620,7 @@ export const overrides: TLUiOverrides = {
       openObsidianBrowser: {
         id: "open-obsidian-browser",
         label: "Open Obsidian Browser",
-        kbd: "alt+o",
+        // Removed kbd: "alt+o" - Alt+O now selects the ObsidianNote tool instead
         readonlyOk: true,
         onSelect: () => {
           // Trigger the Obsidian browser to open

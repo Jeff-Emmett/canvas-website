@@ -144,25 +144,106 @@ function sanitizeRecord(record: TLRecord): TLRecord {
       console.warn(`🔧 TLStoreToAutomerge: Error checking richText for shape ${sanitized.id}:`, e)
     }
     
+    // CRITICAL: Extract arrow text BEFORE deep copy to handle RichText instances properly
+    // Arrow text should be a string, but might be a RichText object in edge cases
+    let arrowTextValue: any = undefined
+    if (sanitized.type === 'arrow') {
+      try {
+        const props = sanitized.props || {}
+        if ('text' in props) {
+          try {
+            // Use Object.getOwnPropertyDescriptor to safely check if it's a getter
+            const descriptor = Object.getOwnPropertyDescriptor(props, 'text')
+            let textValue: any = undefined
+            
+            if (descriptor && descriptor.get) {
+              // It's a getter - try to call it safely
+              try {
+                textValue = descriptor.get.call(props)
+              } catch (getterError) {
+                console.warn(`🔧 TLStoreToAutomerge: Error calling text getter for arrow ${sanitized.id}:`, getterError)
+                textValue = undefined
+              }
+            } else {
+              // It's a regular property - access it directly
+              textValue = (props as any).text
+            }
+            
+            // Now process the value
+            if (textValue !== undefined && textValue !== null) {
+              // If it's a string, use it directly
+              if (typeof textValue === 'string') {
+                arrowTextValue = textValue
+              }
+              // If it's a RichText object, extract the text content
+              else if (typeof textValue === 'object' && textValue !== null) {
+                // Try to extract text from RichText object
+                try {
+                  const serialized = JSON.parse(JSON.stringify(textValue))
+                  // If it has content array, extract text from it
+                  if (Array.isArray(serialized.content)) {
+                    // Extract text from RichText content
+                    const extractText = (content: any[]): string => {
+                      return content.map((item: any) => {
+                        if (item.type === 'text' && item.text) {
+                          return item.text
+                        } else if (item.content && Array.isArray(item.content)) {
+                          return extractText(item.content)
+                        }
+                        return ''
+                      }).join('')
+                    }
+                    arrowTextValue = extractText(serialized.content)
+                  } else {
+                    // Fallback: try to get text property
+                    arrowTextValue = serialized.text || ''
+                  }
+                } catch (serializeError) {
+                  // If serialization fails, try to extract manually
+                  if ((textValue as any).text && typeof (textValue as any).text === 'string') {
+                    arrowTextValue = (textValue as any).text
+                  } else {
+                    arrowTextValue = String(textValue)
+                  }
+                }
+              }
+              // For other types, convert to string
+              else {
+                arrowTextValue = String(textValue)
+              }
+            }
+          } catch (e) {
+            console.warn(`🔧 TLStoreToAutomerge: Error extracting text for arrow ${sanitized.id}:`, e)
+            arrowTextValue = undefined
+          }
+        }
+      } catch (e) {
+        console.warn(`🔧 TLStoreToAutomerge: Error checking text for arrow ${sanitized.id}:`, e)
+      }
+    }
+    
     // CRITICAL: For all shapes, ensure props is a deep mutable copy to preserve all properties
     // This is essential for custom shapes like ObsNote and for preserving richText in geo shapes
     // Use JSON parse/stringify to create a deep copy of nested objects (like richText.content)
-    // Remove richText temporarily to avoid serialization issues
+    // Remove richText and arrow text temporarily to avoid serialization issues
     try {
-      const propsWithoutRichText: any = {}
-      // Copy all props except richText
+      const propsWithoutSpecial: any = {}
+      // Copy all props except richText and arrow text (if extracted)
       for (const key in sanitized.props) {
-        if (key !== 'richText') {
-          propsWithoutRichText[key] = (sanitized.props as any)[key]
+        if (key !== 'richText' && !(sanitized.type === 'arrow' && key === 'text' && arrowTextValue !== undefined)) {
+          propsWithoutSpecial[key] = (sanitized.props as any)[key]
         }
       }
-      sanitized.props = JSON.parse(JSON.stringify(propsWithoutRichText))
+      sanitized.props = JSON.parse(JSON.stringify(propsWithoutSpecial))
     } catch (e) {
       console.warn(`🔧 TLStoreToAutomerge: Error deep copying props for shape ${sanitized.id}:`, e)
       // Fallback: just copy props without deep copy
       sanitized.props = { ...sanitized.props }
       if (richTextValue !== undefined) {
         delete (sanitized.props as any).richText
+      }
+      if (arrowTextValue !== undefined) {
+        delete (sanitized.props as any).text
       }
     }
     
@@ -210,11 +291,17 @@ function sanitizeRecord(record: TLRecord): TLRecord {
     
     // CRITICAL: For arrow shapes, preserve text property
     if (sanitized.type === 'arrow') {
-      // CRITICAL: Preserve text property - only set default if truly missing (preserve empty strings and all other values)
-      if ((sanitized.props as any).text === undefined || (sanitized.props as any).text === null) {
-        (sanitized.props as any).text = ''
+      // CRITICAL: Restore extracted text value if available, otherwise preserve existing text
+      if (arrowTextValue !== undefined) {
+        // Use the extracted text value (handles RichText objects by extracting text content)
+        (sanitized.props as any).text = arrowTextValue
+      } else {
+        // CRITICAL: Preserve text property - only set default if truly missing (preserve empty strings and all other values)
+        if ((sanitized.props as any).text === undefined || (sanitized.props as any).text === null) {
+          (sanitized.props as any).text = ''
+        }
+        // Note: We preserve text even if it's an empty string - that's a valid value
       }
-      // Note: We preserve text even if it's an empty string - that's a valid value
     }
     
     // CRITICAL: For note shapes, preserve richText property (required for note shapes)
