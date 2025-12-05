@@ -146,6 +146,7 @@ export class ShareService {
 
         items.push({
           type: 'email',
+          service: 'gmail',
           id: email.id,
           title: subject || '(No Subject)',
           preview: snippet,
@@ -173,6 +174,7 @@ export class ShareService {
 
         items.push({
           type: 'document',
+          service: 'drive',
           id: doc.id,
           title: name || 'Untitled',
           date: doc.modifiedTime
@@ -199,6 +201,7 @@ export class ShareService {
 
         items.push({
           type: 'photo',
+          service: 'photos',
           id: photo.id,
           title: filename || 'Untitled',
           date: photo.creationTime
@@ -226,6 +229,7 @@ export class ShareService {
 
         items.push({
           type: 'event',
+          service: 'calendar',
           id: event.id,
           title: summary || 'Untitled Event',
           date: event.startTime

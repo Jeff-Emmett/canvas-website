@@ -53,6 +53,8 @@ import { MycelialIntelligenceShape } from "@/shapes/MycelialIntelligenceShapeUti
 import { PrivateWorkspaceShape } from "@/shapes/PrivateWorkspaceShapeUtil"
 import { PrivateWorkspaceTool } from "@/tools/PrivateWorkspaceTool"
 import { PrivateWorkspaceManager } from "@/components/PrivateWorkspaceManager"
+import { GoogleItemShape } from "@/shapes/GoogleItemShapeUtil"
+import { GoogleItemTool } from "@/tools/GoogleItemTool"
 import {
   lockElement,
   unlockElement,
@@ -146,6 +148,7 @@ const customShapeUtils = [
   MultmuxShape,
   MycelialIntelligenceShape, // Deprecated - kept for backwards compatibility
   PrivateWorkspaceShape, // Private zone for Google Export data sovereignty
+  GoogleItemShape, // Individual items from Google Export with privacy badges
 ]
 const customTools = [
   ChatBoxTool,
@@ -164,6 +167,7 @@ const customTools = [
   VideoGenTool,
   MultmuxTool,
   PrivateWorkspaceTool,
+  GoogleItemTool,
 ]
 
 // Debug: Log tool and shape registration info

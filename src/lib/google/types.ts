@@ -134,10 +134,12 @@ export interface StorageQuotaInfo {
 // Share Item for Board
 export interface ShareableItem {
   type: 'email' | 'document' | 'photo' | 'event';
+  service: GoogleService;  // Source service
   id: string;
   title: string;        // Decrypted for display
   preview?: string;     // Decrypted snippet/preview
   date: number;
+  thumbnailUrl?: string; // For photos/documents with previews
 }
 
 // Google Service Types
