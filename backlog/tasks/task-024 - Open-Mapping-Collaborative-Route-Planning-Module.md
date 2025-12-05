@@ -4,7 +4,7 @@ title: 'Open Mapping: Collaborative Route Planning Module'
 status: In Progress
 assignee: []
 created_date: '2025-12-04 14:30'
-updated_date: '2025-12-05 04:01'
+updated_date: '2025-12-05 05:29'
 labels:
   - feature
   - mapping
@@ -111,4 +111,11 @@ Pushed to feature/open-mapping branch:
 - Currently loaded with Monaco OSM data (for testing)
 - MapShapeUtil updated to use self-hosted OSRM
 - Verified working: curl returns valid route responses
+
+Map refactoring completed:
+- Created simplified MapShapeUtil.tsx (836 lines) with MapLibre + search + routing
+- Created GPSCollaborationLayer.ts as standalone module for GPS sharing
+- Added layers/index.ts and updated open-mapping exports
+- Server running without compilation errors
+- Architecture now follows layer pattern: Base Map → Collaboration Layers
 <!-- SECTION:NOTES:END -->
