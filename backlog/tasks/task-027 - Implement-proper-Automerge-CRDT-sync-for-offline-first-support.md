@@ -4,7 +4,7 @@ title: Implement proper Automerge CRDT sync for offline-first support
 status: In Progress
 assignee: []
 created_date: '2025-12-04 21:06'
-updated_date: '2025-12-05 03:53'
+updated_date: '2025-12-05 22:05'
 labels:
   - offline-sync
   - crdt
@@ -63,4 +63,24 @@ Solution: Use Automerge's native binary sync protocol with proper CRDT merge sem
 - WASM initialization, sync manager, R2 storage
 - Integration fixes for getDocument(), handleBinaryMessage(), schedulePersistToR2()
 - Ready for production testing
+
+### 2025-12-05: Data Safety Mitigations Added
+
+Added safety mitigations for Automerge format conversion (commit f8092d8 on feature/google-export):
+
+**Pre-conversion backups:**
+- Before any format migration, raw document backed up to R2
+- Location: `pre-conversion-backups/{roomId}/{timestamp}_{formatType}.json`
+
+**Conversion threshold guards:**
+- 10% loss threshold: Conversion aborts if too many records would be lost
+- 5% shape loss warning: Emits warning if shapes are lost
+
+**Unknown format handling:**
+- Unknown formats backed up before creating empty document
+- Raw document keys logged for investigation
+
+**Also fixed:**
+- Keyboard shortcuts dialog error (tldraw i18n objects)
+- Google Workspace integration now first in Settings > Integrations
 <!-- SECTION:NOTES:END -->
