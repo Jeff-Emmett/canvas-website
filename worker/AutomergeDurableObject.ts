@@ -30,6 +30,10 @@ export class AutomergeDurableObject {
   // Store the Automerge document ID for this room
   private automergeDocumentId: string | null = null
 
+  // Safety thresholds for format conversion
+  private static readonly CONVERSION_LOSS_THRESHOLD = 0.10 // Abort if > 10% records lost
+  private static readonly SHAPE_LOSS_THRESHOLD = 0.05 // Warn if > 5% shapes lost
+
   constructor(private readonly ctx: DurableObjectState, env: Environment) {
     this.r2 = env.TLDRAW_BUCKET
 
@@ -639,21 +643,35 @@ export class AutomergeDurableObject {
               if (Array.isArray(rawDoc)) {
                 // This is the raw Automerge document format - convert to store format
                 console.log(`Converting Automerge document format to store format for room ${this.roomId}`)
+
+                // SAFETY: Create pre-conversion backup before destructive operation
+                await this.createPreConversionBackup(rawDoc, 'automerge-array')
+
+                const originalShapeCount = rawDoc.filter((r: any) => r?.state?.typeName === 'shape').length
                 initialDoc = this.convertAutomergeToStore(rawDoc)
                 wasConverted = true
-                const customRecords = Object.values(initialDoc.store).filter((r: any) => 
+
+                // SAFETY: Validate conversion results
+                const convertedCount = Object.keys(initialDoc.store).length
+                const skippedCount = rawDoc.length - convertedCount
+                this.validateConversionResults(rawDoc.length, convertedCount, skippedCount, 'Automerge-array')
+
+                const convertedShapeCount = Object.values(initialDoc.store).filter((r: any) => r.typeName === 'shape').length
+                this.validateShapeCount(originalShapeCount, convertedShapeCount, 'Automerge-array')
+
+                const customRecords = Object.values(initialDoc.store).filter((r: any) =>
                   r.id && typeof r.id === 'string' && r.id.startsWith('obsidian_vault:')
                 )
                 console.log(`Conversion completed:`, {
                   storeKeys: Object.keys(initialDoc.store).length,
-                  shapeCount: Object.values(initialDoc.store).filter((r: any) => r.typeName === 'shape').length,
+                  shapeCount: convertedShapeCount,
                   customRecordCount: customRecords.length,
                   customRecordIds: customRecords.map((r: any) => r.id).slice(0, 5)
                 })
               } else if ((rawDoc as any).store) {
                 // This is already in store format
                 initialDoc = rawDoc
-                const customRecords = Object.values(initialDoc.store).filter((r: any) => 
+                const customRecords = Object.values(initialDoc.store).filter((r: any) =>
                   r.id && typeof r.id === 'string' && r.id.startsWith('obsidian_vault:')
                 )
                 console.log(`Document already in store format:`, {
@@ -665,19 +683,42 @@ export class AutomergeDurableObject {
               } else if ((rawDoc as any).documents && !((rawDoc as any).store)) {
                 // Migrate old format (documents array) to new format (store object)
                 console.log(`Migrating old documents format to new store format for room ${this.roomId}`)
+
+                // SAFETY: Create pre-conversion backup before destructive operation
+                await this.createPreConversionBackup(rawDoc, 'documents-array')
+
+                const originalShapeCount = ((rawDoc as any).documents || []).filter((r: any) => r?.state?.typeName === 'shape').length
                 initialDoc = this.migrateDocumentsToStore(rawDoc)
                 wasConverted = true
-                const customRecords = Object.values(initialDoc.store).filter((r: any) => 
+
+                // SAFETY: Validate conversion results
+                const documentsArray = (rawDoc as any).documents || []
+                const convertedCount = Object.keys(initialDoc.store).length
+                const skippedCount = documentsArray.length - convertedCount
+                this.validateConversionResults(documentsArray.length, convertedCount, skippedCount, 'Documents-array')
+
+                const convertedShapeCount = Object.values(initialDoc.store).filter((r: any) => r.typeName === 'shape').length
+                this.validateShapeCount(originalShapeCount, convertedShapeCount, 'Documents-array')
+
+                const customRecords = Object.values(initialDoc.store).filter((r: any) =>
                   r.id && typeof r.id === 'string' && r.id.startsWith('obsidian_vault:')
                 )
                 console.log(`Migration completed:`, {
                   storeKeys: Object.keys(initialDoc.store).length,
-                  shapeCount: Object.values(initialDoc.store).filter((r: any) => r.typeName === 'shape').length,
+                  shapeCount: convertedShapeCount,
                   customRecordCount: customRecords.length,
                   customRecordIds: customRecords.map((r: any) => r.id).slice(0, 5)
                 })
               } else {
-                console.log(`Unknown document format, creating new document`)
+                // SAFETY: Unknown format - preserve raw data and log for investigation
+                console.warn(`⚠️ Unknown document format for room ${this.roomId}. Preserving raw data for manual recovery.`)
+                console.warn(`Raw document keys: ${Object.keys(rawDoc || {}).join(', ')}`)
+
+                // Create backup of unknown format for manual investigation
+                await this.createPreConversionBackup(rawDoc, 'unknown-format')
+
+                // Create empty document but log warning
+                console.log(`Creating new empty document due to unknown format`)
                 initialDoc = this.createEmptyDocument()
               }
               
@@ -1044,6 +1085,85 @@ export class AutomergeDurableObject {
           "obsidian_vault": 1
         }
       }
+    }
+  }
+
+  /**
+   * Create a pre-conversion backup of the raw document before format migration.
+   * This ensures we can recover data if conversion goes wrong.
+   */
+  private async createPreConversionBackup(rawDoc: any, formatType: string): Promise<boolean> {
+    if (!this.roomId) return false
+
+    try {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+      const backupKey = `pre-conversion-backups/${this.roomId}/${timestamp}_${formatType}.json`
+
+      console.log(`📦 Creating pre-conversion backup: ${backupKey}`)
+
+      await this.r2.put(backupKey, JSON.stringify(rawDoc), {
+        httpMetadata: {
+          contentType: 'application/json'
+        },
+        customMetadata: {
+          roomId: this.roomId,
+          formatType: formatType,
+          timestamp: timestamp,
+          reason: 'pre-conversion-safety-backup'
+        }
+      })
+
+      console.log(`✅ Pre-conversion backup created successfully: ${backupKey}`)
+      return true
+    } catch (error) {
+      console.error(`❌ Failed to create pre-conversion backup:`, error)
+      return false
+    }
+  }
+
+  /**
+   * Validate conversion results and throw if data loss exceeds threshold.
+   */
+  private validateConversionResults(
+    originalCount: number,
+    convertedCount: number,
+    skippedCount: number,
+    formatType: string
+  ): void {
+    if (originalCount === 0) return // Nothing to validate
+
+    const lossRate = skippedCount / originalCount
+
+    if (lossRate > AutomergeDurableObject.CONVERSION_LOSS_THRESHOLD) {
+      const errorMsg = `🚨 CONVERSION ABORTED: ${formatType} conversion would lose ${(lossRate * 100).toFixed(1)}% of records (${skippedCount}/${originalCount}). Threshold: ${(AutomergeDurableObject.CONVERSION_LOSS_THRESHOLD * 100)}%`
+      console.error(errorMsg)
+      throw new Error(errorMsg)
+    }
+
+    if (lossRate > 0) {
+      console.warn(`⚠️ ${formatType} conversion: ${skippedCount}/${originalCount} records (${(lossRate * 100).toFixed(1)}%) could not be converted`)
+    }
+  }
+
+  /**
+   * Validate shape count after conversion and warn if significant loss.
+   */
+  private validateShapeCount(
+    originalShapeCount: number,
+    convertedShapeCount: number,
+    formatType: string
+  ): void {
+    if (originalShapeCount === 0) return
+
+    const shapeLoss = originalShapeCount - convertedShapeCount
+    const shapeLossRate = shapeLoss / originalShapeCount
+
+    if (shapeLossRate > AutomergeDurableObject.SHAPE_LOSS_THRESHOLD) {
+      console.error(`🚨 SHAPE LOSS WARNING: ${formatType} conversion lost ${shapeLoss} shapes (${(shapeLossRate * 100).toFixed(1)}%). Original: ${originalShapeCount}, After: ${convertedShapeCount}`)
+    } else if (shapeLoss > 0) {
+      console.warn(`⚠️ ${formatType} conversion: ${shapeLoss} shapes could not be converted`)
+    } else {
+      console.log(`✅ ${formatType} conversion: All ${originalShapeCount} shapes preserved`)
     }
   }
 

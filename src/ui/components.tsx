@@ -406,6 +406,15 @@ function CustomSharePanel() {
   const actions = useActions()
   const [showShortcuts, setShowShortcuts] = React.useState(false)
 
+  // Helper to safely get label as string (handles i18n objects)
+  const getLabelString = (label: unknown, fallback: string): string => {
+    if (typeof label === 'string') return label
+    if (label && typeof label === 'object' && 'default' in label) {
+      return String((label as { default: string }).default)
+    }
+    return fallback
+  }
+
   // Collect all tools and actions with keyboard shortcuts
   const allShortcuts = React.useMemo(() => {
     const shortcuts: { name: string; kbd: string; category: string }[] = []
@@ -416,7 +425,7 @@ function CustomSharePanel() {
       const tool = tools[toolId]
       if (tool?.kbd) {
         shortcuts.push({
-          name: tool.label || toolId,
+          name: getLabelString(tool.label, toolId),
           kbd: tool.kbd,
           category: 'Tools'
         })
@@ -429,7 +438,7 @@ function CustomSharePanel() {
       const tool = tools[toolId]
       if (tool?.kbd) {
         shortcuts.push({
-          name: tool.label || toolId,
+          name: getLabelString(tool.label, toolId),
           kbd: tool.kbd,
           category: 'Custom Tools'
         })
@@ -442,7 +451,7 @@ function CustomSharePanel() {
       const action = actions[actionId]
       if (action?.kbd) {
         shortcuts.push({
-          name: action.label || actionId,
+          name: getLabelString(action.label, actionId),
           kbd: action.kbd,
           category: 'Actions'
         })
@@ -455,7 +464,7 @@ function CustomSharePanel() {
       const action = actions[actionId]
       if (action?.kbd) {
         shortcuts.push({
-          name: action.label || actionId,
+          name: getLabelString(action.label, actionId),
           kbd: action.kbd,
           category: 'Custom Actions'
         })
@@ -662,10 +671,8 @@ export const components: TLComponents = {
       // MycelialIntelligence moved to permanent floating bar
     ].filter(tool => tool && tool.kbd)
     
-    // Get all custom actions with keyboard shortcuts
+    // Get only truly custom actions with keyboard shortcuts (not tldraw defaults)
     const customActions = [
-      actions["zoom-in"],
-      actions["zoom-out"],
       actions["zoom-to-selection"],
       actions["copy-link-to-current-view"],
       actions["copy-focus-link"],
@@ -676,34 +683,34 @@ export const components: TLComponents = {
       actions["search-shapes"],
       actions["llm"],
       actions["open-obsidian-browser"],
-    ].filter(action => action && action.kbd)
-    
+    ].filter(action => action && action.kbd && typeof action.label === 'string')
+
     return (
       <DefaultKeyboardShortcutsDialog {...props}>
         {/* Custom Tools */}
-        {customTools.map(tool => (
-          <TldrawUiMenuItem 
-            key={tool.id} 
+        {customTools.filter(tool => typeof tool.label === 'string').map(tool => (
+          <TldrawUiMenuItem
+            key={tool.id}
             id={tool.id}
-            label={tool.label}
+            label={tool.label as string}
             icon={typeof tool.icon === 'string' ? tool.icon : undefined}
             kbd={tool.kbd}
             onSelect={tool.onSelect}
           />
         ))}
-        
+
         {/* Custom Actions */}
         {customActions.map(action => (
-          <TldrawUiMenuItem 
-            key={action.id} 
+          <TldrawUiMenuItem
+            key={action.id}
             id={action.id}
-            label={action.label}
+            label={action.label as string}
             icon={typeof action.icon === 'string' ? action.icon : undefined}
             kbd={action.kbd}
             onSelect={action.onSelect}
           />
         ))}
-        
+
         {/* Default content (includes standard TLDraw shortcuts) */}
         <DefaultKeyboardShortcutsDialogContent />
       </DefaultKeyboardShortcutsDialog>

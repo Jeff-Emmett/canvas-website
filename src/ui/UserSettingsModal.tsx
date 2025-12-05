@@ -649,8 +649,140 @@ export function UserSettingsModal({ onClose, isDarkMode, onToggleDarkMode }: Use
 
           {activeTab === 'integrations' && (
             <div className="settings-section">
-              {/* Knowledge Management Section */}
+              {/* Google Workspace - Primary Data Import */}
               <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', color: colors.text }}>
+                Google Workspace
+              </h3>
+
+              {/* Google Workspace */}
+              <div
+                style={{
+                  padding: '12px',
+                  backgroundColor: colors.cardBg,
+                  borderRadius: '8px',
+                  border: `1px solid ${colors.cardBorder}`,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '20px' }}>🔐</span>
+                  <div style={{ flex: 1 }}>
+                    <span style={{ fontSize: '13px', fontWeight: '600', color: colors.textHeading }}>Google Workspace</span>
+                    <p style={{ fontSize: '11px', color: colors.textMuted, marginTop: '2px' }}>
+                      Import Gmail, Drive, Photos & Calendar - encrypted locally
+                    </p>
+                  </div>
+                  <span className={`status-badge ${googleConnected ? 'success' : 'warning'}`} style={{ fontSize: '10px' }}>
+                    {googleConnected ? 'Connected' : 'Not Connected'}
+                  </span>
+                </div>
+
+                {googleConnected && totalGoogleItems > 0 && (
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '6px',
+                    marginBottom: '12px',
+                    padding: '8px',
+                    backgroundColor: isDarkMode ? 'rgba(99, 102, 241, 0.1)' : 'rgba(99, 102, 241, 0.05)',
+                    borderRadius: '6px',
+                  }}>
+                    {googleCounts.gmail > 0 && (
+                      <span style={{
+                        fontSize: '10px',
+                        padding: '3px 8px',
+                        borderRadius: '12px',
+                        backgroundColor: colors.localBg,
+                        color: colors.localText,
+                        fontWeight: '500',
+                      }}>
+                        📧 {googleCounts.gmail} emails
+                      </span>
+                    )}
+                    {googleCounts.drive > 0 && (
+                      <span style={{
+                        fontSize: '10px',
+                        padding: '3px 8px',
+                        borderRadius: '12px',
+                        backgroundColor: colors.gpuBg,
+                        color: colors.gpuText,
+                        fontWeight: '500',
+                      }}>
+                        📁 {googleCounts.drive} files
+                      </span>
+                    )}
+                    {googleCounts.photos > 0 && (
+                      <span style={{
+                        fontSize: '10px',
+                        padding: '3px 8px',
+                        borderRadius: '12px',
+                        backgroundColor: colors.cloudBg,
+                        color: colors.cloudText,
+                        fontWeight: '500',
+                      }}>
+                        📷 {googleCounts.photos} photos
+                      </span>
+                    )}
+                    {googleCounts.calendar > 0 && (
+                      <span style={{
+                        fontSize: '10px',
+                        padding: '3px 8px',
+                        borderRadius: '12px',
+                        backgroundColor: colors.successBg,
+                        color: colors.successText,
+                        fontWeight: '500',
+                      }}>
+                        📅 {googleCounts.calendar} events
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                <p style={{ fontSize: '11px', color: colors.textMuted, marginBottom: '12px', lineHeight: '1.4' }}>
+                  Your data is encrypted with AES-256 and stored only in your browser.
+                  Choose what to share to the board.
+                </p>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {googleConnected ? (
+                    <>
+                      <button
+                        className="settings-action-btn"
+                        style={{ flex: 1 }}
+                        onClick={() => setShowGoogleExportBrowser(true)}
+                        disabled={totalGoogleItems === 0}
+                      >
+                        Open Data Browser
+                      </button>
+                      <button
+                        className="settings-action-btn secondary"
+                        onClick={handleGoogleDisconnect}
+                      >
+                        Disconnect
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="settings-action-btn"
+                      style={{ width: '100%' }}
+                      onClick={handleGoogleConnect}
+                      disabled={googleLoading}
+                    >
+                      {googleLoading ? 'Connecting...' : 'Connect Google Account'}
+                    </button>
+                  )}
+                </div>
+
+                {googleConnected && totalGoogleItems === 0 && (
+                  <p style={{ fontSize: '11px', color: colors.warningText, marginTop: '8px', textAlign: 'center' }}>
+                    No data imported yet. Visit <a href="/google" style={{ color: colors.linkColor }}>/google</a> to import.
+                  </p>
+                )}
+              </div>
+
+              <div className="settings-divider" />
+
+              {/* Knowledge Management Section */}
+              <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', marginTop: '8px', color: colors.text }}>
                 Knowledge Management
               </h3>
 
@@ -842,138 +974,6 @@ export function UserSettingsModal({ onClose, isDarkMode, onToggleDarkMode }: Use
                       </button>
                     )}
                   </div>
-                )}
-              </div>
-
-              <div className="settings-divider" />
-
-              {/* Data Import Section */}
-              <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', marginTop: '8px', color: colors.text }}>
-                Data Import
-              </h3>
-
-              {/* Google Workspace */}
-              <div
-                style={{
-                  padding: '12px',
-                  backgroundColor: colors.cardBg,
-                  borderRadius: '8px',
-                  border: `1px solid ${colors.cardBorder}`,
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '20px' }}>🔐</span>
-                  <div style={{ flex: 1 }}>
-                    <span style={{ fontSize: '13px', fontWeight: '600', color: colors.textHeading }}>Google Workspace</span>
-                    <p style={{ fontSize: '11px', color: colors.textMuted, marginTop: '2px' }}>
-                      Import Gmail, Drive, Photos & Calendar - encrypted locally
-                    </p>
-                  </div>
-                  <span className={`status-badge ${googleConnected ? 'success' : 'warning'}`} style={{ fontSize: '10px' }}>
-                    {googleConnected ? 'Connected' : 'Not Connected'}
-                  </span>
-                </div>
-
-                {googleConnected && totalGoogleItems > 0 && (
-                  <div style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: '6px',
-                    marginBottom: '12px',
-                    padding: '8px',
-                    backgroundColor: isDarkMode ? 'rgba(99, 102, 241, 0.1)' : 'rgba(99, 102, 241, 0.05)',
-                    borderRadius: '6px',
-                  }}>
-                    {googleCounts.gmail > 0 && (
-                      <span style={{
-                        fontSize: '10px',
-                        padding: '3px 8px',
-                        borderRadius: '12px',
-                        backgroundColor: colors.localBg,
-                        color: colors.localText,
-                        fontWeight: '500',
-                      }}>
-                        📧 {googleCounts.gmail} emails
-                      </span>
-                    )}
-                    {googleCounts.drive > 0 && (
-                      <span style={{
-                        fontSize: '10px',
-                        padding: '3px 8px',
-                        borderRadius: '12px',
-                        backgroundColor: colors.gpuBg,
-                        color: colors.gpuText,
-                        fontWeight: '500',
-                      }}>
-                        📁 {googleCounts.drive} files
-                      </span>
-                    )}
-                    {googleCounts.photos > 0 && (
-                      <span style={{
-                        fontSize: '10px',
-                        padding: '3px 8px',
-                        borderRadius: '12px',
-                        backgroundColor: colors.cloudBg,
-                        color: colors.cloudText,
-                        fontWeight: '500',
-                      }}>
-                        📷 {googleCounts.photos} photos
-                      </span>
-                    )}
-                    {googleCounts.calendar > 0 && (
-                      <span style={{
-                        fontSize: '10px',
-                        padding: '3px 8px',
-                        borderRadius: '12px',
-                        backgroundColor: colors.successBg,
-                        color: colors.successText,
-                        fontWeight: '500',
-                      }}>
-                        📅 {googleCounts.calendar} events
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                <p style={{ fontSize: '11px', color: colors.textMuted, marginBottom: '12px', lineHeight: '1.4' }}>
-                  Your data is encrypted with AES-256 and stored only in your browser.
-                  Choose what to share to the board.
-                </p>
-
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {googleConnected ? (
-                    <>
-                      <button
-                        className="settings-action-btn"
-                        style={{ flex: 1 }}
-                        onClick={() => setShowGoogleExportBrowser(true)}
-                        disabled={totalGoogleItems === 0}
-                      >
-                        Open Data Browser
-                      </button>
-                      <button
-                        className="settings-action-btn secondary"
-                        onClick={handleGoogleDisconnect}
-                      >
-                        Disconnect
-                      </button>
-                    </>
-                  ) : (
-                    <button
-                      className="settings-action-btn"
-                      style={{ width: '100%' }}
-                      onClick={handleGoogleConnect}
-                      disabled={googleLoading}
-                    >
-                      {googleLoading ? 'Connecting...' : 'Connect Google Account'}
-                    </button>
-                  )}
-                </div>
-
-                {googleConnected && totalGoogleItems === 0 && (
-                  <p style={{ fontSize: '11px', color: colors.warningText, marginTop: '8px', textAlign: 'center' }}>
-                    No data imported yet. Visit <a href="/google" style={{ color: colors.linkColor }}>/google</a> to import.
-                  </p>
                 )}
               </div>
 
