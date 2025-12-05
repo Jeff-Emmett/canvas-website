@@ -343,6 +343,7 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
 
           // CRITICAL: Emit 'ready' event for Automerge Repo
           // This tells the Repo that the network adapter is ready to sync
+          // @ts-expect-error - 'ready' event is valid but not in NetworkAdapterEvents type
           this.emit('ready', { network: this })
 
           // Create a server peer ID based on the room

@@ -26,6 +26,8 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["src", "worker", "src/client"],
-  
+  "exclude": [
+    "src/open-mapping/**"
+  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

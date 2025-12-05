@@ -1,4 +1,5 @@
-import { ConnectionStatus } from '@/automerge/useAutomergeSyncRepo'
+// Connection status for UI display (maps from ConnectionState)
+export type ConnectionStatus = 'online' | 'offline' | 'syncing'
 
 interface OfflineIndicatorProps {
   connectionStatus: ConnectionStatus
