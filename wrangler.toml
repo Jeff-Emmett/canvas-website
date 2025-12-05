@@ -61,7 +61,7 @@ bucket_name = 'board-backups'
 [[d1_databases]]
 binding = "CRYPTID_DB"
 database_name = "cryptid-auth"
-database_id = "placeholder-will-be-created"
+database_id = "35fbe755-0e7c-4b9a-a454-34f945e5f7cc"
 
 [observability]
 enabled = true

@@ -406,6 +406,13 @@ function CustomSharePanel() {
   const actions = useActions()
   const [showShortcuts, setShowShortcuts] = React.useState(false)
 
+  // Helper to extract label string from tldraw label (can be string or {default, menu} object)
+  const getLabelString = (label: any, fallback: string): string => {
+    if (typeof label === 'string') return label
+    if (label && typeof label === 'object' && 'default' in label) return label.default
+    return fallback
+  }
+
   // Collect all tools and actions with keyboard shortcuts
   const allShortcuts = React.useMemo(() => {
     const shortcuts: { name: string; kbd: string; category: string }[] = []
@@ -416,7 +423,7 @@ function CustomSharePanel() {
       const tool = tools[toolId]
       if (tool?.kbd) {
         shortcuts.push({
-          name: tool.label || toolId,
+          name: getLabelString(tool.label, toolId),
           kbd: tool.kbd,
           category: 'Tools'
         })
@@ -429,7 +436,7 @@ function CustomSharePanel() {
       const tool = tools[toolId]
       if (tool?.kbd) {
         shortcuts.push({
-          name: tool.label || toolId,
+          name: getLabelString(tool.label, toolId),
           kbd: tool.kbd,
           category: 'Custom Tools'
         })
@@ -442,7 +449,7 @@ function CustomSharePanel() {
       const action = actions[actionId]
       if (action?.kbd) {
         shortcuts.push({
-          name: action.label || actionId,
+          name: getLabelString(action.label, actionId),
           kbd: action.kbd,
           category: 'Actions'
         })
@@ -455,7 +462,7 @@ function CustomSharePanel() {
       const action = actions[actionId]
       if (action?.kbd) {
         shortcuts.push({
-          name: action.label || actionId,
+          name: getLabelString(action.label, actionId),
           kbd: action.kbd,
           category: 'Custom Actions'
         })
@@ -595,7 +602,7 @@ function CustomSharePanel() {
                     }}
                   >
                     <span style={{ color: 'var(--color-text)' }}>
-                      {typeof shortcut.name === 'string' ? shortcut.name.replace('tool.', '').replace('action.', '') : shortcut.name}
+                      {shortcut.name.replace('tool.', '').replace('action.', '')}
                     </span>
                     <kbd style={{
                       background: 'var(--color-muted-2)',
