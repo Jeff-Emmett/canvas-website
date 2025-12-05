@@ -4,7 +4,7 @@ title: 'Open Mapping: Collaborative Route Planning Module'
 status: In Progress
 assignee: []
 created_date: '2025-12-04 14:30'
-updated_date: '2025-12-05 03:52'
+updated_date: '2025-12-05 04:01'
 labels:
   - feature
   - mapping
@@ -25,9 +25,9 @@ Implement an open-source mapping and routing layer for the canvas that provides 
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 MapLibre GL JS integrated with tldraw canvas
-- [ ] #2 OSRM routing backend deployed to Netcup
-- [ ] #3 Waypoint placement and route calculation working
+- [x] #1 MapLibre GL JS integrated with tldraw canvas
+- [x] #2 OSRM routing backend deployed to Netcup
+- [x] #3 Waypoint placement and route calculation working
 - [ ] #4 Multi-route comparison UI implemented
 - [ ] #5 Y.js collaboration for shared route editing
 - [ ] #6 Layer management panel with basemap switching
@@ -102,4 +102,13 @@ Pushed to feature/open-mapping branch:
 - MapLibre GL JS full canvas integration
 - OSRM backend deployment to Netcup
 - UI polish and testing
+
+**OSRM Backend Deployed (2025-12-05):**
+- Docker container running on Netcup RS 8000
+- Location: /opt/apps/osrm-routing/
+- Public URL: https://routing.jeffemmett.com
+- Uses Traefik for routing via Docker network
+- Currently loaded with Monaco OSM data (for testing)
+- MapShapeUtil updated to use self-hosted OSRM
+- Verified working: curl returns valid route responses
 <!-- SECTION:NOTES:END -->
