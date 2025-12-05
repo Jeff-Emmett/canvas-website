@@ -5,6 +5,8 @@ import { CustomContextMenu } from "./CustomContextMenu"
 import { FocusLockIndicator } from "./FocusLockIndicator"
 import { MycelialIntelligenceBar } from "./MycelialIntelligenceBar"
 import { CommandPalette } from "./CommandPalette"
+import { UserSettingsModal } from "./UserSettingsModal"
+import { GoogleExportBrowser } from "../components/GoogleExportBrowser"
 import {
   DefaultKeyboardShortcutsDialog,
   DefaultKeyboardShortcutsDialogContent,
@@ -17,14 +19,76 @@ import {
 } from "tldraw"
 import { SlidesPanel } from "@/slides/SlidesPanel"
 
-// Custom People Menu component for showing connected users
+// Custom People Menu component for showing connected users and integrations
 function CustomPeopleMenu() {
   const editor = useEditor()
   const [showDropdown, setShowDropdown] = React.useState(false)
+  const [showGoogleBrowser, setShowGoogleBrowser] = React.useState(false)
+  const [googleConnected, setGoogleConnected] = React.useState(false)
+  const [googleLoading, setGoogleLoading] = React.useState(false)
+
+  // Detect dark mode
+  const isDarkMode = typeof document !== 'undefined' &&
+    document.documentElement.classList.contains('dark')
 
   // Get current user info
   const myUserColor = useValue('myColor', () => editor.user.getColor(), [editor])
   const myUserName = useValue('myName', () => editor.user.getName() || 'You', [editor])
+
+  // Check Google connection on mount
+  React.useEffect(() => {
+    const checkGoogleStatus = async () => {
+      try {
+        const { GoogleDataService } = await import('../lib/google')
+        const service = GoogleDataService.getInstance()
+        const isAuthed = await service.isAuthenticated()
+        setGoogleConnected(isAuthed)
+      } catch (error) {
+        console.warn('Failed to check Google status:', error)
+      }
+    }
+    checkGoogleStatus()
+  }, [])
+
+  const handleGoogleConnect = async () => {
+    setGoogleLoading(true)
+    try {
+      const { GoogleDataService } = await import('../lib/google')
+      const service = GoogleDataService.getInstance()
+      await service.authenticate()
+      setGoogleConnected(true)
+    } catch (error) {
+      console.error('Google auth failed:', error)
+    } finally {
+      setGoogleLoading(false)
+    }
+  }
+
+  const handleOpenGoogleBrowser = () => {
+    setShowDropdown(false)
+    setShowGoogleBrowser(true)
+  }
+
+  const handleAddToCanvas = async (items: any[], position: { x: number; y: number }) => {
+    try {
+      const { createGoogleItemProps } = await import('../shapes/GoogleItemShapeUtil')
+
+      // Create shapes for each selected item
+      items.forEach((item, index) => {
+        const props = createGoogleItemProps(item, 'local')
+        editor.createShape({
+          type: 'GoogleItem',
+          x: position.x + (index % 3) * 240,
+          y: position.y + Math.floor(index / 3) * 160,
+          props,
+        })
+      })
+
+      setShowGoogleBrowser(false)
+    } catch (error) {
+      console.error('Failed to add items to canvas:', error)
+    }
+  }
 
   // Get all collaborators (other users in the session)
   const collaborators = useValue('collaborators', () => editor.getCollaborators(), [editor])
@@ -199,7 +263,126 @@ function CustomPeopleMenu() {
               </span>
             </div>
           ))}
+
+          {/* Separator */}
+          <div style={{
+            height: '1px',
+            backgroundColor: 'var(--border-color, #e1e4e8)',
+            margin: '8px 0',
+          }} />
+
+          {/* Google Workspace Section */}
+          <div style={{
+            padding: '6px 12px',
+            fontSize: '11px',
+            fontWeight: 600,
+            color: 'var(--tool-text)',
+            opacity: 0.7,
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px',
+          }}>
+            Integrations
+          </div>
+
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            padding: '8px 12px',
+          }}>
+            <div style={{
+              width: '24px',
+              height: '24px',
+              borderRadius: '4px',
+              background: 'linear-gradient(135deg, #4285F4, #34A853, #FBBC04, #EA4335)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '12px',
+            }}>
+              G
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{
+                fontSize: '13px',
+                color: 'var(--text-color)',
+                fontWeight: 500,
+              }}>
+                Google Workspace
+              </div>
+              <div style={{
+                fontSize: '11px',
+                color: 'var(--tool-text)',
+                opacity: 0.7,
+              }}>
+                {googleConnected ? 'Connected' : 'Not connected'}
+              </div>
+            </div>
+            {googleConnected ? (
+              <span style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                backgroundColor: '#22c55e',
+              }} />
+            ) : null}
+          </div>
+
+          {/* Google action buttons */}
+          <div style={{
+            padding: '4px 12px 8px',
+            display: 'flex',
+            gap: '8px',
+          }}>
+            {!googleConnected ? (
+              <button
+                onClick={handleGoogleConnect}
+                disabled={googleLoading}
+                style={{
+                  flex: 1,
+                  padding: '6px 10px',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color, #e1e4e8)',
+                  backgroundColor: 'var(--bg-color, #fff)',
+                  color: 'var(--text-color)',
+                  cursor: googleLoading ? 'wait' : 'pointer',
+                  opacity: googleLoading ? 0.7 : 1,
+                }}
+              >
+                {googleLoading ? 'Connecting...' : 'Connect'}
+              </button>
+            ) : (
+              <button
+                onClick={handleOpenGoogleBrowser}
+                style={{
+                  flex: 1,
+                  padding: '6px 10px',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  borderRadius: '6px',
+                  border: 'none',
+                  backgroundColor: '#4285F4',
+                  color: 'white',
+                  cursor: 'pointer',
+                }}
+              >
+                Browse Data
+              </button>
+            )}
+          </div>
         </div>
+      )}
+
+      {/* Google Export Browser Modal */}
+      {showGoogleBrowser && (
+        <GoogleExportBrowser
+          isOpen={showGoogleBrowser}
+          onClose={() => setShowGoogleBrowser(false)}
+          onAddToCanvas={handleAddToCanvas}
+          isDarkMode={isDarkMode}
+        />
       )}
 
       {/* Click outside to close */}
@@ -217,10 +400,222 @@ function CustomPeopleMenu() {
   )
 }
 
-// Custom SharePanel that shows the people menu
+// Custom SharePanel that shows people menu and help button
 function CustomSharePanel() {
+  const tools = useTools()
+  const actions = useActions()
+  const [showShortcuts, setShowShortcuts] = React.useState(false)
+
+  // Collect all tools and actions with keyboard shortcuts
+  const allShortcuts = React.useMemo(() => {
+    const shortcuts: { name: string; kbd: string; category: string }[] = []
+
+    // Built-in tools
+    const builtInTools = ['select', 'hand', 'draw', 'eraser', 'arrow', 'text', 'note', 'frame', 'geo', 'line', 'highlight', 'laser']
+    builtInTools.forEach(toolId => {
+      const tool = tools[toolId]
+      if (tool?.kbd) {
+        shortcuts.push({
+          name: tool.label || toolId,
+          kbd: tool.kbd,
+          category: 'Tools'
+        })
+      }
+    })
+
+    // Custom tools
+    const customToolIds = ['VideoChat', 'ChatBox', 'Embed', 'Slide', 'Markdown', 'MycrozineTemplate', 'Prompt', 'ObsidianNote', 'Transcription', 'Holon', 'FathomMeetings', 'ImageGen', 'VideoGen', 'Multmux']
+    customToolIds.forEach(toolId => {
+      const tool = tools[toolId]
+      if (tool?.kbd) {
+        shortcuts.push({
+          name: tool.label || toolId,
+          kbd: tool.kbd,
+          category: 'Custom Tools'
+        })
+      }
+    })
+
+    // Built-in actions
+    const builtInActionIds = ['undo', 'redo', 'cut', 'copy', 'paste', 'delete', 'select-all', 'duplicate', 'group', 'ungroup', 'bring-to-front', 'send-to-back', 'zoom-in', 'zoom-out', 'zoom-to-fit', 'zoom-to-100', 'toggle-grid']
+    builtInActionIds.forEach(actionId => {
+      const action = actions[actionId]
+      if (action?.kbd) {
+        shortcuts.push({
+          name: action.label || actionId,
+          kbd: action.kbd,
+          category: 'Actions'
+        })
+      }
+    })
+
+    // Custom actions
+    const customActionIds = ['copy-link-to-current-view', 'copy-focus-link', 'unlock-camera-focus', 'revert-camera', 'lock-element', 'save-to-pdf', 'search-shapes', 'llm', 'open-obsidian-browser']
+    customActionIds.forEach(actionId => {
+      const action = actions[actionId]
+      if (action?.kbd) {
+        shortcuts.push({
+          name: action.label || actionId,
+          kbd: action.kbd,
+          category: 'Custom Actions'
+        })
+      }
+    })
+
+    return shortcuts
+  }, [tools, actions])
+
+  // Group shortcuts by category
+  const groupedShortcuts = React.useMemo(() => {
+    const groups: Record<string, typeof allShortcuts> = {}
+    allShortcuts.forEach(shortcut => {
+      if (!groups[shortcut.category]) {
+        groups[shortcut.category] = []
+      }
+      groups[shortcut.category].push(shortcut)
+    })
+    return groups
+  }, [allShortcuts])
+
   return (
-    <div className="tlui-share-zone" draggable={false}>
+    <div className="tlui-share-zone" draggable={false} style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
+      {/* Help/Keyboard shortcuts button */}
+      <button
+        onClick={() => setShowShortcuts(!showShortcuts)}
+        style={{
+          background: showShortcuts ? 'var(--color-muted-2)' : 'none',
+          border: 'none',
+          padding: '6px',
+          cursor: 'pointer',
+          borderRadius: '6px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--color-text-1)',
+          opacity: showShortcuts ? 1 : 0.7,
+          transition: 'opacity 0.15s, background 0.15s',
+          pointerEvents: 'all',
+          zIndex: 10,
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.opacity = '1'
+          e.currentTarget.style.background = 'var(--color-muted-2)'
+        }}
+        onMouseLeave={(e) => {
+          if (!showShortcuts) {
+            e.currentTarget.style.opacity = '0.7'
+            e.currentTarget.style.background = 'none'
+          }
+        }}
+        title="Keyboard shortcuts (?)"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+      </button>
+
+      {/* Keyboard shortcuts panel */}
+      {showShortcuts && (
+        <>
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 99998,
+            }}
+            onClick={() => setShowShortcuts(false)}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              top: 'calc(100% + 8px)',
+              right: 0,
+              width: '320px',
+              maxHeight: '70vh',
+              overflowY: 'auto',
+              background: 'var(--color-panel)',
+              border: '1px solid var(--color-panel-contrast)',
+              borderRadius: '8px',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+              zIndex: 99999,
+              padding: '12px 0',
+            }}
+          >
+            <div style={{
+              padding: '8px 16px 12px',
+              fontSize: '14px',
+              fontWeight: 600,
+              color: 'var(--color-text)',
+              borderBottom: '1px solid var(--color-panel-contrast)',
+              marginBottom: '8px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}>
+              <span>Keyboard Shortcuts</span>
+              <button
+                onClick={() => setShowShortcuts(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  color: 'var(--color-text-3)',
+                  fontSize: '16px',
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {Object.entries(groupedShortcuts).map(([category, shortcuts]) => (
+              <div key={category} style={{ marginBottom: '12px' }}>
+                <div style={{
+                  padding: '4px 16px',
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  color: 'var(--color-text-3)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                }}>
+                  {category}
+                </div>
+                {shortcuts.map((shortcut, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '6px 16px',
+                      fontSize: '13px',
+                    }}
+                  >
+                    <span style={{ color: 'var(--color-text)' }}>
+                      {typeof shortcut.name === 'string' ? shortcut.name.replace('tool.', '').replace('action.', '') : shortcut.name}
+                    </span>
+                    <kbd style={{
+                      background: 'var(--color-muted-2)',
+                      padding: '2px 6px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontFamily: 'inherit',
+                      color: 'var(--color-text-1)',
+                      border: '1px solid var(--color-panel-contrast)',
+                    }}>
+                      {shortcut.kbd.toUpperCase()}
+                    </kbd>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
       <CustomPeopleMenu />
     </div>
   )
