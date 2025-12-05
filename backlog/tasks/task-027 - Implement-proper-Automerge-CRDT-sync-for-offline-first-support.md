@@ -4,7 +4,7 @@ title: Implement proper Automerge CRDT sync for offline-first support
 status: In Progress
 assignee: []
 created_date: '2025-12-04 21:06'
-updated_date: '2025-12-05 03:42'
+updated_date: '2025-12-05 03:53'
 labels:
   - offline-sync
   - crdt
@@ -57,4 +57,10 @@ Solution: Use Automerge's native binary sync protocol with proper CRDT merge sem
 - JSON sync fallback works for backward compatibility
 - Binary sync infrastructure is in place
 - Needs production testing with multi-client sync and delete operations
+
+**Merged to dev branch (2025-12-05):**
+- All Automerge CRDT infrastructure merged
+- WASM initialization, sync manager, R2 storage
+- Integration fixes for getDocument(), handleBinaryMessage(), schedulePersistToR2()
+- Ready for production testing
 <!-- SECTION:NOTES:END -->
