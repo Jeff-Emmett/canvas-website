@@ -43,27 +43,113 @@ const DEFAULT_VIEWPORT: MapViewport = {
   pitch: 0,
 };
 
-// Default style using OpenStreetMap tiles via MapLibre
-const DEFAULT_STYLE: maplibregl.StyleSpecification = {
-  version: 8,
-  sources: {
-    'osm-raster': {
-      type: 'raster',
-      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-      tileSize: 256,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-    },
+// Available map styles - all free, no API key required
+export const MAP_STYLES = {
+  // Carto Voyager - clean, modern look (default)
+  voyager: {
+    name: 'Voyager',
+    url: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+    icon: '🗺️',
+    maxZoom: 20,
   },
-  layers: [
-    {
-      id: 'osm-raster-layer',
-      type: 'raster',
-      source: 'osm-raster',
-      minzoom: 0,
-      maxzoom: 19,
-    },
-  ],
-};
+  // Carto Positron - light, minimal
+  positron: {
+    name: 'Light',
+    url: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+    icon: '☀️',
+    maxZoom: 20,
+  },
+  // Carto Dark Matter - dark mode
+  darkMatter: {
+    name: 'Dark',
+    url: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+    icon: '🌙',
+    maxZoom: 20,
+  },
+  // OpenStreetMap standard raster tiles
+  osm: {
+    name: 'OSM Classic',
+    url: {
+      version: 8,
+      sources: {
+        'osm-raster': {
+          type: 'raster',
+          tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+          tileSize: 256,
+          attribution: '&copy; OpenStreetMap contributors',
+          maxzoom: 19,
+        },
+      },
+      layers: [{ id: 'osm-raster-layer', type: 'raster', source: 'osm-raster' }],
+    } as maplibregl.StyleSpecification,
+    icon: '🌍',
+    maxZoom: 19,
+  },
+  // OpenFreeMap - high detail vector tiles (free, self-hostable)
+  liberty: {
+    name: 'Liberty HD',
+    url: 'https://tiles.openfreemap.org/styles/liberty',
+    icon: '🏛️',
+    maxZoom: 22,
+  },
+  // OpenFreeMap Bright - detailed bright style
+  bright: {
+    name: 'Bright HD',
+    url: 'https://tiles.openfreemap.org/styles/bright',
+    icon: '✨',
+    maxZoom: 22,
+  },
+  // Protomaps - detailed vector tiles
+  protomapsLight: {
+    name: 'Proto Light',
+    url: {
+      version: 8,
+      glyphs: 'https://protomaps.github.io/basemaps-assets/fonts/{fontstack}/{range}.pbf',
+      sources: {
+        protomaps: {
+          type: 'vector',
+          tiles: ['https://api.protomaps.com/tiles/v3/{z}/{x}/{y}.mvt?key=1003762824b9687f'],
+          maxzoom: 15,
+          attribution: '&copy; Protomaps &copy; OpenStreetMap',
+        },
+      },
+      layers: [
+        { id: 'background', type: 'background', paint: { 'background-color': '#f8f4f0' } },
+        { id: 'water', type: 'fill', source: 'protomaps', 'source-layer': 'water', paint: { 'fill-color': '#a0c8f0' } },
+        { id: 'landuse-park', type: 'fill', source: 'protomaps', 'source-layer': 'landuse', filter: ['==', 'pmap:kind', 'park'], paint: { 'fill-color': '#c8e6c8' } },
+        { id: 'roads-minor', type: 'line', source: 'protomaps', 'source-layer': 'roads', filter: ['in', 'pmap:kind', 'minor_road', 'other'], paint: { 'line-color': '#ffffff', 'line-width': 1 } },
+        { id: 'roads-major', type: 'line', source: 'protomaps', 'source-layer': 'roads', filter: ['in', 'pmap:kind', 'major_road', 'highway'], paint: { 'line-color': '#ffd080', 'line-width': 2 } },
+        { id: 'buildings', type: 'fill', source: 'protomaps', 'source-layer': 'buildings', paint: { 'fill-color': '#e0dcd8', 'fill-opacity': 0.8 } },
+      ],
+    } as maplibregl.StyleSpecification,
+    icon: '🔬',
+    maxZoom: 22,
+  },
+  // Satellite imagery via ESRI World Imagery (free for personal use)
+  satellite: {
+    name: 'Satellite',
+    url: {
+      version: 8,
+      sources: {
+        'esri-satellite': {
+          type: 'raster',
+          tiles: [
+            'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+          ],
+          tileSize: 256,
+          attribution: '&copy; Esri, DigitalGlobe, GeoEye, Earthstar Geographics',
+          maxzoom: 19,
+        },
+      },
+      layers: [{ id: 'satellite-layer', type: 'raster', source: 'esri-satellite' }],
+    } as maplibregl.StyleSpecification,
+    icon: '🛰️',
+    maxZoom: 19,
+  },
+} as const;
+
+// Default style - Carto Voyager (clean, modern, Google Maps-like)
+const DEFAULT_STYLE = MAP_STYLES.voyager.url;
 
 export function useMapInstance({
   container,
@@ -103,7 +189,7 @@ export function useMapInstance({
         pitch: initialViewport.pitch,
         interactive,
         attributionControl: false,
-        maxZoom: config.maxZoom ?? 19,
+        maxZoom: config.maxZoom ?? 22,
       });
 
       mapRef.current = map;

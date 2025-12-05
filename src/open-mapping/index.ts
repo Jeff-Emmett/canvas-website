@@ -56,3 +56,6 @@ export * as discovery from './discovery';
 
 // Real-Time Location Presence with Privacy Controls
 export * as presence from './presence';
+
+// Reusable Map Layers (GPS, Collaboration, etc.)
+export * as layers from './layers';
