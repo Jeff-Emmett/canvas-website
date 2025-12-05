@@ -1,10 +1,10 @@
 ---
 id: task-037
 title: zkGPS Location Games and Discovery System
-status: Done
+status: In Progress
 assignee: []
 created_date: '2025-12-05 00:49'
-updated_date: '2025-12-05 01:01'
+updated_date: '2025-12-05 01:41'
 labels:
   - feature
   - open-mapping
@@ -92,4 +92,11 @@ Implemented complete discovery game system with:
 - Scoring with bonuses (first finder, time, sequence, group)
 - Leaderboards and prizes
 - Hunt templates (quick, standard, epic, team)
+
+Moving to In Progress - core TypeScript implementation complete, still needs:
+- UI components for discovery/hunt interfaces
+- Canvas integration for map visualization
+- Real IoT hardware testing (NFC/BLE)
+- Backend persistence layer
+- Multiplayer sync via Automerge
 <!-- SECTION:NOTES:END -->
