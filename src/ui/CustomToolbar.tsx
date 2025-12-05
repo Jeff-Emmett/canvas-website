@@ -1018,6 +1018,14 @@ export function CustomToolbar() {
             isSelected={tools["Multmux"].id === editor.getCurrentToolId()}
           />
         )}
+        {tools["Map"] && (
+          <TldrawUiMenuItem
+            {...tools["Map"]}
+            icon="geo-globe"
+            label="Map"
+            isSelected={tools["Map"].id === editor.getCurrentToolId()}
+          />
+        )}
         {/* MycelialIntelligence moved to permanent floating bar */}
         {/* Share Location tool removed for now */}
         {/* Refresh All ObsNotes Button */}
