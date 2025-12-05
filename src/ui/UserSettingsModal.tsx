@@ -4,6 +4,7 @@ import { useDialogs } from "tldraw"
 import { SettingsDialog } from "./SettingsDialog"
 import { getFathomApiKey, saveFathomApiKey, removeFathomApiKey, isFathomApiKeyConfigured } from "../lib/fathomApiKey"
 import { linkEmailToAccount, checkEmailStatus, type LookupResult } from "../lib/auth/cryptidEmailService"
+import { GoogleDataService, type GoogleService } from "../lib/google"
 
 // AI tool model configurations
 const AI_TOOLS = [
@@ -144,6 +145,17 @@ export function UserSettingsModal({ onClose, isDarkMode, onToggleDarkMode }: Use
   const [emailLinkLoading, setEmailLinkLoading] = useState(false)
   const [emailLinkMessage, setEmailLinkMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
+  // Google Data state
+  const [googleConnected, setGoogleConnected] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
+  const [googleCounts, setGoogleCounts] = useState<Record<GoogleService, number>>({
+    gmail: 0,
+    drive: 0,
+    photos: 0,
+    calendar: 0,
+  })
+  const [showGoogleDataBrowser, setShowGoogleDataBrowser] = useState(false)
+
   // Check API key status
   const checkApiKeys = () => {
     const settings = localStorage.getItem("openai_api_key")
@@ -191,6 +203,27 @@ export function UserSettingsModal({ onClose, isDarkMode, onToggleDarkMode }: Use
     fetchEmailStatus()
   }, [session.authed, session.username])
 
+  // Check Google connection status when modal opens
+  useEffect(() => {
+    const checkGoogleStatus = async () => {
+      try {
+        const service = GoogleDataService.getInstance()
+        const isAuthed = await service.isAuthenticated()
+        setGoogleConnected(isAuthed)
+
+        if (isAuthed) {
+          // Get stored item counts
+          const counts = await service.getStoredCounts()
+          setGoogleCounts(counts)
+        }
+      } catch (error) {
+        console.warn('Failed to check Google status:', error)
+        setGoogleConnected(false)
+      }
+    }
+    checkGoogleStatus()
+  }, [])
+
   // Handle email linking
   const handleLinkEmail = async () => {
     if (!emailInput.trim() || !session.username) return
@@ -237,6 +270,39 @@ export function UserSettingsModal({ onClose, isDarkMode, onToggleDarkMode }: Use
       setEmailLinkLoading(false)
     }
   }
+
+  // Handle Google connect
+  const handleGoogleConnect = async () => {
+    setGoogleLoading(true)
+    try {
+      const service = GoogleDataService.getInstance()
+      // Request all services by default
+      await service.authenticate(['gmail', 'drive', 'photos', 'calendar'])
+      setGoogleConnected(true)
+      // Refresh counts after connection
+      const counts = await service.getStoredCounts()
+      setGoogleCounts(counts)
+    } catch (error) {
+      console.error('Google connect failed:', error)
+    } finally {
+      setGoogleLoading(false)
+    }
+  }
+
+  // Handle Google disconnect
+  const handleGoogleDisconnect = async () => {
+    try {
+      const service = GoogleDataService.getInstance()
+      await service.signOut()
+      setGoogleConnected(false)
+      setGoogleCounts({ gmail: 0, drive: 0, photos: 0, calendar: 0 })
+    } catch (error) {
+      console.error('Google disconnect failed:', error)
+    }
+  }
+
+  // Calculate total imported items
+  const totalGoogleItems = Object.values(googleCounts).reduce((a, b) => a + b, 0)
 
   // Handle escape key and click outside
   useEffect(() => {
@@ -767,10 +833,142 @@ export function UserSettingsModal({ onClose, isDarkMode, onToggleDarkMode }: Use
                 )}
               </div>
 
+              <div className="settings-divider" />
+
+              {/* Data Import Section */}
+              <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', marginTop: '8px', color: colors.text }}>
+                Data Import
+              </h3>
+
+              {/* Google Workspace */}
+              <div
+                style={{
+                  padding: '12px',
+                  backgroundColor: colors.cardBg,
+                  borderRadius: '8px',
+                  border: `1px solid ${colors.cardBorder}`,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '20px' }}>🔐</span>
+                  <div style={{ flex: 1 }}>
+                    <span style={{ fontSize: '13px', fontWeight: '600', color: colors.textHeading }}>Google Workspace</span>
+                    <p style={{ fontSize: '11px', color: colors.textMuted, marginTop: '2px' }}>
+                      Import Gmail, Drive, Photos & Calendar - encrypted locally
+                    </p>
+                  </div>
+                  <span className={`status-badge ${googleConnected ? 'success' : 'warning'}`} style={{ fontSize: '10px' }}>
+                    {googleConnected ? 'Connected' : 'Not Connected'}
+                  </span>
+                </div>
+
+                {googleConnected && totalGoogleItems > 0 && (
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '6px',
+                    marginBottom: '12px',
+                    padding: '8px',
+                    backgroundColor: isDarkMode ? 'rgba(99, 102, 241, 0.1)' : 'rgba(99, 102, 241, 0.05)',
+                    borderRadius: '6px',
+                  }}>
+                    {googleCounts.gmail > 0 && (
+                      <span style={{
+                        fontSize: '10px',
+                        padding: '3px 8px',
+                        borderRadius: '12px',
+                        backgroundColor: colors.localBg,
+                        color: colors.localText,
+                        fontWeight: '500',
+                      }}>
+                        📧 {googleCounts.gmail} emails
+                      </span>
+                    )}
+                    {googleCounts.drive > 0 && (
+                      <span style={{
+                        fontSize: '10px',
+                        padding: '3px 8px',
+                        borderRadius: '12px',
+                        backgroundColor: colors.gpuBg,
+                        color: colors.gpuText,
+                        fontWeight: '500',
+                      }}>
+                        📁 {googleCounts.drive} files
+                      </span>
+                    )}
+                    {googleCounts.photos > 0 && (
+                      <span style={{
+                        fontSize: '10px',
+                        padding: '3px 8px',
+                        borderRadius: '12px',
+                        backgroundColor: colors.cloudBg,
+                        color: colors.cloudText,
+                        fontWeight: '500',
+                      }}>
+                        📷 {googleCounts.photos} photos
+                      </span>
+                    )}
+                    {googleCounts.calendar > 0 && (
+                      <span style={{
+                        fontSize: '10px',
+                        padding: '3px 8px',
+                        borderRadius: '12px',
+                        backgroundColor: colors.successBg,
+                        color: colors.successText,
+                        fontWeight: '500',
+                      }}>
+                        📅 {googleCounts.calendar} events
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                <p style={{ fontSize: '11px', color: colors.textMuted, marginBottom: '12px', lineHeight: '1.4' }}>
+                  Your data is encrypted with AES-256 and stored only in your browser.
+                  Choose what to share to the board.
+                </p>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {googleConnected ? (
+                    <>
+                      <button
+                        className="settings-action-btn"
+                        style={{ flex: 1 }}
+                        onClick={() => setShowGoogleDataBrowser(true)}
+                        disabled={totalGoogleItems === 0}
+                      >
+                        Open Data Browser
+                      </button>
+                      <button
+                        className="settings-action-btn secondary"
+                        onClick={handleGoogleDisconnect}
+                      >
+                        Disconnect
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="settings-action-btn"
+                      style={{ width: '100%' }}
+                      onClick={handleGoogleConnect}
+                      disabled={googleLoading}
+                    >
+                      {googleLoading ? 'Connecting...' : 'Connect Google Account'}
+                    </button>
+                  )}
+                </div>
+
+                {googleConnected && totalGoogleItems === 0 && (
+                  <p style={{ fontSize: '11px', color: colors.warningText, marginTop: '8px', textAlign: 'center' }}>
+                    No data imported yet. Visit <a href="/google" style={{ color: colors.linkColor }}>/google</a> to import.
+                  </p>
+                )}
+              </div>
+
               {/* Future Integrations Placeholder */}
               <div style={{ marginTop: '16px', padding: '12px', backgroundColor: colors.legendBg, borderRadius: '6px', border: `1px dashed ${colors.cardBorder}` }}>
                 <p style={{ fontSize: '12px', color: colors.textMuted, textAlign: 'center' }}>
-                  More integrations coming soon: Google Calendar, Notion, and more
+                  More integrations coming soon: Notion, Slack, and more
                 </p>
               </div>
             </div>
