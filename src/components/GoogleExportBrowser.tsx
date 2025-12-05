@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { GoogleDataService, type GoogleService, type ShareableItem } from '../lib/google';
 
-interface GoogleDataBrowserProps {
+interface GoogleExportBrowserProps {
   isOpen: boolean;
   onClose: () => void;
   onAddToCanvas: (items: ShareableItem[], position: { x: number; y: number }) => void;
@@ -22,12 +22,12 @@ const SERVICE_NAMES: Record<GoogleService, string> = {
   calendar: 'Calendar',
 };
 
-export function GoogleDataBrowser({
+export function GoogleExportBrowser({
   isOpen,
   onClose,
   onAddToCanvas,
   isDarkMode,
-}: GoogleDataBrowserProps) {
+}: GoogleExportBrowserProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<GoogleService>('gmail');
   const [items, setItems] = useState<ShareableItem[]>([]);
