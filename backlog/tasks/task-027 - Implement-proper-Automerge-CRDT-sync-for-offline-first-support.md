@@ -4,6 +4,7 @@ title: Implement proper Automerge CRDT sync for offline-first support
 status: In Progress
 assignee: []
 created_date: '2025-12-04 21:06'
+updated_date: '2025-12-05 03:42'
 labels:
   - offline-sync
   - crdt
@@ -25,10 +26,35 @@ Solution: Use Automerge's native binary sync protocol with proper CRDT merge sem
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Server stores Automerge binary documents in R2 (not JSON)
+- [x] #1 Server stores Automerge binary documents in R2 (not JSON)
 - [ ] #2 Client-server communication uses Automerge sync protocol (binary messages)
 - [ ] #3 Deletions persist correctly when offline client reconnects
 - [ ] #4 Concurrent edits merge deterministically without data loss
-- [ ] #5 Existing JSON rooms are migrated to Automerge format
+- [x] #5 Existing JSON rooms are migrated to Automerge format
 - [ ] #6 All existing functionality continues to work
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## Progress Update (2025-12-04)
+
+### Implemented:
+1. **automerge-init.ts** - WASM initialization for Cloudflare Workers using slim variant
+2. **automerge-sync-manager.ts** - Core CRDT sync manager with proper merge semantics
+3. **automerge-r2-storage.ts** - Binary R2 storage for Automerge documents
+4. **wasm.d.ts** - TypeScript declarations for WASM imports
+
+### Integration Fixes:
+- `getDocument()` now returns CRDT document when sync manager is active
+- `handleBinaryMessage()` syncs `currentDoc` with CRDT state after updates
+- `schedulePersistToR2()` delegates to sync manager when CRDT mode is enabled
+- Fixed CloudflareAdapter TypeScript errors (peer-candidate peerMetadata)
+
+### Current State:
+- `useCrdtSync = true` flag is enabled
+- Worker compiles and runs successfully
+- JSON sync fallback works for backward compatibility
+- Binary sync infrastructure is in place
+- Needs production testing with multi-client sync and delete operations
+<!-- SECTION:NOTES:END -->
