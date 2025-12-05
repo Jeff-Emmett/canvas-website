@@ -4,7 +4,7 @@ title: zkGPS Location Games and Discovery System
 status: In Progress
 assignee: []
 created_date: '2025-12-05 00:49'
-updated_date: '2025-12-05 01:41'
+updated_date: '2025-12-05 03:52'
 labels:
   - feature
   - open-mapping
@@ -99,4 +99,16 @@ Moving to In Progress - core TypeScript implementation complete, still needs:
 - Real IoT hardware testing (NFC/BLE)
 - Backend persistence layer
 - Multiplayer sync via Automerge
+
+**Merged to dev branch (2025-12-05):**
+- Complete discovery game system TypeScript merged
+- Anchor, collectible, spore, and hunt systems in place
+- All type definitions and core logic implemented
+
+**Still needs for production:**
+- React UI components for discovery/hunt interfaces
+- Canvas map visualization integration
+- IoT hardware testing (NFC/BLE)
+- Backend persistence layer
+- Multiplayer sync testing
 <!-- SECTION:NOTES:END -->
