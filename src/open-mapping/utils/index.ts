@@ -4,6 +4,9 @@
 
 import type { Coordinate, BoundingBox } from '../types';
 
+// Re-export geo transform utilities
+export * from './geoTransform';
+
 export function haversineDistance(a: Coordinate, b: Coordinate): number {
   const R = 6371000;
   const lat1 = (a.lat * Math.PI) / 180;

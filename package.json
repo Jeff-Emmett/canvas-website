@@ -61,6 +61,7 @@
 		"jotai": "^2.6.0",
 		"jspdf": "^2.5.2",
 		"lodash.throttle": "^4.1.1",
+		"maplibre-gl": "^5.14.0",
 		"marked": "^15.0.4",
 		"one-webcrypto": "^1.0.3",
 		"openai": "^4.79.3",

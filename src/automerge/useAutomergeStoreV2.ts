@@ -129,7 +129,8 @@ import { VideoGenShape } from "@/shapes/VideoGenShapeUtil"
 import { MultmuxShape } from "@/shapes/MultmuxShapeUtil"
 // MycelialIntelligence moved to permanent UI bar - shape kept for backwards compatibility
 import { MycelialIntelligenceShape } from "@/shapes/MycelialIntelligenceShapeUtil"
-// Location shape removed - no longer needed
+// Open Mapping - OSM map shape for geographic visualization
+import { MapShape } from "@/shapes/MapShapeUtil"
 
 export function useAutomergeStoreV2({
   handle,
@@ -163,6 +164,7 @@ export function useAutomergeStoreV2({
       VideoGenShape,
       MultmuxShape,
       MycelialIntelligenceShape, // Deprecated - kept for backwards compatibility
+      MapShape, // Open Mapping - OSM map shape
     ]
 
     // CRITICAL: Explicitly list ALL custom shape types to ensure they're registered
@@ -185,6 +187,7 @@ export function useAutomergeStoreV2({
       'VideoGen',
       'Multmux',
       'MycelialIntelligence', // Deprecated - kept for backwards compatibility
+      'Map', // Open Mapping - OSM map shape
     ]
 
     // Build schema with explicit entries for all custom shapes

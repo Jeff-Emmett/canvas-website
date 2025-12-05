@@ -315,6 +315,19 @@ function sanitizeRecord(record: TLRecord): TLRecord {
         (sanitized.props as any).richText = { content: [], type: 'doc' }
       }
     }
+
+    // CRITICAL: For text shapes, preserve richText property (required for text shapes)
+    // Text shapes store their content in props.richText, not props.text
+    if (sanitized.type === 'text') {
+      // CRITICAL: Use the extracted richText value if available, otherwise create default
+      if (richTextValue !== undefined) {
+        // Clean NaN values to prevent SVG export errors
+        (sanitized.props as any).richText = cleanRichTextNaN(richTextValue)
+      } else {
+        // Text shapes require richText - create default if missing
+        (sanitized.props as any).richText = { content: [], type: 'doc' }
+      }
+    }
     
     // CRITICAL: For ObsNote shapes, ensure all props are preserved (title, content, tags, etc.)
     if (sanitized.type === 'ObsNote') {

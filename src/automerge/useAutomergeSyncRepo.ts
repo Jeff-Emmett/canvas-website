@@ -1,6 +1,6 @@
 import { useMemo, useEffect, useState, useCallback, useRef } from "react"
 import { TLStoreSnapshot, InstancePresenceRecordType, getIndexAbove, IndexKey } from "@tldraw/tldraw"
-import { CloudflareNetworkAdapter } from "./CloudflareAdapter"
+import { CloudflareNetworkAdapter, ConnectionState } from "./CloudflareAdapter"
 import { useAutomergeStoreV2, useAutomergePresence } from "./useAutomergeStoreV2"
 import { TLStoreWithStatus } from "@tldraw/tldraw"
 import { Repo, parseAutomergeUrl, stringifyAutomergeUrl, AutomergeUrl, DocumentId } from "@automerge/automerge-repo"
@@ -114,9 +114,14 @@ interface AutomergeSyncConfig {
   }
 }
 
-export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus & { handle: DocHandle<any> | null; presence: ReturnType<typeof useAutomergePresence> } {
+export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus & {
+  handle: DocHandle<any> | null;
+  presence: ReturnType<typeof useAutomergePresence>;
+  connectionState: ConnectionState;
+  isNetworkOnline: boolean;
+} {
   const { uri, user } = config
-  
+
   // Extract roomId from URI (e.g., "https://worker.com/connect/room123" -> "room123")
   const roomId = useMemo(() => {
     const match = uri.match(/\/connect\/([^\/]+)$/)
@@ -130,79 +135,11 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
 
   const [handle, setHandle] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [connectionState, setConnectionState] = useState<ConnectionState>('connecting')
+  const [isNetworkOnline, setIsNetworkOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
   const handleRef = useRef<any>(null)
   const storeRef = useRef<any>(null)
   const adapterRef = useRef<any>(null)
-  const lastSentHashRef = useRef<string | null>(null)
-  const isMouseActiveRef = useRef<boolean>(false)
-  const pendingSaveRef = useRef<boolean>(false)
-  const saveFunctionRef = useRef<(() => void) | null>(null)
-  
-  // Generate a fast hash of the document state for change detection
-  // OPTIMIZED: Avoid expensive JSON.stringify, use lightweight checksums instead
-  const generateDocHash = useCallback((doc: any): string => {
-    if (!doc || !doc.store) return ''
-    const storeData = doc.store || {}
-    const storeKeys = Object.keys(storeData).sort()
-    
-    // Fast hash using record IDs and lightweight checksums
-    // Instead of JSON.stringify, use a combination of ID, type, and key property values
-    let hash = 0
-    for (const key of storeKeys) {
-      // Skip ephemeral records
-      if (key.startsWith('instance:') || 
-          key.startsWith('instance_page_state:') || 
-          key.startsWith('instance_presence:') ||
-          key.startsWith('camera:') ||
-          key.startsWith('pointer:')) {
-        continue
-      }
-      
-      const record = storeData[key]
-      if (!record) continue
-      
-      // Use lightweight hash: ID + typeName + type (if shape) + key properties
-      let recordHash = key
-      if (record.typeName) recordHash += record.typeName
-      if (record.type) recordHash += record.type
-      
-      // For shapes, include x, y, w, h for position/size changes
-      // Also include text content for shapes that have it (Markdown, ObsNote, etc.)
-      if (record.typeName === 'shape') {
-        if (typeof record.x === 'number') recordHash += `x${record.x}`
-        if (typeof record.y === 'number') recordHash += `y${record.y}`
-        if (typeof record.props?.w === 'number') recordHash += `w${record.props.w}`
-        if (typeof record.props?.h === 'number') recordHash += `h${record.props.h}`
-        // CRITICAL: Include text content in hash for Markdown and similar shapes
-        // This ensures text changes trigger R2 persistence
-        if (typeof record.props?.text === 'string' && record.props.text.length > 0) {
-          // Include text length and a sample of content for change detection
-          recordHash += `t${record.props.text.length}`
-          // Include first 100 chars and last 50 chars to detect changes anywhere in the text
-          recordHash += record.props.text.substring(0, 100)
-          if (record.props.text.length > 150) {
-            recordHash += record.props.text.substring(record.props.text.length - 50)
-          }
-        }
-        // Also include content for ObsNote shapes
-        if (typeof record.props?.content === 'string' && record.props.content.length > 0) {
-          recordHash += `c${record.props.content.length}`
-          recordHash += record.props.content.substring(0, 100)
-          if (record.props.content.length > 150) {
-            recordHash += record.props.content.substring(record.props.content.length - 50)
-          }
-        }
-      }
-      
-      // Simple hash of the record string
-      for (let i = 0; i < recordHash.length; i++) {
-        const char = recordHash.charCodeAt(i)
-        hash = ((hash << 5) - hash) + char
-        hash = hash & hash
-      }
-    }
-    return hash.toString(36)
-  }, [])
   
   // Update refs when handle/store changes
   useEffect(() => {
@@ -359,6 +296,15 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
 
     return { repo, adapter, storageAdapter }
   }, [workerUrl, roomId, applyJsonSyncData, applyPresenceUpdate])
+
+  // Subscribe to connection state changes
+  useEffect(() => {
+    const unsubscribe = adapter.onConnectionStateChange((state) => {
+      setConnectionState(state)
+      setIsNetworkOnline(adapter.isNetworkOnline)
+    })
+    return unsubscribe
+  }, [adapter])
 
   // Initialize Automerge document handle
   useEffect(() => {
@@ -520,6 +466,14 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
         const finalShapeCount = finalDoc?.store ? Object.values(finalDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
         console.log(`Automerge handle ready: ${finalStoreKeys} records, ${finalShapeCount} shapes (loaded from ${loadedFromLocal ? 'IndexedDB' : 'server/new'})`)
 
+        // CRITICAL: Set the documentId on the adapter BEFORE setHandle
+        // This ensures the adapter can properly route incoming binary sync messages
+        // The server may send sync messages immediately after connection, before we send anything
+        if (handle.url) {
+          adapter.setDocumentId(handle.url)
+          console.log(`📋 Set documentId on adapter: ${handle.url}`)
+        }
+
         setHandle(handle)
         setIsLoading(false)
       } catch (error) {
@@ -541,318 +495,61 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
     }
   }, [repo, adapter, roomId, workerUrl])
 
-  // Track mouse state to prevent persistence during active mouse interactions
-  useEffect(() => {
-    const handleMouseDown = () => {
-      isMouseActiveRef.current = true
-    }
-    
-    const handleMouseUp = () => {
-      isMouseActiveRef.current = false
-      // If there was a pending save, schedule it now that mouse is released
-      if (pendingSaveRef.current) {
-        pendingSaveRef.current = false
-        // Trigger save after a short delay to ensure mouse interaction is fully complete
-        setTimeout(() => {
-          // The save will be triggered by the next scheduled save or change event
-          // We just need to ensure the mouse state is cleared
-        }, 50)
-      }
-    }
-    
-    // Also track touch events for mobile
-    const handleTouchStart = () => {
-      isMouseActiveRef.current = true
-    }
-    
-    const handleTouchEnd = () => {
-      isMouseActiveRef.current = false
-      if (pendingSaveRef.current) {
-        pendingSaveRef.current = false
-      }
-    }
-    
-    // Add event listeners to document to catch all mouse interactions
-    document.addEventListener('mousedown', handleMouseDown, { capture: true })
-    document.addEventListener('mouseup', handleMouseUp, { capture: true })
-    document.addEventListener('touchstart', handleTouchStart, { capture: true })
-    document.addEventListener('touchend', handleTouchEnd, { capture: true })
-    
-    return () => {
-      document.removeEventListener('mousedown', handleMouseDown, { capture: true })
-      document.removeEventListener('mouseup', handleMouseUp, { capture: true })
-      document.removeEventListener('touchstart', handleTouchStart, { capture: true })
-      document.removeEventListener('touchend', handleTouchEnd, { capture: true })
-    }
-  }, [])
-
-  // Auto-save to Cloudflare on every change (with debouncing to prevent excessive calls)
-  // CRITICAL: This ensures new shapes are persisted to R2
+  // BINARY CRDT SYNC: The Automerge Repo now handles sync automatically via the NetworkAdapter
+  // The NetworkAdapter sends binary sync messages when documents change
+  // Local persistence is handled by IndexedDB via the storage adapter
+  // Server persistence is handled by the worker receiving binary sync messages
+  //
+  // We keep a lightweight change logger for debugging, but no HTTP POST sync
   useEffect(() => {
     if (!handle) return
 
-    let saveTimeout: NodeJS.Timeout
-
-    const saveDocumentToWorker = async () => {
-      // CRITICAL: Don't save while mouse is active - this prevents interference with mouse interactions
-      if (isMouseActiveRef.current) {
-        console.log('⏸️ Deferring persistence - mouse is active')
-        pendingSaveRef.current = true
-        return
-      }
-      
-      try {
-        const doc = handle.doc()
-        if (!doc || !doc.store) {
-          console.log("🔍 No document to save yet")
-          return
-        }
-
-        // Generate hash of current document state
-        const currentHash = generateDocHash(doc)
-        const lastHash = lastSentHashRef.current
-
-        // Skip save if document hasn't changed
-        if (currentHash === lastHash) {
-          console.log('⏭️ Skipping persistence - document unchanged (hash matches)')
-          return
-        }
-
-        // OPTIMIZED: Defer JSON.stringify to avoid blocking main thread
-        // Use requestIdleCallback to serialize when browser is idle
-        const storeKeys = Object.keys(doc.store).length
-        
-        // Defer expensive serialization to avoid blocking
-        const serializedDoc = await new Promise<string>((resolve, reject) => {
-          const serialize = () => {
-            try {
-              // Direct JSON.stringify - browser optimizes this internally
-              // The key is doing it in an idle callback to not block interactions
-              const json = JSON.stringify(doc)
-              resolve(json)
-            } catch (error) {
-              reject(error)
-            }
-          }
-          
-          // Use requestIdleCallback if available to serialize when browser is idle
-          if (typeof requestIdleCallback !== 'undefined') {
-            requestIdleCallback(serialize, { timeout: 200 })
-          } else {
-            // Fallback: use setTimeout to defer to next event loop tick
-            setTimeout(serialize, 0)
-          }
-        })
-        
-        // CRITICAL: Always log saves to help debug persistence issues
-        const shapeCount = Object.values(doc.store).filter((r: any) => r?.typeName === 'shape').length
-        console.log(`💾 Persisting document to worker for R2 storage: ${storeKeys} records, ${shapeCount} shapes`)
-        
-        // Send document state to worker via POST /room/:roomId
-        // This updates the worker's currentDoc so it can be persisted to R2
-        const response = await fetch(`${workerUrl}/room/${roomId}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: serializedDoc,
-        })
-
-        if (!response.ok) {
-          throw new Error(`Failed to save to worker: ${response.statusText}`)
-        }
-
-        // Update last sent hash only after successful save
-        lastSentHashRef.current = currentHash
-        pendingSaveRef.current = false
-        // CRITICAL: Always log successful saves
-        const finalShapeCount = Object.values(doc.store).filter((r: any) => r?.typeName === 'shape').length
-        console.log(`✅ Successfully sent document state to worker for persistence (${finalShapeCount} shapes)`)
-      } catch (error) {
-        console.error('❌ Error saving document to worker:', error)
-        pendingSaveRef.current = false
-      }
-    }
-
-    // Store save function reference for mouse release handler
-    saveFunctionRef.current = saveDocumentToWorker
-    
-    const scheduleSave = () => {
-      // Clear existing timeout
-      if (saveTimeout) clearTimeout(saveTimeout)
-      
-      // CRITICAL: Check if mouse is active before scheduling save
-      if (isMouseActiveRef.current) {
-        console.log('⏸️ Deferring save scheduling - mouse is active')
-        pendingSaveRef.current = true
-        // Schedule a check for when mouse is released
-        const checkMouseState = () => {
-          if (!isMouseActiveRef.current && pendingSaveRef.current) {
-            pendingSaveRef.current = false
-            // Mouse is released, schedule the save now
-            requestAnimationFrame(() => {
-              saveTimeout = setTimeout(saveDocumentToWorker, 3000)
-            })
-          } else if (isMouseActiveRef.current) {
-            // Mouse still active, check again in 100ms
-            setTimeout(checkMouseState, 100)
-          }
-        }
-        setTimeout(checkMouseState, 100)
-        return
-      }
-      
-      // CRITICAL: Use requestIdleCallback if available to defer saves until browser is idle
-      // This prevents saves from interrupting active interactions
-      const schedule = () => {
-        // Schedule save with a debounce (3 seconds) to batch rapid changes
-        saveTimeout = setTimeout(saveDocumentToWorker, 3000)
-      }
-      
-      if (typeof requestIdleCallback !== 'undefined') {
-        requestIdleCallback(schedule, { timeout: 2000 })
-      } else {
-        requestAnimationFrame(schedule)
-      }
-    }
-
-    // Listen for changes to the Automerge document
+    // Listen for changes to log sync activity (debugging only)
     const changeHandler = (payload: any) => {
       const patchCount = payload.patches?.length || 0
-      
-      if (!patchCount) {
-        // No patches, nothing to save
-        return
-      }
-      
-      // CRITICAL: If mouse is active, defer all processing to avoid blocking mouse interactions
-      if (isMouseActiveRef.current) {
-        // Just mark that we have pending changes, process them when mouse is released
-        pendingSaveRef.current = true
-        return
-      }
-      
-      // Process patches asynchronously to avoid blocking
-      requestAnimationFrame(() => {
-        // Double-check mouse state after animation frame
-        if (isMouseActiveRef.current) {
-          pendingSaveRef.current = true
-          return
-        }
-        
-        // Filter out ephemeral record changes - these shouldn't trigger persistence
-        const ephemeralIdPatterns = [
-          'instance:',
-          'instance_page_state:',
-          'instance_presence:',
-          'camera:',
-          'pointer:'
-        ]
-        
-        // Quick check for ephemeral changes (lightweight)
-        const hasOnlyEphemeralChanges = payload.patches.every((p: any) => {
-          const id = p.path?.[1]
-          if (!id || typeof id !== 'string') return false
-          return ephemeralIdPatterns.some(pattern => id.startsWith(pattern))
-        })
-        
-        // If all patches are for ephemeral records, skip persistence
-        if (hasOnlyEphemeralChanges) {
-          console.log('🚫 Skipping persistence - only ephemeral changes detected:', {
-            patchCount
-          })
-          return
-        }
-        
-        // Check if patches contain shape changes (lightweight check)
-        const hasShapeChanges = payload.patches?.some((p: any) => {
-          const id = p.path?.[1]
-          return id && typeof id === 'string' && id.startsWith('shape:')
-        })
-        
-        if (hasShapeChanges) {
-          // Check if ALL patches are only position updates (x/y) for pinned-to-view shapes
-          // These shouldn't trigger persistence since they're just keeping the shape in the same screen position
-          // NOTE: We defer doc access to avoid blocking, but do lightweight path checks
-          const allPositionUpdates = payload.patches.every((p: any) => {
-            const shapeId = p.path?.[1]
-            
-            // If this is not a shape patch, it's not a position update
-            if (!shapeId || typeof shapeId !== 'string' || !shapeId.startsWith('shape:')) {
-              return false
-            }
-            
-            // Check if this is a position update (x or y coordinate)
-            // Path format: ['store', 'shape:xxx', 'x'] or ['store', 'shape:xxx', 'y']
-            const pathLength = p.path?.length || 0
-            return pathLength === 3 && (p.path[2] === 'x' || p.path[2] === 'y')
-          })
-          
-          // If all patches are position updates, check if they're for pinned shapes
-          // This requires doc access, so we defer it slightly
-          if (allPositionUpdates && payload.patches.length > 0) {
-            // Defer expensive doc access check
-            setTimeout(() => {
-              if (isMouseActiveRef.current) {
-                pendingSaveRef.current = true
-                return
-              }
-              
-              const doc = handle.doc()
-              const allPinned = payload.patches.every((p: any) => {
-                const shapeId = p.path?.[1]
-                if (!shapeId || typeof shapeId !== 'string' || !shapeId.startsWith('shape:')) {
-                  return false
-                }
-                if (doc?.store?.[shapeId]) {
-                  const shape = doc.store[shapeId]
-                  return shape?.props?.pinnedToView === true
-                }
-                return false
-              })
-              
-              if (allPinned) {
-                console.log('🚫 Skipping persistence - only pinned-to-view position updates detected:', {
-                  patchCount: payload.patches.length
-                })
-                return
-              }
-              
-              // Not all pinned, schedule save
-              scheduleSave()
-            }, 0)
-            return
-          }
-          
-          const shapePatches = payload.patches.filter((p: any) => {
-            const id = p.path?.[1]
-            return id && typeof id === 'string' && id.startsWith('shape:')
-          })
-          
-          // CRITICAL: Always log shape changes to debug persistence
-          if (shapePatches.length > 0) {
-            console.log('🔍 Automerge document changed with shape patches:', {
-              patchCount: patchCount,
-              shapePatches: shapePatches.length
-            })
-          }
-        }
-        
-        // Schedule save to worker for persistence (only for non-ephemeral changes)
-        scheduleSave()
-      })
-    }
-    
-    handle.on('change', changeHandler)
 
-    // Don't save immediately on mount - only save when actual changes occur
-    // The initial document load from server is already persisted, so we don't need to re-persist it
+      if (!patchCount) return
+
+      // Filter out ephemeral record changes for logging
+      const ephemeralIdPatterns = [
+        'instance:',
+        'instance_page_state:',
+        'instance_presence:',
+        'camera:',
+        'pointer:'
+      ]
+
+      const hasOnlyEphemeralChanges = payload.patches.every((p: any) => {
+        const id = p.path?.[1]
+        if (!id || typeof id !== 'string') return false
+        return ephemeralIdPatterns.some(pattern => id.startsWith(pattern))
+      })
+
+      if (hasOnlyEphemeralChanges) {
+        // Don't log ephemeral changes
+        return
+      }
+
+      // Log significant changes for debugging
+      const shapePatches = payload.patches.filter((p: any) => {
+        const id = p.path?.[1]
+        return id && typeof id === 'string' && id.startsWith('shape:')
+      })
+
+      if (shapePatches.length > 0) {
+        console.log('🔄 Automerge document changed (binary sync will propagate):', {
+          patchCount: patchCount,
+          shapePatches: shapePatches.length
+        })
+      }
+    }
+
+    handle.on('change', changeHandler)
 
     return () => {
       handle.off('change', changeHandler)
-      if (saveTimeout) clearTimeout(saveTimeout)
     }
-  }, [handle, roomId, workerUrl, generateDocHash])
+  }, [handle])
 
   // Generate a unique color for each user based on their userId
   const generateUserColor = (userId: string): string => {
@@ -910,6 +607,8 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
   return {
     ...storeWithStatus,
     handle,
-    presence
+    presence,
+    connectionState,
+    isNetworkOnline
   }
 }
