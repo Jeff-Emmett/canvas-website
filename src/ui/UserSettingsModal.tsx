@@ -5,7 +5,7 @@ import { SettingsDialog } from "./SettingsDialog"
 import { getFathomApiKey, saveFathomApiKey, removeFathomApiKey, isFathomApiKeyConfigured } from "../lib/fathomApiKey"
 import { linkEmailToAccount, checkEmailStatus, type LookupResult } from "../lib/auth/cryptidEmailService"
 import { GoogleDataService, type GoogleService, type ShareableItem } from "../lib/google"
-import { GoogleDataBrowser } from "../components/GoogleDataBrowser"
+import { GoogleExportBrowser } from "../components/GoogleExportBrowser"
 
 // AI tool model configurations
 const AI_TOOLS = [
@@ -155,7 +155,7 @@ export function UserSettingsModal({ onClose, isDarkMode, onToggleDarkMode }: Use
     photos: 0,
     calendar: 0,
   })
-  const [showGoogleDataBrowser, setShowGoogleDataBrowser] = useState(false)
+  const [showGoogleExportBrowser, setShowGoogleExportBrowser] = useState(false)
 
   // Check API key status
   const checkApiKeys = () => {
@@ -312,7 +312,7 @@ export function UserSettingsModal({ onClose, isDarkMode, onToggleDarkMode }: Use
     window.dispatchEvent(new CustomEvent('add-google-items-to-canvas', {
       detail: { items, position }
     }));
-    setShowGoogleDataBrowser(false);
+    setShowGoogleExportBrowser(false);
     onClose();
   }
 
@@ -946,7 +946,7 @@ export function UserSettingsModal({ onClose, isDarkMode, onToggleDarkMode }: Use
                       <button
                         className="settings-action-btn"
                         style={{ flex: 1 }}
-                        onClick={() => setShowGoogleDataBrowser(true)}
+                        onClick={() => setShowGoogleExportBrowser(true)}
                         disabled={totalGoogleItems === 0}
                       >
                         Open Data Browser
@@ -988,10 +988,10 @@ export function UserSettingsModal({ onClose, isDarkMode, onToggleDarkMode }: Use
         </div>
       </div>
 
-      {/* Google Data Browser Modal */}
-      <GoogleDataBrowser
-        isOpen={showGoogleDataBrowser}
-        onClose={() => setShowGoogleDataBrowser(false)}
+      {/* Google Export Browser Modal */}
+      <GoogleExportBrowser
+        isOpen={showGoogleExportBrowser}
+        onClose={() => setShowGoogleExportBrowser(false)}
         onAddToCanvas={handleAddToCanvas}
         isDarkMode={isDarkMode}
       />
