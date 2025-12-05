@@ -4,7 +4,7 @@ title: 'Open Mapping: Collaborative Route Planning Module'
 status: In Progress
 assignee: []
 created_date: '2025-12-04 14:30'
-updated_date: '2025-12-05 03:45'
+updated_date: '2025-12-05 03:52'
 labels:
   - feature
   - mapping
@@ -90,4 +90,16 @@ Pushed to feature/open-mapping branch:
 - Mycelium network visualization
 - Discovery system (spores, hunts, collectibles)
 - Privacy system with ZK-GPS protocol concepts
+
+**Merged to dev branch (2025-12-05):**
+- All subsystem TypeScript implementations merged
+- MapShapeUtil integrated with canvas
+- ConnectionStatusIndicator added
+- Merged with PrivateWorkspace feature (no conflicts)
+- Ready for staging/production testing
+
+**Remaining work:**
+- MapLibre GL JS full canvas integration
+- OSRM backend deployment to Netcup
+- UI polish and testing
 <!-- SECTION:NOTES:END -->
