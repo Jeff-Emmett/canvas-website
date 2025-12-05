@@ -1,10 +1,10 @@
 ---
 id: task-039
 title: 'MapShape Integration: Connect Subsystems to Canvas Shape'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2025-12-05 02:12'
-updated_date: '2025-12-05 03:40'
+updated_date: '2025-12-05 03:41'
 labels:
   - feature
   - mapping
