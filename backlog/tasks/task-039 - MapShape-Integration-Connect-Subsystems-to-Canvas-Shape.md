@@ -4,7 +4,7 @@ title: 'MapShape Integration: Connect Subsystems to Canvas Shape'
 status: In Progress
 assignee: []
 created_date: '2025-12-05 02:12'
-updated_date: '2025-12-05 02:45'
+updated_date: '2025-12-05 03:40'
 labels:
   - feature
   - mapping
@@ -27,7 +27,7 @@ Evolve MapShapeUtil.tsx to integrate the 6 implemented subsystems (privacy, myce
 - [x] #3 Lens system accessible via UI
 - [x] #4 Route/waypoint visualization working
 - [x] #5 Collaboration sync via Automerge
-- [ ] #6 Discovery game elements visible on map
+- [x] #6 Discovery game elements visible on map
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -117,4 +117,38 @@ Phase 5: Automerge Sync Integration - Analyzing existing sync architecture. TLDr
 - Remote changes come back via Automerge patches and update the shape's props
 
 - Each user only writes to their own key in sharedLocations, so no conflicts occur
+
+**Discovery Visualization Complete (Dec 5, 2025):**
+
+### Added Display Types for Automerge Sync:
+- `DiscoveryAnchorMarker` - Simplified anchor data for map markers
+- `SporeMarker` - Mycelium spore data with strength and connections
+- `HuntMarker` - Treasure hunt waypoints with sequence numbers
+
+### MapDiscoveryConfig Extended:
+- `anchors: DiscoveryAnchorMarker[]` - Synced anchor data
+- `spores: SporeMarker[]` - Synced spore data with connection graph
+- `hunts: HuntMarker[]` - Synced treasure hunt waypoints
+
+### Marker Rendering Implemented:
+1. **Anchor Markers** - Circular markers with type-specific colors (physical=green, nfc=blue, qr=purple, virtual=amber). Hidden anchors shown with reduced opacity until discovered.
+
+2. **Spore Markers** - Pulsing circular markers with radial gradients. Size scales with spore strength (40-100%). Animation keyframes for organic feel.
+
+3. **Mycelium Network** - GeoJSON LineString layer connecting spores. Dashed green lines with 60% opacity visualize the network connections.
+
+4. **Hunt Markers** - Numbered square markers for treasure hunts. Amber when not found, green with checkmark when discovered.
+
+### Discovery Panel Enhanced:
+- Stats display showing counts: 📍 anchors, 🍄 spores, 🏆 hunts
+- "+Add Anchor" button - Creates demo anchor at map center
+- "+Add Spore" button - Creates demo spore with random connection
+- "+Add Hunt Point" button - Creates treasure hunt waypoint
+- "Clear All" button - Removes all discovery elements
+
+### How Automerge Sync Works:
+- Discovery data stored in MapShape.props.discovery
+- Shape updates via editor.updateShape() flow through TLStoreToAutomerge
+- All collaborators see markers appear in real-time
+- Each user can add/modify elements, CRDT handles conflicts
 <!-- SECTION:NOTES:END -->
