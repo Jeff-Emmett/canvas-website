@@ -4,6 +4,7 @@ title: Real-Time Location Presence with Privacy Controls
 status: Done
 assignee: []
 created_date: '2025-12-05 02:00'
+updated_date: '2025-12-05 02:00'
 labels:
   - feature
   - open-mapping
@@ -49,10 +50,10 @@ presence.setTrustLevel(aliceKey, 'intimate'); // ~2.4m precision
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Location presence types defined
-- [ ] #2 PresenceManager with broadcasting
-- [ ] #3 Trust-based precision controls
-- [ ] #4 React hook for canvas integration
-- [ ] #5 Map visualization components
-- [ ] #6 Proximity detection without exact location
+- [x] #1 Location presence types defined
+- [x] #2 PresenceManager with broadcasting
+- [x] #3 Trust-based precision controls
+- [x] #4 React hook for canvas integration
+- [x] #5 Map visualization components
+- [x] #6 Proximity detection without exact location
 <!-- AC:END -->
