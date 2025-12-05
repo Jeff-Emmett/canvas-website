@@ -49,6 +49,10 @@ import { MultmuxTool } from "@/tools/MultmuxTool"
 import { MultmuxShape } from "@/shapes/MultmuxShapeUtil"
 // MycelialIntelligence moved to permanent UI bar - shape kept for backwards compatibility
 import { MycelialIntelligenceShape } from "@/shapes/MycelialIntelligenceShapeUtil"
+// Private Workspace for Google Export data sovereignty
+import { PrivateWorkspaceShape } from "@/shapes/PrivateWorkspaceShapeUtil"
+import { PrivateWorkspaceTool } from "@/tools/PrivateWorkspaceTool"
+import { PrivateWorkspaceManager } from "@/components/PrivateWorkspaceManager"
 import {
   lockElement,
   unlockElement,
@@ -141,6 +145,7 @@ const customShapeUtils = [
   VideoGenShape,
   MultmuxShape,
   MycelialIntelligenceShape, // Deprecated - kept for backwards compatibility
+  PrivateWorkspaceShape, // Private zone for Google Export data sovereignty
 ]
 const customTools = [
   ChatBoxTool,
@@ -158,6 +163,7 @@ const customTools = [
   ImageGenTool,
   VideoGenTool,
   MultmuxTool,
+  PrivateWorkspaceTool,
 ]
 
 // Debug: Log tool and shape registration info
@@ -1100,6 +1106,7 @@ export function Board() {
         }}
         >
           <CmdK />
+          <PrivateWorkspaceManager />
         </Tldraw>
       </div>
     </AutomergeHandleProvider>
