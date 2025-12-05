@@ -4,7 +4,7 @@ title: 'Google Export: Local-First Data Sovereignty'
 status: Done
 assignee: []
 created_date: '2025-12-04 20:25'
-updated_date: '2025-12-05 00:54'
+updated_date: '2025-12-05 01:53'
 labels:
   - feature
   - google
@@ -94,4 +94,12 @@ Phase 3 complete: Added Private Workspace zone (commit 052c984)
 - usePrivateWorkspace hook for event handling
 
 - PrivateWorkspaceManager component integrated into Board.tsx
+
+Phase 4 complete: Added GoogleItemShape with privacy badges (commit 84c6bf8)
+
+- GoogleItemShapeUtil: Visual distinction for local vs shared items
+
+- Privacy badge with 🔒/🌐 icons
+
+- Updated ShareableItem type with service and thumbnailUrl
 <!-- SECTION:NOTES:END -->
