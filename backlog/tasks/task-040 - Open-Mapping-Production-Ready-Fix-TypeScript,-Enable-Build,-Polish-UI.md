@@ -4,6 +4,7 @@ title: 'Open-Mapping Production Ready: Fix TypeScript, Enable Build, Polish UI'
 status: In Progress
 assignee: []
 created_date: '2025-12-05 21:58'
+updated_date: '2025-12-05 22:12'
 labels:
   - feature
   - mapping
@@ -37,3 +38,16 @@ Currently the open-mapping directory is excluded from tsconfig due to TypeScript
 - [ ] #6 Layer switching works
 - [ ] #7 Search with autocomplete works
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+**Progress (2025-12-05):**
+- Fixed ~40 TypeScript errors
+- Added missing type exports (GeohashPrecision, GeohashCommitment)
+- Added function aliases for backwards compatibility
+- Fixed type annotations in services (RoutingService, OptimizationService)
+- Suppressed unused params in stub components
+- Still have ~51 errors remaining, mainly in discovery module and hooks
+- Committed progress to dev branch (f440c4d)
+<!-- SECTION:NOTES:END -->
