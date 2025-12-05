@@ -427,3 +427,16 @@ export function precisionForRadius(radiusMeters: number): number {
   }
   return 1;
 }
+
+// =============================================================================
+// Convenience Aliases (for backwards compatibility)
+// =============================================================================
+
+/** Alias for encode() */
+export const encodeGeohash = encode;
+
+/** Alias for decode() */
+export const decodeGeohash = decode;
+
+/** Alias for decodeBounds() */
+export const getGeohashBounds = decodeBounds;

@@ -23,20 +23,10 @@ interface WaypointMarkerProps {
   onDelete?: (waypointId: string) => void;
 }
 
-export function WaypointMarker({
-  waypoint,
-  index,
-  isSelected = false,
-  isDraggable = true,
-  showLabel = true,
-  showTime = false,
-  showBudget = false,
-  onSelect,
-  onDragEnd,
-  onDelete,
-}: WaypointMarkerProps) {
+export function WaypointMarker(_props: WaypointMarkerProps) {
   // TODO: Implement marker rendering with MapLibre GL JS
-  // This will be implemented in Phase 1
+  // Props will be used in Phase 1 implementation
+  void _props;
 
   return null; // Markers are rendered directly on the map
 }

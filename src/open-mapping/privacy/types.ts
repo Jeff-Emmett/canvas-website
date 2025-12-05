@@ -4,6 +4,8 @@
  * Types for privacy-preserving location sharing protocol
  */
 
+// Re-export GeohashPrecision so consumers can import from types
+export type { GeohashPrecision } from './geohash';
 import type { GeohashPrecision } from './geohash';
 
 // =============================================================================
@@ -49,6 +51,9 @@ export interface LocationCommitment {
 
   /** Optional: the geohash prefix that is publicly revealed */
   revealedPrefix?: string;
+
+  /** The geohash string (at the given precision) */
+  geohash?: string;
 }
 
 /**
@@ -71,6 +76,11 @@ export interface SignedCommitment extends LocationCommitment {
   /** Public key of the signer */
   signerPublicKey: string;
 }
+
+/**
+ * Alias for LocationCommitment (used by discovery module)
+ */
+export type GeohashCommitment = LocationCommitment;
 
 // =============================================================================
 // Trust Circle Types

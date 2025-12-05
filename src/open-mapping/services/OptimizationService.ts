@@ -4,6 +4,16 @@
 
 import type { Waypoint, Coordinate, OptimizationServiceConfig } from '../types';
 
+// VROOM API response type
+interface VROOMResponse {
+  code: number;
+  error?: string;
+  summary: { distance: number; duration: number };
+  routes: Array<{
+    steps: Array<{ type: string; job?: number }>;
+  }>;
+}
+
 export interface OptimizationResult {
   orderedWaypoints: Waypoint[];
   totalDistance: number;
@@ -50,10 +60,10 @@ export class OptimizationService {
     const vehicles = [{ id: 0, start: [waypoints[0].coordinate.lng, waypoints[0].coordinate.lat] }];
     try {
       const res = await fetch(this.config.baseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobs, vehicles }) });
-      const data = await res.json();
-      if (data.code !== 0) throw new Error(data.error);
-      const indices = data.routes[0].steps.filter((s: any) => s.type === 'job').map((s: any) => s.job);
-      return { orderedWaypoints: indices.map((i: number) => waypoints[i]), totalDistance: data.summary.distance, totalDuration: data.summary.duration, estimatedCost: this.estimateCosts(data.summary.distance, data.summary.duration) };
+      const data = await res.json() as VROOMResponse;
+      if (data.code !== 0) throw new Error(data.error ?? 'Unknown VROOM error');
+      const indices = data.routes[0].steps.filter((s) => s.type === 'job').map((s) => s.job!);
+      return { orderedWaypoints: indices.map((i) => waypoints[i]), totalDistance: data.summary.distance, totalDuration: data.summary.duration, estimatedCost: this.estimateCosts(data.summary.distance, data.summary.duration) };
     } catch { return this.nearestNeighbor(waypoints); }
   }
 

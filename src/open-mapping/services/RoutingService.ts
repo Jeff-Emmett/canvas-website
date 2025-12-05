@@ -5,6 +5,26 @@
 
 import type { Waypoint, Route, RoutingOptions, RoutingServiceConfig, Coordinate, RoutingProfile } from '../types';
 
+// Response types for routing APIs
+interface OSRMResponse {
+  code: string;
+  message?: string;
+  routes: Array<{
+    distance: number;
+    duration: number;
+    geometry: GeoJSON.LineString;
+    legs: Array<{ distance: number; duration: number }>;
+  }>;
+}
+
+interface ValhallaResponse {
+  error?: string;
+  trip: {
+    summary: { length: number; time: number };
+    legs: Array<{ summary: { length: number; time: number } }>;
+  };
+}
+
 export class RoutingService {
   private config: RoutingServiceConfig;
 
@@ -34,9 +54,9 @@ export class RoutingService {
     const url = `${this.config.baseUrl}/trip/v1/driving/${coords}?roundtrip=false&source=first&destination=last`;
     try {
       const res = await fetch(url);
-      const data = await res.json();
-      if (data.code !== 'Ok') return waypoints;
-      return data.waypoints.map((wp: { waypoint_index: number }) => waypoints[wp.waypoint_index]);
+      const data = await res.json() as { code: string; waypoints?: Array<{ waypoint_index: number }> };
+      if (data.code !== 'Ok' || !data.waypoints) return waypoints;
+      return data.waypoints.map((wp) => waypoints[wp.waypoint_index]);
     } catch { return waypoints; }
   }
 
@@ -56,8 +76,8 @@ export class RoutingService {
     url.searchParams.set('steps', 'true');
     if (options?.alternatives) url.searchParams.set('alternatives', 'true');
     const res = await fetch(url.toString());
-    const data = await res.json();
-    if (data.code !== 'Ok') throw new Error(`OSRM error: ${data.message || data.code}`);
+    const data = await res.json() as OSRMResponse;
+    if (data.code !== 'Ok') throw new Error(`OSRM error: ${data.message ?? data.code}`);
     return this.parseOSRMResponse(data, profile);
   }
 
@@ -65,27 +85,27 @@ export class RoutingService {
     const costing = profile === 'bicycle' ? 'bicycle' : profile === 'foot' ? 'pedestrian' : 'auto';
     const body = { locations: coords.map((c) => ({ lat: c.lat, lon: c.lng })), costing, alternates: options?.alternatives ?? 0 };
     const res = await fetch(`${this.config.baseUrl}/route`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const data = await res.json();
+    const data = await res.json() as ValhallaResponse;
     if (data.error) throw new Error(`Valhalla error: ${data.error}`);
     return this.parseValhallaResponse(data, profile);
   }
 
-  private parseOSRMResponse(data: any, profile: RoutingProfile): Route {
+  private parseOSRMResponse(data: OSRMResponse, profile: RoutingProfile): Route {
     const r = data.routes[0];
     return {
       id: `route-${Date.now()}`, waypoints: [], geometry: r.geometry, profile,
       summary: { distance: r.distance, duration: r.duration },
-      legs: r.legs.map((leg: any, i: number) => ({ startWaypoint: `wp-${i}`, endWaypoint: `wp-${i + 1}`, distance: leg.distance, duration: leg.duration, geometry: { type: 'LineString', coordinates: [] } })),
-      alternatives: data.routes.slice(1).map((alt: any) => this.parseOSRMResponse({ routes: [alt] }, profile)),
+      legs: r.legs.map((leg, i) => ({ startWaypoint: `wp-${i}`, endWaypoint: `wp-${i + 1}`, distance: leg.distance, duration: leg.duration, geometry: { type: 'LineString' as const, coordinates: [] } })),
+      alternatives: data.routes.slice(1).map((alt) => this.parseOSRMResponse({ code: 'Ok', routes: [alt] }, profile)),
     };
   }
 
-  private parseValhallaResponse(data: any, profile: RoutingProfile): Route {
+  private parseValhallaResponse(data: ValhallaResponse, profile: RoutingProfile): Route {
     const trip = data.trip;
     return {
-      id: `route-${Date.now()}`, waypoints: [], geometry: { type: 'LineString', coordinates: [] }, profile,
+      id: `route-${Date.now()}`, waypoints: [], geometry: { type: 'LineString' as const, coordinates: [] }, profile,
       summary: { distance: trip.summary.length * 1000, duration: trip.summary.time },
-      legs: trip.legs.map((leg: any, i: number) => ({ startWaypoint: `wp-${i}`, endWaypoint: `wp-${i + 1}`, distance: leg.summary.length * 1000, duration: leg.summary.time, geometry: { type: 'LineString', coordinates: [] } })),
+      legs: trip.legs.map((leg, i) => ({ startWaypoint: `wp-${i}`, endWaypoint: `wp-${i + 1}`, distance: leg.summary.length * 1000, duration: leg.summary.time, geometry: { type: 'LineString' as const, coordinates: [] } })),
     };
   }
 }

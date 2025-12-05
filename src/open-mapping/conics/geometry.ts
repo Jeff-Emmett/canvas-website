@@ -636,3 +636,81 @@ function findOrthogonalVector(v: SpaceVector): SpaceVector {
 
   return normalize(result);
 }
+
+// =============================================================================
+// Convenience Aliases (for backwards compatibility with index.ts exports)
+// =============================================================================
+
+export const vectorAdd = addVectors;
+export const vectorSubtract = subtractVectors;
+export const vectorScale = scaleVector;
+export const vectorDot = dotProduct;
+export const vectorNorm = magnitude;
+export const vectorNormalize = normalize;
+export const vectorCross3D = crossProduct;
+
+/**
+ * Calculate angle from cone axis to a point
+ */
+export function angleFromAxis(point: SpacePoint, cone: PossibilityCone): number {
+  const toPoint = subtractVectors(pointToVector(point), pointToVector(cone.apex));
+  const toPointNorm = normalize(toPoint);
+  const dot = dotProduct(toPointNorm, cone.axis);
+  return Math.acos(Math.max(-1, Math.min(1, dot)));
+}
+
+/**
+ * Combine two cones (union/intersection)
+ */
+export function combineCones(
+  cone1: PossibilityCone,
+  cone2: PossibilityCone,
+  operation: 'union' | 'intersection' = 'intersection'
+): PossibilityCone {
+  // For intersection, take the narrower aperture
+  // For union, take the wider aperture
+  const aperture = operation === 'intersection'
+    ? Math.min(cone1.aperture, cone2.aperture)
+    : Math.max(cone1.aperture, cone2.aperture);
+
+  // Average the apex positions
+  const apex: SpacePoint = {
+    coordinates: cone1.apex.coordinates.map((c, i) =>
+      (c + (cone2.apex.coordinates[i] ?? 0)) / 2
+    ),
+  };
+
+  // Average the axes (normalized)
+  const avgAxis = normalize(addVectors(cone1.axis, cone2.axis));
+
+  return {
+    id: `${cone1.id}-${cone2.id}-${operation}`,
+    apex,
+    axis: avgAxis,
+    aperture,
+    direction: cone1.direction,
+    extent: cone1.extent && cone2.extent
+      ? Math.min(cone1.extent, cone2.extent)
+      : cone1.extent ?? cone2.extent,
+    constraints: [...cone1.constraints, ...cone2.constraints],
+    sourceConstraints: [
+      ...(cone1.sourceConstraints ?? []),
+      ...(cone2.sourceConstraints ?? []),
+    ],
+    metadata: { ...cone1.metadata, ...cone2.metadata },
+  };
+}
+
+/**
+ * Slice a cone with a hyperplane to get a conic section
+ */
+export function sliceConeWithPlane(
+  cone: PossibilityCone,
+  planeNormal: SpaceVector,
+  planePoint: SpacePoint
+): ConicSection {
+  // Calculate plane offset as distance from origin along normal
+  const planeOffset = dotProduct(pointToVector(planePoint), planeNormal);
+
+  return createConicSection(cone, planeNormal, planeOffset);
+}

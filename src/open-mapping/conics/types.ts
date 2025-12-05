@@ -100,6 +100,9 @@ export interface PossibilityCone {
   /** Constraints that shaped this cone */
   constraints: string[];
 
+  /** Source constraints (for combined cones) */
+  sourceConstraints?: string[];
+
   /** Metadata */
   metadata: Record<string, unknown>;
 }

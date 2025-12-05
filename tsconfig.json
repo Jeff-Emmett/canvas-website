@@ -27,7 +27,9 @@
   },
   "include": ["src", "worker", "src/client"],
   "exclude": [
-    "src/open-mapping/**"
+    "src/open-mapping/discovery/**",
+    "src/open-mapping/components/CollaborativeMap.tsx",
+    "src/open-mapping/components/MapCanvas.tsx"
   ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

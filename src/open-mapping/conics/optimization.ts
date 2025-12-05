@@ -745,3 +745,13 @@ export function createPathOptimizer(
 ): PathOptimizer {
   return new PathOptimizer(bounds, config);
 }
+
+// Re-export config types from types.ts for convenience
+export { DEFAULT_OPTIMIZATION_CONFIG } from './types';
+export type { OptimizationConfig } from './types';
+
+/**
+ * Alias for backwards compatibility with index.ts
+ */
+export const DEFAULT_OPTIMIZER_CONFIG = DEFAULT_OPTIMIZATION_CONFIG;
+export type OptimizerConfig = OptimizationConfig;
