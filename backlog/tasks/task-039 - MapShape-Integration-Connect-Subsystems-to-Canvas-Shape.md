@@ -4,7 +4,7 @@ title: 'MapShape Integration: Connect Subsystems to Canvas Shape'
 status: In Progress
 assignee: []
 created_date: '2025-12-05 02:12'
-updated_date: '2025-12-05 02:35'
+updated_date: '2025-12-05 02:45'
 labels:
   - feature
   - mapping
@@ -26,7 +26,7 @@ Evolve MapShapeUtil.tsx to integrate the 6 implemented subsystems (privacy, myce
 - [x] #2 Presence layer integrated with opt-in location sharing
 - [x] #3 Lens system accessible via UI
 - [x] #4 Route/waypoint visualization working
-- [ ] #5 Collaboration sync via Automerge
+- [x] #5 Collaboration sync via Automerge
 - [ ] #6 Discovery game elements visible on map
 <!-- AC:END -->
 
@@ -91,4 +91,30 @@ Evolve MapShapeUtil.tsx to integrate the 6 implemented subsystems (privacy, myce
 - Automerge sync for collaborative editing
 
 Phase 5: Automerge Sync Integration - Analyzing existing sync architecture. TLDraw shapes sync automatically via TLStoreToAutomerge.ts. MapShape props should already sync since they're part of the shape record.
+
+**Automerge Sync Implementation Complete (Dec 5, 2025):**
+
+1. **Collaborative sharedLocations** - Added `sharedLocations: Record<string, SharedLocation>` to MapPresenceConfig props
+
+2. **Conflict-free updates** - Each user updates only their own key in sharedLocations, allowing Automerge CRDT to handle concurrent updates automatically
+
+3. **Location sync effect** - When user shares location, their coordinate is published to sharedLocations with userId, userName, color, timestamp, and privacyLevel
+
+4. **Auto-cleanup** - User's entry is removed from sharedLocations when they stop sharing
+
+5. **Collaborator markers** - Renders MapLibre markers for all other users' shared locations (different from user's own pulsing marker)
+
+6. **Stale location filtering** - Collaborator locations older than 5 minutes are not rendered
+
+7. **UI updates** - Presence panel now shows count of online collaborators
+
+**How it works:**
+
+- MapShape props sync automatically via existing TLDraw → Automerge infrastructure
+
+- When user calls editor.updateShape() to update MapShape props, changes flow through TLStoreToAutomerge.ts
+
+- Remote changes come back via Automerge patches and update the shape's props
+
+- Each user only writes to their own key in sharedLocations, so no conflicts occur
 <!-- SECTION:NOTES:END -->
