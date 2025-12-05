@@ -256,6 +256,51 @@ export class GoogleDataService {
     return await checkStorageQuota();
   }
 
+  // Get count of items stored for each service
+  async getStoredCounts(): Promise<Record<GoogleService, number>> {
+    const counts: Record<GoogleService, number> = {
+      gmail: 0,
+      drive: 0,
+      photos: 0,
+      calendar: 0,
+    };
+
+    try {
+      const db = await openDatabase();
+      if (!db) return counts;
+
+      // Count items in each store
+      const countStore = async (storeName: string): Promise<number> => {
+        return new Promise((resolve) => {
+          try {
+            const tx = db.transaction(storeName, 'readonly');
+            const store = tx.objectStore(storeName);
+            const countRequest = store.count();
+            countRequest.onsuccess = () => resolve(countRequest.result);
+            countRequest.onerror = () => resolve(0);
+          } catch {
+            resolve(0);
+          }
+        });
+      };
+
+      counts.gmail = await countStore('gmail');
+      counts.drive = await countStore('drive');
+      counts.photos = await countStore('photos');
+      counts.calendar = await countStore('calendar');
+
+    } catch (error) {
+      console.warn('Failed to get stored counts:', error);
+    }
+
+    return counts;
+  }
+
+  // Singleton getter
+  static getInstance(): GoogleDataService {
+    return getGoogleDataService();
+  }
+
   // Schedule periodic touch for Safari
   private scheduleTouchInterval(): void {
     // Touch data every 6 hours to prevent 7-day eviction
