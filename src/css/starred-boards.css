@@ -1,26 +1,6 @@
-/* Star Board Button Styles */
+/* Star Board Button Styles - extends .toolbar-btn */
 .star-board-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 8px;
-  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.75rem;
-  font-weight: 600;
-  transition: all 0.2s ease;
-  letter-spacing: 0.5px;
-  white-space: nowrap;
-  box-sizing: border-box;
-  line-height: 1.1;
-  margin: 0;
-  width: 22px;
-  height: 22px;
-  min-width: 22px;
-  min-height: 22px;
+  /* Base styles come from .toolbar-btn */
 }
 
 /* Custom popup notification styles */
@@ -64,48 +44,15 @@
   }
 }
 
-/* Toolbar-specific star button styling to match login button exactly */
-.toolbar-star-button {
-  padding: 4px 8px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  border-radius: 4px;
-  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
-  color: white;
-  border: none;
-  transition: all 0.2s ease;
-  letter-spacing: 0.5px;
-  box-sizing: border-box;
-  line-height: 1.1;
-  margin: 0;
-  width: 22px;
-  height: 22px;
-  min-width: 22px;
-  min-height: 22px;
-  flex-shrink: 0;
-}
-
-.star-board-button:hover {
-  background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
-}
-
-.toolbar-star-button:hover {
-  background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
-}
-
+/* Starred state for star button */
 .star-board-button.starred {
-  background: #6B7280;
-  color: white;
+  background: var(--tool-bg);
+  border-color: #eab308;
+  color: #eab308;
 }
 
 .star-board-button.starred:hover {
-  background: #4B5563;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  background: rgba(234, 179, 8, 0.1);
 }
 
 .star-board-button:disabled {
@@ -484,15 +431,15 @@
 }
 
 /* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .dashboard-container {
+
+html.dark .dashboard-container {
     background: #1a1a1a;
   }
   
   .dashboard-header,
   .starred-boards-section,
   .quick-actions-section,
-  .auth-required {
+html.dark .auth-required {
     background: #2d2d2d;
     color: #e9ecef;
   }
@@ -501,53 +448,53 @@
   .section-header h2,
   .quick-actions-section h2,
   .board-title,
-  .action-card h3 {
+html.dark .action-card h3 {
     color: #e9ecef;
   }
   
   .dashboard-header p,
   .empty-state,
   .board-meta,
-  .action-card p {
+html.dark .action-card p {
     color: #adb5bd;
   }
   
   .board-card,
-  .action-card {
+html.dark .action-card {
     background: #3a3a3a;
     border-color: #495057;
   }
   
   .board-card:hover,
-  .action-card:hover {
+html.dark .action-card:hover {
     border-color: #6c757d;
   }
   
-  .board-slug {
+html.dark .board-slug {
     background: #495057;
     color: #adb5bd;
   }
   
-  .star-board-button {
+html.dark .star-board-button {
     background: linear-gradient(135deg, #63b3ed 0%, #3182ce 100%);
     color: white;
     border: none;
   }
   
-  .star-board-button:hover {
+html.dark .star-board-button:hover {
     background: linear-gradient(135deg, #3182ce 0%, #2c5282 100%);
     color: white;
     transform: translateY(-1px);
     box-shadow: 0 2px 8px rgba(99, 179, 237, 0.3);
   }
   
-  .star-board-button.starred {
+html.dark .star-board-button.starred {
     background: #6B7280;
     color: white;
     border: none;
   }
   
-  .star-board-button.starred:hover {
+html.dark .star-board-button.starred:hover {
     background: #4B5563;
     color: white;
     transform: translateY(-1px);
@@ -555,33 +502,32 @@
   }
   
   /* Dark mode popup styles */
-  .star-popup-success {
+html.dark .star-popup-success {
     background: #1e4d2b;
     color: #d4edda;
     border: 1px solid #2d5a3d;
   }
   
-  .star-popup-error {
+html.dark .star-popup-error {
     background: #4a1e1e;
     color: #f8d7da;
     border: 1px solid #5a2d2d;
   }
   
-  .star-popup-info {
+html.dark .star-popup-info {
     background: #1e4a4a;
     color: #d1ecf1;
     border: 1px solid #2d5a5a;
   }
   
-  .board-screenshot {
+html.dark .board-screenshot {
     background: #495057;
     border-bottom-color: #6c757d;
   }
   
-  .screenshot-image {
+html.dark .screenshot-image {
     background: #495057;
   }
-}
 
 /* Responsive design */
 @media (max-width: 768px) {

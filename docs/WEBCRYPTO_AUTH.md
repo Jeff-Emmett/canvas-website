@@ -4,7 +4,7 @@ This document describes the complete WebCryptoAPI authentication system implemen
 
 ## Overview
 
-The WebCryptoAPI authentication system provides cryptographic authentication using ECDSA P-256 key pairs, challenge-response authentication, and secure key storage. It integrates with the existing ODD (Open Data Directory) framework while providing a fallback authentication mechanism.
+The WebCryptoAPI authentication system provides cryptographic authentication using ECDSA P-256 key pairs, challenge-response authentication, and secure key storage. This is the primary authentication mechanism for the application.
 
 ## Architecture
 
@@ -23,13 +23,14 @@ The WebCryptoAPI authentication system provides cryptographic authentication usi
    - User registration and login
    - Credential verification
 
-3. **Enhanced AuthService** (`src/lib/auth/authService.ts`)
-   - Integrates crypto authentication with ODD
-   - Fallback mechanisms
+3. **AuthService** (`src/lib/auth/authService.ts`)
+   - Simplified authentication service
    - Session management
+   - Integration with CryptoAuthService
 
 4. **UI Components**
-   - `CryptoLogin.tsx` - Cryptographic authentication UI
+   - `CryptID.tsx` - Cryptographic authentication UI
+   - `CryptoDebug.tsx` - Debug component for verification
    - `CryptoTest.tsx` - Test component for verification
 
 ## Features
@@ -41,7 +42,6 @@ The WebCryptoAPI authentication system provides cryptographic authentication usi
 - **Public Key Infrastructure**: Store and verify public keys
 - **Browser Support Detection**: Checks for WebCryptoAPI availability
 - **Secure Context Validation**: Ensures HTTPS requirement
-- **Fallback Authentication**: Works with existing ODD system
 - **Modern UI**: Responsive design with dark mode support
 - **Comprehensive Testing**: Test component for verification
 
@@ -86,7 +86,7 @@ const isValid = await crypto.verifySignature(publicKey, signature, challenge);
 
 ### Feature Detection
 ```typescript
-const hasWebCrypto = typeof window.crypto !== 'undefined' && 
+const hasWebCrypto = typeof window.crypto !== 'undefined' &&
                     typeof window.crypto.subtle !== 'undefined';
 const isSecure = window.isSecureContext;
 ```
@@ -98,26 +98,26 @@ const isSecure = window.isSecureContext;
 1. **Secure Context Requirement**: Only works over HTTPS
 2. **ECDSA P-256**: Industry-standard elliptic curve
 3. **Challenge-Response**: Prevents replay attacks
-4. **Key Storage**: Public keys stored securely
+4. **Key Storage**: Public keys stored securely in localStorage
 5. **Input Validation**: Username format validation
 6. **Error Handling**: Comprehensive error management
 
 ### ⚠️ Security Notes
 
-1. **Private Key Storage**: Currently simplified for demo purposes
-   - In production, use Web Crypto API's key storage
+1. **Private Key Storage**: Currently uses localStorage for demo purposes
+   - In production, consider using Web Crypto API's non-extractable keys
    - Consider hardware security modules (HSM)
    - Implement proper key derivation
 
-2. **Session Management**: 
-   - Integrates with existing ODD session system
-   - Consider implementing JWT tokens
-   - Add session expiration
+2. **Session Management**:
+   - Uses localStorage for session persistence
+   - Consider implementing JWT tokens for server-side verification
+   - Add session expiration and refresh logic
 
 3. **Network Security**:
    - All crypto operations happen client-side
    - No private keys transmitted over network
-   - Consider adding server-side verification
+   - Consider adding server-side signature verification
 
 ## Usage
 
@@ -146,9 +146,20 @@ import { useAuth } from './context/AuthContext';
 
 const { login, register } = useAuth();
 
-// The AuthService automatically tries crypto auth first,
-// then falls back to ODD authentication
+// AuthService automatically uses crypto auth
 const success = await login('username');
+```
+
+### Using the CryptID Component
+
+```typescript
+import CryptID from './components/auth/CryptID';
+
+// Render the authentication component
+<CryptID
+  onSuccess={() => console.log('Login successful')}
+  onCancel={() => console.log('Login cancelled')}
+/>
 ```
 
 ### Testing the Implementation
@@ -166,30 +177,41 @@ import CryptoTest from './components/auth/CryptoTest';
 src/
 ├── lib/
 │   ├── auth/
-│   │   ├── crypto.ts              # WebCryptoAPI wrapper
-│   │   ├── cryptoAuthService.ts   # High-level auth service
-│   │   ├── authService.ts         # Enhanced auth service
-│   │   └── account.ts             # User account management
+│   │   ├── crypto.ts                 # WebCryptoAPI wrapper
+│   │   ├── cryptoAuthService.ts      # High-level auth service
+│   │   ├── authService.ts            # Simplified auth service
+│   │   ├── sessionPersistence.ts     # Session storage utilities
+│   │   └── types.ts                  # TypeScript types
 │   └── utils/
-│       └── browser.ts             # Browser support detection
+│       └── browser.ts                # Browser support detection
 ├── components/
 │   └── auth/
-│       ├── CryptoLogin.tsx        # Crypto auth UI
-│       └── CryptoTest.tsx         # Test component
+│       ├── CryptID.tsx               # Main crypto auth UI
+│       ├── CryptoDebug.tsx           # Debug component
+│       └── CryptoTest.tsx            # Test component
+├── context/
+│   └── AuthContext.tsx               # React context for auth state
 └── css/
-    └── crypto-auth.css            # Styles for crypto components
+    └── crypto-auth.css               # Styles for crypto components
 ```
 
 ## Dependencies
 
 ### Required Packages
 - `one-webcrypto`: WebCryptoAPI polyfill (^1.0.3)
-- `@oddjs/odd`: Open Data Directory framework (^0.37.2)
 
 ### Browser APIs Used
 - `window.crypto.subtle`: WebCryptoAPI
-- `window.localStorage`: Key storage
+- `window.localStorage`: Key and session storage
 - `window.isSecureContext`: Security context check
+
+## Storage
+
+### localStorage Keys Used
+- `registeredUsers`: Array of registered usernames
+- `${username}_publicKey`: User's public key (Base64)
+- `${username}_authData`: Authentication data (challenge, signature, timestamp)
+- `session`: Current user session data
 
 ## Testing
 
@@ -208,6 +230,7 @@ src/
 - [x] User registration
 - [x] User login
 - [x] Credential verification
+- [x] Session persistence
 
 ## Troubleshooting
 
@@ -228,13 +251,13 @@ src/
    - Try refreshing the page
 
 4. **"Authentication failed"**
-   - Verify user exists
+   - Verify user exists in localStorage
    - Check stored credentials
    - Clear browser data and retry
 
 ### Debug Mode
 
-Enable debug logging by setting:
+Enable debug logging by opening the browser console:
 ```typescript
 localStorage.setItem('debug_crypto', 'true');
 ```
@@ -242,7 +265,7 @@ localStorage.setItem('debug_crypto', 'true');
 ## Future Enhancements
 
 ### Planned Improvements
-1. **Enhanced Key Storage**: Use Web Crypto API's key storage
+1. **Enhanced Key Storage**: Use Web Crypto API's non-extractable keys
 2. **Server-Side Verification**: Add server-side signature verification
 3. **Multi-Factor Authentication**: Add additional authentication factors
 4. **Key Rotation**: Implement automatic key rotation
@@ -253,6 +276,15 @@ localStorage.setItem('debug_crypto', 'true');
 2. **Threshold Cryptography**: Distributed key management
 3. **Post-Quantum Cryptography**: Prepare for quantum threats
 4. **Biometric Integration**: Add biometric authentication
+
+## Integration with Automerge Sync
+
+The authentication system works seamlessly with the Automerge-based real-time collaboration:
+
+- **User Identification**: Each user is identified by their username in Automerge
+- **Session Management**: Sessions persist across page reloads via localStorage
+- **Collaboration**: Authenticated users can join shared canvas rooms
+- **Privacy**: Only authenticated users can access canvas data
 
 ## Contributing
 
@@ -269,4 +301,4 @@ When contributing to the WebCryptoAPI authentication system:
 - [WebCryptoAPI Specification](https://www.w3.org/TR/WebCryptoAPI/)
 - [ECDSA Algorithm](https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm)
 - [P-256 Curve](https://en.wikipedia.org/wiki/NIST_Curve_P-256)
-- [Challenge-Response Authentication](https://en.wikipedia.org/wiki/Challenge%E2%80%93response_authentication) 
+- [Challenge-Response Authentication](https://en.wikipedia.org/wiki/Challenge%E2%80%93response_authentication)

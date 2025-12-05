@@ -1,5 +1,9 @@
+# Worker configuration
+# Note: This wrangler.toml is for the Worker backend only.
+# Pages deployment is configured separately in the Cloudflare dashboard.
+# Frontend (Vite) environment variables should be set in Cloudflare Pages dashboard.
 main = "worker/worker.ts"
-compatibility_date = "2024-07-01"
+compatibility_date = "2024-11-01"
 name = "jeffemmett-canvas"
 account_id = "0e7b3338d5278ed1b148e6456b940913"
 
@@ -7,6 +11,15 @@ account_id = "0e7b3338d5278ed1b148e6456b940913"
 # Environment variables are managed in Cloudflare Dashboard
 # Workers & Pages → jeffemmett-canvas → Settings → Variables
 DAILY_DOMAIN = "mycopunks.daily.co"
+
+# RunPod AI Service Configuration (defaults hardcoded in src/lib/clientConfig.ts)
+# These are documented here for reference - actual values are in the client code
+# to allow all users to access AI features without configuration
+# RUNPOD_API_KEY = "set via wrangler secret put"
+# RUNPOD_IMAGE_ENDPOINT_ID = "tzf1j3sc3zufsy"   # Automatic1111
+# RUNPOD_VIDEO_ENDPOINT_ID = "4jql4l7l0yw0f3"   # Wan2.2
+# RUNPOD_TEXT_ENDPOINT_ID = "03g5hz3hlo8gr2"    # vLLM
+# RUNPOD_WHISPER_ENDPOINT_ID = "lrtisuv8ixbtub" # Whisper
 
 [dev]
 port = 5172
@@ -28,6 +41,15 @@ bindings = [
 tag = "v1"
 new_classes = ["AutomergeDurableObject"]
 
+# Migration to handle transition from TldrawDurableObject to AutomergeDurableObject
+# This ensures existing TldrawDurableObject instances can continue working
+# while new connections use AutomergeDurableObject
+[[migrations]]
+tag = "v2"
+# Note: We keep TldrawDurableObject as a stub (extends AutomergeDurableObject)
+# so existing instances continue to work. New instances will use AutomergeDurableObject.
+# The stub class ensures backward compatibility during the transition period.
+
 [[r2_buckets]]
 binding = 'TLDRAW_BUCKET'
 bucket_name = 'jeffemmett-canvas'
@@ -35,6 +57,11 @@ bucket_name = 'jeffemmett-canvas'
 [[r2_buckets]]
 binding = 'BOARD_BACKUPS_BUCKET'
 bucket_name = 'board-backups'
+
+[[d1_databases]]
+binding = "CRYPTID_DB"
+database_name = "cryptid-auth"
+database_id = "placeholder-will-be-created"
 
 [observability]
 enabled = true
@@ -68,6 +95,11 @@ bucket_name = 'jeffemmett-canvas-preview'
 [[env.dev.r2_buckets]]
 binding = 'BOARD_BACKUPS_BUCKET'
 bucket_name = 'board-backups-preview'
+
+[[env.dev.d1_databases]]
+binding = "CRYPTID_DB"
+database_name = "cryptid-auth-dev"
+database_id = "placeholder-will-be-created-dev"
 
 [env.dev.triggers]
 crons = ["0 0 * * *"] # Run at midnight UTC every day 

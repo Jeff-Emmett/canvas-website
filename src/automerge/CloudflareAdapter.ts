@@ -48,7 +48,15 @@ export class CloudflareAdapter {
     // Focus on the store data which is what actually changes
     const storeData = doc.store || {}
     const storeKeys = Object.keys(storeData).sort()
-    const storeString = JSON.stringify(storeData, storeKeys)
+    
+    // CRITICAL FIX: JSON.stringify's second parameter when it's an array is a replacer
+    // that only includes those properties. We need to stringify the entire store object.
+    // To ensure stable ordering, create a new object with sorted keys
+    const sortedStore: any = {}
+    for (const key of storeKeys) {
+      sortedStore[key] = storeData[key]
+    }
+    const storeString = JSON.stringify(sortedStore)
     
     // Simple hash function (you could use a more sophisticated one if needed)
     let hash = 0
@@ -158,6 +166,7 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
   private websocket: WebSocket | null = null
   private roomId: string | null = null
   public peerId: PeerId | undefined = undefined
+  public sessionId: string | null = null  // Track our session ID
   private readyPromise: Promise<void>
   private readyResolve: (() => void) | null = null
   private keepAliveInterval: NodeJS.Timeout | null = null
@@ -167,12 +176,19 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
   private reconnectDelay: number = 1000
   private isConnecting: boolean = false
   private onJsonSyncData?: (data: any) => void
+  private onPresenceUpdate?: (userId: string, data: any, senderId?: string, userName?: string, userColor?: string) => void
 
-  constructor(workerUrl: string, roomId?: string, onJsonSyncData?: (data: any) => void) {
+  constructor(
+    workerUrl: string,
+    roomId?: string,
+    onJsonSyncData?: (data: any) => void,
+    onPresenceUpdate?: (userId: string, data: any, senderId?: string, userName?: string, userColor?: string) => void
+  ) {
     super()
     this.workerUrl = workerUrl
     this.roomId = roomId || 'default-room'
     this.onJsonSyncData = onJsonSyncData
+    this.onPresenceUpdate = onPresenceUpdate
     this.readyPromise = new Promise((resolve) => {
       this.readyResolve = resolve
     })
@@ -201,11 +217,13 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
     // Use the room ID from constructor or default
     // Add sessionId as a query parameter as required by AutomergeDurableObject
     const sessionId = peerId || `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    this.sessionId = sessionId  // Store our session ID for filtering echoes
+
     // Convert https:// to wss:// or http:// to ws://
     const protocol = this.workerUrl.startsWith('https://') ? 'wss://' : 'ws://'
     const baseUrl = this.workerUrl.replace(/^https?:\/\//, '')
     const wsUrl = `${protocol}${baseUrl}/connect/${this.roomId}?sessionId=${sessionId}`
-    
+
     this.isConnecting = true
     
     // Add a small delay to ensure the server is ready
@@ -252,17 +270,30 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
             } else {
               // Handle text messages (our custom protocol for backward compatibility)
               const message = JSON.parse(event.data)
-              console.log('🔌 CloudflareAdapter: Received WebSocket message:', message.type)
-              
+
+              // Only log non-presence messages to reduce console spam
+              if (message.type !== 'presence' && message.type !== 'pong') {
+                console.log('🔌 CloudflareAdapter: Received WebSocket message:', message.type)
+              }
+
               // Handle ping/pong messages for keep-alive
               if (message.type === 'ping') {
                 this.sendPong()
                 return
               }
-              
+
               // Handle test messages
               if (message.type === 'test') {
                 console.log('🔌 CloudflareAdapter: Received test message:', message.message)
+                return
+              }
+
+              // Handle presence updates from other clients
+              if (message.type === 'presence') {
+                // Pass senderId, userName, and userColor so we can create proper instance_presence records
+                if (this.onPresenceUpdate && message.userId && message.data) {
+                  this.onPresenceUpdate(message.userId, message.data, message.senderId, message.userName, message.userColor)
+                }
                 return
               }
               
@@ -275,14 +306,20 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
                   documentIdType: typeof message.documentId
                 })
                 
-                // JSON sync is deprecated - all data flows through Automerge sync protocol
-                // Old format content is converted server-side and saved to R2 in Automerge format
-                // Skip JSON sync messages - they should not be sent anymore
+                // JSON sync for real-time collaboration
+                // When we receive TLDraw changes from other clients, apply them locally
                 const isJsonDocumentData = message.data && typeof message.data === 'object' && message.data.store
-                
+
                 if (isJsonDocumentData) {
-                  console.warn('⚠️ CloudflareAdapter: Received JSON sync message (deprecated). Ignoring - all data should flow through Automerge sync protocol.')
-                  return // Don't process JSON sync messages
+                  console.log('📥 CloudflareAdapter: Received JSON sync message with store data')
+
+                  // Call the JSON sync callback to apply changes
+                  if (this.onJsonSyncData) {
+                    this.onJsonSyncData(message.data)
+                  } else {
+                    console.warn('⚠️ No JSON sync callback registered')
+                  }
+                  return // JSON sync handled
                 }
                 
                 // Validate documentId - Automerge requires a valid Automerge URL format
@@ -368,19 +405,42 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
   }
 
   send(message: Message): void {
+    // Only log non-presence messages to reduce console spam
+    if (message.type !== 'presence') {
+      console.log('📤 CloudflareAdapter.send() called:', {
+        messageType: message.type,
+        dataType: (message as any).data?.constructor?.name || typeof (message as any).data,
+        dataLength: (message as any).data?.byteLength || (message as any).data?.length,
+        documentId: (message as any).documentId,
+        hasTargetId: !!message.targetId,
+        hasSenderId: !!message.senderId
+      })
+    }
+
     if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
       // Check if this is a binary sync message from Automerge Repo
       if (message.type === 'sync' && (message as any).data instanceof ArrayBuffer) {
-        console.log('🔌 CloudflareAdapter: Sending binary sync message (Automerge protocol)')
+        console.log('📤 CloudflareAdapter: Sending binary sync message (Automerge protocol)', {
+          dataLength: (message as any).data.byteLength,
+          documentId: (message as any).documentId,
+          targetId: message.targetId
+        })
         // Send binary data directly for Automerge's native sync protocol
         this.websocket.send((message as any).data)
       } else if (message.type === 'sync' && (message as any).data instanceof Uint8Array) {
-        console.log('🔌 CloudflareAdapter: Sending Uint8Array sync message (Automerge protocol)')
+        console.log('📤 CloudflareAdapter: Sending Uint8Array sync message (Automerge protocol)', {
+          dataLength: (message as any).data.length,
+          documentId: (message as any).documentId,
+          targetId: message.targetId
+        })
         // Convert Uint8Array to ArrayBuffer and send
         this.websocket.send((message as any).data.buffer)
       } else {
         // Handle text-based messages (backward compatibility and control messages)
-        console.log('Sending WebSocket message:', message.type)
+        // Only log non-presence messages
+        if (message.type !== 'presence') {
+          console.log('📤 Sending WebSocket message:', message.type)
+        }
         // Debug: Log patch content if it's a patch message
         if (message.type === 'patch' && (message as any).patches) {
           console.log('🔍 Sending patches:', (message as any).patches.length, 'patches')
@@ -393,6 +453,13 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
           })
         }
         this.websocket.send(JSON.stringify(message))
+      }
+    } else {
+      if (message.type !== 'presence') {
+        console.warn('⚠️ CloudflareAdapter: Cannot send message - WebSocket not open', {
+          messageType: message.type,
+          readyState: this.websocket?.readyState
+        })
       }
     }
   }

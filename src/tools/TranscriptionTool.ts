@@ -4,7 +4,7 @@ import { getOpenAIConfig, isOpenAIConfigured } from "@/lib/clientConfig"
 import { findNonOverlappingPosition } from "@/utils/shapeCollisionUtils"
 
 export class TranscriptionTool extends StateNode {
-  static override id = "transcription"
+  static override id = "Transcription"
   static override initial = "idle"
 
   onSelect() {

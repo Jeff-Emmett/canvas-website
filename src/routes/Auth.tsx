@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import CryptoLogin from '../components/auth/CryptoLogin';
+import CryptID from '../components/auth/CryptID';
 import { useAuth } from '../context/AuthContext';
 
 export const Auth: React.FC = () => {
@@ -37,7 +37,7 @@ export const Auth: React.FC = () => {
 
   return (
     <div className="auth-page">
-      <CryptoLogin onSuccess={() => navigate('/')} />
+      <CryptID onSuccess={() => navigate('/')} />
     </div>
   );
 };

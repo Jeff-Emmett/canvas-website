@@ -125,7 +125,7 @@ export function Resilience() {
           <strong>Topic:</strong> Building Community Resilience in an Age of Crisis
         </p>
         <p>
-          <a href="/presentations">← Back to all presentations</a>
+          <a href="/presentations/">← Back to all presentations</a>
         </p>
       </div>
     </main>

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { pipeline, env } from '@xenova/transformers'
+import { transcribeWithRunPod } from '../lib/runpodApi'
+import { isRunPodConfigured } from '../lib/clientConfig'
 
 // Configure the transformers library
 env.allowRemoteModels = true
@@ -46,6 +48,44 @@ function detectAudioFormat(blob: Blob): Promise<string> {
     }
     reader.readAsArrayBuffer(blob.slice(0, 12))
   })
+}
+
+// Convert Float32Array audio data to WAV blob
+async function createWavBlob(audioData: Float32Array, sampleRate: number): Promise<Blob> {
+  const length = audioData.length
+  const buffer = new ArrayBuffer(44 + length * 2)
+  const view = new DataView(buffer)
+  
+  // WAV header
+  const writeString = (offset: number, string: string) => {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i))
+    }
+  }
+  
+  writeString(0, 'RIFF')
+  view.setUint32(4, 36 + length * 2, true)
+  writeString(8, 'WAVE')
+  writeString(12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * 2, true)
+  view.setUint16(32, 2, true)
+  view.setUint16(34, 16, true)
+  writeString(36, 'data')
+  view.setUint32(40, length * 2, true)
+  
+  // Convert float samples to 16-bit PCM
+  let offset = 44
+  for (let i = 0; i < length; i++) {
+    const sample = Math.max(-1, Math.min(1, audioData[i]))
+    view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true)
+    offset += 2
+  }
+  
+  return new Blob([buffer], { type: 'audio/wav' })
 }
 
 // Simple resampling function for audio data
@@ -103,6 +143,7 @@ interface UseWhisperTranscriptionOptions {
   enableAdvancedErrorHandling?: boolean
   modelOptions?: ModelOption[]
   autoInitialize?: boolean // If false, model will only load when startRecording is called
+  useRunPod?: boolean // If true, use RunPod WhisperX endpoint instead of local model (defaults to checking if RunPod is configured)
 }
 
 export const useWhisperTranscription = ({
@@ -112,8 +153,11 @@ export const useWhisperTranscription = ({
   enableStreaming = false,
   enableAdvancedErrorHandling = false,
   modelOptions,
-  autoInitialize = true // Default to true for backward compatibility
+  autoInitialize = true, // Default to true for backward compatibility
+  useRunPod = undefined // If undefined, auto-detect based on configuration
 }: UseWhisperTranscriptionOptions = {}) => {
+  // Auto-detect RunPod usage if not explicitly set
+  const shouldUseRunPod = useRunPod !== undefined ? useRunPod : isRunPodConfigured()
   const [isRecording, setIsRecording] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
@@ -161,6 +205,13 @@ export const useWhisperTranscription = ({
 
   // Initialize transcriber with optional advanced error handling
   const initializeTranscriber = useCallback(async () => {
+    // Skip model loading if using RunPod
+    if (shouldUseRunPod) {
+      console.log('🚀 Using RunPod WhisperX endpoint - skipping local model loading')
+      setModelLoaded(true) // Mark as "loaded" since we don't need a local model
+      return null
+    }
+    
     if (transcriberRef.current) return transcriberRef.current
     
     try {
@@ -432,19 +483,33 @@ export const useWhisperTranscription = ({
       
       console.log(`🎵 Real-time audio: ${processedAudioData.length} samples (${(processedAudioData.length / 16000).toFixed(2)}s)`)
       
-      // Transcribe with parameters optimized for real-time processing
-      const result = await transcriberRef.current(processedAudioData, {
-        language: language,
-        task: 'transcribe',
-        return_timestamps: false,
-        chunk_length_s: 5,        // Longer chunks for better context
-        stride_length_s: 2,       // Larger stride for better coverage
-        no_speech_threshold: 0.3, // Higher threshold to reduce noise
-        logprob_threshold: -0.8,  // More sensitive detection
-        compression_ratio_threshold: 2.0 // More permissive for real-time
-      })
+      let transcriptionText = ''
       
-      const transcriptionText = result?.text || ''
+      // Use RunPod if configured, otherwise use local model
+      if (shouldUseRunPod) {
+        console.log('🚀 Using RunPod WhisperX API for real-time transcription...')
+        // Convert processed audio data back to blob for RunPod
+        const wavBlob = await createWavBlob(processedAudioData, 16000)
+        transcriptionText = await transcribeWithRunPod(wavBlob, language)
+      } else {
+        // Use local Whisper model
+        if (!transcriberRef.current) {
+          console.log('⚠️ Transcriber not available for real-time processing')
+          return
+        }
+        const result = await transcriberRef.current(processedAudioData, {
+          language: language,
+          task: 'transcribe',
+          return_timestamps: false,
+          chunk_length_s: 5,        // Longer chunks for better context
+          stride_length_s: 2,       // Larger stride for better coverage
+          no_speech_threshold: 0.3, // Higher threshold to reduce noise
+          logprob_threshold: -0.8,  // More sensitive detection
+          compression_ratio_threshold: 2.0 // More permissive for real-time
+        })
+        
+        transcriptionText = result?.text || ''
+      }
       if (transcriptionText.trim()) {
         lastTranscriptionTimeRef.current = Date.now()
         console.log(`✅ Real-time transcript: "${transcriptionText.trim()}"`)
@@ -453,52 +518,62 @@ export const useWhisperTranscription = ({
       } else {
         console.log('⚠️ No real-time transcription text produced, trying fallback parameters...')
         
-        // Try with more permissive parameters for real-time processing
-        try {
-          const fallbackResult = await transcriberRef.current(processedAudioData, {
-            task: 'transcribe',
-            return_timestamps: false,
-            chunk_length_s: 3,        // Shorter chunks for fallback
-            stride_length_s: 1,       // Smaller stride for fallback
-            no_speech_threshold: 0.1, // Very low threshold for fallback
-            logprob_threshold: -1.2,  // Very sensitive for fallback
-            compression_ratio_threshold: 2.5 // Very permissive for fallback
-          })
-          
-          const fallbackText = fallbackResult?.text || ''
-          if (fallbackText.trim()) {
-            console.log(`✅ Fallback real-time transcript: "${fallbackText.trim()}"`)
-            lastTranscriptionTimeRef.current = Date.now()
-            handleStreamingTranscriptUpdate(fallbackText.trim())
-          } else {
-            console.log('⚠️ Fallback transcription also produced no text')
+        // Try with more permissive parameters for real-time processing (only for local model)
+        if (!shouldUseRunPod && transcriberRef.current) {
+          try {
+            const fallbackResult = await transcriberRef.current(processedAudioData, {
+              task: 'transcribe',
+              return_timestamps: false,
+              chunk_length_s: 3,        // Shorter chunks for fallback
+              stride_length_s: 1,       // Smaller stride for fallback
+              no_speech_threshold: 0.1, // Very low threshold for fallback
+              logprob_threshold: -1.2,  // Very sensitive for fallback
+              compression_ratio_threshold: 2.5 // Very permissive for fallback
+            })
+            
+            const fallbackText = fallbackResult?.text || ''
+            if (fallbackText.trim()) {
+              console.log(`✅ Fallback real-time transcript: "${fallbackText.trim()}"`)
+              lastTranscriptionTimeRef.current = Date.now()
+              handleStreamingTranscriptUpdate(fallbackText.trim())
+            } else {
+              console.log('⚠️ Fallback transcription also produced no text')
+            }
+          } catch (fallbackError) {
+            console.log('⚠️ Fallback transcription failed:', fallbackError)
           }
-        } catch (fallbackError) {
-          console.log('⚠️ Fallback transcription failed:', fallbackError)
         }
       }
       
     } catch (error) {
       console.error('❌ Error processing accumulated audio chunks:', error)
     }
-  }, [handleStreamingTranscriptUpdate, language])
+  }, [handleStreamingTranscriptUpdate, language, shouldUseRunPod])
 
   // Process recorded audio chunks (final processing)
   const processAudioChunks = useCallback(async () => {
-    if (!transcriberRef.current || audioChunksRef.current.length === 0) {
-      console.log('⚠️ No transcriber or audio chunks to process')
+    if (audioChunksRef.current.length === 0) {
+      console.log('⚠️ No audio chunks to process')
       return
     }
     
-    // Ensure model is loaded
-    if (!modelLoaded) {
-      console.log('⚠️ Model not loaded yet, waiting...')
-      try {
-        await initializeTranscriber()
-      } catch (error) {
-        console.error('❌ Failed to initialize transcriber:', error)
-        onError?.(error as Error)
+    // For local model, ensure transcriber is loaded
+    if (!shouldUseRunPod) {
+      if (!transcriberRef.current) {
+        console.log('⚠️ No transcriber available')
         return
+      }
+      
+      // Ensure model is loaded
+      if (!modelLoaded) {
+        console.log('⚠️ Model not loaded yet, waiting...')
+        try {
+          await initializeTranscriber()
+        } catch (error) {
+          console.error('❌ Failed to initialize transcriber:', error)
+          onError?.(error as Error)
+          return
+        }
       }
     }
 
@@ -588,24 +663,32 @@ export const useWhisperTranscription = ({
       
       console.log(`🎵 Processing audio: ${processedAudioData.length} samples (${(processedAudioData.length / 16000).toFixed(2)}s)`)
       
-      // Check if transcriber is available
-      if (!transcriberRef.current) {
-        console.error('❌ Transcriber not available for processing')
-        throw new Error('Transcriber not initialized')
+      console.log('🔄 Starting transcription...')
+      
+      let newText = ''
+      
+      // Use RunPod if configured, otherwise use local model
+      if (shouldUseRunPod) {
+        console.log('🚀 Using RunPod WhisperX API...')
+        // Convert processed audio data back to blob for RunPod
+        // Create a WAV blob from the Float32Array
+        const wavBlob = await createWavBlob(processedAudioData, 16000)
+        newText = await transcribeWithRunPod(wavBlob, language)
+        console.log('✅ RunPod transcription result:', newText)
+      } else {
+        // Use local Whisper model
+        if (!transcriberRef.current) {
+          throw new Error('Transcriber not initialized')
+        }
+        const result = await transcriberRef.current(processedAudioData, {
+          language: language,
+          task: 'transcribe',
+          return_timestamps: false
+        })
+        
+        console.log('🔍 Transcription result:', result)
+        newText = result?.text?.trim() || ''
       }
-      
-      console.log('🔄 Starting transcription with Whisper model...')
-      
-      // Transcribe the audio
-      const result = await transcriberRef.current(processedAudioData, {
-        language: language,
-        task: 'transcribe',
-        return_timestamps: false
-      })
-      
-      console.log('🔍 Transcription result:', result)
-      
-      const newText = result?.text?.trim() || ''
       if (newText) {
           const processedText = processTranscript(newText, enableStreaming)
           
@@ -631,18 +714,18 @@ export const useWhisperTranscription = ({
           }
       } else {
         console.log('⚠️ No transcription text produced')
-        console.log('🔍 Full transcription result object:', result)
         
-        // Try alternative transcription parameters
-        console.log('🔄 Trying alternative transcription parameters...')
-        try {
-          const altResult = await transcriberRef.current(processedAudioData, {
-            task: 'transcribe',
-            return_timestamps: false
-          })
-          console.log('🔍 Alternative transcription result:', altResult)
-          
-          if (altResult?.text?.trim()) {
+        // Try alternative transcription parameters (only for local model)
+        if (!shouldUseRunPod && transcriberRef.current) {
+          console.log('🔄 Trying alternative transcription parameters...')
+          try {
+            const altResult = await transcriberRef.current(processedAudioData, {
+              task: 'transcribe',
+              return_timestamps: false
+            })
+            console.log('🔍 Alternative transcription result:', altResult)
+            
+            if (altResult?.text?.trim()) {
             const processedAltText = processTranscript(altResult.text, enableStreaming)
             console.log('✅ Alternative transcription successful:', processedAltText)
             const currentTranscript = transcriptRef.current
@@ -658,8 +741,9 @@ export const useWhisperTranscription = ({
               previousTranscriptLengthRef.current = updatedTranscript.length
             }
           }
-        } catch (altError) {
-          console.log('⚠️ Alternative transcription also failed:', altError)
+          } catch (altError) {
+            console.log('⚠️ Alternative transcription also failed:', altError)
+          }
         }
       }
       
@@ -672,7 +756,7 @@ export const useWhisperTranscription = ({
     } finally {
       setIsTranscribing(false)
     }
-  }, [transcriberRef, language, onTranscriptUpdate, onError, enableStreaming, handleStreamingTranscriptUpdate, modelLoaded, initializeTranscriber])
+  }, [transcriberRef, language, onTranscriptUpdate, onError, enableStreaming, handleStreamingTranscriptUpdate, modelLoaded, initializeTranscriber, shouldUseRunPod])
 
   // Start recording
   const startRecording = useCallback(async () => {
@@ -680,10 +764,13 @@ export const useWhisperTranscription = ({
       console.log('🎤 Starting recording...')
       console.log('🔍 enableStreaming in startRecording:', enableStreaming)
       
-      // Ensure model is loaded before starting
-      if (!modelLoaded) {
+      // Ensure model is loaded before starting (skip for RunPod)
+      if (!shouldUseRunPod && !modelLoaded) {
         console.log('🔄 Model not loaded, initializing...')
         await initializeTranscriber()
+      } else if (shouldUseRunPod) {
+        // For RunPod, just mark as ready
+        setModelLoaded(true)
       }
       
       // Don't reset transcripts for continuous transcription - keep existing content
@@ -803,7 +890,7 @@ export const useWhisperTranscription = ({
       console.error('❌ Error starting recording:', error)
       onError?.(error as Error)
     }
-  }, [processAudioChunks, processAccumulatedAudioChunks, onError, enableStreaming, modelLoaded, initializeTranscriber])
+  }, [processAudioChunks, processAccumulatedAudioChunks, onError, enableStreaming, modelLoaded, initializeTranscriber, shouldUseRunPod])
 
   // Stop recording
   const stopRecording = useCallback(async () => {
@@ -892,9 +979,11 @@ export const useWhisperTranscription = ({
         periodicTranscriptionRef.current = null
       }
       
-      // Initialize the model if not already loaded
-      if (!modelLoaded) {
+      // Initialize the model if not already loaded (skip for RunPod)
+      if (!shouldUseRunPod && !modelLoaded) {
         await initializeTranscriber()
+      } else if (shouldUseRunPod) {
+        setModelLoaded(true)
       }
       
       await startRecording()
@@ -933,7 +1022,7 @@ export const useWhisperTranscription = ({
     if (autoInitialize) {
       initializeTranscriber().catch(console.warn)
     }
-  }, [initializeTranscriber, autoInitialize])
+  }, [initializeTranscriber, autoInitialize, shouldUseRunPod])
 
   // Cleanup on unmount
   useEffect(() => {

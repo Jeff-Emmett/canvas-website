@@ -25,6 +25,34 @@ export const PROVIDERS = [
 	// { id: 'google', name: 'Google', model: 'Gemeni 1.5 Flash', validate: (key: string) => true },
 ]
 
+// Ollama models available on the private AI server (no API key required)
+export const OLLAMA_MODELS = [
+	{
+		id: 'llama3.1:70b',
+		name: 'Llama 3.1 70B',
+		description: 'Best quality (GPT-4 level) - ~7s response',
+		size: '42 GB',
+	},
+	{
+		id: 'llama3.1:8b',
+		name: 'Llama 3.1 8B',
+		description: 'Fast & capable - ~1-2s response',
+		size: '4.9 GB',
+	},
+	{
+		id: 'qwen2.5-coder:7b',
+		name: 'Qwen 2.5 Coder 7B',
+		description: 'Optimized for code generation',
+		size: '4.7 GB',
+	},
+	{
+		id: 'llama3.2:3b',
+		name: 'Llama 3.2 3B',
+		description: 'Fastest responses - <1s',
+		size: '2.0 GB',
+	},
+]
+
 export const AI_PERSONALITIES = [
 	{
 		id: 'web-developer',
@@ -48,6 +76,7 @@ export const makeRealSettings = atom('make real settings', {
 		anthropic: '',
 		google: '',
 	},
+	ollamaModel: 'llama3.1:8b' as (typeof OLLAMA_MODELS)[number]['id'],
 	personality: 'web-developer' as (typeof AI_PERSONALITIES)[number]['id'],
 	prompts: {
 		system: SYSTEM_PROMPT,
@@ -66,6 +95,7 @@ export function applySettingsMigrations(settings: any) {
 			google: '',
 			...keys,
 		},
+		ollamaModel: 'llama3.1:8b' as (typeof OLLAMA_MODELS)[number]['id'],
 		personality: 'web-developer' as (typeof AI_PERSONALITIES)[number]['id'],
 		prompts: {
 			system: SYSTEM_PROMPT,

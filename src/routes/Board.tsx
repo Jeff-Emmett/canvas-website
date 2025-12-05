@@ -1,7 +1,7 @@
 import { useAutomergeSync } from "@/automerge/useAutomergeSync"
 import { AutomergeHandleProvider } from "@/context/AutomergeHandleContext"
 import { useMemo, useEffect, useState, useRef } from "react"
-import { Tldraw, Editor, TLShapeId, TLRecord } from "tldraw"
+import { Tldraw, Editor, TLShapeId, TLRecord, useTldrawUser, TLUserPreferences, IndexKey } from "tldraw"
 import { useParams } from "react-router-dom"
 import { ChatBoxTool } from "@/tools/ChatBoxTool"
 import { ChatBoxShape } from "@/shapes/ChatBoxShapeUtil"
@@ -30,21 +30,25 @@ import { SlideShape } from "@/shapes/SlideShapeUtil"
 import { makeRealSettings, applySettingsMigrations } from "@/lib/settings"
 import { PromptShapeTool } from "@/tools/PromptShapeTool"
 import { PromptShape } from "@/shapes/PromptShapeUtil"
-import { SharedPianoTool } from "@/tools/SharedPianoTool"
-import { SharedPianoShape } from "@/shapes/SharedPianoShapeUtil"
 import { ObsNoteTool } from "@/tools/ObsNoteTool"
 import { ObsNoteShape } from "@/shapes/ObsNoteShapeUtil"
 import { TranscriptionTool } from "@/tools/TranscriptionTool"
 import { TranscriptionShape } from "@/shapes/TranscriptionShapeUtil"
-import { FathomTranscriptTool } from "@/tools/FathomTranscriptTool"
-import { FathomTranscriptShape } from "@/shapes/FathomTranscriptShapeUtil"
 import { HolonTool } from "@/tools/HolonTool"
 import { HolonShape } from "@/shapes/HolonShapeUtil"
 import { FathomMeetingsTool } from "@/tools/FathomMeetingsTool"
 import { HolonBrowserShape } from "@/shapes/HolonBrowserShapeUtil"
 import { ObsidianBrowserShape } from "@/shapes/ObsidianBrowserShapeUtil"
 import { FathomMeetingsBrowserShape } from "@/shapes/FathomMeetingsBrowserShapeUtil"
-import { LocationShareShape } from "@/shapes/LocationShareShapeUtil"
+import { FathomNoteShape } from "@/shapes/FathomNoteShapeUtil"
+import { ImageGenShape } from "@/shapes/ImageGenShapeUtil"
+import { ImageGenTool } from "@/tools/ImageGenTool"
+import { VideoGenShape } from "@/shapes/VideoGenShapeUtil"
+import { VideoGenTool } from "@/tools/VideoGenTool"
+import { MultmuxTool } from "@/tools/MultmuxTool"
+import { MultmuxShape } from "@/shapes/MultmuxShapeUtil"
+// MycelialIntelligence moved to permanent UI bar - shape kept for backwards compatibility
+import { MycelialIntelligenceShape } from "@/shapes/MycelialIntelligenceShapeUtil"
 import {
   lockElement,
   unlockElement,
@@ -56,12 +60,60 @@ import { Collection, initializeGlobalCollections } from "@/collections"
 import { GraphLayoutCollection } from "@/graph/GraphLayoutCollection"
 import { GestureTool } from "@/GestureTool"
 import { CmdK } from "@/CmdK"
-import { OfflineIndicator } from "@/components/OfflineIndicator"
+import { setupMultiPasteHandler } from "@/utils/multiPasteHandler"
 
 
 import "react-cmdk/dist/cmdk.css"
 import "@/css/style.css"
 import "@/css/obsidian-browser.css"
+
+// Helper to validate and fix tldraw IndexKey format
+// tldraw uses fractional indexing where the first letter encodes integer part length:
+// - 'a' = 1-digit integer (a0-a9), 'b' = 2-digit (b10-b99), 'c' = 3-digit (c100-c999), etc.
+// - Optional fractional part can follow (a1V, a1V4rr, etc.)
+// Common invalid formats from old data: "b1" (b expects 2 digits but has 1)
+function sanitizeIndex(index: any): IndexKey {
+  if (!index || typeof index !== 'string' || index.length === 0) {
+    return 'a1' as IndexKey
+  }
+
+  // Must start with a letter
+  if (!/^[a-zA-Z]/.test(index)) {
+    return 'a1' as IndexKey
+  }
+
+  // Check fractional indexing rules for lowercase prefixes
+  const prefix = index[0]
+  const rest = index.slice(1)
+
+  if (prefix >= 'a' && prefix <= 'z') {
+    // Calculate expected minimum digit count: a=1, b=2, c=3, etc.
+    const expectedDigits = prefix.charCodeAt(0) - 'a'.charCodeAt(0) + 1
+
+    // Extract the integer part (leading digits)
+    const integerMatch = rest.match(/^(\d+)/)
+    if (!integerMatch) {
+      // No digits at all - invalid
+      return 'a1' as IndexKey
+    }
+
+    const integerPart = integerMatch[1]
+
+    // Check if integer part has correct number of digits for the prefix
+    if (integerPart.length < expectedDigits) {
+      // Invalid: "b1" has b (expects 2 digits) but only has 1 digit
+      // Convert to safe format
+      return 'a1' as IndexKey
+    }
+  }
+
+  // Check overall format: letter followed by alphanumeric
+  if (/^[a-zA-Z][a-zA-Z0-9]+$/.test(index)) {
+    return index as IndexKey
+  }
+
+  return 'a1' as IndexKey
+}
 
 const collections: Collection[] = [GraphLayoutCollection]
 import { useAuth } from "../context/AuthContext"
@@ -78,15 +130,17 @@ const customShapeUtils = [
   MycrozineTemplateShape,
   MarkdownShape,
   PromptShape,
-  SharedPianoShape,
   ObsNoteShape,
   TranscriptionShape,
-  FathomTranscriptShape,
   HolonShape,
   HolonBrowserShape,
   ObsidianBrowserShape,
   FathomMeetingsBrowserShape,
-  LocationShareShape,
+  FathomNoteShape, // Individual Fathom meeting notes created from FathomMeetingsBrowser
+  ImageGenShape,
+  VideoGenShape,
+  MultmuxShape,
+  MycelialIntelligenceShape, // Deprecated - kept for backwards compatibility
 ]
 const customTools = [
   ChatBoxTool,
@@ -96,18 +150,53 @@ const customTools = [
   MycrozineTemplateTool,
   MarkdownTool,
   PromptShapeTool,
-  SharedPianoTool,
   GestureTool,
   ObsNoteTool,
   TranscriptionTool,
-  FathomTranscriptTool,
   HolonTool,
   FathomMeetingsTool,
+  ImageGenTool,
+  VideoGenTool,
+  MultmuxTool,
 ]
+
+// Debug: Log tool and shape registration info
+// Custom tools and shapes registered
 
 export function Board() {
   const { slug } = useParams<{ slug: string }>()
-  
+
+  // Global error handler to suppress geometry errors from corrupted shapes
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      if (event.error?.message?.includes('nearest point') ||
+          event.error?.message?.includes('No nearest point') ||
+          event.message?.includes('nearest point')) {
+        console.warn('Suppressed geometry error from corrupted shape:', event.error?.message || event.message)
+        event.preventDefault()
+        event.stopPropagation()
+        return true
+      }
+    }
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (event.reason?.message?.includes('nearest point') ||
+          event.reason?.message?.includes('No nearest point')) {
+        console.warn('Suppressed geometry promise rejection:', event.reason?.message)
+        event.preventDefault()
+        return true
+      }
+    }
+
+    window.addEventListener('error', handleError)
+    window.addEventListener('unhandledrejection', handleUnhandledRejection)
+
+    return () => {
+      window.removeEventListener('error', handleError)
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection)
+    }
+  }, [])
+
   // Global wheel event handler to ensure scrolling happens on the hovered scrollable element
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
@@ -188,30 +277,106 @@ export function Board() {
     });
   }, [roomId])
 
+  // Generate a stable user ID that persists across sessions
+  const uniqueUserId = useMemo(() => {
+    if (!session.username) return undefined
+
+    // Use localStorage to persist user ID across sessions
+    const storageKey = `tldraw-user-id-${session.username}`
+    let userId = localStorage.getItem(storageKey)
+
+    if (!userId) {
+      // Create a new user ID if one doesn't exist
+      userId = `${session.username}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      localStorage.setItem(storageKey, userId)
+    }
+
+    return userId
+  }, [session.username])
+
+  // Generate a unique color for each user based on their userId
+  const generateUserColor = (userId: string): string => {
+    let hash = 0
+    for (let i = 0; i < userId.length; i++) {
+      hash = userId.charCodeAt(i) + ((hash << 5) - hash)
+    }
+    const hue = hash % 360
+    return `hsl(${hue}, 70%, 50%)`
+  }
+
+  // Get current dark mode state from DOM
+  const getColorScheme = (): 'light' | 'dark' => {
+    return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+  }
+
+  // Set up user preferences for TLDraw collaboration
+  const [userPreferences, setUserPreferences] = useState<TLUserPreferences>(() => ({
+    id: uniqueUserId || 'anonymous',
+    name: session.username || 'Anonymous',
+    color: uniqueUserId ? generateUserColor(uniqueUserId) : '#000000',
+    colorScheme: getColorScheme(),
+  }))
+
+  // Update user preferences when session changes
+  useEffect(() => {
+    if (uniqueUserId) {
+      setUserPreferences({
+        id: uniqueUserId,
+        name: session.username || 'Anonymous',
+        color: generateUserColor(uniqueUserId),
+        colorScheme: getColorScheme(),
+      })
+    }
+  }, [uniqueUserId, session.username])
+
+  // Listen for dark mode changes and update tldraw color scheme
+  useEffect(() => {
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'class') {
+          const newColorScheme = getColorScheme()
+          setUserPreferences(prev => ({
+            ...prev,
+            colorScheme: newColorScheme,
+          }))
+        }
+      })
+    })
+
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    })
+
+    return () => observer.disconnect()
+  }, [])
+
+  // Create the user object for TLDraw
+  const user = useTldrawUser({ userPreferences, setUserPreferences })
+
   const storeConfig = useMemo(
     () => ({
       uri: `${WORKER_URL}/connect/${roomId}`,
       assets: multiplayerAssetStore,
       shapeUtils: [...defaultShapeUtils, ...customShapeUtils],
       bindingUtils: [...defaultBindingUtils],
-      user: session.authed ? {
-        id: session.username,
-        name: session.username,
+      user: session.authed && uniqueUserId ? {
+        id: uniqueUserId,
+        name: session.username,  // Display name (can be duplicate)
       } : undefined,
     }),
-    [roomId, session.authed, session.username],
+    [roomId, session.authed, session.username, uniqueUserId],
   )
 
   // Use Automerge sync for all environments
   const storeWithHandle = useAutomergeSync(storeConfig)
-  const store = {
-    store: storeWithHandle.store,
+  const store = { 
+    store: storeWithHandle.store, 
     status: storeWithHandle.status,
+    ...('connectionStatus' in storeWithHandle ? { connectionStatus: storeWithHandle.connectionStatus } : {}),
     error: storeWithHandle.error
   }
-  const automergeHandle = storeWithHandle.handle
-  const connectionStatus = storeWithHandle.connectionStatus
-  const isOfflineReady = storeWithHandle.isOfflineReady
+  const automergeHandle = (storeWithHandle as any).handle
   const [editor, setEditor] = useState<Editor | null>(null)
 
   useEffect(() => {
@@ -226,6 +391,67 @@ export function Board() {
       makeRealSettings.set(migratedSettings)
     }
   }, [])
+
+  // Bring selected shapes to front when they become selected
+  useEffect(() => {
+    if (!editor) return
+
+    let lastSelectedIds: string[] = []
+
+    const handleSelectionChange = () => {
+      const selectedShapeIds = editor.getSelectedShapeIds()
+      
+      // Only bring to front if selection actually changed
+      const selectionChanged = 
+        selectedShapeIds.length !== lastSelectedIds.length ||
+        selectedShapeIds.some((id, index) => id !== lastSelectedIds[index])
+      
+      if (selectionChanged && selectedShapeIds.length > 0) {
+        try {
+          // Bring all selected shapes to the front by updating their index
+          // Note: sendToFront doesn't exist in this version of tldraw
+          const allShapes = editor.getCurrentPageShapes()
+          let highestIndex = 'a0'
+          for (const s of allShapes) {
+            if (s.index && typeof s.index === 'string' && s.index > highestIndex) {
+              highestIndex = s.index
+            }
+          }
+          // Update each selected shape's index
+          for (const id of selectedShapeIds) {
+            const shape = editor.getShape(id)
+            if (shape) {
+              const match = highestIndex.match(/^([a-z])(\d+)$/)
+              if (match) {
+                const letter = match[1]
+                const num = parseInt(match[2], 10)
+                const newIndex = num < 100 ? `${letter}${num + 1}` : `${String.fromCharCode(letter.charCodeAt(0) + 1)}1`
+                if (/^[a-z]\d+$/.test(newIndex)) {
+                  editor.updateShape({ id, type: shape.type, index: newIndex as any })
+                }
+              }
+            }
+          }
+          lastSelectedIds = [...selectedShapeIds]
+        } catch (error) {
+          // Silently fail if shapes don't exist or operation fails
+          // This prevents console spam if shapes are deleted during selection
+        }
+      } else if (!selectionChanged) {
+        // Update lastSelectedIds even if no action taken
+        lastSelectedIds = [...selectedShapeIds]
+      }
+    }
+
+    // Listen for selection changes (fires on any store change, but we filter for selection changes)
+    const unsubscribe = editor.addListener('change', handleSelectionChange)
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        ;(unsubscribe as () => void)()
+      }
+    }
+  }, [editor])
 
   // Remove the URL-based locking effect and replace with store-based initialization
   useEffect(() => {
@@ -362,22 +588,52 @@ export function Board() {
       }
       
       // Also check for shapes on other pages
-      const shapesOnOtherPages = storeShapes.filter((s: any) => s.parentId && s.parentId !== currentPageId)
+      // CRITICAL: Only count shapes that are DIRECT children of other pages, not frame/group children
+      const shapesOnOtherPages = storeShapes.filter((s: any) =>
+        s.parentId &&
+        s.parentId.startsWith('page:') && // Only page children
+        s.parentId !== currentPageId
+      )
       if (shapesOnOtherPages.length > 0) {
         console.log(`📊 Board: ${shapesOnOtherPages.length} shapes exist on other pages (not current page ${currentPageId})`)
         
         // Find which page has the most shapes
+        // CRITICAL: Only count shapes that are DIRECT children of pages, not frame/group children
         const pageShapeCounts = new Map<string, number>()
         storeShapes.forEach((s: any) => {
-          if (s.parentId) {
+          if (s.parentId && s.parentId.startsWith('page:')) {
             pageShapeCounts.set(s.parentId, (pageShapeCounts.get(s.parentId) || 0) + 1)
           }
         })
         
         // Also check for shapes with no parentId or invalid parentId
-        const shapesWithInvalidParent = storeShapes.filter((s: any) => !s.parentId || (s.parentId && !allPages.find((p: any) => p.id === s.parentId)))
+        // CRITICAL: Frame and group children have parentId like "frame:..." or "group:...", not page IDs
+        // Only consider a parentId invalid if:
+        // 1. It's missing/null/undefined
+        // 2. It references a page that doesn't exist (starts with "page:" but page not found)
+        // 3. It references a shape that doesn't exist (starts with "shape:" but shape not found)
+        // DO NOT consider frame/group parentIds as invalid!
+        const shapesWithInvalidParent = storeShapes.filter((s: any) => {
+          if (!s.parentId) return true // Missing parentId
+
+          // Check if it's a page reference
+          if (s.parentId.startsWith('page:')) {
+            // Only invalid if the page doesn't exist
+            return !allPages.find((p: any) => p.id === s.parentId)
+          }
+
+          // Check if it's a shape reference (frame, group, etc.)
+          if (s.parentId.startsWith('shape:')) {
+            // Check if the parent shape exists in the store
+            const parentShape = storeShapes.find((shape: any) => shape.id === s.parentId)
+            return !parentShape // Invalid if parent shape doesn't exist
+          }
+
+          // Any other format is invalid
+          return true
+        })
         if (shapesWithInvalidParent.length > 0) {
-          console.warn(`📊 Board: ${shapesWithInvalidParent.length} shapes have invalid or missing parentId. Fixing...`)
+          console.warn(`📊 Board: ${shapesWithInvalidParent.length} shapes have truly invalid or missing parentId. Fixing...`)
           // Fix shapes with invalid parentId by assigning them to current page
           // CRITICAL: Preserve x and y coordinates when fixing parentId
           // This prevents coordinates from being reset when patches come back from Automerge
@@ -387,33 +643,37 @@ export function Board() {
               // Fallback if store not available
               const fallbackX = (s.x !== undefined && typeof s.x === 'number' && !isNaN(s.x)) ? s.x : 0
               const fallbackY = (s.y !== undefined && typeof s.y === 'number' && !isNaN(s.y)) ? s.y : 0
-              return { ...s, parentId: currentPageId, x: fallbackX, y: fallbackY } as TLRecord
+              // CRITICAL: Sanitize index to prevent validation errors
+              return { ...s, parentId: currentPageId, x: fallbackX, y: fallbackY, index: sanitizeIndex(s.index) } as TLRecord
             }
-            
+
             const shapeFromStore = store.store.get(s.id)
             if (shapeFromStore && shapeFromStore.typeName === 'shape') {
               // CRITICAL: Get coordinates from store's current state (most reliable)
               // This ensures we preserve coordinates even if the shape object has been modified
               const storeX = (shapeFromStore as any).x
               const storeY = (shapeFromStore as any).y
-              const originalX = (typeof storeX === 'number' && !isNaN(storeX) && storeX !== null && storeX !== undefined) 
-                ? storeX 
+              const originalX = (typeof storeX === 'number' && !isNaN(storeX) && storeX !== null && storeX !== undefined)
+                ? storeX
                 : (s.x !== undefined && typeof s.x === 'number' && !isNaN(s.x) ? s.x : 0)
               const originalY = (typeof storeY === 'number' && !isNaN(storeY) && storeY !== null && storeY !== undefined)
                 ? storeY
                 : (s.y !== undefined && typeof s.y === 'number' && !isNaN(s.y) ? s.y : 0)
-              
-              // Create fixed shape with preserved coordinates
+
+              // Create fixed shape with preserved coordinates and sanitized index
               const fixed: any = { ...shapeFromStore, parentId: currentPageId }
               // CRITICAL: Always preserve coordinates - never reset to 0,0 unless truly missing
               fixed.x = originalX
               fixed.y = originalY
+              // CRITICAL: Sanitize index to prevent "Expected an index key" validation errors
+              fixed.index = sanitizeIndex(fixed.index)
               return fixed as TLRecord
             }
             // Fallback if shape not in store - preserve coordinates from s
             const fallbackX = (s.x !== undefined && typeof s.x === 'number' && !isNaN(s.x)) ? s.x : 0
             const fallbackY = (s.y !== undefined && typeof s.y === 'number' && !isNaN(s.y)) ? s.y : 0
-            return { ...s, parentId: currentPageId, x: fallbackX, y: fallbackY } as TLRecord
+            // CRITICAL: Sanitize index to prevent validation errors
+            return { ...s, parentId: currentPageId, x: fallbackX, y: fallbackY, index: sanitizeIndex(s.index) } as TLRecord
           })
           try {
             // CRITICAL: Use mergeRemoteChanges to prevent feedback loop
@@ -598,31 +858,81 @@ export function Board() {
     };
   }, [editor, roomId, store.store]);
 
-  // Handle Escape key to cancel active tool and return to hand tool
-  // Also prevent Escape from deleting shapes
+  // TLDraw has built-in undo/redo that works with the store
+  // No need for custom undo/redo manager - TLDraw handles it automatically
+
+  // Handle keyboard shortcuts for undo (Ctrl+Z) and redo (Ctrl+Y)
   useEffect(() => {
     if (!editor) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Only handle Escape key
-      if (event.key === 'Escape') {
-        // Check if the event target or active element is an input field or textarea
-        const target = event.target as HTMLElement;
-        const activeElement = document.activeElement;
-        const isInputFocused = (target && (
-          target.tagName === 'INPUT' ||
-          target.tagName === 'TEXTAREA' ||
-          (target instanceof HTMLElement && target.isContentEditable)
-        )) || (activeElement && (
-          activeElement.tagName === 'INPUT' ||
-          activeElement.tagName === 'TEXTAREA' ||
-          (activeElement instanceof HTMLElement && activeElement.isContentEditable)
-        ));
+      // Check if the event target or active element is an input field or textarea
+      const target = event.target as HTMLElement;
+      const activeElement = document.activeElement;
+      const isInputFocused = (target && (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      )) || (activeElement && (
+        activeElement.tagName === 'INPUT' ||
+        activeElement.tagName === 'TEXTAREA' ||
+        (activeElement instanceof HTMLElement && activeElement.isContentEditable)
+      ));
 
-        // If an input is focused, let it handle Escape (don't prevent default)
-        // This allows components like Obsidian notes to handle Escape for canceling edits
+      // Handle Ctrl+Z (Undo) - use TLDraw's built-in undo
+      if ((event.ctrlKey || event.metaKey) && event.key === 'z' && !event.shiftKey) {
+        // If an input is focused, let it handle Ctrl+Z (don't prevent default)
         if (isInputFocused) {
-          return; // Let the event propagate to the component's handler
+          return;
+        }
+
+        if (editor) {
+          event.preventDefault();
+          event.stopPropagation();
+          editor.undo();
+        }
+        return;
+      }
+
+      // Handle Ctrl+Y (Redo) or Ctrl+Shift+Z (Redo on some systems) - use TLDraw's built-in redo
+      if (
+        ((event.ctrlKey || event.metaKey) && event.key === 'y') ||
+        ((event.ctrlKey || event.metaKey) && event.key === 'z' && event.shiftKey)
+      ) {
+        // If an input is focused, let it handle Ctrl+Y (don't prevent default)
+        if (isInputFocused) {
+          return;
+        }
+
+        if (editor) {
+          event.preventDefault();
+          event.stopPropagation();
+          editor.redo();
+        }
+        return;
+      }
+
+      // Handle Escape key to cancel active tool and return to hand tool
+      // Also prevent Escape from deleting shapes, especially browser shapes
+      if (event.key === 'Escape') {
+        // If an input is focused, let it handle Escape (don't prevent default)
+        if (isInputFocused) {
+          return;
+        }
+
+        // Check if any selected shapes are browser shapes that should not be deleted
+        const selectedShapes = editor.getSelectedShapes();
+        const hasBrowserShape = selectedShapes.some(shape => 
+          shape.type === 'ObsidianBrowser' || 
+          shape.type === 'HolonBrowser' || 
+          shape.type === 'FathomMeetingsBrowser'
+        );
+
+        // Prevent deletion of browser shapes with Escape
+        if (hasBrowserShape) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
         }
 
         // Otherwise, prevent default to stop tldraw from deleting shapes
@@ -639,10 +949,18 @@ export function Board() {
     };
 
     document.addEventListener('keydown', handleKeyDown, true); // Use capture phase to intercept early
-    
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown, true);
     };
+  }, [editor, automergeHandle]);
+
+  // Set up multi-paste handler to support pasting multiple images/URLs at once
+  useEffect(() => {
+    if (!editor) return;
+
+    const cleanup = setupMultiPasteHandler(editor);
+    return cleanup;
   }, [editor]);
 
   // Only render Tldraw when store is ready and synced
@@ -660,7 +978,6 @@ export function Board() {
         <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div>Loading canvas...</div>
         </div>
-        <OfflineIndicator connectionStatus={connectionStatus} isOfflineReady={isOfflineReady} />
       </AutomergeHandleProvider>
     )
   }
@@ -670,6 +987,7 @@ export function Board() {
       <div style={{ position: "fixed", inset: 0 }}>
         <Tldraw
         store={store.store}
+        user={user}
         shapeUtils={[...defaultShapeUtils, ...customShapeUtils]}
         tools={customTools}
         components={components}
@@ -714,6 +1032,45 @@ export function Board() {
             ChangePropagator,
             ClickPropagator,
           ])
+
+          // Clean up corrupted shapes that cause "No nearest point found" errors
+          // This typically happens with draw/line shapes that have no points
+          try {
+            const allShapes = editor.getCurrentPageShapes()
+            const corruptedShapeIds: TLShapeId[] = []
+
+            for (const shape of allShapes) {
+              // Check draw and line shapes for missing/empty segments
+              if (shape.type === 'draw' || shape.type === 'line') {
+                const props = shape.props as any
+                // Draw shapes need segments with points
+                if (shape.type === 'draw') {
+                  if (!props.segments || props.segments.length === 0) {
+                    corruptedShapeIds.push(shape.id)
+                    continue
+                  }
+                  // Check if all segments have no points
+                  const hasPoints = props.segments.some((seg: any) => seg.points && seg.points.length > 0)
+                  if (!hasPoints) {
+                    corruptedShapeIds.push(shape.id)
+                  }
+                }
+                // Line shapes need points
+                if (shape.type === 'line') {
+                  if (!props.points || Object.keys(props.points).length === 0) {
+                    corruptedShapeIds.push(shape.id)
+                  }
+                }
+              }
+            }
+
+            if (corruptedShapeIds.length > 0) {
+              console.warn(`🧹 Removing ${corruptedShapeIds.length} corrupted shapes (draw/line with no points)`)
+              editor.deleteShapes(corruptedShapeIds)
+            }
+          } catch (error) {
+            console.error('Error cleaning up corrupted shapes:', error)
+          }
           
           // Set user preferences immediately if user is authenticated
           if (session.authed && session.username) {
@@ -739,11 +1096,11 @@ export function Board() {
           initializeGlobalCollections(editor, collections)
           // Note: User presence is configured through the useAutomergeSync hook above
           // The authenticated username should appear in the people section
+          // MycelialIntelligence is now a permanent UI bar - no shape creation needed
         }}
-      >
+        >
           <CmdK />
         </Tldraw>
-        <OfflineIndicator connectionStatus={connectionStatus} isOfflineReady={isOfflineReady} />
       </div>
     </AutomergeHandleProvider>
   )

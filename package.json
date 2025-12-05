@@ -3,8 +3,11 @@
 	"version": "1.0.0",
 	"description": "Jeff Emmett's personal website",
 	"type": "module",
+	"workspaces": [
+		"multmux/packages/*"
+	],
 	"scripts": {
-		"dev": "concurrently --kill-others --names client,worker --prefix-colors blue,red \"npm run dev:client\" \"npm run dev:worker:local\"",
+		"dev": "concurrently --kill-others --names client,worker,multmux --prefix-colors blue,red,magenta \"npm run dev:client\" \"npm run dev:worker:local\" \"npm run multmux:dev:server\"",
 		"dev:client": "vite --host 0.0.0.0 --port 5173",
 		"dev:worker": "wrangler dev --config wrangler.dev.toml --remote --port 5172",
 		"dev:worker:local": "wrangler dev --config wrangler.dev.toml --port 5172 --ip 0.0.0.0",
@@ -15,7 +18,12 @@
 		"deploy:pages": "tsc && vite build",
 		"deploy:worker": "wrangler deploy",
 		"deploy:worker:dev": "wrangler deploy --config wrangler.dev.toml",
-		"types": "tsc --noEmit"
+		"types": "tsc --noEmit",
+		"multmux:install": "npm install --workspaces",
+		"multmux:build": "npm run build --workspace=@multmux/server --workspace=@multmux/cli",
+		"multmux:dev:server": "npm run dev --workspace=@multmux/server",
+		"multmux:dev:cli": "npm run dev --workspace=@multmux/cli",
+		"multmux:start": "npm run start --workspace=@multmux/server"
 	},
 	"keywords": [],
 	"author": "Jeff Emmett",
@@ -29,15 +37,16 @@
 		"@chengsokdara/use-whisper": "^0.2.0",
 		"@daily-co/daily-js": "^0.60.0",
 		"@daily-co/daily-react": "^0.20.0",
-		"@oddjs/odd": "^0.37.2",
+		"@mdxeditor/editor": "^3.51.0",
 		"@tldraw/assets": "^3.15.4",
 		"@tldraw/tldraw": "^3.15.4",
 		"@tldraw/tlschema": "^3.15.4",
 		"@types/markdown-it": "^14.1.1",
 		"@types/marked": "^5.0.2",
 		"@uiw/react-md-editor": "^4.0.5",
-		"@vercel/analytics": "^1.2.2",
 		"@xenova/transformers": "^2.17.2",
+		"@xterm/addon-fit": "^0.10.0",
+		"@xterm/xterm": "^5.5.0",
 		"ai": "^4.1.0",
 		"ajv": "^8.17.1",
 		"cherry-markdown": "^0.8.57",
@@ -62,9 +71,9 @@
 		"react-markdown": "^10.1.0",
 		"react-router-dom": "^7.0.2",
 		"recoil": "^0.7.7",
+		"sharp": "^0.33.5",
 		"tldraw": "^3.15.4",
 		"use-whisper": "^0.0.1",
-		"vercel": "^39.1.1",
 		"webcola": "^3.4.0",
 		"webnative": "^0.36.3"
 	},
@@ -84,6 +93,11 @@
 		"wrangler": "^4.33.2"
 	},
 	"engines": {
-		"node": ">=18.0.0"
+		"node": ">=20.0.0"
+	},
+	"overrides": {
+		"@xenova/transformers": {
+			"sharp": "0.33.5"
+		}
 	}
 }
