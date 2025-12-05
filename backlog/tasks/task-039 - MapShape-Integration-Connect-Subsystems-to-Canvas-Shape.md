@@ -4,7 +4,7 @@ title: 'MapShape Integration: Connect Subsystems to Canvas Shape'
 status: In Progress
 assignee: []
 created_date: '2025-12-05 02:12'
-updated_date: '2025-12-05 02:28'
+updated_date: '2025-12-05 02:35'
 labels:
   - feature
   - mapping
@@ -89,4 +89,6 @@ Evolve MapShapeUtil.tsx to integrate the 6 implemented subsystems (privacy, myce
 ### Still TODO:
 - Discovery system anchor visualization
 - Automerge sync for collaborative editing
+
+Phase 5: Automerge Sync Integration - Analyzing existing sync architecture. TLDraw shapes sync automatically via TLStoreToAutomerge.ts. MapShape props should already sync since they're part of the shape record.
 <!-- SECTION:NOTES:END -->
