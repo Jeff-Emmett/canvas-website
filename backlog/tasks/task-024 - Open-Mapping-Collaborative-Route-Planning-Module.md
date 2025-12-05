@@ -4,7 +4,7 @@ title: 'Open Mapping: Collaborative Route Planning Module'
 status: In Progress
 assignee: []
 created_date: '2025-12-04 14:30'
-updated_date: '2025-12-05 01:41'
+updated_date: '2025-12-05 03:45'
 labels:
   - feature
   - mapping
@@ -83,4 +83,11 @@ Phase 6 - Optimization:
 - OSRM backend deployment
 - UI components for all subsystems
 - Automerge sync for collaborative editing
+
+Pushed to feature/open-mapping branch:
+- MapShapeUtil for tldraw canvas integration
+- Presence layer with location sharing
+- Mycelium network visualization
+- Discovery system (spores, hunts, collectibles)
+- Privacy system with ZK-GPS protocol concepts
 <!-- SECTION:NOTES:END -->
