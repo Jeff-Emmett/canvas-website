@@ -4,7 +4,8 @@ import { useDialogs } from "tldraw"
 import { SettingsDialog } from "./SettingsDialog"
 import { getFathomApiKey, saveFathomApiKey, removeFathomApiKey, isFathomApiKeyConfigured } from "../lib/fathomApiKey"
 import { linkEmailToAccount, checkEmailStatus, type LookupResult } from "../lib/auth/cryptidEmailService"
-import { GoogleDataService, type GoogleService } from "../lib/google"
+import { GoogleDataService, type GoogleService, type ShareableItem } from "../lib/google"
+import { GoogleDataBrowser } from "../components/GoogleDataBrowser"
 
 // AI tool model configurations
 const AI_TOOLS = [
@@ -303,6 +304,17 @@ export function UserSettingsModal({ onClose, isDarkMode, onToggleDarkMode }: Use
 
   // Calculate total imported items
   const totalGoogleItems = Object.values(googleCounts).reduce((a, b) => a + b, 0)
+
+  // Handle adding items to canvas from Google Data Browser
+  const handleAddToCanvas = async (items: ShareableItem[], position: { x: number; y: number }) => {
+    // For now, emit a custom event that Board.tsx can listen to
+    // In Phase 3, this will add items to the Private Workspace zone
+    window.dispatchEvent(new CustomEvent('add-google-items-to-canvas', {
+      detail: { items, position }
+    }));
+    setShowGoogleDataBrowser(false);
+    onClose();
+  }
 
   // Handle escape key and click outside
   useEffect(() => {
@@ -975,6 +987,14 @@ export function UserSettingsModal({ onClose, isDarkMode, onToggleDarkMode }: Use
           )}
         </div>
       </div>
+
+      {/* Google Data Browser Modal */}
+      <GoogleDataBrowser
+        isOpen={showGoogleDataBrowser}
+        onClose={() => setShowGoogleDataBrowser(false)}
+        onAddToCanvas={handleAddToCanvas}
+        isDarkMode={isDarkMode}
+      />
     </div>
   )
 }
