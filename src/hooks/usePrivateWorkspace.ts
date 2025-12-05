@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Editor, createShapeId, TLShapeId } from 'tldraw'
 import { IPrivateWorkspaceShape, findPrivateWorkspace } from '../shapes/PrivateWorkspaceShapeUtil'
-import type { ShareableItem } from '../lib/google'
+import { IGoogleItemShape } from '../shapes/GoogleItemShapeUtil'
+import type { ShareableItem, GoogleService } from '../lib/google'
 
 const WORKSPACE_STORAGE_KEY = 'private-workspace-visible'
 
@@ -114,28 +115,34 @@ export function usePrivateWorkspace({ editor }: UsePrivateWorkspaceOptions) {
     // Calculate starting position inside workspace
     const startX = workspace.x + 20
     const startY = workspace.y + 60 // Below header
-    const itemSpacing = 100
+    const itemWidth = 220
+    const itemHeight = 90
+    const itemSpacingX = itemWidth + 10
+    const itemSpacingY = itemHeight + 10
+    const itemsPerRow = Math.max(1, Math.floor((workspace.props.w - 40) / itemSpacingX))
 
-    // Create placeholder shapes for each item
-    // In Phase 4, these will be proper PrivateItemShape with visibility tracking
+    // Create GoogleItem shapes for each item
     items.forEach((item, index) => {
       const itemId = createShapeId()
-      const col = index % 3
-      const row = Math.floor(index / 3)
+      const col = index % itemsPerRow
+      const row = Math.floor(index / itemsPerRow)
 
-      // For now, create text shapes as placeholders
-      // Phase 4 will replace with proper GoogleItemShape
-      editor.createShape({
+      // Create GoogleItem shape with privacy badge
+      editor.createShape<IGoogleItemShape>({
         id: itemId,
-        type: 'text',
-        x: startX + col * itemSpacing,
-        y: startY + row * itemSpacing,
+        type: 'GoogleItem',
+        x: startX + col * itemSpacingX,
+        y: startY + row * itemSpacingY,
         props: {
-          text: `🔒 ${item.title}`,
-          size: 's',
-          font: 'sans',
-          color: 'violet',
-          autoSize: true,
+          w: itemWidth,
+          h: item.thumbnailUrl ? 140 : itemHeight,
+          itemId: item.id,
+          service: item.service as GoogleService,
+          title: item.title,
+          preview: item.preview,
+          date: item.date,
+          thumbnailUrl: item.thumbnailUrl,
+          visibility: 'local', // Always start as local/private
         },
       })
     })
