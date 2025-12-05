@@ -230,6 +230,14 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("Multmux"),
       },
+      Map: {
+        id: "Map",
+        icon: "geo-globe",
+        label: "Map",
+        kbd: "ctrl+shift+m",
+        readonlyOk: true,
+        onSelect: () => editor.setCurrentTool("map"),
+      },
       // MycelialIntelligence removed - now a permanent UI bar (MycelialIntelligenceBar.tsx)
       hand: {
         ...tools.hand,

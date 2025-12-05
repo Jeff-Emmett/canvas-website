@@ -3,6 +3,7 @@
 import { AutoRouter, IRequest, error } from "itty-router"
 import throttle from "lodash.throttle"
 import { Environment } from "./types"
+import { AutomergeSyncManager } from "./automerge-sync-manager"
 
 // each whiteboard room is hosted in a DurableObject:
 // https://developers.cloudflare.com/durable-objects/
@@ -29,6 +30,17 @@ export class AutomergeDurableObject {
   private cachedR2Doc: any = null
   // Store the Automerge document ID for this room
   private automergeDocumentId: string | null = null
+  // CRDT Sync Manager - handles proper Automerge sync protocol
+  private syncManager: AutomergeSyncManager | null = null
+  // Flag to enable/disable CRDT sync (for gradual rollout)
+  // ENABLED: Automerge WASM now works with fixed import path
+  private useCrdtSync: boolean = true
+  // Tombstone tracking - keeps track of deleted shape IDs to prevent resurrection
+  // When a shape is deleted, its ID is added here and persisted to R2
+  // This prevents offline clients from resurrecting deleted shapes
+  private deletedShapeIds: Set<string> = new Set()
+  // Flag to track if tombstones have been loaded from R2
+  private tombstonesLoaded: boolean = false
 
   constructor(private readonly ctx: DurableObjectState, env: Environment) {
     this.r2 = env.TLDRAW_BUCKET
@@ -194,10 +206,26 @@ export class AutomergeDurableObject {
   // what happens when someone tries to connect to this room?
   async handleConnect(request: IRequest): Promise<Response> {
     console.log(`🔌 AutomergeDurableObject: Received connection request for room ${this.roomId}`)
-    
+    console.log(`🔌 AutomergeDurableObject: CRDT state: useCrdtSync=${this.useCrdtSync}, hasSyncManager=${!!this.syncManager}`)
+
     if (!this.roomId) {
       console.error(`❌ AutomergeDurableObject: Room not initialized`)
       return new Response("Room not initialized", { status: 400 })
+    }
+
+    // Initialize CRDT sync manager if not already done
+    if (this.useCrdtSync && !this.syncManager) {
+      console.log(`🔧 Initializing CRDT sync manager for room ${this.roomId}`)
+      this.syncManager = new AutomergeSyncManager(this.r2, this.roomId)
+      try {
+        await this.syncManager.initialize()
+        console.log(`✅ CRDT sync manager initialized (${this.syncManager.getShapeCount()} shapes)`)
+      } catch (error) {
+        console.error(`❌ Failed to initialize CRDT sync manager:`, error)
+        // Disable CRDT sync on initialization failure
+        this.useCrdtSync = false
+        this.syncManager = null
+      }
     }
 
     const sessionId = request.query.sessionId as string
@@ -255,6 +283,10 @@ export class AutomergeDurableObject {
       serverWebSocket.addEventListener("close", (event) => {
         console.log(`🔌 AutomergeDurableObject: Client disconnected: ${sessionId}, code: ${event.code}, reason: ${event.reason}`)
         this.clients.delete(sessionId)
+        // Clean up sync manager state for this peer
+        if (this.syncManager) {
+          this.syncManager.handlePeerDisconnect(sessionId)
+        }
       })
       
       // Handle WebSocket errors
@@ -298,8 +330,21 @@ export class AutomergeDurableObject {
           wasConvertedFromOldFormat: this.wasConvertedFromOldFormat
         })
         
-        // Automerge sync protocol will handle loading the document
-        // No JSON sync needed - everything goes through Automerge's native sync
+        // CRITICAL: Send initial sync message to client to bring them up to date
+        // This kicks off the Automerge sync protocol
+        if (this.useCrdtSync && this.syncManager) {
+          try {
+            const initialSyncMessage = await this.syncManager.generateSyncMessageForPeer(sessionId)
+            if (initialSyncMessage) {
+              serverWebSocket.send(initialSyncMessage)
+              console.log(`📤 Sent initial CRDT sync message to ${sessionId}: ${initialSyncMessage.byteLength} bytes`)
+            } else {
+              console.log(`ℹ️ No initial sync message needed for ${sessionId} (client may be up to date)`)
+            }
+          } catch (syncError) {
+            console.error(`❌ Error sending initial sync message to ${sessionId}:`, syncError)
+          }
+        }
       } catch (error) {
         console.error(`❌ AutomergeDurableObject: Error sending document to client ${sessionId}:`, error)
         console.error(`❌ AutomergeDurableObject: Error stack:`, error instanceof Error ? error.stack : 'No stack trace')
@@ -427,13 +472,56 @@ export class AutomergeDurableObject {
   private async handleBinaryMessage(sessionId: string, data: ArrayBuffer) {
     // Handle incoming binary Automerge sync data from client
     console.log(`🔌 Worker: Handling binary sync message from ${sessionId}, size: ${data.byteLength} bytes`)
-    
-    // Broadcast binary data directly to other clients for Automerge's native sync protocol
-    // Automerge Repo handles the binary sync protocol internally
-    this.broadcastBinaryToOthers(sessionId, data)
-    
-    // NOTE: Clients will periodically POST their document state to /room/:roomId
-    // which updates this.currentDoc and triggers persistence to R2
+
+    // Check if CRDT sync is enabled
+    if (this.useCrdtSync && this.syncManager) {
+      try {
+        // CRITICAL: Use proper CRDT sync protocol
+        // This ensures deletions and concurrent edits are merged correctly
+        const uint8Data = new Uint8Array(data)
+        const response = await this.syncManager.receiveSyncMessage(sessionId, uint8Data)
+
+        // Send response back to the client (if any)
+        if (response) {
+          const client = this.clients.get(sessionId)
+          if (client && client.readyState === WebSocket.OPEN) {
+            client.send(response)
+            console.log(`📤 Sent sync response to ${sessionId}: ${response.byteLength} bytes`)
+          }
+        }
+
+        // Broadcast changes to other connected clients
+        const broadcastMessages = await this.syncManager.generateBroadcastMessages(sessionId)
+        for (const [peerId, message] of broadcastMessages) {
+          const client = this.clients.get(peerId)
+          if (client && client.readyState === WebSocket.OPEN) {
+            client.send(message)
+            console.log(`📤 Broadcast sync to ${peerId}: ${message.byteLength} bytes`)
+          }
+        }
+
+        // CRITICAL: Keep currentDoc in sync with the CRDT document
+        // This ensures HTTP endpoints and other code paths see the latest state
+        const crdtDoc = await this.syncManager.getDocumentJson()
+        if (crdtDoc) {
+          this.currentDoc = crdtDoc
+          // Clear R2 cache since document has been updated via CRDT
+          this.cachedR2Doc = null
+          this.cachedR2Hash = null
+        }
+
+        console.log(`✅ CRDT sync processed for ${sessionId} (${this.syncManager.getShapeCount()} shapes)`)
+      } catch (error) {
+        console.error(`❌ CRDT sync error for ${sessionId}:`, error)
+        // Fall back to relay mode on error
+        this.broadcastBinaryToOthers(sessionId, data)
+      }
+    } else {
+      // Legacy mode: Broadcast binary data directly to other clients
+      // This is the old behavior that doesn't handle CRDT properly
+      console.log(`⚠️ Using legacy relay mode (CRDT sync disabled)`)
+      this.broadcastBinaryToOthers(sessionId, data)
+    }
   }
 
   private async handleSyncMessage(sessionId: string, message: any) {
@@ -588,10 +676,25 @@ export class AutomergeDurableObject {
   async getDocument() {
     if (!this.roomId) throw new Error("Missing roomId")
 
-    // CRITICAL: Always load from R2 first if we haven't loaded yet
-    // Don't return currentDoc if it was set by a client POST before R2 load
-    // This ensures we get all shapes from R2, not just what the client sent
-    
+    // CRDT MODE: If sync manager is active, return its document
+    // This ensures HTTP endpoints return the authoritative CRDT state
+    if (this.useCrdtSync && this.syncManager) {
+      try {
+        const crdtDoc = await this.syncManager.getDocumentJson()
+        if (crdtDoc && crdtDoc.store && Object.keys(crdtDoc.store).length > 0) {
+          const shapeCount = Object.values(crdtDoc.store).filter((r: any) => r?.typeName === 'shape').length
+          console.log(`📥 getDocument: Returning CRDT document (${shapeCount} shapes)`)
+          // Keep currentDoc in sync with CRDT state
+          this.currentDoc = crdtDoc
+          return crdtDoc
+        }
+        console.log(`⚠️ getDocument: CRDT document is empty, falling back to R2`)
+      } catch (error) {
+        console.error(`❌ getDocument: Error getting CRDT document:`, error)
+      }
+    }
+
+    // FALLBACK: Load from R2 JSON if CRDT is not available
     // If R2 load is in progress or completed, wait for it and return the result
     if (this.roomPromise) {
       const doc = await this.roomPromise
@@ -705,7 +808,11 @@ export class AutomergeDurableObject {
         this.currentDoc = initialDoc
         // Store conversion flag for JSON sync decision
         this.wasConvertedFromOldFormat = wasConverted
-        
+
+        // Load tombstones to prevent resurrection of deleted shapes
+        await this.loadTombstones()
+        console.log(`🪦 Tombstone state after load: ${this.deletedShapeIds.size} tombstones for room ${this.roomId}`)
+
         // Initialize the last persisted hash with the loaded document
         this.lastPersistedHash = this.generateDocHash(initialDoc)
         
@@ -1058,47 +1165,75 @@ export class AutomergeDurableObject {
         console.warn(`⚠️ R2 load failed, continuing with client update:`, e)
       }
     }
-    
+
+    // TOMBSTONE HANDLING: Load tombstones if not yet loaded
+    if (!this.tombstonesLoaded) {
+      await this.loadTombstones()
+    }
+
+    // Filter out tombstoned shapes from incoming document to prevent resurrection
+    let processedNewStore = newDoc?.store || {}
+    if (newDoc?.store && this.deletedShapeIds.size > 0) {
+      const { filteredStore, removedCount } = this.filterTombstonedShapes(newDoc.store)
+      if (removedCount > 0) {
+        console.log(`🪦 Filtered ${removedCount} tombstoned shapes from incoming update (preventing resurrection)`)
+        processedNewStore = filteredStore
+      }
+    }
+
     const oldShapeCount = this.currentDoc?.store ? Object.values(this.currentDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
-    const newShapeCount = newDoc?.store ? Object.values(newDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
-    
+    const newShapeCount = processedNewStore ? Object.values(processedNewStore).filter((r: any) => r?.typeName === 'shape').length : 0
+
     // Get list of old shape IDs to check if we're losing any
-    const oldShapeIds = this.currentDoc?.store ? 
+    const oldShapeIds = this.currentDoc?.store ?
       Object.values(this.currentDoc.store)
         .filter((r: any) => r?.typeName === 'shape')
         .map((r: any) => r.id) : []
-    const newShapeIds = newDoc?.store ?
-      Object.values(newDoc.store)
+    const newShapeIds = processedNewStore ?
+      Object.values(processedNewStore)
         .filter((r: any) => r?.typeName === 'shape')
         .map((r: any) => r.id) : []
-    
-    // CRITICAL: Replace the entire store with the client's document
+
+    // TOMBSTONE HANDLING: Detect deletions from current doc
+    // Shapes in current doc that aren't in the incoming doc are being deleted
+    let newDeletions = 0
+    if (this.currentDoc?.store && processedNewStore) {
+      newDeletions = this.detectDeletions(this.currentDoc.store, processedNewStore)
+      if (newDeletions > 0) {
+        console.log(`🪦 Detected ${newDeletions} new shape deletions, saving tombstones`)
+        // Save tombstones immediately to persist deletion tracking
+        await this.saveTombstones()
+      }
+    }
+
+    // CRITICAL: Replace the entire store with the processed client document
     // The client's document is authoritative and includes deletions
-    // This ensures that when shapes are deleted, they're actually removed
+    // Tombstoned shapes have already been filtered out to prevent resurrection
     // Clear R2 cache since document has been updated
     this.cachedR2Doc = null
     this.cachedR2Hash = null
-    
-    if (this.currentDoc && newDoc?.store) {
+
+    if (this.currentDoc && processedNewStore) {
       // Count records before update
       const recordsBefore = Object.keys(this.currentDoc.store || {}).length
-      
-      // Replace the entire store with the client's version (preserves deletions)
-      this.currentDoc.store = { ...newDoc.store }
-      
+
+      // Replace the entire store with the processed client's version
+      this.currentDoc.store = { ...processedNewStore }
+
       // Count records after update
       const recordsAfter = Object.keys(this.currentDoc.store).length
-      
+
       // Update schema if provided
       if (newDoc.schema) {
         this.currentDoc.schema = newDoc.schema
       }
-      
-      console.log(`📊 updateDocument: Replaced store with client document: ${recordsBefore} -> ${recordsAfter} records (client sent ${Object.keys(newDoc.store).length})`)
+
+      console.log(`📊 updateDocument: Replaced store with client document: ${recordsBefore} -> ${recordsAfter} records (client sent ${Object.keys(newDoc.store || {}).length}, after tombstone filter: ${Object.keys(processedNewStore).length})`)
     } else {
       // If no current doc yet, set it (R2 load should have completed by now)
-      console.log(`📊 updateDocument: No current doc, setting to new doc (${newShapeCount} shapes)`)
-      this.currentDoc = newDoc
+      // Use processed store which has tombstoned shapes filtered out
+      console.log(`📊 updateDocument: No current doc, setting to new doc (${newShapeCount} shapes after tombstone filter)`)
+      this.currentDoc = { ...newDoc, store: processedNewStore }
     }
     
     const finalShapeCount = this.currentDoc?.store ? Object.values(this.currentDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
@@ -1107,10 +1242,15 @@ export class AutomergeDurableObject {
         .filter((r: any) => r?.typeName === 'shape')
         .map((r: any) => r.id) : []
     
-    // Check for lost shapes
-    const lostShapes = oldShapeIds.filter(id => !finalShapeIds.includes(id))
+    // Check for lost shapes (excluding intentional deletions tracked as tombstones)
+    const lostShapes = oldShapeIds.filter(id => !finalShapeIds.includes(id) && !this.deletedShapeIds.has(id))
     if (lostShapes.length > 0) {
-      console.error(`❌ CRITICAL: Lost ${lostShapes.length} shapes during merge! Lost IDs:`, lostShapes)
+      console.error(`❌ CRITICAL: Lost ${lostShapes.length} shapes during merge (not tracked as deletions)! Lost IDs:`, lostShapes)
+    }
+    // Log intentional deletions separately (for debugging)
+    const intentionallyDeleted = oldShapeIds.filter(id => !finalShapeIds.includes(id) && this.deletedShapeIds.has(id))
+    if (intentionallyDeleted.length > 0) {
+      console.log(`🪦 ${intentionallyDeleted.length} shapes intentionally deleted (tracked as tombstones)`)
     }
     
     if (finalShapeCount !== oldShapeCount) {
@@ -1667,7 +1807,21 @@ export class AutomergeDurableObject {
   // we throttle persistence so it only happens every 2 seconds, batching all updates
   schedulePersistToR2 = throttle(async () => {
     console.log(`📤 schedulePersistToR2 called for room ${this.roomId}`)
-    
+
+    // CRDT MODE: Sync manager handles all persistence to automerge.bin
+    // Skip JSON persistence when CRDT is active to avoid dual storage
+    if (this.useCrdtSync && this.syncManager) {
+      console.log(`📤 CRDT mode active - sync manager handles persistence to automerge.bin`)
+      // Force sync manager to save immediately
+      try {
+        await this.syncManager.forceSave()
+        console.log(`✅ CRDT document saved via sync manager`)
+      } catch (error) {
+        console.error(`❌ Error saving CRDT document:`, error)
+      }
+      return
+    }
+
     if (!this.roomId || !this.currentDoc) {
       console.log(`⚠️ Cannot persist to R2: roomId=${this.roomId}, currentDoc=${!!this.currentDoc}`)
       return
@@ -1845,5 +1999,125 @@ export class AutomergeDurableObject {
     // When worker requests document state, we'll respond via the existing POST endpoint
     // Clients should periodically send their document state, so this is mainly for logging
     console.log(`📡 Worker: Document state requested from ${sessionId} (clients should send via POST /room/:roomId)`)
+  }
+
+  // ==================== TOMBSTONE MANAGEMENT ====================
+  // These methods handle tracking deleted shapes to prevent resurrection
+  // when offline clients reconnect with stale data
+
+  /**
+   * Load tombstones from R2 storage
+   * Called during initialization to restore deleted shape tracking
+   */
+  private async loadTombstones(): Promise<void> {
+    if (this.tombstonesLoaded || !this.roomId) return
+
+    try {
+      const tombstoneKey = `rooms/${this.roomId}/tombstones.json`
+      const object = await this.r2.get(tombstoneKey)
+
+      if (object) {
+        const data = await object.json() as { deletedShapeIds: string[], lastUpdated: string }
+        this.deletedShapeIds = new Set(data.deletedShapeIds || [])
+        console.log(`🪦 Loaded ${this.deletedShapeIds.size} tombstones for room ${this.roomId}`)
+      } else {
+        console.log(`🪦 No tombstones found for room ${this.roomId}, starting fresh`)
+        this.deletedShapeIds = new Set()
+      }
+
+      this.tombstonesLoaded = true
+    } catch (error) {
+      console.error(`❌ Error loading tombstones for room ${this.roomId}:`, error)
+      this.deletedShapeIds = new Set()
+      this.tombstonesLoaded = true
+    }
+  }
+
+  /**
+   * Save tombstones to R2 storage
+   * Called after detecting deletions to persist the tombstone list
+   */
+  private async saveTombstones(): Promise<void> {
+    if (!this.roomId) return
+
+    try {
+      const tombstoneKey = `rooms/${this.roomId}/tombstones.json`
+      const data = {
+        deletedShapeIds: Array.from(this.deletedShapeIds),
+        lastUpdated: new Date().toISOString(),
+        count: this.deletedShapeIds.size
+      }
+
+      await this.r2.put(tombstoneKey, JSON.stringify(data), {
+        httpMetadata: { contentType: 'application/json' }
+      })
+
+      console.log(`🪦 Saved ${this.deletedShapeIds.size} tombstones for room ${this.roomId}`)
+    } catch (error) {
+      console.error(`❌ Error saving tombstones for room ${this.roomId}:`, error)
+    }
+  }
+
+  /**
+   * Detect deleted shapes by comparing old and new stores
+   * Adds newly deleted shape IDs to the tombstone set
+   * @returns Number of new deletions detected
+   */
+  private detectDeletions(oldStore: Record<string, any>, newStore: Record<string, any>): number {
+    let newDeletions = 0
+
+    // Find shapes that existed in oldStore but not in newStore
+    for (const id of Object.keys(oldStore)) {
+      const record = oldStore[id]
+      // Only track shape deletions (not camera, instance, etc.)
+      if (record?.typeName === 'shape' && !newStore[id]) {
+        if (!this.deletedShapeIds.has(id)) {
+          this.deletedShapeIds.add(id)
+          newDeletions++
+          console.log(`🪦 Detected deletion of shape: ${id}`)
+        }
+      }
+    }
+
+    return newDeletions
+  }
+
+  /**
+   * Filter out tombstoned shapes from a store
+   * Prevents resurrection of deleted shapes
+   * @returns Filtered store and count of shapes removed
+   */
+  private filterTombstonedShapes(store: Record<string, any>): {
+    filteredStore: Record<string, any>,
+    removedCount: number
+  } {
+    const filteredStore: Record<string, any> = {}
+    let removedCount = 0
+
+    for (const [id, record] of Object.entries(store)) {
+      // Check if this is a tombstoned shape
+      if (record?.typeName === 'shape' && this.deletedShapeIds.has(id)) {
+        removedCount++
+        console.log(`🪦 Blocking resurrection of tombstoned shape: ${id}`)
+      } else {
+        filteredStore[id] = record
+      }
+    }
+
+    return { filteredStore, removedCount }
+  }
+
+  /**
+   * Clear old tombstones that are older than the retention period
+   * Called periodically to prevent unbounded tombstone growth
+   * For now, we keep all tombstones - can add expiry logic later
+   */
+  private cleanupOldTombstones(): void {
+    // TODO: Implement tombstone expiry if needed
+    // For now, tombstones are permanent to ensure deleted shapes never return
+    // This is the safest approach for collaborative editing
+    if (this.deletedShapeIds.size > 10000) {
+      console.warn(`⚠️ Large tombstone count (${this.deletedShapeIds.size}) for room ${this.roomId}. Consider implementing expiry.`)
+    }
   }
 }

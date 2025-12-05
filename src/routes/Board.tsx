@@ -56,6 +56,9 @@ import { PrivateWorkspaceManager } from "@/components/PrivateWorkspaceManager"
 import { VisibilityChangeManager } from "@/components/VisibilityChangeManager"
 import { GoogleItemShape } from "@/shapes/GoogleItemShapeUtil"
 import { GoogleItemTool } from "@/tools/GoogleItemTool"
+// Open Mapping - OSM map shape for geographic visualization
+import { MapShape } from "@/shapes/MapShapeUtil"
+import { MapTool } from "@/tools/MapTool"
 import {
   lockElement,
   unlockElement,
@@ -68,6 +71,7 @@ import { GraphLayoutCollection } from "@/graph/GraphLayoutCollection"
 import { GestureTool } from "@/GestureTool"
 import { CmdK } from "@/CmdK"
 import { setupMultiPasteHandler } from "@/utils/multiPasteHandler"
+import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator"
 
 
 import "react-cmdk/dist/cmdk.css"
@@ -150,6 +154,7 @@ const customShapeUtils = [
   MycelialIntelligenceShape, // Deprecated - kept for backwards compatibility
   PrivateWorkspaceShape, // Private zone for Google Export data sovereignty
   GoogleItemShape, // Individual items from Google Export with privacy badges
+  MapShape, // Open Mapping - OSM map shape
 ]
 const customTools = [
   ChatBoxTool,
@@ -169,6 +174,7 @@ const customTools = [
   MultmuxTool,
   PrivateWorkspaceTool,
   GoogleItemTool,
+  MapTool, // Open Mapping - OSM map tool
 ]
 
 // Debug: Log tool and shape registration info
@@ -381,13 +387,13 @@ export function Board() {
 
   // Use Automerge sync for all environments
   const storeWithHandle = useAutomergeSync(storeConfig)
-  const store = { 
-    store: storeWithHandle.store, 
+  const store = {
+    store: storeWithHandle.store,
     status: storeWithHandle.status,
-    ...('connectionStatus' in storeWithHandle ? { connectionStatus: storeWithHandle.connectionStatus } : {}),
     error: storeWithHandle.error
   }
   const automergeHandle = (storeWithHandle as any).handle
+  const { connectionState, isNetworkOnline } = storeWithHandle
   const [editor, setEditor] = useState<Editor | null>(null)
 
   useEffect(() => {
@@ -1114,6 +1120,10 @@ export function Board() {
           <PrivateWorkspaceManager />
           <VisibilityChangeManager />
         </Tldraw>
+        <ConnectionStatusIndicator
+          connectionState={connectionState}
+          isNetworkOnline={isNetworkOnline}
+        />
       </div>
     </AutomergeHandleProvider>
   )
