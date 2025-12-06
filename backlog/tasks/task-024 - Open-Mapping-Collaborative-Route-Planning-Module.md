@@ -4,7 +4,7 @@ title: 'Open Mapping: Collaborative Route Planning Module'
 status: In Progress
 assignee: []
 created_date: '2025-12-04 14:30'
-updated_date: '2025-12-06 06:40'
+updated_date: '2025-12-06 07:22'
 labels:
   - feature
   - mapping
@@ -135,4 +135,22 @@ Fixed persistence issue with two changes:
 1. Server-side: handlePeerDisconnect now flushes pending saves immediately (prevents data loss on page close)
 
 2. Client-side: Changed merge strategy from 'local takes precedence' to 'server takes precedence' for initial load
+
+**D1 Database & Networking Fixes (2025-12-06):**
+- Added CRYPTID_DB D1 binding to wrangler.dev.toml
+- Applied schema.sql to local D1 database
+- All 25 SQL commands executed successfully
+- Networking API now working locally (returns 401 without auth as expected)
+- Added d1_persist=true to miniflare config for data persistence
+
+**CryptID Connections Feature:**
+- Enhanced CustomToolbar.tsx with "People in Canvas" section
+- Shows all tldraw collaborators with connection status colors
+- Green border = trusted, Yellow = connected, Grey = unconnected
+- Connect/Trust/Demote/Remove buttons for connection management
+- Uses tldraw useValue hook for reactive collaborator updates
+
+**Build Script Updates:**
+- Added NODE_OPTIONS="--max-old-space-size=8192" to build, deploy, deploy:pages scripts
+- Prevents memory issues during TypeScript compilation and Vite build
 <!-- SECTION:NOTES:END -->
