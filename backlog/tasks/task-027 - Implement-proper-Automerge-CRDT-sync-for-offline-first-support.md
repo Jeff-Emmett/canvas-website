@@ -4,7 +4,7 @@ title: Implement proper Automerge CRDT sync for offline-first support
 status: In Progress
 assignee: []
 created_date: '2025-12-04 21:06'
-updated_date: '2025-12-05 22:05'
+updated_date: '2025-12-06 06:55'
 labels:
   - offline-sync
   - crdt
@@ -83,4 +83,8 @@ Added safety mitigations for Automerge format conversion (commit f8092d8 on feat
 **Also fixed:**
 - Keyboard shortcuts dialog error (tldraw i18n objects)
 - Google Workspace integration now first in Settings > Integrations
+
+Fixed persistence issue: Modified handlePeerDisconnect to flush pending saves and updated client-side merge strategy in useAutomergeSyncRepo.ts to properly bootstrap from server when local is empty while preserving offline changes
+
+Fixed TypeScript errors in networking module: corrected useSession->useAuth import, added myConnections to NetworkGraph type, fixed GraphEdge type alignment between client and worker
 <!-- SECTION:NOTES:END -->
