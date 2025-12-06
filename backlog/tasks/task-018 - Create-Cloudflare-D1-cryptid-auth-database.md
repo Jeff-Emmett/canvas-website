@@ -1,10 +1,10 @@
 ---
 id: task-018
 title: Create Cloudflare D1 cryptid-auth database
-status: To Do
+status: Done
 assignee: []
 created_date: '2025-12-04 12:02'
-updated_date: '2025-12-04 12:27'
+updated_date: '2025-12-06 06:39'
 labels:
   - infrastructure
   - cloudflare
@@ -108,4 +108,11 @@ git commit -m "chore: add D1 database IDs for cryptid-auth"
 Feature branch: `feature/cryptid-email-recovery`
 
 Code is ready - waiting for D1 database creation
+
+Schema deployed to production D1 (35fbe755-0e7c-4b9a-a454-34f945e5f7cc)
+
+Tables created:
+- users, device_keys, verification_tokens (CryptID auth)
+- boards, board_permissions (permissions system)
+- user_profiles, user_connections, connection_metadata (social graph)
 <!-- SECTION:NOTES:END -->
