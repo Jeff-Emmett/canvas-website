@@ -1,6 +1,29 @@
 import { AutoRouter, cors, error, IRequest } from "itty-router"
 import { handleAssetDownload, handleAssetUpload } from "./assetUploads"
 import { Environment } from "./types"
+import {
+  searchUsers,
+  getUserProfile,
+  updateMyProfile,
+  createConnection,
+  updateConnectionTrust,
+  removeConnection,
+  getMyConnections,
+  getMyFollowers,
+  checkConnection,
+  updateEdgeMetadata,
+  getEdgeMetadata,
+  getNetworkGraph,
+  getRoomNetworkGraph,
+  getMutualConnections,
+} from "./networkingApi"
+import {
+  handleGetPermission,
+  handleListPermissions,
+  handleGrantPermission,
+  handleRevokePermission,
+  handleUpdateBoard,
+} from "./boardPermissions"
 
 // make sure our sync durable objects are made available to cloudflare
 export { AutomergeDurableObject } from "./AutomergeDurableObject"
@@ -81,7 +104,7 @@ const { preflight, corsify } = cors({
     // If no match found, return * to allow all origins
     return "*"
   },
-  allowMethods: ["GET", "POST", "HEAD", "OPTIONS", "UPGRADE"],
+  allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "UPGRADE"],
   allowHeaders: [
     "Content-Type",
     "Authorization",
@@ -96,6 +119,9 @@ const { preflight, corsify } = cors({
     "Range",
     "If-None-Match",
     "If-Modified-Since",
+    "X-CryptID-PublicKey",  // CryptID authentication header
+    "X-User-Id",            // User ID header for networking API
+    "X-Api-Key",            // API key header for external services
     "*"
   ],
   maxAge: 86400,
@@ -761,10 +787,10 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
   .post("/fathom/webhook", async (req) => {
     try {
       const body = await req.json()
-      
+
       // Log the webhook for debugging
       console.log('Fathom webhook received:', JSON.stringify(body, null, 2))
-      
+
       // TODO: Verify webhook signature for security
       // For now, we'll accept all webhooks. In production, you should:
       // 1. Get the webhook secret from Fathom
@@ -777,17 +803,17 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
       //     headers: { 'Content-Type': 'application/json' }
       //   })
       // }
-      
+
       // Process the meeting data
       const meetingData = body as any
-      
+
       // Store meeting data for later retrieval
       // This could be stored in R2 or Durable Object storage
       console.log('Processing meeting:', meetingData.meeting_id)
-      
+
       // TODO: Store meeting data in R2 or send to connected clients
       // For now, just log it
-      
+
       return new Response(JSON.stringify({ success: true }), {
         headers: { 'Content-Type': 'application/json' }
       })
@@ -799,6 +825,57 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
       })
     }
   })
+
+  // =============================================================================
+  // User Networking / Social Graph API
+  // =============================================================================
+
+  // User search and profiles
+  .get("/api/networking/users/search", searchUsers)
+  .get("/api/networking/users/me", (req, env) => getUserProfile({ ...req, params: { userId: req.headers.get('X-User-Id') || '' } } as IRequest, env))
+  .put("/api/networking/users/me", updateMyProfile)
+  .get("/api/networking/users/:userId", getUserProfile)
+
+  // Connection management
+  .post("/api/networking/connections", createConnection)
+  .get("/api/networking/connections", getMyConnections)
+  .get("/api/networking/connections/followers", getMyFollowers)
+  .get("/api/networking/connections/check/:userId", checkConnection)
+  .get("/api/networking/connections/mutual/:userId", getMutualConnections)
+  .put("/api/networking/connections/:connectionId/trust", updateConnectionTrust)
+  .delete("/api/networking/connections/:connectionId", removeConnection)
+
+  // Edge metadata
+  .put("/api/networking/connections/:connectionId/metadata", updateEdgeMetadata)
+  .get("/api/networking/connections/:connectionId/metadata", getEdgeMetadata)
+
+  // Network graph
+  .get("/api/networking/graph", getNetworkGraph)
+  .post("/api/networking/graph/room", getRoomNetworkGraph)
+
+  // =============================================================================
+  // Board Permissions API
+  // =============================================================================
+
+  // Get current user's permission for a board
+  .get("/boards/:boardId/permission", (req, env) =>
+    handleGetPermission(req.params.boardId, req, env))
+
+  // List all permissions for a board (admin only)
+  .get("/boards/:boardId/permissions", (req, env) =>
+    handleListPermissions(req.params.boardId, req, env))
+
+  // Grant permission to a user (admin only)
+  .post("/boards/:boardId/permissions", (req, env) =>
+    handleGrantPermission(req.params.boardId, req, env))
+
+  // Revoke a user's permission (admin only)
+  .delete("/boards/:boardId/permissions/:userId", (req, env) =>
+    handleRevokePermission(req.params.boardId, req.params.userId, req, env))
+
+  // Update board settings (admin only)
+  .patch("/boards/:boardId", (req, env) =>
+    handleUpdateBoard(req.params.boardId, req, env))
 
 async function backupAllBoards(env: Environment) {
   try {

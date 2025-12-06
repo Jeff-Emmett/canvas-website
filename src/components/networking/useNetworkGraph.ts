@@ -1,0 +1,321 @@
+/**
+ * useNetworkGraph Hook
+ *
+ * Manages the network graph state for visualization:
+ * - Fetches user's network from the API
+ * - Integrates with room presence to mark active participants
+ * - Provides real-time updates when connections change
+ * - Caches graph for fast loading
+ */
+
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSession } from '../../context/AuthContext';
+import {
+  getMyNetworkGraph,
+  getRoomNetworkGraph,
+  createConnection,
+  removeConnection,
+  getCachedGraph,
+  setCachedGraph,
+  clearGraphCache,
+  type NetworkGraph,
+  type GraphNode,
+  type GraphEdge,
+} from '../../lib/networking';
+
+// =============================================================================
+// Types
+// =============================================================================
+
+export interface RoomParticipant {
+  id: string;
+  username: string;
+  color: string; // Presence color from tldraw
+}
+
+export interface NetworkGraphState {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  myConnections: string[];
+  isLoading: boolean;
+  error: string | null;
+}
+
+export interface UseNetworkGraphOptions {
+  // Room participants to highlight (from tldraw presence)
+  roomParticipants?: RoomParticipant[];
+  // Auto-refresh interval (ms), 0 to disable
+  refreshInterval?: number;
+  // Whether to use cached data initially
+  useCache?: boolean;
+}
+
+export interface UseNetworkGraphReturn extends NetworkGraphState {
+  // Refresh the graph from the server
+  refresh: () => Promise<void>;
+  // Connect to a user
+  connect: (userId: string) => Promise<void>;
+  // Disconnect from a user
+  disconnect: (connectionId: string) => Promise<void>;
+  // Check if connected to a user
+  isConnectedTo: (userId: string) => boolean;
+  // Get node by ID
+  getNode: (userId: string) => GraphNode | undefined;
+  // Get edges for a node
+  getEdgesForNode: (userId: string) => GraphEdge[];
+  // Nodes that are in the current room
+  roomNodes: GraphNode[];
+  // Nodes that are not in the room (shown in grey)
+  networkNodes: GraphNode[];
+}
+
+// =============================================================================
+// Hook Implementation
+// =============================================================================
+
+export function useNetworkGraph(options: UseNetworkGraphOptions = {}): UseNetworkGraphReturn {
+  const {
+    roomParticipants = [],
+    refreshInterval = 0,
+    useCache = true,
+  } = options;
+
+  const { session } = useSession();
+  const [state, setState] = useState<NetworkGraphState>({
+    nodes: [],
+    edges: [],
+    myConnections: [],
+    isLoading: true,
+    error: null,
+  });
+
+  // Create a map of room participant IDs to their colors
+  const participantColorMap = useMemo(() => {
+    const map = new Map<string, string>();
+    roomParticipants.forEach(p => map.set(p.id, p.color));
+    return map;
+  }, [roomParticipants]);
+
+  const participantIds = useMemo(() =>
+    roomParticipants.map(p => p.id),
+    [roomParticipants]
+  );
+
+  // Fetch the network graph
+  const fetchGraph = useCallback(async (skipCache = false) => {
+    if (!session.authed || !session.username) {
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: 'Not authenticated',
+      }));
+      return;
+    }
+
+    // Try cache first
+    if (useCache && !skipCache) {
+      const cached = getCachedGraph();
+      if (cached) {
+        setState(prev => ({
+          ...prev,
+          nodes: cached.nodes.map(n => ({
+            ...n,
+            isInRoom: participantIds.includes(n.id),
+            roomPresenceColor: participantColorMap.get(n.id),
+            isCurrentUser: n.username === session.username,
+          })),
+          edges: cached.edges,
+          myConnections: (cached as any).myConnections || [],
+          isLoading: false,
+          error: null,
+        }));
+        // Still fetch in background to update
+      }
+    }
+
+    try {
+      setState(prev => ({ ...prev, isLoading: !prev.nodes.length }));
+
+      // Fetch graph, optionally scoped to room
+      let graph: NetworkGraph;
+      if (participantIds.length > 0) {
+        graph = await getRoomNetworkGraph(participantIds);
+      } else {
+        graph = await getMyNetworkGraph();
+      }
+
+      // Enrich nodes with room status and current user flag
+      const enrichedNodes = graph.nodes.map(node => ({
+        ...node,
+        isInRoom: participantIds.includes(node.id),
+        roomPresenceColor: participantColorMap.get(node.id),
+        isCurrentUser: node.username === session.username,
+      }));
+
+      setState({
+        nodes: enrichedNodes,
+        edges: graph.edges,
+        myConnections: graph.myConnections,
+        isLoading: false,
+        error: null,
+      });
+
+      // Cache the result
+      setCachedGraph(graph);
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: (error as Error).message,
+      }));
+    }
+  }, [session.authed, session.username, participantIds, participantColorMap, useCache]);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchGraph();
+  }, [fetchGraph]);
+
+  // Refresh interval
+  useEffect(() => {
+    if (refreshInterval > 0) {
+      const interval = setInterval(() => fetchGraph(true), refreshInterval);
+      return () => clearInterval(interval);
+    }
+  }, [refreshInterval, fetchGraph]);
+
+  // Update room status when participants change
+  useEffect(() => {
+    setState(prev => ({
+      ...prev,
+      nodes: prev.nodes.map(node => ({
+        ...node,
+        isInRoom: participantIds.includes(node.id),
+        roomPresenceColor: participantColorMap.get(node.id),
+      })),
+    }));
+  }, [participantIds, participantColorMap]);
+
+  // Connect to a user
+  const connect = useCallback(async (userId: string) => {
+    try {
+      await createConnection(userId);
+      // Refresh the graph to get updated state
+      await fetchGraph(true);
+      clearGraphCache();
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        error: (error as Error).message,
+      }));
+      throw error;
+    }
+  }, [fetchGraph]);
+
+  // Disconnect from a user
+  const disconnect = useCallback(async (connectionId: string) => {
+    try {
+      await removeConnection(connectionId);
+      // Refresh the graph to get updated state
+      await fetchGraph(true);
+      clearGraphCache();
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        error: (error as Error).message,
+      }));
+      throw error;
+    }
+  }, [fetchGraph]);
+
+  // Check if connected to a user
+  const isConnectedTo = useCallback((userId: string) => {
+    return state.myConnections.includes(userId);
+  }, [state.myConnections]);
+
+  // Get node by ID
+  const getNode = useCallback((userId: string) => {
+    return state.nodes.find(n => n.id === userId);
+  }, [state.nodes]);
+
+  // Get edges for a node
+  const getEdgesForNode = useCallback((userId: string) => {
+    return state.edges.filter(e => e.source === userId || e.target === userId);
+  }, [state.edges]);
+
+  // Split nodes into room vs network
+  const roomNodes = useMemo(() =>
+    state.nodes.filter(n => n.isInRoom),
+    [state.nodes]
+  );
+
+  const networkNodes = useMemo(() =>
+    state.nodes.filter(n => !n.isInRoom),
+    [state.nodes]
+  );
+
+  return {
+    ...state,
+    refresh: () => fetchGraph(true),
+    connect,
+    disconnect,
+    isConnectedTo,
+    getNode,
+    getEdgesForNode,
+    roomNodes,
+    networkNodes,
+  };
+}
+
+// =============================================================================
+// Helper Hook: Extract room participants from tldraw editor
+// =============================================================================
+
+/**
+ * Extract room participants from tldraw collaborators
+ * Use this to get the roomParticipants for useNetworkGraph
+ */
+export function useRoomParticipantsFromEditor(editor: any): RoomParticipant[] {
+  const [participants, setParticipants] = useState<RoomParticipant[]>([]);
+
+  useEffect(() => {
+    if (!editor) return;
+
+    const updateParticipants = () => {
+      try {
+        const collaborators = editor.getCollaborators();
+        const currentUser = editor.user;
+
+        const ps: RoomParticipant[] = [
+          // Add current user
+          {
+            id: currentUser.getId(),
+            username: currentUser.getName(),
+            color: currentUser.getColor(),
+          },
+          // Add collaborators
+          ...collaborators.map((c: any) => ({
+            id: c.id || c.instanceId,
+            username: c.userName || 'Anonymous',
+            color: c.color,
+          })),
+        ];
+
+        setParticipants(ps);
+      } catch (e) {
+        console.warn('Failed to get collaborators:', e);
+      }
+    };
+
+    // Initial update
+    updateParticipants();
+
+    // Listen for changes
+    // Note: tldraw doesn't have a great event for this, so we poll
+    const interval = setInterval(updateParticipants, 2000);
+
+    return () => clearInterval(interval);
+  }, [editor]);
+
+  return participants;
+}

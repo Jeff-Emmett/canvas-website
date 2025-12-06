@@ -7,6 +7,7 @@ import { MycelialIntelligenceBar } from "./MycelialIntelligenceBar"
 import { CommandPalette } from "./CommandPalette"
 import { UserSettingsModal } from "./UserSettingsModal"
 import { GoogleExportBrowser } from "../components/GoogleExportBrowser"
+import { NetworkGraphPanel } from "../components/networking"
 import {
   DefaultKeyboardShortcutsDialog,
   DefaultKeyboardShortcutsDialogContent,
@@ -635,6 +636,7 @@ function CustomInFrontOfCanvas() {
       <MycelialIntelligenceBar />
       <FocusLockIndicator />
       <CommandPalette />
+      <NetworkGraphPanel />
     </>
   )
 }
