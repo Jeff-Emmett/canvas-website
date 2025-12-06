@@ -4,7 +4,7 @@ title: User Networking & Social Graph Visualization
 status: In Progress
 assignee: []
 created_date: '2025-12-06 06:17'
-updated_date: '2025-12-06 06:24'
+updated_date: '2025-12-06 06:38'
 labels:
   - feature
   - social
@@ -36,13 +36,13 @@ Architecture: Extends existing presence system in open-mapping/presence/ and tru
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 Users can search and add connections to other CryptIDs
-- [ ] #2 Connections persist across sessions in D1 database
-- [ ] #3 Bottom-right graph visualization shows room users and connections
+- [x] #1 Users can search and add connections to other CryptIDs
+- [x] #2 Connections persist across sessions in D1 database
+- [x] #3 Bottom-right graph visualization shows room users and connections
 - [ ] #4 3D graph at graph.jeffemmett.com is interactive (spin, zoom, click)
 - [ ] #5 Clicking edges allows defining relationship metadata
-- [ ] #6 Real-time updates when connections change
-- [ ] #7 Privacy-respecting (honors trust circle permissions)
+- [x] #6 Real-time updates when connections change
+- [x] #7 Privacy-respecting (honors trust circle permissions)
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -54,4 +54,36 @@ Design decisions made:
 - One-way following allowed (no acceptance required)
 - Graph scope: full network in grey, room participants colored by presence
 - Edge metadata private to the two connected parties
+
+Implementation complete:
+
+**Files Created:**
+- worker/schema.sql: Added user_profiles, user_connections, connection_metadata tables
+- worker/types.ts: Added TrustLevel, UserConnection, GraphEdge, NetworkGraph types
+- worker/networkingApi.ts: Full API implementation for connections, search, graph
+- src/lib/networking/types.ts: Client-side types with trust levels
+- src/lib/networking/connectionService.ts: API client
+- src/lib/networking/index.ts: Module exports
+- src/components/networking/useNetworkGraph.ts: React hook for graph state
+- src/components/networking/UserSearchModal.tsx: User search UI
+- src/components/networking/NetworkGraphMinimap.tsx: 2D force graph with d3
+- src/components/networking/NetworkGraphPanel.tsx: Tldraw integration wrapper
+- src/components/networking/index.ts: Component exports
+
+**Modified Files:**
+- worker/worker.ts: Added networking API routes
+- src/ui/components.tsx: Added NetworkGraphPanel to InFrontOfCanvas
+
+**Trust Levels:**
+- unconnected (grey): No permissions
+- connected (yellow): View permission
+- trusted (green): Edit permission
+
+**Features:**
+- One-way following (no acceptance required)
+- Trust level upgrade/downgrade
+- Edge metadata (private labels, notes, colors)
+- Room participants highlighted with presence colors
+- Full network shown in grey, room subset colored
+- Expandable to 3D view (future: graph.jeffemmett.com)
 <!-- SECTION:NOTES:END -->
