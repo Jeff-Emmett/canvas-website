@@ -123,6 +123,7 @@ export function useNetworkGraph(options: UseNetworkGraphOptions = {}): UseNetwor
             isInRoom: participantIds.includes(n.id),
             roomPresenceColor: participantColorMap.get(n.id),
             isCurrentUser: n.username === session.username,
+            isAnonymous: false,
           })),
           edges: cached.edges,
           myConnections: (cached as any).myConnections || [],
@@ -144,13 +145,39 @@ export function useNetworkGraph(options: UseNetworkGraphOptions = {}): UseNetwor
         graph = await getMyNetworkGraph();
       }
 
-      // Enrich nodes with room status and current user flag
+      // Enrich nodes with room status, current user flag, and anonymous status
+      const graphNodeIds = new Set(graph.nodes.map(n => n.id));
+
       const enrichedNodes = graph.nodes.map(node => ({
         ...node,
         isInRoom: participantIds.includes(node.id),
         roomPresenceColor: participantColorMap.get(node.id),
         isCurrentUser: node.username === session.username,
+        isAnonymous: false, // Nodes from the graph are authenticated
       }));
+
+      // Add room participants who are not in the network graph as anonymous nodes
+      roomParticipants.forEach(participant => {
+        if (!graphNodeIds.has(participant.id) && participant.id !== session.username) {
+          // Check if this looks like an anonymous/guest ID
+          const isAnonymous = participant.username.startsWith('Guest') ||
+                             participant.username === 'Anonymous' ||
+                             !participant.id.match(/^[a-zA-Z0-9_-]+$/); // CryptID usernames are alphanumeric
+
+          enrichedNodes.push({
+            id: participant.id,
+            username: participant.username,
+            displayName: participant.username,
+            avatarColor: participant.color,
+            isInRoom: true,
+            roomPresenceColor: participant.color,
+            isCurrentUser: false,
+            isAnonymous,
+            trustLevelTo: undefined,
+            trustLevelFrom: undefined,
+          });
+        }
+      });
 
       setState({
         nodes: enrichedNodes,
