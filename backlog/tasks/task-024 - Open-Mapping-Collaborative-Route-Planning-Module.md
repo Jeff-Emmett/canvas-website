@@ -4,7 +4,7 @@ title: 'Open Mapping: Collaborative Route Planning Module'
 status: In Progress
 assignee: []
 created_date: '2025-12-04 14:30'
-updated_date: '2025-12-05 05:35'
+updated_date: '2025-12-06 06:40'
 labels:
   - feature
   - mapping
@@ -129,4 +129,10 @@ Enhanced MapShapeUtil (1326 lines) with:
 - Pulse animation on user GPS marker
 - "Fit All" button to zoom to all GPS users
 - Route info badge when panel is closed
+
+Fixed persistence issue with two changes:
+
+1. Server-side: handlePeerDisconnect now flushes pending saves immediately (prevents data loss on page close)
+
+2. Client-side: Changed merge strategy from 'local takes precedence' to 'server takes precedence' for initial load
 <!-- SECTION:NOTES:END -->
