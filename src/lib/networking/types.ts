@@ -48,9 +48,14 @@ export type TrustLevel = 'connected' | 'trusted';
 
 /**
  * Color mapping for trust levels
+ * - anonymous: grey - not authenticated
+ * - unconnected: white - authenticated but not connected
+ * - connected: yellow - one-way or mutual connection (view access)
+ * - trusted: green - trusted connection (edit access)
  */
-export const TRUST_LEVEL_COLORS: Record<TrustLevel | 'unconnected', string> = {
-  unconnected: '#9ca3af', // grey
+export const TRUST_LEVEL_COLORS: Record<TrustLevel | 'unconnected' | 'anonymous', string> = {
+  anonymous: '#9ca3af',   // grey - not authenticated
+  unconnected: '#ffffff', // white - authenticated but not connected
   connected: '#eab308',   // yellow
   trusted: '#22c55e',     // green
 };
@@ -100,6 +105,14 @@ export interface ConnectionWithMetadata extends Connection {
   metadata?: EdgeMetadata;
 }
 
+/**
+ * Connection with profile information for the connected user
+ * Used in the connections list UI
+ */
+export interface UserConnectionWithProfile extends ConnectionWithMetadata {
+  toProfile?: UserProfile;
+}
+
 // =============================================================================
 // Graph Types (for visualization)
 // =============================================================================
@@ -119,6 +132,7 @@ export interface GraphNode {
   isInRoom: boolean;          // Currently in the same room
   roomPresenceColor?: string; // Color from room presence (if in room)
   isCurrentUser: boolean;     // Is this the logged-in user
+  isAnonymous: boolean;       // User is not authenticated (grey in graph)
 }
 
 /**

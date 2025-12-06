@@ -213,10 +213,32 @@ export async function getEdgeMetadata(connectionId: string): Promise<EdgeMetadat
 // =============================================================================
 
 /**
+ * Transform API edge format to client format
+ * API uses fromUserId/toUserId, client uses source/target for d3
+ */
+function transformEdge(edge: any): GraphEdge {
+  return {
+    id: edge.id,
+    source: edge.fromUserId || edge.source,
+    target: edge.toUserId || edge.target,
+    trustLevel: edge.trustLevel,
+    isMutual: edge.isMutual,
+    effectiveTrustLevel: edge.effectiveTrustLevel,
+    metadata: edge.metadata,
+    isVisible: true,
+  };
+}
+
+/**
  * Get the full network graph for current user
  */
 export async function getMyNetworkGraph(): Promise<NetworkGraph> {
-  return fetchJson<NetworkGraph>(`${API_BASE}/graph`);
+  const response = await fetchJson<any>(`${API_BASE}/graph`);
+  return {
+    nodes: response.nodes || [],
+    edges: (response.edges || []).map(transformEdge),
+    myConnections: response.myConnections || [],
+  };
 }
 
 /**
@@ -226,10 +248,15 @@ export async function getMyNetworkGraph(): Promise<NetworkGraph> {
 export async function getRoomNetworkGraph(
   roomParticipants: string[]
 ): Promise<NetworkGraph> {
-  return fetchJson<NetworkGraph>(`${API_BASE}/graph/room`, {
+  const response = await fetchJson<any>(`${API_BASE}/graph/room`, {
     method: 'POST',
     body: JSON.stringify({ participants: roomParticipants }),
   });
+  return {
+    nodes: response.nodes || [],
+    edges: (response.edges || []).map(transformEdge),
+    myConnections: response.myConnections || [],
+  };
 }
 
 /**
@@ -262,6 +289,7 @@ export function buildGraphNode(
     isInRoom: options.isInRoom,
     roomPresenceColor: options.roomPresenceColor,
     isCurrentUser: options.isCurrentUser,
+    isAnonymous: false, // Users with profiles are authenticated
   };
 }
 

@@ -712,12 +712,12 @@ export async function getNetworkGraph(request: IRequest, env: Environment): Prom
 
     const graphEdges: GraphEdge[] = (edges.results || []).map((e: any) => ({
       id: e.id,
-      source: e.fromUserId,
-      target: e.toUserId,
+      fromUserId: e.fromUserId,
+      toUserId: e.toUserId,
       trustLevel: e.trustLevel || 'connected',
+      createdAt: e.createdAt || new Date().toISOString(),
       effectiveTrustLevel: e.isMutual ? (e.trustLevel || 'connected') : null,
       isMutual: !!e.isMutual,
-      isVisible: true,
       metadata: (e.fromUserId === userId || e.toUserId === userId) && (e.label || e.notes || e.color || e.strength) ? {
         label: e.label,
         notes: e.notes,

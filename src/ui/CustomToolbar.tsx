@@ -2,7 +2,7 @@ import { TldrawUiMenuItem } from "tldraw"
 import { DefaultToolbar, DefaultToolbarContent } from "tldraw"
 import { useTools } from "tldraw"
 import { useEditor } from "tldraw"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { useDialogs } from "tldraw"
 import { SettingsDialog } from "./SettingsDialog"
 import { useAuth } from "../context/AuthContext"
@@ -16,6 +16,9 @@ import type { ObsidianObsNote } from "../lib/obsidianImporter"
 import { HolonData } from "../lib/HoloSphereService"
 import { FathomMeetingsPanel } from "../components/FathomMeetingsPanel"
 import { getFathomApiKey, saveFathomApiKey, removeFathomApiKey, isFathomApiKeyConfigured } from "../lib/fathomApiKey"
+import { getMyConnections, updateEdgeMetadata, createConnection, removeConnection, updateTrustLevel } from "../lib/networking/connectionService"
+import { TRUST_LEVEL_COLORS, type TrustLevel, type UserConnectionWithProfile, type EdgeMetadata } from "../lib/networking/types"
+import { useValue } from "tldraw"
 
 // AI tool model configurations for the dropdown
 const AI_TOOLS = [
@@ -59,10 +62,53 @@ export function CustomToolbar() {
   const [isDarkMode, setIsDarkMode] = useState(getDarkMode())
 
   // Dropdown section states
-  const [expandedSection, setExpandedSection] = useState<'none' | 'ai' | 'integrations'>('none')
+  const [expandedSection, setExpandedSection] = useState<'none' | 'ai' | 'integrations' | 'connections'>('none')
   const [hasFathomApiKey, setHasFathomApiKey] = useState(false)
   const [showFathomInput, setShowFathomInput] = useState(false)
   const [fathomKeyInput, setFathomKeyInput] = useState('')
+
+  // Connections state
+  const [connections, setConnections] = useState<UserConnectionWithProfile[]>([])
+  const [connectionsLoading, setConnectionsLoading] = useState(false)
+  const [editingConnectionId, setEditingConnectionId] = useState<string | null>(null)
+  const [editingMetadata, setEditingMetadata] = useState<Partial<EdgeMetadata>>({})
+  const [savingMetadata, setSavingMetadata] = useState(false)
+  const [connectingUserId, setConnectingUserId] = useState<string | null>(null)
+
+  // Get collaborators from tldraw
+  const collaborators = useValue(
+    'collaborators',
+    () => editor.getCollaborators(),
+    [editor]
+  )
+
+  // Canvas users with their connection status
+  interface CanvasUser {
+    id: string
+    name: string
+    color: string
+    connectionStatus: 'trusted' | 'connected' | 'unconnected'
+    connectionId?: string
+  }
+
+  const canvasUsers: CanvasUser[] = useMemo(() => {
+    if (!collaborators || collaborators.length === 0) return []
+
+    return collaborators.map((c: any) => {
+      const userId = c.userId || c.id || c.instanceId
+      const connection = connections.find(conn => conn.toUserId === userId)
+
+      return {
+        id: userId,
+        name: c.userName || 'Anonymous',
+        color: c.color || '#888888',
+        connectionStatus: connection
+          ? connection.trustLevel
+          : 'unconnected' as const,
+        connectionId: connection?.id,
+      }
+    })
+  }, [collaborators, connections])
 
   // Initialize dark mode on mount
   useEffect(() => {
@@ -75,6 +121,79 @@ export function CustomToolbar() {
       setHasFathomApiKey(isFathomApiKeyConfigured(session.username))
     }
   }, [session.authed, session.username])
+
+  // Fetch connections when section is expanded
+  useEffect(() => {
+    if (expandedSection === 'connections' && session.authed) {
+      setConnectionsLoading(true)
+      getMyConnections()
+        .then(setConnections)
+        .catch(console.error)
+        .finally(() => setConnectionsLoading(false))
+    }
+  }, [expandedSection, session.authed])
+
+  // Handle saving edge metadata
+  const handleSaveMetadata = async (connectionId: string) => {
+    setSavingMetadata(true)
+    try {
+      await updateEdgeMetadata(connectionId, editingMetadata)
+      // Refresh connections to show updated metadata
+      const updated = await getMyConnections()
+      setConnections(updated)
+      setEditingConnectionId(null)
+      setEditingMetadata({})
+    } catch (error) {
+      console.error('Failed to save metadata:', error)
+    } finally {
+      setSavingMetadata(false)
+    }
+  }
+
+  // Handle connecting to a canvas user
+  const handleConnect = async (userId: string, trustLevel: TrustLevel = 'connected') => {
+    setConnectingUserId(userId)
+    try {
+      await createConnection(userId, trustLevel)
+      // Refresh connections
+      const updated = await getMyConnections()
+      setConnections(updated)
+    } catch (error) {
+      console.error('Failed to connect:', error)
+    } finally {
+      setConnectingUserId(null)
+    }
+  }
+
+  // Handle disconnecting from a user
+  const handleDisconnect = async (connectionId: string, userId: string) => {
+    setConnectingUserId(userId)
+    try {
+      await removeConnection(connectionId)
+      // Refresh connections
+      const updated = await getMyConnections()
+      setConnections(updated)
+    } catch (error) {
+      console.error('Failed to disconnect:', error)
+    } finally {
+      setConnectingUserId(null)
+    }
+  }
+
+  // Handle changing trust level
+  const handleChangeTrust = async (connectionId: string, userId: string, newLevel: TrustLevel) => {
+    setConnectingUserId(userId)
+    try {
+      await updateTrustLevel(connectionId, newLevel)
+      // Refresh connections
+      const updated = await getMyConnections()
+      setConnections(updated)
+    } catch (error) {
+      console.error('Failed to update trust level:', error)
+    } finally {
+      setConnectingUserId(null)
+    }
+  }
 
   const toggleDarkMode = () => {
     const newMode = !isDarkMode
@@ -879,6 +998,413 @@ export function CustomToolbar() {
                         </div>
                       )}
                     </div>
+                  </div>
+                )}
+
+                {/* Connections Section */}
+                <button
+                  className="profile-dropdown-item"
+                  onClick={() => setExpandedSection(expandedSection === 'connections' ? 'none' : 'connections')}
+                  style={{ justifyContent: 'space-between' }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '14px' }}>🕸️</span>
+                    <span>Connections</span>
+                    {connections.length > 0 && (
+                      <span style={{
+                        fontSize: '10px',
+                        padding: '1px 6px',
+                        borderRadius: '10px',
+                        backgroundColor: 'var(--color-muted-2, #e5e7eb)',
+                        color: 'var(--color-text-2, #666)',
+                      }}>
+                        {connections.length}
+                      </span>
+                    )}
+                  </span>
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 16 16"
+                    fill="currentColor"
+                    style={{ transform: expandedSection === 'connections' ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
+                  >
+                    <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+                  </svg>
+                </button>
+
+                {expandedSection === 'connections' && (
+                  <div style={{ padding: '8px 12px', backgroundColor: 'var(--color-muted-2, #f5f5f5)', maxHeight: '400px', overflowY: 'auto' }}>
+                    {/* People in Canvas Section */}
+                    {canvasUsers.length > 0 && (
+                      <div style={{ marginBottom: '12px' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-2, #666)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>People in Canvas</span>
+                          <span style={{
+                            fontSize: '9px',
+                            padding: '1px 5px',
+                            borderRadius: '8px',
+                            backgroundColor: 'var(--color-primary, #3b82f6)',
+                            color: 'white',
+                          }}>
+                            {canvasUsers.length}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {canvasUsers.map((user) => (
+                            <div
+                              key={user.id}
+                              style={{
+                                padding: '8px',
+                                backgroundColor: 'white',
+                                borderRadius: '6px',
+                                border: '1px solid var(--color-muted-1, #e5e7eb)',
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  {/* User avatar with presence color */}
+                                  <div
+                                    style={{
+                                      width: '28px',
+                                      height: '28px',
+                                      borderRadius: '50%',
+                                      backgroundColor: user.color,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      fontSize: '11px',
+                                      color: 'white',
+                                      fontWeight: 600,
+                                      border: `2px solid ${
+                                        user.connectionStatus === 'trusted' ? TRUST_LEVEL_COLORS.trusted :
+                                        user.connectionStatus === 'connected' ? TRUST_LEVEL_COLORS.connected :
+                                        TRUST_LEVEL_COLORS.unconnected
+                                      }`,
+                                    }}
+                                  >
+                                    {user.name.charAt(0).toUpperCase()}
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize: '12px', fontWeight: 500 }}>
+                                      {user.name}
+                                    </div>
+                                    <div style={{ fontSize: '10px', color: 'var(--color-text-2, #666)' }}>
+                                      {user.connectionStatus === 'trusted' ? 'Trusted' :
+                                       user.connectionStatus === 'connected' ? 'Connected' :
+                                       'Not connected'}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Connection status indicator & actions */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  {connectingUserId === user.id ? (
+                                    <span style={{ fontSize: '10px', color: 'var(--color-text-2, #666)' }}>...</span>
+                                  ) : user.connectionStatus === 'unconnected' ? (
+                                    <>
+                                      <button
+                                        onClick={() => handleConnect(user.id, 'connected')}
+                                        style={{
+                                          padding: '3px 8px',
+                                          fontSize: '10px',
+                                          backgroundColor: TRUST_LEVEL_COLORS.connected,
+                                          color: 'black',
+                                          border: 'none',
+                                          borderRadius: '4px',
+                                          cursor: 'pointer',
+                                        }}
+                                        title="Add as Connected (view access)"
+                                      >
+                                        + Connect
+                                      </button>
+                                      <button
+                                        onClick={() => handleConnect(user.id, 'trusted')}
+                                        style={{
+                                          padding: '3px 8px',
+                                          fontSize: '10px',
+                                          backgroundColor: TRUST_LEVEL_COLORS.trusted,
+                                          color: 'white',
+                                          border: 'none',
+                                          borderRadius: '4px',
+                                          cursor: 'pointer',
+                                        }}
+                                        title="Add as Trusted (edit access)"
+                                      >
+                                        + Trust
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      {/* Toggle between connected and trusted */}
+                                      {user.connectionStatus === 'connected' ? (
+                                        <button
+                                          onClick={() => handleChangeTrust(user.connectionId!, user.id, 'trusted')}
+                                          style={{
+                                            padding: '3px 8px',
+                                            fontSize: '10px',
+                                            backgroundColor: TRUST_LEVEL_COLORS.trusted,
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer',
+                                          }}
+                                          title="Upgrade to Trusted (edit access)"
+                                        >
+                                          Trust
+                                        </button>
+                                      ) : (
+                                        <button
+                                          onClick={() => handleChangeTrust(user.connectionId!, user.id, 'connected')}
+                                          style={{
+                                            padding: '3px 8px',
+                                            fontSize: '10px',
+                                            backgroundColor: TRUST_LEVEL_COLORS.connected,
+                                            color: 'black',
+                                            border: 'none',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer',
+                                          }}
+                                          title="Downgrade to Connected (view only)"
+                                        >
+                                          Demote
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={() => handleDisconnect(user.connectionId!, user.id)}
+                                        style={{
+                                          padding: '3px 6px',
+                                          fontSize: '10px',
+                                          backgroundColor: '#fee2e2',
+                                          color: '#dc2626',
+                                          border: 'none',
+                                          borderRadius: '4px',
+                                          cursor: 'pointer',
+                                        }}
+                                        title="Remove connection"
+                                      >
+                                        ✕
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Divider if both sections exist */}
+                    {canvasUsers.length > 0 && connections.length > 0 && (
+                      <div style={{ borderTop: '1px solid var(--color-muted-1, #ddd)', marginBottom: '12px' }} />
+                    )}
+
+                    {/* My Connections Section */}
+                    <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-2, #666)', marginBottom: '8px' }}>
+                      My Connections
+                    </div>
+
+                    {connectionsLoading ? (
+                      <p style={{ fontSize: '11px', color: 'var(--color-text-2, #666)', textAlign: 'center', padding: '12px 0' }}>
+                        Loading connections...
+                      </p>
+                    ) : connections.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '12px 0' }}>
+                        <p style={{ fontSize: '11px', color: 'var(--color-text-2, #666)', marginBottom: '8px' }}>
+                          No connections yet
+                        </p>
+                        <p style={{ fontSize: '10px', color: 'var(--color-text-3, #999)' }}>
+                          Connect with people in the canvas above
+                        </p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {connections.map((conn) => (
+                          <div
+                            key={conn.id}
+                            style={{
+                              padding: '8px',
+                              backgroundColor: 'white',
+                              borderRadius: '6px',
+                              border: '1px solid var(--color-muted-1, #e5e7eb)',
+                            }}
+                          >
+                            {/* Connection Header */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <div
+                                  style={{
+                                    width: '24px',
+                                    height: '24px',
+                                    borderRadius: '50%',
+                                    backgroundColor: conn.toProfile?.avatarColor || TRUST_LEVEL_COLORS[conn.trustLevel],
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '10px',
+                                    color: 'white',
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  {(conn.toProfile?.displayName || conn.toUserId).charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: '12px', fontWeight: 500 }}>
+                                    {conn.toProfile?.displayName || conn.toUserId}
+                                  </div>
+                                  <div style={{ fontSize: '10px', color: 'var(--color-text-2, #666)' }}>
+                                    @{conn.toUserId}
+                                  </div>
+                                </div>
+                              </div>
+                              <span
+                                style={{
+                                  fontSize: '9px',
+                                  padding: '2px 6px',
+                                  borderRadius: '10px',
+                                  backgroundColor: conn.trustLevel === 'trusted' ? '#d1fae5' : '#fef3c7',
+                                  color: conn.trustLevel === 'trusted' ? '#065f46' : '#92400e',
+                                  fontWeight: 500,
+                                }}
+                              >
+                                {conn.trustLevel === 'trusted' ? 'Trusted' : 'Connected'}
+                              </span>
+                            </div>
+
+                            {/* Mutual Connection Badge */}
+                            {conn.isMutual && (
+                              <div style={{
+                                fontSize: '9px',
+                                color: '#059669',
+                                backgroundColor: '#d1fae5',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                marginBottom: '6px',
+                                display: 'inline-block',
+                              }}>
+                                ✓ Mutual connection
+                              </div>
+                            )}
+
+                            {/* Edge Metadata Display/Edit */}
+                            {editingConnectionId === conn.id ? (
+                              <div style={{ marginTop: '8px', padding: '8px', backgroundColor: 'var(--color-muted-2, #f5f5f5)', borderRadius: '4px' }}>
+                                <div style={{ marginBottom: '6px' }}>
+                                  <label style={{ fontSize: '10px', color: 'var(--color-text-2, #666)', display: 'block', marginBottom: '2px' }}>Label</label>
+                                  <input
+                                    type="text"
+                                    value={editingMetadata.label || ''}
+                                    onChange={(e) => setEditingMetadata({ ...editingMetadata, label: e.target.value })}
+                                    placeholder="e.g., Colleague, Friend..."
+                                    style={{ width: '100%', padding: '4px 6px', fontSize: '11px', border: '1px solid #ddd', borderRadius: '4px' }}
+                                  />
+                                </div>
+                                <div style={{ marginBottom: '6px' }}>
+                                  <label style={{ fontSize: '10px', color: 'var(--color-text-2, #666)', display: 'block', marginBottom: '2px' }}>Notes (private)</label>
+                                  <textarea
+                                    value={editingMetadata.notes || ''}
+                                    onChange={(e) => setEditingMetadata({ ...editingMetadata, notes: e.target.value })}
+                                    placeholder="Private notes about this connection..."
+                                    style={{ width: '100%', padding: '4px 6px', fontSize: '11px', border: '1px solid #ddd', borderRadius: '4px', minHeight: '50px', resize: 'vertical' }}
+                                  />
+                                </div>
+                                <div style={{ marginBottom: '6px' }}>
+                                  <label style={{ fontSize: '10px', color: 'var(--color-text-2, #666)', display: 'block', marginBottom: '2px' }}>Strength (1-10)</label>
+                                  <input
+                                    type="range"
+                                    min="1"
+                                    max="10"
+                                    value={editingMetadata.strength || 5}
+                                    onChange={(e) => setEditingMetadata({ ...editingMetadata, strength: parseInt(e.target.value) })}
+                                    style={{ width: '100%' }}
+                                  />
+                                  <div style={{ fontSize: '10px', textAlign: 'center', color: 'var(--color-text-2, #666)' }}>{editingMetadata.strength || 5}</div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
+                                  <button
+                                    onClick={() => handleSaveMetadata(conn.id)}
+                                    disabled={savingMetadata}
+                                    style={{
+                                      flex: 1,
+                                      padding: '5px',
+                                      fontSize: '10px',
+                                      backgroundColor: 'var(--color-primary, #3b82f6)',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '4px',
+                                      cursor: savingMetadata ? 'not-allowed' : 'pointer',
+                                      opacity: savingMetadata ? 0.6 : 1,
+                                    }}
+                                  >
+                                    {savingMetadata ? 'Saving...' : 'Save'}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setEditingConnectionId(null)
+                                      setEditingMetadata({})
+                                    }}
+                                    style={{
+                                      flex: 1,
+                                      padding: '5px',
+                                      fontSize: '10px',
+                                      backgroundColor: 'white',
+                                      border: '1px solid #ddd',
+                                      borderRadius: '4px',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div>
+                                {/* Show existing metadata if any */}
+                                {conn.metadata && (conn.metadata.label || conn.metadata.notes) && (
+                                  <div style={{ marginTop: '6px', padding: '6px', backgroundColor: 'var(--color-muted-2, #f5f5f5)', borderRadius: '4px' }}>
+                                    {conn.metadata.label && (
+                                      <div style={{ fontSize: '11px', fontWeight: 500, marginBottom: '2px' }}>
+                                        {conn.metadata.label}
+                                      </div>
+                                    )}
+                                    {conn.metadata.notes && (
+                                      <div style={{ fontSize: '10px', color: 'var(--color-text-2, #666)' }}>
+                                        {conn.metadata.notes}
+                                      </div>
+                                    )}
+                                    {conn.metadata.strength && (
+                                      <div style={{ fontSize: '9px', color: 'var(--color-text-3, #999)', marginTop: '4px' }}>
+                                        Strength: {conn.metadata.strength}/10
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                <button
+                                  onClick={() => {
+                                    setEditingConnectionId(conn.id)
+                                    setEditingMetadata(conn.metadata || {})
+                                  }}
+                                  style={{
+                                    marginTop: '6px',
+                                    width: '100%',
+                                    padding: '4px 8px',
+                                    fontSize: '10px',
+                                    backgroundColor: 'transparent',
+                                    border: '1px dashed #ddd',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    color: 'var(--color-text-2, #666)',
+                                  }}
+                                >
+                                  {conn.metadata?.label || conn.metadata?.notes ? 'Edit details' : 'Add details'}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
