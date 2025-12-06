@@ -105,13 +105,16 @@ CREATE TABLE IF NOT EXISTS user_profiles (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
--- User connections (one-way following)
+-- User connections (one-way following with trust levels)
 -- from_user follows to_user (asymmetric)
+-- Trust levels: 'connected' (yellow, view) or 'trusted' (green, edit)
 CREATE TABLE IF NOT EXISTS user_connections (
   id TEXT PRIMARY KEY,
   from_user_id TEXT NOT NULL,              -- User who initiated the connection
   to_user_id TEXT NOT NULL,                -- User being connected to
+  trust_level TEXT DEFAULT 'connected' CHECK (trust_level IN ('connected', 'trusted')),
   created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
   FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
   FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE CASCADE,
   UNIQUE(from_user_id, to_user_id)          -- Can only connect once

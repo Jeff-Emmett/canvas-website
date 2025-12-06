@@ -96,3 +96,96 @@ export interface PermissionCheckResult {
 	isOwner: boolean;
 	boardExists: boolean;
 }
+
+// =============================================================================
+// User Networking / Social Graph Types
+// =============================================================================
+
+/**
+ * User profile record in the database
+ */
+export interface UserProfile {
+	user_id: string;
+	display_name: string | null;
+	bio: string | null;
+	avatar_color: string | null;
+	is_searchable: number;  // SQLite boolean (0 or 1)
+	created_at: string;
+	updated_at: string;
+}
+
+/**
+ * Trust levels for connections:
+ * - 'connected': Yellow, grants view permission on shared data
+ * - 'trusted': Green, grants edit permission on shared data
+ */
+export type TrustLevel = 'connected' | 'trusted';
+
+/**
+ * User connection record (one-way follow with trust level)
+ */
+export interface UserConnection {
+	id: string;
+	from_user_id: string;
+	to_user_id: string;
+	trust_level: TrustLevel;
+	created_at: string;
+	updated_at: string;
+}
+
+/**
+ * Edge metadata for a connection (private to each party)
+ */
+export interface ConnectionMetadata {
+	id: string;
+	connection_id: string;
+	user_id: string;
+	label: string | null;
+	notes: string | null;
+	color: string | null;
+	strength: number;  // 1-10
+	updated_at: string;
+}
+
+/**
+ * Combined user info for search results and graph nodes
+ */
+export interface UserNode {
+	id: string;
+	username: string;
+	displayName: string | null;
+	avatarColor: string | null;
+	bio: string | null;
+}
+
+/**
+ * Graph edge with connection and optional metadata
+ */
+export interface GraphEdge {
+	id: string;
+	fromUserId: string;
+	toUserId: string;
+	trustLevel: TrustLevel;
+	createdAt: string;
+	// Metadata is only included for the requesting user's edges
+	metadata?: {
+		label: string | null;
+		notes: string | null;
+		color: string | null;
+		strength: number;
+	};
+	// Indicates if this is a mutual connection (both follow each other)
+	isMutual: boolean;
+	// The highest trust level between both directions (if mutual)
+	effectiveTrustLevel: TrustLevel | null;
+}
+
+/**
+ * Full network graph response
+ */
+export interface NetworkGraph {
+	nodes: UserNode[];
+	edges: GraphEdge[];
+	// Current user's connections (for filtering)
+	myConnections: string[];  // User IDs I'm connected to
+}

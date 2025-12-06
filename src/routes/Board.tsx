@@ -72,7 +72,9 @@ import { GestureTool } from "@/GestureTool"
 import { CmdK } from "@/CmdK"
 import { setupMultiPasteHandler } from "@/utils/multiPasteHandler"
 import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator"
-
+import AnonymousViewerBanner from "@/components/auth/AnonymousViewerBanner"
+import { PermissionLevel } from "@/lib/auth/types"
+import "@/css/anonymous-banner.css"
 
 import "react-cmdk/dist/cmdk.css"
 import "@/css/style.css"
@@ -272,7 +274,62 @@ export function Board() {
     }
   }, [])
   const roomId = slug || "mycofi33"
-  const { session } = useAuth()
+  const { session, fetchBoardPermission, canEdit } = useAuth()
+
+  // Permission state
+  const [permission, setPermission] = useState<PermissionLevel | null>(null)
+  const [permissionLoading, setPermissionLoading] = useState(true)
+  const [showEditPrompt, setShowEditPrompt] = useState(false)
+
+  // Fetch permission when board loads
+  useEffect(() => {
+    let mounted = true
+
+    const loadPermission = async () => {
+      setPermissionLoading(true)
+      try {
+        const perm = await fetchBoardPermission(roomId)
+        if (mounted) {
+          setPermission(perm)
+        }
+      } catch (error) {
+        console.error('Failed to fetch permission:', error)
+        // Default to view for unauthenticated, edit for authenticated
+        if (mounted) {
+          setPermission(session.authed ? 'edit' : 'view')
+        }
+      } finally {
+        if (mounted) {
+          setPermissionLoading(false)
+        }
+      }
+    }
+
+    loadPermission()
+
+    return () => {
+      mounted = false
+    }
+  }, [roomId, fetchBoardPermission, session.authed])
+
+  // Check if user can edit (either has edit/admin permission, or is authenticated with default edit access)
+  const isReadOnly = permission === 'view' || (!session.authed && !permission)
+
+  // Handler for when user tries to edit in read-only mode
+  const handleEditAttempt = () => {
+    if (isReadOnly) {
+      setShowEditPrompt(true)
+    }
+  }
+
+  // Handler for successful authentication from banner
+  const handleAuthenticated = () => {
+    setShowEditPrompt(false)
+    // Re-fetch permission after authentication
+    fetchBoardPermission(roomId).then(perm => {
+      setPermission(perm)
+    })
+  }
 
   // Store roomId in localStorage for VideoChatShapeUtil to access
   useEffect(() => {
@@ -395,6 +452,19 @@ export function Board() {
   const automergeHandle = (storeWithHandle as any).handle
   const { connectionState, isNetworkOnline } = storeWithHandle
   const [editor, setEditor] = useState<Editor | null>(null)
+
+  // Update read-only state when permission changes after editor is mounted
+  useEffect(() => {
+    if (!editor) return
+
+    if (isReadOnly) {
+      editor.updateInstanceState({ isReadonly: true })
+      console.log('🔒 Permission changed: Board is now read-only')
+    } else {
+      editor.updateInstanceState({ isReadonly: false })
+      console.log('🔓 Permission changed: Board is now editable')
+    }
+  }, [editor, isReadOnly])
 
   useEffect(() => {
     const value = localStorage.getItem("makereal_settings_2")
@@ -1114,6 +1184,12 @@ export function Board() {
           // Note: User presence is configured through the useAutomergeSync hook above
           // The authenticated username should appear in the people section
           // MycelialIntelligence is now a permanent UI bar - no shape creation needed
+
+          // Set read-only mode based on permission
+          if (isReadOnly) {
+            editor.updateInstanceState({ isReadonly: true })
+            console.log('🔒 Board is in read-only mode for this user')
+          }
         }}
         >
           <CmdK />
@@ -1124,6 +1200,13 @@ export function Board() {
           connectionState={connectionState}
           isNetworkOnline={isNetworkOnline}
         />
+        {/* Anonymous viewer banner - show for unauthenticated users or when edit was attempted */}
+        {(!session.authed || showEditPrompt) && (
+          <AnonymousViewerBanner
+            onAuthenticated={handleAuthenticated}
+            triggeredByEdit={showEditPrompt}
+          />
+        )}
       </div>
     </AutomergeHandleProvider>
   )

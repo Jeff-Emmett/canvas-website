@@ -417,21 +417,40 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
             const localRecordCount = localDoc?.store ? Object.keys(localDoc.store).length : 0
 
             // Merge server data with local data
-            // Automerge handles conflict resolution automatically via CRDT
+            // Strategy:
+            // 1. If local is EMPTY, use server data (bootstrap from R2)
+            // 2. If local HAS data, only add server records that don't exist locally
+            //    (preserve offline changes, let Automerge CRDT sync handle conflicts)
             if (serverDoc.store && serverRecordCount > 0) {
               handle.change((doc: any) => {
                 // Initialize store if it doesn't exist
                 if (!doc.store) {
                   doc.store = {}
                 }
-                // Merge server records - Automerge will handle conflicts
+
+                const localIsEmpty = Object.keys(doc.store).length === 0
+                let addedFromServer = 0
+                let skippedExisting = 0
+
                 Object.entries(serverDoc.store).forEach(([id, record]) => {
-                  // Only add if not already present locally (local changes take precedence)
-                  // This is a simple merge strategy - Automerge's CRDT will handle deeper conflicts
-                  if (!doc.store[id]) {
+                  if (localIsEmpty) {
+                    // Local is empty - bootstrap everything from server
                     doc.store[id] = record
+                    addedFromServer++
+                  } else if (!doc.store[id]) {
+                    // Local has data but missing this record - add from server
+                    // This handles: shapes created on another device and synced to R2
+                    doc.store[id] = record
+                    addedFromServer++
+                  } else {
+                    // Record exists locally - preserve local version
+                    // The Automerge binary sync will handle merging conflicts via CRDT
+                    // This preserves offline edits to existing shapes
+                    skippedExisting++
                   }
                 })
+
+                console.log(`📥 Merge strategy: local was ${localIsEmpty ? 'EMPTY' : 'populated'}, added ${addedFromServer} from server, preserved ${skippedExisting} local records`)
               })
 
               const finalDoc = handle.doc()
