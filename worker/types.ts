@@ -49,3 +49,50 @@ export interface VerificationToken {
 	device_name?: string;
 	user_agent?: string;
 }
+
+// =============================================================================
+// Board Permission Types
+// =============================================================================
+
+/**
+ * Permission levels for board access:
+ * - 'view': Read-only access, cannot create/edit/delete shapes
+ * - 'edit': Can create, edit, and delete shapes
+ * - 'admin': Full access including permission management and board settings
+ */
+export type PermissionLevel = 'view' | 'edit' | 'admin';
+
+/**
+ * Board record in the database
+ */
+export interface Board {
+	id: string;                    // board slug/room ID
+	owner_id: string | null;       // user ID of creator (NULL for legacy boards)
+	created_at: string;
+	updated_at: string;
+	default_permission: 'view' | 'edit';
+	name: string | null;
+	description: string | null;
+	is_public: number;             // SQLite boolean (0 or 1)
+}
+
+/**
+ * Board permission record for a specific user
+ */
+export interface BoardPermission {
+	id: string;
+	board_id: string;
+	user_id: string;
+	permission: PermissionLevel;
+	granted_by: string | null;
+	granted_at: string;
+}
+
+/**
+ * Response when checking a user's permission for a board
+ */
+export interface PermissionCheckResult {
+	permission: PermissionLevel;
+	isOwner: boolean;
+	boardExists: boolean;
+}

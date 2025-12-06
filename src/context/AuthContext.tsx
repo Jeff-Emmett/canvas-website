@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
-import { Session, SessionError } from '../lib/auth/types';
+import { Session, SessionError, PermissionLevel } from '../lib/auth/types';
 import { AuthService } from '../lib/auth/authService';
 import { saveSession, clearStoredSession } from '../lib/auth/sessionPersistence';
+import { WORKER_URL } from '../constants/workerUrl';
+import * as crypto from '../lib/auth/crypto';
 
 interface AuthContextType {
   session: Session;
@@ -12,6 +14,12 @@ interface AuthContextType {
   login: (username: string) => Promise<boolean>;
   register: (username: string) => Promise<boolean>;
   logout: () => Promise<void>;
+  /** Fetch and cache the user's permission level for a specific board */
+  fetchBoardPermission: (boardId: string) => Promise<PermissionLevel>;
+  /** Check if user can edit the current board */
+  canEdit: () => boolean;
+  /** Check if user is admin for the current board */
+  isAdmin: () => boolean;
 }
 
 const initialSession: Session = {
@@ -167,6 +175,82 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [clearSession]);
 
+  /**
+   * Fetch and cache the user's permission level for a specific board
+   */
+  const fetchBoardPermission = useCallback(async (boardId: string): Promise<PermissionLevel> => {
+    // Check cache first
+    if (session.boardPermissions?.[boardId]) {
+      return session.boardPermissions[boardId];
+    }
+
+    try {
+      // Get public key for auth header if user is authenticated
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (session.authed && session.username) {
+        const publicKey = crypto.getPublicKey(session.username);
+        if (publicKey) {
+          headers['X-CryptID-PublicKey'] = publicKey;
+        }
+      }
+
+      const response = await fetch(`${WORKER_URL}/boards/${boardId}/permission`, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        console.error('Failed to fetch board permission:', response.status);
+        // Default to 'view' for unauthenticated, 'edit' for authenticated
+        return session.authed ? 'edit' : 'view';
+      }
+
+      const data = await response.json() as {
+        permission: PermissionLevel;
+        isOwner: boolean;
+        boardExists: boolean;
+      };
+
+      // Cache the permission
+      setSessionState(prev => ({
+        ...prev,
+        currentBoardPermission: data.permission,
+        boardPermissions: {
+          ...prev.boardPermissions,
+          [boardId]: data.permission,
+        },
+      }));
+
+      return data.permission;
+    } catch (error) {
+      console.error('Error fetching board permission:', error);
+      // Default to 'view' for unauthenticated, 'edit' for authenticated
+      return session.authed ? 'edit' : 'view';
+    }
+  }, [session.authed, session.username, session.boardPermissions]);
+
+  /**
+   * Check if user can edit the current board
+   */
+  const canEdit = useCallback((): boolean => {
+    const permission = session.currentBoardPermission;
+    if (!permission) {
+      // If no permission set, default based on auth status
+      return session.authed;
+    }
+    return permission === 'edit' || permission === 'admin';
+  }, [session.currentBoardPermission, session.authed]);
+
+  /**
+   * Check if user is admin for the current board
+   */
+  const isAdmin = useCallback((): boolean => {
+    return session.currentBoardPermission === 'admin';
+  }, [session.currentBoardPermission]);
+
   // Initialize on mount
   useEffect(() => {
     try {
@@ -190,8 +274,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     initialize,
     login,
     register,
-    logout
-  }), [session, setSession, clearSession, initialize, login, register, logout]);
+    logout,
+    fetchBoardPermission,
+    canEdit,
+    isAdmin,
+  }), [session, setSession, clearSession, initialize, login, register, logout, fetchBoardPermission, canEdit, isAdmin]);
 
   return (
     <AuthContext.Provider value={contextValue}>
