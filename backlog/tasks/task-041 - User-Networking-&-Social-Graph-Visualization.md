@@ -1,10 +1,10 @@
 ---
 id: task-041
 title: User Networking & Social Graph Visualization
-status: In Progress
+status: Done
 assignee: []
 created_date: '2025-12-06 06:17'
-updated_date: '2025-12-06 06:38'
+updated_date: '2025-12-06 06:46'
 labels:
   - feature
   - social
@@ -86,4 +86,6 @@ Implementation complete:
 - Room participants highlighted with presence colors
 - Full network shown in grey, room subset colored
 - Expandable to 3D view (future: graph.jeffemmett.com)
+
+2D implementation complete. Follow-up task-042 created for 3D graph and edge metadata editor modal.
 <!-- SECTION:NOTES:END -->
