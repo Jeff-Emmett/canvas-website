@@ -832,7 +832,7 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
 
   // User search and profiles
   .get("/api/networking/users/search", searchUsers)
-  .get("/api/networking/users/me", (req, env) => getUserProfile({ ...req, params: { userId: req.headers.get('X-User-Id') || '' } } as IRequest, env))
+  .get("/api/networking/users/me", (req, env) => getUserProfile({ ...req, params: { userId: req.headers.get('X-User-Id') || '' } } as unknown as IRequest, env))
   .put("/api/networking/users/me", updateMyProfile)
   .get("/api/networking/users/:userId", getUserProfile)
 

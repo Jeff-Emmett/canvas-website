@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useSession } from '../../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import {
   getMyNetworkGraph,
   getRoomNetworkGraph,
@@ -80,7 +80,7 @@ export function useNetworkGraph(options: UseNetworkGraphOptions = {}): UseNetwor
     useCache = true,
   } = options;
 
-  const { session } = useSession();
+  const { session } = useAuth();
   const [state, setState] = useState<NetworkGraphState>({
     nodes: [],
     edges: [],

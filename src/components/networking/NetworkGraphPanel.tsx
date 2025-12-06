@@ -9,7 +9,7 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { useEditor, useValue } from 'tldraw';
 import { NetworkGraphMinimap } from './NetworkGraphMinimap';
 import { useNetworkGraph } from './useNetworkGraph';
-import { useSession } from '../../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import type { GraphEdge, TrustLevel } from '../../lib/networking';
 
 // =============================================================================
@@ -26,7 +26,7 @@ interface NetworkGraphPanelProps {
 
 export function NetworkGraphPanel({ onExpand }: NetworkGraphPanelProps) {
   const editor = useEditor();
-  const { session } = useSession();
+  const { session } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [selectedEdge, setSelectedEdge] = useState<GraphEdge | null>(null);
 

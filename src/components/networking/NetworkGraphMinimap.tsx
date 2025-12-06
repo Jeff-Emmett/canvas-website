@@ -154,7 +154,7 @@ const styles = {
 export function NetworkGraphMinimap({
   nodes,
   edges,
-  myConnections,
+  myConnections: _myConnections,
   currentUserId,
   onConnect,
   onDisconnect,

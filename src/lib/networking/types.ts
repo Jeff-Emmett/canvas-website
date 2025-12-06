@@ -144,6 +144,7 @@ export interface GraphEdge {
 export interface NetworkGraph {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  myConnections: string[];  // User IDs the current user is connected to
 }
 
 /**
