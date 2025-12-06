@@ -1,0 +1,323 @@
+/* Anonymous Viewer Banner Styles */
+
+.anonymous-viewer-banner {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+
+  max-width: 600px;
+  width: calc(100% - 40px);
+
+  background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 16px;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.3),
+    0 0 40px rgba(139, 92, 246, 0.15);
+
+  animation: slideUp 0.4s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.anonymous-viewer-banner.edit-triggered {
+  background: linear-gradient(135deg, #2d1f3d 0%, #3d2d54 100%);
+  border-color: rgba(236, 72, 153, 0.4);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.3),
+    0 0 40px rgba(236, 72, 153, 0.2);
+}
+
+.banner-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px;
+}
+
+.banner-icon {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.edit-triggered .banner-icon {
+  background: linear-gradient(135deg, #ec4899 0%, #a855f7 100%);
+}
+
+.banner-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.banner-headline {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  color: #f0f0f0;
+  line-height: 1.4;
+}
+
+.banner-headline strong {
+  color: white;
+}
+
+.banner-summary {
+  margin: 0;
+  font-size: 14px;
+  color: #a0a0b0;
+  line-height: 1.5;
+}
+
+.banner-details {
+  margin-top: 8px;
+}
+
+.banner-details p {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: #c0c0d0;
+  line-height: 1.5;
+}
+
+.banner-details strong {
+  color: #8b5cf6;
+}
+
+.cryptid-benefits {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cryptid-benefits li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: #a0a0b0;
+  line-height: 1.4;
+}
+
+.cryptid-benefits li:last-child {
+  margin-bottom: 0;
+}
+
+.benefit-icon {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.cryptid-benefits a {
+  color: #8b5cf6;
+  text-decoration: none;
+}
+
+.cryptid-benefits a:hover {
+  text-decoration: underline;
+}
+
+.banner-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.banner-signup-btn {
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.banner-signup-btn:hover {
+  background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
+  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4);
+  transform: translateY(-1px);
+}
+
+.edit-triggered .banner-signup-btn {
+  background: linear-gradient(135deg, #ec4899 0%, #a855f7 100%);
+}
+
+.edit-triggered .banner-signup-btn:hover {
+  background: linear-gradient(135deg, #db2777 0%, #9333ea 100%);
+  box-shadow: 0 4px 20px rgba(236, 72, 153, 0.4);
+}
+
+.banner-dismiss-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: #808090;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.banner-dismiss-btn:hover {
+  color: #f0f0f0;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.banner-expand-btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: #8b5cf6;
+  background: transparent;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.banner-expand-btn:hover {
+  background: rgba(139, 92, 246, 0.1);
+  border-color: rgba(139, 92, 246, 0.5);
+}
+
+.banner-edit-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: rgba(236, 72, 153, 0.1);
+  border-top: 1px solid rgba(236, 72, 153, 0.2);
+  border-radius: 0 0 16px 16px;
+  font-size: 13px;
+  color: #f472b6;
+}
+
+/* Modal overlay for CryptID sign-up */
+.anonymous-banner-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.anonymous-banner-modal {
+  max-width: 420px;
+  width: calc(100% - 40px);
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  background: #1e1e2e;
+  border-radius: 16px;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
+  animation: scaleIn 0.3s ease-out;
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Dark mode is default, light mode adjustments */
+@media (prefers-color-scheme: light) {
+  .anonymous-viewer-banner {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border-color: rgba(139, 92, 246, 0.2);
+    box-shadow:
+      0 20px 60px rgba(0, 0, 0, 0.1),
+      0 0 40px rgba(139, 92, 246, 0.1);
+  }
+
+  .banner-headline {
+    color: #2d2d44;
+  }
+
+  .banner-headline strong {
+    color: #1e1e2e;
+  }
+
+  .banner-summary,
+  .banner-details p,
+  .cryptid-benefits li {
+    color: #606080;
+  }
+
+  .banner-dismiss-btn {
+    color: #606080;
+  }
+
+  .banner-dismiss-btn:hover {
+    color: #2d2d44;
+    background: rgba(0, 0, 0, 0.05);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+  .anonymous-viewer-banner {
+    bottom: 10px;
+    max-width: none;
+    width: calc(100% - 20px);
+    border-radius: 12px;
+  }
+
+  .banner-content {
+    flex-direction: column;
+    padding: 16px;
+  }
+
+  .banner-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .banner-actions {
+    flex-direction: row;
+    width: 100%;
+    margin-top: 12px;
+  }
+
+  .banner-signup-btn {
+    flex: 1;
+  }
+}

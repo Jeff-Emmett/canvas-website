@@ -283,9 +283,11 @@ export class AutomergeDurableObject {
       serverWebSocket.addEventListener("close", (event) => {
         console.log(`🔌 AutomergeDurableObject: Client disconnected: ${sessionId}, code: ${event.code}, reason: ${event.reason}`)
         this.clients.delete(sessionId)
-        // Clean up sync manager state for this peer
+        // Clean up sync manager state for this peer and flush pending saves
         if (this.syncManager) {
-          this.syncManager.handlePeerDisconnect(sessionId)
+          this.syncManager.handlePeerDisconnect(sessionId).catch((error) => {
+            console.error(`❌ Error handling peer disconnect:`, error)
+          })
         }
       })
       

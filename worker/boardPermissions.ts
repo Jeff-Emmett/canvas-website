@@ -1,0 +1,581 @@
+import { Environment, Board, BoardPermission, PermissionLevel, PermissionCheckResult, User } from './types';
+
+// Generate a UUID v4
+function generateUUID(): string {
+  return crypto.randomUUID();
+}
+
+/**
+ * Get a user's effective permission for a board
+ * Priority: explicit permission > board owner (admin) > default permission
+ */
+export async function getEffectivePermission(
+  db: D1Database,
+  boardId: string,
+  userId: string | null
+): Promise<PermissionCheckResult> {
+  // Check if board exists
+  const board = await db.prepare(
+    'SELECT * FROM boards WHERE id = ?'
+  ).bind(boardId).first<Board>();
+
+  // Board doesn't exist - treat as new board, anyone authenticated can create
+  if (!board) {
+    // If user is authenticated, they can create the board (will become owner)
+    // If not authenticated, view-only (they'll see empty canvas but can't edit)
+    return {
+      permission: userId ? 'edit' : 'view',
+      isOwner: false,
+      boardExists: false
+    };
+  }
+
+  // If user is not authenticated, return default permission
+  if (!userId) {
+    return {
+      permission: board.default_permission as PermissionLevel,
+      isOwner: false,
+      boardExists: true
+    };
+  }
+
+  // Check if user is the board owner (always admin)
+  if (board.owner_id === userId) {
+    return {
+      permission: 'admin',
+      isOwner: true,
+      boardExists: true
+    };
+  }
+
+  // Check for explicit permission
+  const explicitPerm = await db.prepare(
+    'SELECT * FROM board_permissions WHERE board_id = ? AND user_id = ?'
+  ).bind(boardId, userId).first<BoardPermission>();
+
+  if (explicitPerm) {
+    return {
+      permission: explicitPerm.permission,
+      isOwner: false,
+      boardExists: true
+    };
+  }
+
+  // Fall back to default permission, but authenticated users get at least 'edit'
+  // (unless board explicitly restricts to view-only)
+  const defaultPerm = board.default_permission as PermissionLevel;
+
+  // For most boards, authenticated users can edit
+  // Board owners can set default_permission to 'view' to restrict this
+  return {
+    permission: defaultPerm === 'view' ? 'view' : 'edit',
+    isOwner: false,
+    boardExists: true
+  };
+}
+
+/**
+ * Create a board and assign owner
+ * Called when a new board is first accessed by an authenticated user
+ */
+export async function createBoard(
+  db: D1Database,
+  boardId: string,
+  ownerId: string,
+  name?: string
+): Promise<Board> {
+  const id = boardId;
+
+  await db.prepare(`
+    INSERT INTO boards (id, owner_id, name, default_permission, is_public)
+    VALUES (?, ?, ?, 'edit', 1)
+    ON CONFLICT(id) DO NOTHING
+  `).bind(id, ownerId, name || null).run();
+
+  const board = await db.prepare(
+    'SELECT * FROM boards WHERE id = ?'
+  ).bind(id).first<Board>();
+
+  if (!board) {
+    throw new Error('Failed to create board');
+  }
+
+  return board;
+}
+
+/**
+ * Ensure a board exists, creating it if necessary
+ * Called on first edit by authenticated user
+ */
+export async function ensureBoardExists(
+  db: D1Database,
+  boardId: string,
+  userId: string
+): Promise<Board> {
+  let board = await db.prepare(
+    'SELECT * FROM boards WHERE id = ?'
+  ).bind(boardId).first<Board>();
+
+  if (!board) {
+    // Create the board with this user as owner
+    board = await createBoard(db, boardId, userId);
+  }
+
+  return board;
+}
+
+/**
+ * GET /boards/:boardId/permission
+ * Get current user's permission for a board
+ */
+export async function handleGetPermission(
+  boardId: string,
+  request: Request,
+  env: Environment
+): Promise<Response> {
+  try {
+    const db = env.CRYPTID_DB;
+    if (!db) {
+      // No database - default to edit for backwards compatibility
+      return new Response(JSON.stringify({
+        permission: 'edit',
+        isOwner: false,
+        boardExists: false,
+        message: 'Permission system not configured'
+      }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Get user ID from public key if provided
+    let userId: string | null = null;
+    const publicKey = request.headers.get('X-CryptID-PublicKey');
+
+    if (publicKey) {
+      const deviceKey = await db.prepare(
+        'SELECT user_id FROM device_keys WHERE public_key = ?'
+      ).bind(publicKey).first<{ user_id: string }>();
+
+      if (deviceKey) {
+        userId = deviceKey.user_id;
+      }
+    }
+
+    const result = await getEffectivePermission(db, boardId, userId);
+
+    return new Response(JSON.stringify(result), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('Get permission error:', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+/**
+ * GET /boards/:boardId/permissions
+ * List all permissions for a board (admin only)
+ */
+export async function handleListPermissions(
+  boardId: string,
+  request: Request,
+  env: Environment
+): Promise<Response> {
+  try {
+    const db = env.CRYPTID_DB;
+    if (!db) {
+      return new Response(JSON.stringify({ error: 'Database not configured' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Authenticate user
+    const publicKey = request.headers.get('X-CryptID-PublicKey');
+    if (!publicKey) {
+      return new Response(JSON.stringify({ error: 'Authentication required' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const deviceKey = await db.prepare(
+      'SELECT user_id FROM device_keys WHERE public_key = ?'
+    ).bind(publicKey).first<{ user_id: string }>();
+
+    if (!deviceKey) {
+      return new Response(JSON.stringify({ error: 'Invalid credentials' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Check if user is admin
+    const permCheck = await getEffectivePermission(db, boardId, deviceKey.user_id);
+    if (permCheck.permission !== 'admin') {
+      return new Response(JSON.stringify({ error: 'Admin access required' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Get all permissions with user info
+    const permissions = await db.prepare(`
+      SELECT bp.*, u.cryptid_username, u.email
+      FROM board_permissions bp
+      JOIN users u ON bp.user_id = u.id
+      WHERE bp.board_id = ?
+      ORDER BY bp.granted_at DESC
+    `).bind(boardId).all<BoardPermission & { cryptid_username: string; email: string }>();
+
+    // Get board info
+    const board = await db.prepare(
+      'SELECT * FROM boards WHERE id = ?'
+    ).bind(boardId).first<Board>();
+
+    // Get owner info if exists
+    let owner = null;
+    if (board?.owner_id) {
+      owner = await db.prepare(
+        'SELECT id, cryptid_username, email FROM users WHERE id = ?'
+      ).bind(board.owner_id).first<{ id: string; cryptid_username: string; email: string }>();
+    }
+
+    return new Response(JSON.stringify({
+      board: board ? {
+        id: board.id,
+        name: board.name,
+        defaultPermission: board.default_permission,
+        isPublic: board.is_public === 1,
+        createdAt: board.created_at
+      } : null,
+      owner,
+      permissions: permissions.results || []
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('List permissions error:', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+/**
+ * POST /boards/:boardId/permissions
+ * Grant permission to a user (admin only)
+ * Body: { userId, permission, username? }
+ */
+export async function handleGrantPermission(
+  boardId: string,
+  request: Request,
+  env: Environment
+): Promise<Response> {
+  try {
+    const db = env.CRYPTID_DB;
+    if (!db) {
+      return new Response(JSON.stringify({ error: 'Database not configured' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Authenticate user
+    const publicKey = request.headers.get('X-CryptID-PublicKey');
+    if (!publicKey) {
+      return new Response(JSON.stringify({ error: 'Authentication required' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const adminDeviceKey = await db.prepare(
+      'SELECT user_id FROM device_keys WHERE public_key = ?'
+    ).bind(publicKey).first<{ user_id: string }>();
+
+    if (!adminDeviceKey) {
+      return new Response(JSON.stringify({ error: 'Invalid credentials' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Check if user is admin
+    const permCheck = await getEffectivePermission(db, boardId, adminDeviceKey.user_id);
+    if (permCheck.permission !== 'admin') {
+      return new Response(JSON.stringify({ error: 'Admin access required' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const body = await request.json() as {
+      userId?: string;
+      username?: string;
+      permission: PermissionLevel;
+    };
+
+    const { userId, username, permission } = body;
+
+    if (!permission || !['view', 'edit', 'admin'].includes(permission)) {
+      return new Response(JSON.stringify({ error: 'Invalid permission level' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Find target user
+    let targetUserId = userId;
+    if (!targetUserId && username) {
+      const user = await db.prepare(
+        'SELECT id FROM users WHERE cryptid_username = ?'
+      ).bind(username).first<{ id: string }>();
+
+      if (!user) {
+        return new Response(JSON.stringify({ error: 'User not found' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      targetUserId = user.id;
+    }
+
+    if (!targetUserId) {
+      return new Response(JSON.stringify({ error: 'userId or username required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Ensure board exists
+    await ensureBoardExists(db, boardId, adminDeviceKey.user_id);
+
+    // Upsert permission
+    await db.prepare(`
+      INSERT INTO board_permissions (id, board_id, user_id, permission, granted_by)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(board_id, user_id) DO UPDATE SET
+        permission = excluded.permission,
+        granted_by = excluded.granted_by,
+        granted_at = datetime('now')
+    `).bind(generateUUID(), boardId, targetUserId, permission, adminDeviceKey.user_id).run();
+
+    return new Response(JSON.stringify({
+      success: true,
+      message: `Permission '${permission}' granted to user`
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('Grant permission error:', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+/**
+ * DELETE /boards/:boardId/permissions/:userId
+ * Revoke a user's permission (admin only)
+ */
+export async function handleRevokePermission(
+  boardId: string,
+  targetUserId: string,
+  request: Request,
+  env: Environment
+): Promise<Response> {
+  try {
+    const db = env.CRYPTID_DB;
+    if (!db) {
+      return new Response(JSON.stringify({ error: 'Database not configured' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Authenticate user
+    const publicKey = request.headers.get('X-CryptID-PublicKey');
+    if (!publicKey) {
+      return new Response(JSON.stringify({ error: 'Authentication required' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const adminDeviceKey = await db.prepare(
+      'SELECT user_id FROM device_keys WHERE public_key = ?'
+    ).bind(publicKey).first<{ user_id: string }>();
+
+    if (!adminDeviceKey) {
+      return new Response(JSON.stringify({ error: 'Invalid credentials' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Check if user is admin
+    const permCheck = await getEffectivePermission(db, boardId, adminDeviceKey.user_id);
+    if (permCheck.permission !== 'admin') {
+      return new Response(JSON.stringify({ error: 'Admin access required' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Can't revoke from board owner
+    const board = await db.prepare(
+      'SELECT owner_id FROM boards WHERE id = ?'
+    ).bind(boardId).first<{ owner_id: string }>();
+
+    if (board?.owner_id === targetUserId) {
+      return new Response(JSON.stringify({ error: 'Cannot revoke permission from board owner' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Delete permission
+    await db.prepare(
+      'DELETE FROM board_permissions WHERE board_id = ? AND user_id = ?'
+    ).bind(boardId, targetUserId).run();
+
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'Permission revoked'
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('Revoke permission error:', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+/**
+ * PATCH /boards/:boardId
+ * Update board settings (admin only)
+ * Body: { name?, defaultPermission?, isPublic? }
+ */
+export async function handleUpdateBoard(
+  boardId: string,
+  request: Request,
+  env: Environment
+): Promise<Response> {
+  try {
+    const db = env.CRYPTID_DB;
+    if (!db) {
+      return new Response(JSON.stringify({ error: 'Database not configured' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Authenticate user
+    const publicKey = request.headers.get('X-CryptID-PublicKey');
+    if (!publicKey) {
+      return new Response(JSON.stringify({ error: 'Authentication required' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const deviceKey = await db.prepare(
+      'SELECT user_id FROM device_keys WHERE public_key = ?'
+    ).bind(publicKey).first<{ user_id: string }>();
+
+    if (!deviceKey) {
+      return new Response(JSON.stringify({ error: 'Invalid credentials' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Check if user is admin
+    const permCheck = await getEffectivePermission(db, boardId, deviceKey.user_id);
+    if (permCheck.permission !== 'admin') {
+      return new Response(JSON.stringify({ error: 'Admin access required' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const body = await request.json() as {
+      name?: string;
+      defaultPermission?: 'view' | 'edit';
+      isPublic?: boolean;
+    };
+
+    const updates: string[] = [];
+    const values: any[] = [];
+
+    if (body.name !== undefined) {
+      updates.push('name = ?');
+      values.push(body.name);
+    }
+    if (body.defaultPermission !== undefined) {
+      if (!['view', 'edit'].includes(body.defaultPermission)) {
+        return new Response(JSON.stringify({ error: 'Invalid default permission' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      updates.push('default_permission = ?');
+      values.push(body.defaultPermission);
+    }
+    if (body.isPublic !== undefined) {
+      updates.push('is_public = ?');
+      values.push(body.isPublic ? 1 : 0);
+    }
+
+    if (updates.length === 0) {
+      return new Response(JSON.stringify({ error: 'No updates provided' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    updates.push("updated_at = datetime('now')");
+    values.push(boardId);
+
+    await db.prepare(`
+      UPDATE boards SET ${updates.join(', ')} WHERE id = ?
+    `).bind(...values).run();
+
+    const updatedBoard = await db.prepare(
+      'SELECT * FROM boards WHERE id = ?'
+    ).bind(boardId).first<Board>();
+
+    return new Response(JSON.stringify({
+      success: true,
+      board: updatedBoard ? {
+        id: updatedBoard.id,
+        name: updatedBoard.name,
+        defaultPermission: updatedBoard.default_permission,
+        isPublic: updatedBoard.is_public === 1,
+        updatedAt: updatedBoard.updated_at
+      } : null
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('Update board error:', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}

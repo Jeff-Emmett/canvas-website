@@ -262,12 +262,18 @@ export class AutomergeSyncManager {
 
   /**
    * Handle peer disconnection
-   * Clean up sync state but don't lose any data
+   * Clean up sync state and flush any pending saves
    */
-  handlePeerDisconnect(peerId: string): void {
+  async handlePeerDisconnect(peerId: string): Promise<void> {
     if (this.peerSyncStates.has(peerId)) {
       this.peerSyncStates.delete(peerId)
       console.log(`👋 Peer disconnected: ${peerId}`)
+
+      // If there's a pending save, flush it immediately to prevent data loss
+      if (this.pendingSave) {
+        console.log(`💾 Flushing pending save on peer disconnect`)
+        await this.forceSave()
+      }
     }
   }
 

@@ -1,3 +1,11 @@
+/**
+ * Permission levels for board access:
+ * - 'view': Read-only access, cannot create/edit/delete shapes
+ * - 'edit': Can create, edit, and delete shapes
+ * - 'admin': Full access including permission management and board settings
+ */
+export type PermissionLevel = 'view' | 'edit' | 'admin';
+
 export interface Session {
   username: string;
   authed: boolean;
@@ -6,6 +14,10 @@ export interface Session {
   obsidianVaultPath?: string;
   obsidianVaultName?: string;
   error?: string;
+  // Board permission for current board (populated when viewing a board)
+  currentBoardPermission?: PermissionLevel;
+  // Cache of board permissions by board ID
+  boardPermissions?: Record<string, PermissionLevel>;
 }
 
 export enum SessionError {
