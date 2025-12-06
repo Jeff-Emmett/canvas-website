@@ -1,9 +1,10 @@
 ---
 id: task-041
 title: User Networking & Social Graph Visualization
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2025-12-06 06:17'
+updated_date: '2025-12-06 06:24'
 labels:
   - feature
   - social
@@ -43,3 +44,14 @@ Architecture: Extends existing presence system in open-mapping/presence/ and tru
 - [ ] #6 Real-time updates when connections change
 - [ ] #7 Privacy-respecting (honors trust circle permissions)
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Design decisions made:
+- Binary connections only: 'connected' or 'not connected'
+- All usernames publicly searchable
+- One-way following allowed (no acceptance required)
+- Graph scope: full network in grey, room participants colored by presence
+- Edge metadata private to the two connected parties
+<!-- SECTION:NOTES:END -->
