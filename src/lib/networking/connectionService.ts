@@ -40,8 +40,8 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: response.statusText }));
-    throw new Error(error.message || `HTTP ${response.status}`);
+    const errorData = await response.json().catch(() => ({ message: response.statusText })) as { message?: string };
+    throw new Error(errorData.message || `HTTP ${response.status}`);
   }
 
   return response.json();
@@ -278,6 +278,8 @@ export function buildGraphEdge(
     id: connection.id,
     source: connection.fromUserId,
     target: connection.toUserId,
+    trustLevel: connection.trustLevel,
+    effectiveTrustLevel: connection.effectiveTrustLevel,
     isMutual: connection.isMutual,
     metadata: isOnEdge ? connection.metadata : undefined,
     isVisible: true,

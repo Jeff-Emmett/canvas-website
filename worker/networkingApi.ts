@@ -185,7 +185,7 @@ export async function updateMyProfile(request: IRequest, env: Environment): Prom
     `).bind(userId, body.displayName || null, body.bio || null, body.avatarColor || null).run();
 
     // Return updated profile
-    return getUserProfile({ ...request, params: { userId } } as IRequest, env);
+    return getUserProfile({ ...request, params: { userId } } as unknown as IRequest, env);
   } catch (error) {
     console.error('Update profile error:', error);
     return errorResponse('Failed to update profile', 500);
@@ -712,10 +712,12 @@ export async function getNetworkGraph(request: IRequest, env: Environment): Prom
 
     const graphEdges: GraphEdge[] = (edges.results || []).map((e: any) => ({
       id: e.id,
-      fromUserId: e.fromUserId,
-      toUserId: e.toUserId,
-      createdAt: e.createdAt,
+      source: e.fromUserId,
+      target: e.toUserId,
+      trustLevel: e.trustLevel || 'connected',
+      effectiveTrustLevel: e.isMutual ? (e.trustLevel || 'connected') : null,
       isMutual: !!e.isMutual,
+      isVisible: true,
       metadata: (e.fromUserId === userId || e.toUserId === userId) && (e.label || e.notes || e.color || e.strength) ? {
         label: e.label,
         notes: e.notes,
