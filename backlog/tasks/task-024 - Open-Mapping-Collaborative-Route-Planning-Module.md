@@ -4,7 +4,7 @@ title: 'Open Mapping: Collaborative Route Planning Module'
 status: Done
 assignee: []
 created_date: '2025-12-04 14:30'
-updated_date: '2025-12-07 06:32'
+updated_date: '2025-12-07 06:43'
 labels:
   - feature
   - mapping
@@ -175,4 +175,10 @@ Completed Mapus-inspired MapShapeUtil enhancements:
 - Added legacy property support (interactive, showGPS, showSearch, showDirections, sharingLocation, gpsUsers)
 - Prevents 'getLayer' and 'map' undefined errors during component unmount
 - All schema validation errors resolved
+
+**Feature Branch Created (2025-12-07):**
+- Branch: feature/mapshapeutil-fixes
+- Pushed to Gitea: https://gitea.jeffemmett.com/jeffemmett/canvas-website/compare/main...feature/mapshapeutil-fixes
+- Includes all MapLibre cleanup fixes and z-index/pointer-event style improvements
+- Ready for testing before merging to dev
 <!-- SECTION:NOTES:END -->
