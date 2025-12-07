@@ -1,10 +1,10 @@
 ---
 id: task-024
 title: 'Open Mapping: Collaborative Route Planning Module'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2025-12-04 14:30'
-updated_date: '2025-12-06 07:22'
+updated_date: '2025-12-07 06:21'
 labels:
   - feature
   - mapping
@@ -153,4 +153,16 @@ Fixed persistence issue with two changes:
 **Build Script Updates:**
 - Added NODE_OPTIONS="--max-old-space-size=8192" to build, deploy, deploy:pages scripts
 - Prevents memory issues during TypeScript compilation and Vite build
+
+Completed Mapus-inspired MapShapeUtil enhancements:
+- Left sidebar with title/description editing
+- Search bar with Nominatim geocoding
+- Find Nearby categories (8 types: Food, Drinks, Groceries, Hotels, Health, Services, Shopping, Transport)
+- Collaborators list with Observe mode
+- Annotations list with visibility toggle
+- Drawing toolbar (cursor, marker, line, area, eraser)
+- Color picker with 8 Mapus colors
+- Style picker (Voyager, Light, Dark, Satellite)
+- Zoom controls + GPS location button
+- Fixed TypeScript errors (3 issues resolved)
 <!-- SECTION:NOTES:END -->
