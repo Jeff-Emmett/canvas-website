@@ -4,7 +4,7 @@ title: 'Open Mapping: Collaborative Route Planning Module'
 status: Done
 assignee: []
 created_date: '2025-12-04 14:30'
-updated_date: '2025-12-07 06:21'
+updated_date: '2025-12-07 06:32'
 labels:
   - feature
   - mapping
@@ -165,4 +165,14 @@ Completed Mapus-inspired MapShapeUtil enhancements:
 - Style picker (Voyager, Light, Dark, Satellite)
 - Zoom controls + GPS location button
 - Fixed TypeScript errors (3 issues resolved)
+
+**MapLibre Cleanup Fixes (2025-12-07):**
+- Added isMountedRef to track component mount state
+- Fixed map initialization cleanup with named event handlers
+- Added try/catch blocks for all MapLibre operations
+- Fixed style change, resize, and annotations effects with mounted checks
+- Updated callbacks (observeUser, selectSearchResult, findNearby) with null checks
+- Added legacy property support (interactive, showGPS, showSearch, showDirections, sharingLocation, gpsUsers)
+- Prevents 'getLayer' and 'map' undefined errors during component unmount
+- All schema validation errors resolved
 <!-- SECTION:NOTES:END -->
