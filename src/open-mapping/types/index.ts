@@ -221,10 +221,11 @@ export interface ParticipantPermissions {
 }
 
 export interface MapViewport {
-  center: Coordinate;
+  /** Center as [lng, lat] tuple for MapLibre GL JS compatibility */
+  center: [number, number];
   zoom: number;
-  bearing: number;
-  pitch: number;
+  bearing?: number;
+  pitch?: number;
 }
 
 // ============================================================================

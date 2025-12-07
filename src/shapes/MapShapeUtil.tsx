@@ -240,6 +240,8 @@ const styles = {
     height: '100%',
     overflowY: 'auto' as const,
     fontSize: 13,
+    zIndex: 10,
+    position: 'relative' as const,
   },
   section: {
     padding: '14px 16px',
@@ -257,6 +259,7 @@ const styles = {
     background: '#fff',
     cursor: 'pointer',
     transition: 'background 0.15s',
+    pointerEvents: 'auto' as const,
   },
   toolbar: {
     position: 'absolute' as const,
@@ -269,7 +272,8 @@ const styles = {
     display: 'flex',
     padding: 6,
     gap: 4,
-    zIndex: 1000,
+    zIndex: 10000,
+    pointerEvents: 'auto' as const,
   },
   toolButton: {
     width: 42,
@@ -283,10 +287,15 @@ const styles = {
     justifyContent: 'center',
     fontSize: 18,
     transition: 'background 0.15s',
+    pointerEvents: 'auto' as const,
   },
   activeToolButton: {
     background: '#222',
     color: '#fff',
+  },
+  mapButton: {
+    pointerEvents: 'auto' as const,
+    zIndex: 10000,
   },
 };
 
@@ -770,6 +779,18 @@ function MapComponent({ shape, editor }: { shape: IMapShape; editor: MapShape['e
     e.stopPropagation();
   }, []);
 
+  // Prevent browser zoom when over the map - use map zoom instead
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    // The map will handle zooming via its own wheel handler
+  }, []);
+
+  // Capture all pointer events to prevent tldraw from intercepting
+  const capturePointerEvents = useCallback((e: React.PointerEvent) => {
+    e.stopPropagation();
+  }, []);
+
   // ==========================================================================
   // Render
   // ==========================================================================
@@ -802,13 +823,16 @@ function MapComponent({ shape, editor }: { shape: IMapShape; editor: MapShape['e
           position: 'relative',
           boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
           fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+          zIndex: 1,
         }}
-        onPointerDown={stopPropagation}
-        onPointerMove={stopPropagation}
-        onWheel={stopPropagation}
+        onPointerDown={capturePointerEvents}
+        onPointerMove={capturePointerEvents}
+        onPointerUp={capturePointerEvents}
+        onWheel={handleWheel}
         onClick={stopPropagation}
         onDoubleClick={stopPropagation}
         onKeyDown={stopPropagation}
+        onContextMenu={stopPropagation}
       >
         {/* Left Sidebar */}
         {shape.props.showSidebar && (
@@ -1066,14 +1090,15 @@ function MapComponent({ shape, editor }: { shape: IMapShape; editor: MapShape['e
               alignItems: 'center',
               justifyContent: 'center',
               fontSize: 18,
-              zIndex: 1000,
+              zIndex: 10000,
+              pointerEvents: 'auto',
             }}
           >
             {shape.props.showSidebar ? '◀' : '▶'}
           </button>
 
           {/* Style Picker */}
-          <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 1000 }}>
+          <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10000, pointerEvents: 'auto' }}>
             <select
               value={styleKey}
               onChange={(e) => changeStyle(e.target.value as StyleKey)}
@@ -1085,6 +1110,7 @@ function MapComponent({ shape, editor }: { shape: IMapShape; editor: MapShape['e
                 boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                 fontSize: 13,
                 cursor: 'pointer',
+                pointerEvents: 'auto',
               }}
             >
               {Object.entries(MAP_STYLES).map(([key, style]) => (
@@ -1094,7 +1120,7 @@ function MapComponent({ shape, editor }: { shape: IMapShape; editor: MapShape['e
           </div>
 
           {/* Zoom Controls */}
-          <div style={{ position: 'absolute', bottom: 80, right: 10, display: 'flex', flexDirection: 'column', gap: 4, zIndex: 1000 }}>
+          <div style={{ position: 'absolute', bottom: 80, right: 10, display: 'flex', flexDirection: 'column', gap: 4, zIndex: 10000, pointerEvents: 'auto' }}>
             <button
               onClick={() => mapRef.current?.zoomIn()}
               className="mapus-btn"
@@ -1107,6 +1133,7 @@ function MapComponent({ shape, editor }: { shape: IMapShape; editor: MapShape['e
                 boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                 cursor: 'pointer',
                 fontSize: 18,
+                pointerEvents: 'auto',
               }}
             >
               +
@@ -1123,6 +1150,7 @@ function MapComponent({ shape, editor }: { shape: IMapShape; editor: MapShape['e
                 boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                 cursor: 'pointer',
                 fontSize: 18,
+                pointerEvents: 'auto',
               }}
             >
               −
@@ -1148,6 +1176,7 @@ function MapComponent({ shape, editor }: { shape: IMapShape; editor: MapShape['e
                 cursor: 'pointer',
                 fontSize: 16,
                 marginTop: 4,
+                pointerEvents: 'auto',
               }}
               title="My location"
             >

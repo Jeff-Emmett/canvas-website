@@ -82,7 +82,15 @@ export class GPSCollaborationLayer {
 
   constructor(map: maplibregl.Map, options: GPSLayerOptions = {}) {
     this.map = map;
-    this.options = { ...DEFAULT_OPTIONS, ...options };
+    // Deep merge markerStyle to ensure all properties exist
+    this.options = {
+      ...DEFAULT_OPTIONS,
+      ...options,
+      markerStyle: {
+        ...DEFAULT_OPTIONS.markerStyle,
+        ...options.markerStyle,
+      },
+    };
     this.injectStyles();
   }
 
@@ -314,7 +322,7 @@ export class GPSCollaborationLayer {
     const el = document.createElement('div');
     el.className = `gps-marker ${isCurrentUser ? 'gps-marker-self' : 'gps-marker-peer'}`;
 
-    const { size, borderWidth } = this.options.markerStyle;
+    const { size = 40, borderWidth = 3 } = this.options.markerStyle;
     const emoji = this.getPersonEmoji(user.userId);
 
     el.style.cssText = `

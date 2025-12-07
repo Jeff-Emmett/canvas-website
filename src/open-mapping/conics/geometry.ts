@@ -609,6 +609,73 @@ export function sampleConeSurface(
   return points;
 }
 
+// =============================================================================
+// Aliases for backwards compatibility
+// =============================================================================
+
+/** Alias for addVectors */
+export const vectorAdd = addVectors;
+
+/** Alias for subtractVectors */
+export const vectorSubtract = subtractVectors;
+
+/** Alias for scaleVector */
+export const vectorScale = scaleVector;
+
+/** Alias for dotProduct */
+export const vectorDot = dotProduct;
+
+/** Alias for magnitude */
+export const vectorNorm = magnitude;
+
+/** Alias for normalize */
+export const vectorNormalize = normalize;
+
+/** Alias for crossProduct (3D) */
+export const vectorCross3D = crossProduct;
+
+/**
+ * Calculate angle from a reference axis
+ */
+export function angleFromAxis(v: SpaceVector, axis: SpaceVector): number {
+  const normV = normalize(v);
+  const normAxis = normalize(axis);
+  const dot = dotProduct(normV, normAxis);
+  return Math.acos(Math.max(-1, Math.min(1, dot)));
+}
+
+/**
+ * Combine two cones by intersection
+ */
+export function combineCones(
+  cone1: PossibilityCone,
+  cone2: PossibilityCone
+): PossibilityCone {
+  // Simplified: use the more restrictive aperture and average axes
+  const avgAxis = normalize(addVectors(cone1.axis, cone2.axis));
+  return createCone({
+    apex: cone1.apex, // Use first cone's apex
+    axis: avgAxis,
+    aperture: Math.min(cone1.aperture, cone2.aperture),
+    direction: cone1.direction,
+    extent: cone1.extent !== null && cone2.extent !== null
+      ? Math.min(cone1.extent, cone2.extent)
+      : cone1.extent ?? cone2.extent,
+    constraints: [...cone1.constraints, ...cone2.constraints],
+  });
+}
+
+/**
+ * Slice a cone with a plane and return the conic section
+ */
+export function sliceConeWithPlane(
+  cone: PossibilityCone,
+  planeNormal: SpaceVector,
+  planeOffset: number
+): ConicSection {
+  return createConicSection(cone, planeNormal, planeOffset);
+}
+
 /**
  * Find a vector orthogonal to the given vector
  */

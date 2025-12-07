@@ -106,7 +106,7 @@ export function MapCanvas({
       center: viewport.center as [number, number],
       zoom: viewport.zoom,
       interactive,
-      attributionControl: true,
+      attributionControl: {},
     });
 
     // Add navigation controls
@@ -142,8 +142,8 @@ export function MapCanvas({
     // Handle clicks
     map.on('click', (e) => {
       onMapClick?.({
-        latitude: e.lngLat.lat,
-        longitude: e.lngLat.lng,
+        lat: e.lngLat.lat,
+        lng: e.lngLat.lng,
       });
     });
 

@@ -24,11 +24,11 @@ interface LayerPanelProps {
 export function LayerPanel({
   layers,
   onLayerToggle,
-  onLayerOpacity,
-  onLayerReorder,
-  onLayerAdd,
-  onLayerRemove,
-  onLayerEdit,
+  onLayerOpacity: _onLayerOpacity,
+  onLayerReorder: _onLayerReorder,
+  onLayerAdd: _onLayerAdd,
+  onLayerRemove: _onLayerRemove,
+  onLayerEdit: _onLayerEdit,
 }: LayerPanelProps) {
   // TODO: Implement layer panel UI
   // This will be implemented in Phase 2

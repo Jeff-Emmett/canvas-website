@@ -34,9 +34,9 @@ export class RoutingService {
     const url = `${this.config.baseUrl}/trip/v1/driving/${coords}?roundtrip=false&source=first&destination=last`;
     try {
       const res = await fetch(url);
-      const data = await res.json();
+      const data = await res.json() as { code: string; waypoints: { waypoint_index: number }[] };
       if (data.code !== 'Ok') return waypoints;
-      return data.waypoints.map((wp: { waypoint_index: number }) => waypoints[wp.waypoint_index]);
+      return data.waypoints.map((wp) => waypoints[wp.waypoint_index]);
     } catch { return waypoints; }
   }
 
@@ -56,7 +56,7 @@ export class RoutingService {
     url.searchParams.set('steps', 'true');
     if (options?.alternatives) url.searchParams.set('alternatives', 'true');
     const res = await fetch(url.toString());
-    const data = await res.json();
+    const data = await res.json() as { code: string; message?: string; routes: unknown[] };
     if (data.code !== 'Ok') throw new Error(`OSRM error: ${data.message || data.code}`);
     return this.parseOSRMResponse(data, profile);
   }
@@ -65,7 +65,7 @@ export class RoutingService {
     const costing = profile === 'bicycle' ? 'bicycle' : profile === 'foot' ? 'pedestrian' : 'auto';
     const body = { locations: coords.map((c) => ({ lat: c.lat, lon: c.lng })), costing, alternates: options?.alternatives ?? 0 };
     const res = await fetch(`${this.config.baseUrl}/route`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    const data = await res.json();
+    const data = await res.json() as { error?: string };
     if (data.error) throw new Error(`Valhalla error: ${data.error}`);
     return this.parseValhallaResponse(data, profile);
   }

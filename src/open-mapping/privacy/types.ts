@@ -4,7 +4,31 @@
  * Types for privacy-preserving location sharing protocol
  */
 
-import type { GeohashPrecision } from './geohash';
+import type { GeohashPrecision as _GeohashPrecision } from './geohash';
+
+// Re-export GeohashPrecision for convenience
+export type GeohashPrecision = _GeohashPrecision;
+export { GEOHASH_PRECISION } from './geohash';
+export type { GeohashBounds } from './geohash';
+
+/**
+ * A geohash-based location commitment (alias for LocationCommitment)
+ * Used in discovery and presence systems
+ */
+export interface GeohashCommitment {
+  /** The commitment hash */
+  commitment: string;
+  /** The geohash prefix that is revealed */
+  geohash: string;
+  /** Precision level (1-12) */
+  precision: GeohashPrecision;
+  /** When this commitment was created */
+  timestamp: number;
+  /** When this commitment expires */
+  expiresAt: number;
+  /** Salt used in the commitment (for verification) */
+  salt?: string;
+}
 
 // =============================================================================
 // Core Location Types

@@ -45,14 +45,14 @@ interface UseCollaborationReturn {
 
 export function useCollaboration({
   sessionId,
-  userId,
-  userName,
-  userColor = '#3B82F6',
+  userId: _userId,
+  userName: _userName,
+  userColor: _userColor = '#3B82F6',
   serverUrl,
-  onParticipantJoin,
-  onParticipantLeave,
-  onRouteUpdate,
-  onWaypointUpdate,
+  onParticipantJoin: _onParticipantJoin,
+  onParticipantLeave: _onParticipantLeave,
+  onRouteUpdate: _onRouteUpdate,
+  onWaypointUpdate: _onWaypointUpdate,
 }: UseCollaborationOptions): UseCollaborationReturn {
   const [session, setSession] = useState<CollaborationSession | null>(null);
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -95,7 +95,7 @@ export function useCollaboration({
     setIsConnected(false);
   }, []);
 
-  const updateCursor = useCallback((coordinate: Coordinate) => {
+  const updateCursor = useCallback((_coordinate: Coordinate) => {
     // TODO: Broadcast cursor position via Y.js awareness
     // awareness.setLocalStateField('cursor', coordinate);
   }, []);
