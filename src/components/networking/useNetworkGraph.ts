@@ -103,12 +103,29 @@ export function useNetworkGraph(options: UseNetworkGraphOptions = {}): UseNetwor
 
   // Fetch the network graph
   const fetchGraph = useCallback(async (skipCache = false) => {
+    // For unauthenticated users, just show room participants without network connections
     if (!session.authed || !session.username) {
-      setState(prev => ({
-        ...prev,
-        isLoading: false,
-        error: 'Not authenticated',
+      // Create nodes from room participants for anonymous users
+      const anonymousNodes: GraphNode[] = roomParticipants.map(participant => ({
+        id: participant.id,
+        username: participant.username,
+        displayName: participant.username,
+        avatarColor: participant.color,
+        isInRoom: true,
+        roomPresenceColor: participant.color,
+        isCurrentUser: participant.id === roomParticipants[0]?.id, // First participant is current user
+        isAnonymous: true,
+        trustLevelTo: undefined,
+        trustLevelFrom: undefined,
       }));
+
+      setState({
+        nodes: anonymousNodes,
+        edges: [],
+        myConnections: [],
+        isLoading: false,
+        error: null,
+      });
       return;
     }
 
@@ -196,7 +213,7 @@ export function useNetworkGraph(options: UseNetworkGraphOptions = {}): UseNetwor
         error: (error as Error).message,
       }));
     }
-  }, [session.authed, session.username, participantIds, participantColorMap, useCache]);
+  }, [session.authed, session.username, participantIds, participantColorMap, useCache, roomParticipants]);
 
   // Initial fetch
   useEffect(() => {

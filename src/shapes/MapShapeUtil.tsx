@@ -326,7 +326,13 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
 
   const [isLoaded, setIsLoaded] = useState(false);
   const [activeTool, setActiveTool] = useState<'cursor' | 'marker' | 'line' | 'area' | 'eraser'>('cursor');
+  const activeToolRef = useRef(activeTool); // Ref to track current tool in event handlers
   const [selectedColor, setSelectedColor] = useState(COLORS[4]);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    activeToolRef.current = activeTool;
+  }, [activeTool]);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -396,10 +402,14 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
     const handleClick = (e: maplibregl.MapMouseEvent) => {
       if (!isMountedRef.current) return;
       const coord = { lat: e.lngLat.lat, lng: e.lngLat.lng };
+      const currentTool = activeToolRef.current;
 
-      if (activeTool === 'marker') {
+      console.log('Map click with tool:', currentTool, 'at', coord);
+
+      if (currentTool === 'marker') {
         addAnnotation('marker', [coord]);
       }
+      // TODO: Implement line and area drawing
     };
 
     map.on('load', handleLoad);
@@ -793,21 +803,25 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
     e.stopPropagation();
   }, []);
 
-  // Handle wheel events on map container - forward delta to map for zooming
-  const handleMapWheel = useCallback((e: React.WheelEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    // Forward wheel event to the map for zooming
-    if (mapRef.current) {
-      const map = mapRef.current;
-      const delta = e.deltaY > 0 ? -1 : 1;
-      const currentZoom = map.getZoom();
-      map.easeTo({
-        zoom: currentZoom + delta * 0.5,
-        duration: 150,
-      });
-    }
-  }, []);
+  // Handle wheel events on map container - attach native listener for proper capture
+  useEffect(() => {
+    const mapContainer = containerRef.current?.parentElement;
+    if (!mapContainer) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      // Stop propagation to prevent tldraw from capturing the wheel event
+      e.stopPropagation();
+      // Let maplibre handle the wheel event natively for zooming
+      // Don't prevent default - let the map's scrollZoom handle it
+    };
+
+    // Capture wheel events before they bubble up to tldraw
+    mapContainer.addEventListener('wheel', handleWheel, { passive: true });
+
+    return () => {
+      mapContainer.removeEventListener('wheel', handleWheel);
+    };
+  }, [isLoaded]);
 
   // Close handler for StandardizedToolWrapper
   const handleClose = useCallback(() => {
@@ -1102,10 +1116,10 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
 
           {/* Map Container */}
           <div
-            style={{ flex: 1, position: 'relative' }}
-            onWheel={handleMapWheel}
+            style={{ flex: 1, position: 'relative', pointerEvents: 'auto' }}
+            onPointerDown={stopPropagation}
           >
-            <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+            <div ref={containerRef} style={{ width: '100%', height: '100%', pointerEvents: 'auto' }} />
 
             {/* Sidebar Toggle */}
             <button

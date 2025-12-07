@@ -379,7 +379,7 @@ export function NetworkGraphMinimap({
     <div style={styles.container}>
       <div style={styles.panel}>
         <div style={styles.header}>
-          <h3 style={styles.title}>Network</h3>
+          <h3 style={styles.title}>Social Network</h3>
           <div style={styles.headerButtons}>
             <button
               style={styles.iconButton}

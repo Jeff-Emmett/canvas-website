@@ -765,6 +765,79 @@ export function sanitizeRecord(record: any): TLRecord {
       console.log(`🔧 Sanitized Multmux shape ${sanitized.id} props:`, JSON.stringify(sanitized.props))
     }
 
+    // CRITICAL: Sanitize Map shapes - ensure all required props have defaults
+    // Old shapes may be missing pinnedToView, isMinimized, or other newer properties
+    if (sanitized.type === 'Map') {
+      // Ensure boolean props have proper defaults (old data may have undefined)
+      if (typeof sanitized.props.pinnedToView !== 'boolean') {
+        sanitized.props.pinnedToView = false
+      }
+      if (typeof sanitized.props.isMinimized !== 'boolean') {
+        sanitized.props.isMinimized = false
+      }
+      if (typeof sanitized.props.showSidebar !== 'boolean') {
+        sanitized.props.showSidebar = true
+      }
+      if (typeof sanitized.props.interactive !== 'boolean') {
+        sanitized.props.interactive = true
+      }
+      if (typeof sanitized.props.showGPS !== 'boolean') {
+        sanitized.props.showGPS = false
+      }
+      if (typeof sanitized.props.showSearch !== 'boolean') {
+        sanitized.props.showSearch = false
+      }
+      if (typeof sanitized.props.showDirections !== 'boolean') {
+        sanitized.props.showDirections = false
+      }
+      if (typeof sanitized.props.sharingLocation !== 'boolean') {
+        sanitized.props.sharingLocation = false
+      }
+      // Ensure array props exist
+      if (!Array.isArray(sanitized.props.annotations)) {
+        sanitized.props.annotations = []
+      }
+      if (!Array.isArray(sanitized.props.waypoints)) {
+        sanitized.props.waypoints = []
+      }
+      if (!Array.isArray(sanitized.props.collaborators)) {
+        sanitized.props.collaborators = []
+      }
+      if (!Array.isArray(sanitized.props.gpsUsers)) {
+        sanitized.props.gpsUsers = []
+      }
+      if (!Array.isArray(sanitized.props.tags)) {
+        sanitized.props.tags = ['map']
+      }
+      // Ensure string props exist
+      if (typeof sanitized.props.styleKey !== 'string') {
+        sanitized.props.styleKey = 'voyager'
+      }
+      if (typeof sanitized.props.title !== 'string') {
+        sanitized.props.title = 'Collaborative Map'
+      }
+      if (typeof sanitized.props.description !== 'string') {
+        sanitized.props.description = ''
+      }
+      // Ensure viewport exists with defaults
+      if (!sanitized.props.viewport || typeof sanitized.props.viewport !== 'object') {
+        sanitized.props.viewport = {
+          center: { lat: 40.7128, lng: -74.006 },
+          zoom: 12,
+          bearing: 0,
+          pitch: 0,
+        }
+      }
+      // Ensure numeric props
+      if (typeof sanitized.props.w !== 'number' || isNaN(sanitized.props.w)) {
+        sanitized.props.w = 800
+      }
+      if (typeof sanitized.props.h !== 'number' || isNaN(sanitized.props.h)) {
+        sanitized.props.h = 550
+      }
+      console.log(`🔧 Sanitized Map shape ${sanitized.id}`)
+    }
+
     // CRITICAL: Infer type from properties BEFORE defaulting to 'geo'
     // This ensures arrows and other shapes are properly recognized
     if (!sanitized.type || typeof sanitized.type !== 'string') {

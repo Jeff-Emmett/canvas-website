@@ -111,11 +111,6 @@ export function NetworkGraphPanel({ onExpand }: NetworkGraphPanelProps) {
     }
   }, [onExpand]);
 
-  // Don't render if not authenticated
-  if (!session.authed) {
-    return null;
-  }
-
   // Show loading state briefly
   if (isLoading && nodes.length === 0) {
     return (
