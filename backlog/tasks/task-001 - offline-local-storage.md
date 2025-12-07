@@ -4,7 +4,7 @@ title: offline local storage
 status: Done
 assignee: []
 created_date: '2025-12-03 23:42'
-updated_date: '2025-12-04 20:35'
+updated_date: '2025-12-07 20:50'
 labels:
   - feature
   - offline
@@ -49,4 +49,6 @@ Implemented connection status tracking:
 - Created ConnectionStatusIndicator component with visual feedback
 - Shows status only when not connected (connecting/reconnecting/disconnected/offline)
 - Auto-hides when connected and online
+
+Model files downloaded successfully: tiny.en-encoder.int8.onnx (13MB), tiny.en-decoder.int8.onnx (87MB), tokens.txt (816KB)
 <!-- SECTION:NOTES:END -->
