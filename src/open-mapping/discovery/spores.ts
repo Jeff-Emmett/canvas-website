@@ -16,7 +16,7 @@ import type {
   GameEvent,
   GameEventListener,
 } from './types';
-import type { GeohashCommitment } from '../privacy/types';
+import type { GeohashCommitment, GeohashPrecision } from '../privacy/types';
 import type { MyceliumNode, Hypha, Signal, NodeType, HyphaType } from '../mycelium/types';
 import { MyceliumNetwork, createMyceliumNetwork } from '../mycelium';
 
@@ -225,14 +225,16 @@ export class SporeManager {
     }
 
     // Create mycelium node at location
-    const node = this.network.addNode({
+    const position = this.geohashToPosition(params.locationCommitment.geohash);
+    const node = this.network.createNode({
       type: this.sporeTypeToNodeType(params.spore.type),
-      position: this.geohashToPosition(params.locationCommitment.geohash),
-      strength: params.spore.nutrientCapacity / 100,
-      data: {
+      label: params.spore.id,
+      position: { lat: position.y / 100, lng: position.x / 10000 },
+      metadata: {
         sporeId: params.spore.id,
         planterPubKey: params.planterPubKey,
         sporeType: params.spore.type,
+        strength: params.spore.nutrientCapacity / 100,
       },
     });
 
@@ -276,21 +278,23 @@ export class SporeManager {
       const maxRange = Math.min(planted.spore.maxReach, other.spore.maxReach);
       if (distance <= maxRange) {
         // Create hypha connection
-        const hypha = this.network.addHypha({
+        const hypha = this.network.createHypha({
           type: this.getHyphaType(planted.spore.type, other.spore.type),
-          fromId: planted.nodeId,
-          toId: other.nodeId,
+          sourceId: planted.nodeId,
+          targetId: other.nodeId,
           strength: 0.5,
-          data: {
+          metadata: {
             plantedSporeIds: [planted.id, other.id],
           },
         });
 
-        planted.hyphaIds.push(hypha.id);
-        other.hyphaIds.push(hypha.id);
+        if (hypha) {
+          planted.hyphaIds.push(hypha.id);
+          other.hyphaIds.push(hypha.id);
 
-        // Check for fruiting body conditions
-        this.checkFruitingConditions(planted);
+          // Check for fruiting body conditions
+          this.checkFruitingConditions(planted);
+        }
       }
     }
   }
@@ -360,11 +364,12 @@ export class SporeManager {
 
       // Find connections via hyphae
       for (const hyphaId of spore.hyphaIds) {
-        const hypha = this.network.getHypha(hyphaId);
+        const hyphae = this.network.getNodeHyphae(spore.nodeId);
+        const hypha = hyphae.find((h) => h.id === hyphaId);
         if (hypha) {
           // Find the other node
           const otherNodeId =
-            hypha.fromId === spore.nodeId ? hypha.toId : hypha.fromId;
+            hypha.sourceId === spore.nodeId ? hypha.targetId : hypha.sourceId;
 
           // Find spore by node ID
           for (const [id, s] of this.plantedSpores.entries()) {
@@ -404,9 +409,10 @@ export class SporeManager {
       type,
       locationCommitment: {
         geohash: centerGeohash,
-        hash: '', // Would be calculated
-        timestamp: now,
-        precision: 7,
+        commitment: '', // Would be calculated
+        timestamp: now.getTime(),
+        expiresAt: now.getTime() + lifespanMinutes * 60 * 1000,
+        precision: 7 as GeohashPrecision,
       },
       sourceSporeIds: spores.map((s) => s.id),
       harvestableRewards: rewards,
@@ -420,15 +426,17 @@ export class SporeManager {
 
     this.emit({ type: 'fruit:emerged', fruit });
 
-    // Notify network
-    this.network.emit({
-      id: `signal-fruit-${fruit.id}`,
-      type: 'discovery',
-      sourceId: spores[0].nodeId,
-      strength: 1,
-      timestamp: now,
-      data: { fruitId: fruit.id, type },
-    });
+    // Emit signal to network
+    this.network.emitSignal(
+      spores[0].nodeId,
+      `fruit-${fruit.id}`,
+      {
+        type: 'discovery',
+        strength: 1,
+        payload: { fruitId: fruit.id, type },
+        ttl: lifespanMinutes * 60 * 1000,
+      }
+    );
 
     return fruit;
   }
@@ -629,8 +637,7 @@ export class SporeManager {
       fruit.maturity = Math.min(100, (ageMs / lifespanMs) * 100 * 2); // Mature at 50% lifespan
     }
 
-    // Update network
-    this.network.propagateSignals(0.9);
+    // Network handles signal propagation internally via maintenance loop
   }
 
   /**
@@ -640,11 +647,13 @@ export class SporeManager {
     const growthRate = spore.spore.growthRate * this.config.baseGrowthRate;
 
     // Try to extend existing hyphae or create new connections
-    for (const hyphaId of spore.hyphaIds) {
-      const hypha = this.network.getHypha(hyphaId);
-      if (hypha) {
+    const hyphae = this.network.getNodeHyphae(spore.nodeId);
+    for (const hypha of hyphae) {
+      if (spore.hyphaIds.includes(hypha.id)) {
         // Strengthen existing connection
-        hypha.strength = Math.min(1, hypha.strength + growthRate * 0.01);
+        this.network.updateHypha(hypha.id, {
+          strength: Math.min(1, hypha.strength + growthRate * 0.01),
+        });
       }
     }
   }

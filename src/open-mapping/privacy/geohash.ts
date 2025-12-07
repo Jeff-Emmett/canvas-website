@@ -427,3 +427,22 @@ export function precisionForRadius(radiusMeters: number): number {
   }
   return 1;
 }
+
+// =============================================================================
+// Convenience Aliases
+// =============================================================================
+
+/**
+ * Alias for encode() - encode latitude/longitude to geohash
+ */
+export const encodeGeohash = encode;
+
+/**
+ * Alias for decode() - decode geohash to latitude/longitude
+ */
+export const decodeGeohash = decode;
+
+/**
+ * Alias for decodeBounds() - get bounding box for a geohash
+ */
+export const getGeohashBounds = decodeBounds;

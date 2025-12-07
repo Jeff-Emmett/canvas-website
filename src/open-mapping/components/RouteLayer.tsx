@@ -34,15 +34,15 @@ const DEFAULT_PROFILE_COLORS: Record<RoutingProfile, string> = {
 };
 
 export function RouteLayer({
-  routes,
-  selectedRouteId,
-  showAlternatives = true,
-  showElevation = false,
-  onRouteSelect,
-  onRouteEdit,
+  routes: _routes,
+  selectedRouteId: _selectedRouteId,
+  showAlternatives: _showAlternatives = true,
+  showElevation: _showElevation = false,
+  onRouteSelect: _onRouteSelect,
+  onRouteEdit: _onRouteEdit,
   profileColors = {},
 }: RouteLayerProps) {
-  const colors = { ...DEFAULT_PROFILE_COLORS, ...profileColors };
+  const _colors = { ...DEFAULT_PROFILE_COLORS, ...profileColors };
 
   // TODO: Implement route rendering with MapLibre GL JS
   // This will be implemented in Phase 2

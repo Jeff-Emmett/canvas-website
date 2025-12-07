@@ -76,7 +76,7 @@ export class TrustCircleManager {
       customPrecision: params.customPrecision,
       members: [],
       updateInterval: params.updateInterval ?? this.getDefaultInterval(params.level),
-      requireMutual: params.requireMutual ?? params.level === 'intimate' || params.level === 'close',
+      requireMutual: params.requireMutual ?? (params.level === 'intimate' || params.level === 'close'),
       enabled: true,
     };
 
@@ -329,6 +329,47 @@ export class TrustCircleManager {
     return TRUST_LEVEL_PRECISION[level];
   }
 
+  /**
+   * Get trust level for a contact based on their highest circle membership
+   */
+  getTrustLevel(contactId: string): TrustLevel | null {
+    const precision = this.getPrecisionForContact(contactId);
+    if (precision === null) return null;
+    return getTrustLevelFromPrecision(precision);
+  }
+
+  /**
+   * Set trust level for a contact by adding them to the appropriate circle
+   */
+  setTrustLevel(contactId: string, level: TrustLevel): void {
+    // Remove from all current circles first
+    for (const circle of this.circles.values()) {
+      if (circle.members.includes(contactId)) {
+        this.removeFromCircle(circle.id, contactId);
+      }
+    }
+
+    // Find or create a circle at this level
+    let targetCircle: TrustCircle | undefined;
+    for (const circle of this.circles.values()) {
+      if (circle.level === level) {
+        targetCircle = circle;
+        break;
+      }
+    }
+
+    if (!targetCircle) {
+      // Create a new circle at this level
+      targetCircle = this.createCircle({
+        name: `${level.charAt(0).toUpperCase() + level.slice(1)} Circle`,
+        level,
+      });
+    }
+
+    // Add to the circle
+    this.addToCircle(targetCircle.id, contactId);
+  }
+
   // ===========================================================================
   // Broadcast Helpers
   // ===========================================================================
@@ -359,7 +400,7 @@ export class TrustCircleManager {
    * Returns a map of circleId -> encrypted commitment
    */
   async createCircleCommitments(
-    coordinate: { lat: number; lng: number },
+    _coordinate: { lat: number; lng: number },
     createCommitmentFn: (precision: GeohashPrecision) => Promise<LocationCommitment>
   ): Promise<Map<string, { commitment: LocationCommitment; precision: GeohashPrecision }>> {
     const commitments = new Map<

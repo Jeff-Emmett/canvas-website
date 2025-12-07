@@ -30,10 +30,10 @@ import {
   getRadiusForPrecision,
   getPrecisionForTrustLevel,
 } from './types';
-import type { TrustLevel, GeohashCommitment } from '../privacy/types';
+import type { TrustLevel, GeohashCommitment, GeohashPrecision } from '../privacy/types';
 import { TrustCircleManager, createTrustCircleManager } from '../privacy/trustCircles';
-import { createCommitment } from '../privacy/commitments';
-import { encodeGeohash, decodeGeohash, getGeohashBounds } from '../privacy/geohash';
+import { createCommitment, generateSalt } from '../privacy/commitments';
+import { encodeGeohash, getGeohashBounds } from '../privacy/geohash';
 
 // =============================================================================
 // Presence Manager
@@ -60,7 +60,7 @@ export class PresenceManager {
       ...config,
     };
 
-    this.trustCircles = createTrustCircleManager(this.config.userPubKey);
+    this.trustCircles = createTrustCircleManager(this.config.userPubKey, this.config.userPubKey);
 
     this.state = {
       config: this.config,
@@ -175,14 +175,23 @@ export class PresenceManager {
     const isMoving = (coords.speed ?? 0) > 0.5; // > 0.5 m/s = moving
 
     // Create zkGPS commitment for the location
-    const geohash = encodeGeohash(coords.latitude, coords.longitude, 12);
-    const commitment = await createCommitment(
-      coords.latitude,
-      coords.longitude,
-      12,
-      this.config.userPubKey,
-      this.config.userPrivKey
-    );
+    const fullGeohash = encodeGeohash(coords.latitude, coords.longitude, 12);
+    const salt = generateSalt();
+    const baseCommitment = await createCommitment({
+      coordinate: { lat: coords.latitude, lng: coords.longitude },
+      precision: 12 as GeohashPrecision,
+      salt,
+    });
+
+    // Create GeohashCommitment from LocationCommitment
+    const commitment: GeohashCommitment = {
+      commitment: baseCommitment.commitment,
+      geohash: fullGeohash,
+      precision: baseCommitment.precision,
+      timestamp: baseCommitment.timestamp,
+      expiresAt: baseCommitment.expiresAt,
+      salt,
+    };
 
     // Update self location
     this.state.self.location = {
@@ -223,13 +232,23 @@ export class PresenceManager {
     longitude: number,
     source: LocationSource = 'manual'
   ): Promise<void> {
-    const commitment = await createCommitment(
-      latitude,
-      longitude,
-      12,
-      this.config.userPubKey,
-      this.config.userPrivKey
-    );
+    const salt = generateSalt();
+    const fullGeohash = encodeGeohash(latitude, longitude, 12);
+    const baseCommitment = await createCommitment({
+      coordinate: { lat: latitude, lng: longitude },
+      precision: 12 as GeohashPrecision,
+      salt,
+    });
+
+    // Create GeohashCommitment from LocationCommitment
+    const commitment: GeohashCommitment = {
+      commitment: baseCommitment.commitment,
+      geohash: fullGeohash,
+      precision: baseCommitment.precision,
+      timestamp: baseCommitment.timestamp,
+      expiresAt: baseCommitment.expiresAt,
+      salt,
+    };
 
     this.state.self.location = {
       coordinates: {
@@ -528,7 +547,7 @@ export class PresenceManager {
         longitude: (bounds.minLng + bounds.maxLng) / 2,
       };
 
-      const ageSeconds = (Date.now() - payload.commitment.timestamp.getTime()) / 1000;
+      const ageSeconds = (Date.now() - payload.commitment.timestamp) / 1000;
 
       location = {
         geohash,

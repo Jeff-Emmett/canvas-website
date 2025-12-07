@@ -37,7 +37,7 @@ interface UseMapInstanceReturn {
 }
 
 const DEFAULT_VIEWPORT: MapViewport = {
-  center: { lat: 40.7128, lng: -74.006 }, // NYC default
+  center: [-74.006, 40.7128], // [lng, lat] NYC default
   zoom: 10,
   bearing: 0,
   pitch: 0,
@@ -183,10 +183,10 @@ export function useMapInstance({
       const map = new maplibregl.Map({
         container,
         style,
-        center: [initialViewport.center.lng, initialViewport.center.lat],
+        center: initialViewport.center,
         zoom: initialViewport.zoom,
-        bearing: initialViewport.bearing,
-        pitch: initialViewport.pitch,
+        bearing: initialViewport.bearing ?? 0,
+        pitch: initialViewport.pitch ?? 0,
         interactive,
         attributionControl: false,
         maxZoom: config.maxZoom ?? 22,
@@ -210,7 +210,7 @@ export function useMapInstance({
       map.on('move', () => {
         const center = map.getCenter();
         const newViewport: MapViewport = {
-          center: { lat: center.lat, lng: center.lng },
+          center: [center.lng, center.lat],
           zoom: map.getZoom(),
           bearing: map.getBearing(),
           pitch: map.getPitch(),
@@ -227,7 +227,7 @@ export function useMapInstance({
       map.on('moveend', () => {
         const center = map.getCenter();
         const finalViewport: MapViewport = {
-          center: { lat: center.lat, lng: center.lng },
+          center: [center.lng, center.lat],
           zoom: map.getZoom(),
           bearing: map.getBearing(),
           pitch: map.getPitch(),
@@ -269,19 +269,20 @@ export function useMapInstance({
     const currentPitch = map.getPitch();
 
     // Only update if significantly different to avoid feedback loops
+    const [lng, lat] = initialViewport.center;
     const centerChanged =
-      Math.abs(currentCenter.lat - initialViewport.center.lat) > 0.0001 ||
-      Math.abs(currentCenter.lng - initialViewport.center.lng) > 0.0001;
+      Math.abs(currentCenter.lat - lat) > 0.0001 ||
+      Math.abs(currentCenter.lng - lng) > 0.0001;
     const zoomChanged = Math.abs(currentZoom - initialViewport.zoom) > 0.01;
-    const bearingChanged = Math.abs(currentBearing - initialViewport.bearing) > 0.1;
-    const pitchChanged = Math.abs(currentPitch - initialViewport.pitch) > 0.1;
+    const bearingChanged = Math.abs(currentBearing - (initialViewport.bearing ?? 0)) > 0.1;
+    const pitchChanged = Math.abs(currentPitch - (initialViewport.pitch ?? 0)) > 0.1;
 
     if (centerChanged || zoomChanged || bearingChanged || pitchChanged) {
       map.jumpTo({
-        center: [initialViewport.center.lng, initialViewport.center.lat],
+        center: initialViewport.center,
         zoom: initialViewport.zoom,
-        bearing: initialViewport.bearing,
-        pitch: initialViewport.pitch,
+        bearing: initialViewport.bearing ?? 0,
+        pitch: initialViewport.pitch ?? 0,
       });
     }
   }, [initialViewport, isLoaded]);
@@ -293,10 +294,10 @@ export function useMapInstance({
 
       if (mapRef.current && isLoaded) {
         mapRef.current.jumpTo({
-          center: [newViewport.center.lng, newViewport.center.lat],
+          center: newViewport.center,
           zoom: newViewport.zoom,
-          bearing: newViewport.bearing,
-          pitch: newViewport.pitch,
+          bearing: newViewport.bearing ?? 0,
+          pitch: newViewport.pitch ?? 0,
         });
       }
     },

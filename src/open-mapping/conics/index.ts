@@ -171,8 +171,6 @@ export {
 export {
   PathOptimizer,
   createPathOptimizer,
-  DEFAULT_OPTIMIZER_CONFIG,
-  type OptimizerConfig,
 } from './optimization';
 
 // Visualization

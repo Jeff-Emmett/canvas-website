@@ -343,7 +343,7 @@ export class PathOptimizer {
   // Helper Methods
   // ===========================================================================
 
-  private createGrid(resolution: number): void {
+  private createGrid(_resolution: number): void {
     // Grid is implicit - we just use resolution to map points to cells
   }
 
@@ -381,7 +381,7 @@ export class PathOptimizer {
       if (index === dim) {
         if (!current.every((v, i) => v === cell[i])) {
           // Check bounds
-          if (current.every((v, i) => v >= 0 && v < resolution)) {
+          if (current.every((v, _i) => v >= 0 && v < resolution)) {
             neighbors.push([...current]);
           }
         }
@@ -401,7 +401,7 @@ export class PathOptimizer {
   private heuristic(
     cell: number[],
     goalCell: number[],
-    resolution: number
+    _resolution: number
   ): number {
     // Euclidean distance in cell space
     let sum = 0;
@@ -561,7 +561,7 @@ export class PathOptimizer {
     cameFrom: Map<string, number[]>,
     goalCell: number[],
     start: SpacePoint,
-    goal: SpacePoint,
+    _goal: SpacePoint,
     resolution: number
   ): PossibilityPath {
     const waypoints: PathWaypoint[] = [];

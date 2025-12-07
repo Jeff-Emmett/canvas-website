@@ -21,12 +21,15 @@ import type {
   GameEventListener,
 } from './types';
 import { TEMPERATURE_THRESHOLDS } from './types';
-import type { GeohashCommitment, ProximityProof } from '../privacy/types';
+import type { GeohashCommitment, ProximityProof, GeohashPrecision } from '../privacy/types';
 import {
   createCommitment,
-  verifyCommitment,
   generateProximityProof,
   verifyProximityProof,
+  generateSalt,
+  encodeGeohash,
+  decodeBounds,
+  PRECISION_CELL_SIZE,
 } from '../privacy';
 
 // =============================================================================
@@ -101,13 +104,23 @@ export class AnchorManager {
     const id = `anchor-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
     // Create zkGPS commitment for the location
-    const locationCommitment = await createCommitment(
-      params.latitude,
-      params.longitude,
-      12, // Full precision internally
-      params.creatorPubKey,
-      params.creatorPrivKey
-    );
+    const salt = generateSalt();
+    const locationCommitmentBase = await createCommitment({
+      coordinate: { lat: params.latitude, lng: params.longitude },
+      precision: 12 as GeohashPrecision, // Full precision internally
+      salt,
+    });
+
+    // Create GeohashCommitment from LocationCommitment
+    const fullGeohash = encodeGeohash(params.latitude, params.longitude, 12);
+    const locationCommitment: GeohashCommitment = {
+      commitment: locationCommitmentBase.commitment,
+      geohash: fullGeohash,
+      precision: locationCommitmentBase.precision,
+      timestamp: locationCommitmentBase.timestamp,
+      expiresAt: locationCommitmentBase.expiresAt,
+      salt,
+    };
 
     const anchor: DiscoveryAnchor = {
       id,
@@ -227,22 +240,28 @@ export class AnchorManager {
       }
     }
 
+    // Get the anchor target location from geohash
+    const anchorBounds = decodeBounds(anchor.locationCommitment.geohash);
+    const targetPoint = {
+      lat: (anchorBounds.minLat + anchorBounds.maxLat) / 2,
+      lng: (anchorBounds.minLng + anchorBounds.maxLng) / 2,
+    };
+
+    // Convert precision to approximate max distance in meters
+    const cellSize = PRECISION_CELL_SIZE[anchor.requiredPrecision as keyof typeof PRECISION_CELL_SIZE];
+    const maxDistance = cellSize ? Math.max(cellSize.lat, cellSize.lng) : 100;
+
     // Generate proximity proof
     const proximityProof = await generateProximityProof(
-      params.playerLatitude,
-      params.playerLongitude,
-      anchor.locationCommitment,
-      anchor.requiredPrecision,
-      params.playerPubKey,
-      params.playerPrivKey
+      { lat: params.playerLatitude, lng: params.playerLongitude },
+      targetPoint,
+      maxDistance,
+      params.playerPrivKey,
+      params.playerPubKey
     );
 
     // Verify proximity
-    const proofValid = await verifyProximityProof(
-      proximityProof,
-      anchor.locationCommitment,
-      params.playerPubKey
-    );
+    const proofValid = await verifyProximityProof(proximityProof);
 
     if (!proofValid) {
       return { success: false, error: 'Not close enough to anchor' };
@@ -404,7 +423,7 @@ export class AnchorManager {
     anchorId: string,
     playerLatitude: number,
     playerLongitude: number,
-    playerPrecision: number = 7
+    _playerPrecision: number = 7
   ): Promise<NavigationHint | null> {
     const anchor = this.anchors.get(anchorId);
     if (!anchor) return null;

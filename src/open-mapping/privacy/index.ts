@@ -17,6 +17,7 @@ export {
   encode as encodeGeohash,
   decode as decodeGeohash,
   decodeBounds,
+  decodeBounds as getGeohashBounds,
   neighbors,
   contains,
   cellsInRadius,

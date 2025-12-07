@@ -321,7 +321,7 @@ export function transformIncentive(
  */
 export function transformRelational(
   point: DataPoint,
-  config: RelationalLensConfig,
+  _config: RelationalLensConfig,
   viewport: LensState['viewport'],
   allPoints?: DataPoint[],
   layoutCache?: Map<string, { x: number; y: number }>

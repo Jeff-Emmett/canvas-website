@@ -24,16 +24,16 @@ interface WaypointMarkerProps {
 }
 
 export function WaypointMarker({
-  waypoint,
-  index,
-  isSelected = false,
-  isDraggable = true,
-  showLabel = true,
-  showTime = false,
-  showBudget = false,
-  onSelect,
-  onDragEnd,
-  onDelete,
+  waypoint: _waypoint,
+  index: _index,
+  isSelected: _isSelected = false,
+  isDraggable: _isDraggable = true,
+  showLabel: _showLabel = true,
+  showTime: _showTime = false,
+  showBudget: _showBudget = false,
+  onSelect: _onSelect,
+  onDragEnd: _onDragEnd,
+  onDelete: _onDelete,
 }: WaypointMarkerProps) {
   // TODO: Implement marker rendering with MapLibre GL JS
   // This will be implemented in Phase 1

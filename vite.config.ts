@@ -37,6 +37,13 @@ export default defineConfig(({ mode }) => {
         host: wslIp,
         port: 5173,
       },
+      // Proxy API requests to the worker server
+      proxy: {
+        '/api': {
+          target: 'http://localhost:5172',
+          changeOrigin: true,
+        },
+      },
     },
     build: {
       sourcemap: false, // Disable sourcemaps in production to reduce bundle size
