@@ -1,13 +1,17 @@
 /**
- * MapShapeUtil - Enhanced tldraw shape for interactive maps
+ * MapShapeUtil - Mapus-inspired collaborative map shape for tldraw
+ *
+ * Inspired by https://github.com/alyssaxuu/mapus
  *
  * Features:
- * - MapLibre GL JS rendering with touch/pen/mouse support
- * - Search with autocomplete (Nominatim)
- * - Routing with directions (OSRM)
- * - GPS location sharing for trusted groups
- * - Style switching
- * - GeoJSON layer support
+ * - Real-time collaboration with user cursors/presence
+ * - Find Nearby places (restaurants, hotels, etc.)
+ * - Drawing tools (markers, lines, areas)
+ * - Annotations list with visibility toggle
+ * - Color picker for annotations
+ * - Search and routing (Nominatim + OSRM)
+ * - GPS location sharing
+ * - "Observe" mode to follow other users
  */
 
 import { BaseBoxShapeUtil, TLBaseShape, HTMLContainer, TLResizeInfo, resizeBox, T } from 'tldraw';
@@ -31,44 +35,31 @@ export interface MapViewport {
   pitch: number;
 }
 
-export interface Waypoint {
+export interface Annotation {
   id: string;
-  coordinate: Coordinate;
-  name?: string;
-  address?: string;
+  type: 'marker' | 'line' | 'area';
+  name: string;
+  color: string;
+  visible: boolean;
+  coordinates: Coordinate[]; // Single for marker, multiple for line/area
+  createdBy?: string;
+  createdAt: number;
 }
 
 export interface RouteInfo {
-  distance: number; // meters
-  duration: number; // seconds
-  geometry: GeoJSON.LineString;
-  steps?: RouteStep[];
-}
-
-export interface RouteStep {
-  instruction: string;
   distance: number;
   duration: number;
-  name: string;
+  geometry: GeoJSON.LineString;
 }
 
-/** GPS User for location sharing */
-export interface GPSUser {
+export interface CollaboratorPresence {
   id: string;
   name: string;
   color: string;
-  coordinate: Coordinate;
-  accuracy?: number;
-  timestamp: number;
-  isSelf?: boolean;
-}
-
-/** GeoJSON layer for collaboration overlays */
-export interface GeoJSONLayer {
-  id: string;
-  name: string;
-  visible: boolean;
-  data: GeoJSON.FeatureCollection;
+  cursor?: Coordinate;
+  location?: Coordinate;
+  isObserving?: string; // ID of user being observed
+  lastSeen: number;
 }
 
 export type IMapShape = TLBaseShape<
@@ -78,12 +69,20 @@ export type IMapShape = TLBaseShape<
     h: number;
     viewport: MapViewport;
     styleKey: string;
-    interactive: boolean;
-    waypoints: Waypoint[];
+    title: string;
+    description: string;
+    annotations: Annotation[];
     route: RouteInfo | null;
-    geoJsonLayers: GeoJSONLayer[];
-    gpsUsers: GPSUser[];
+    waypoints: Coordinate[];
+    collaborators: CollaboratorPresence[];
+    showSidebar: boolean;
+    // Legacy compatibility properties
+    interactive: boolean;
     showGPS: boolean;
+    showSearch: boolean;
+    showDirections: boolean;
+    sharingLocation: boolean;
+    gpsUsers: CollaboratorPresence[];
   }
 >;
 
@@ -98,13 +97,33 @@ const DEFAULT_VIEWPORT: MapViewport = {
   pitch: 0,
 };
 
-// OSRM routing server
 const OSRM_BASE_URL = 'https://routing.jeffemmett.com';
 
-// Person emojis for GPS markers
-const PERSON_EMOJIS = ['🧑', '👤', '🚶', '🧍', '👨', '👩', '🧔', '👱'];
+// Mapus color palette
+const COLORS = [
+  '#E15F59', // Red
+  '#F29F51', // Orange
+  '#F9D458', // Yellow
+  '#5EBE86', // Green
+  '#4890E8', // Blue
+  '#634FF1', // Purple
+  '#A564D2', // Violet
+  '#222222', // Black
+];
 
-// Map styles - all free, no API key required
+// Find Nearby categories (inspired by Mapus)
+const NEARBY_CATEGORIES = [
+  { key: 'restaurant', label: 'Food', icon: '🍽️', color: '#4890E8', types: 'restaurant,cafe,fast_food,food_court' },
+  { key: 'bar', label: 'Drinks', icon: '🍺', color: '#F9D458', types: 'bar,pub,cafe,wine_bar' },
+  { key: 'supermarket', label: 'Groceries', icon: '🛒', color: '#5EBE86', types: 'supermarket,convenience,grocery' },
+  { key: 'hotel', label: 'Hotels', icon: '🏨', color: '#AC6C48', types: 'hotel,hostel,motel,guest_house' },
+  { key: 'hospital', label: 'Health', icon: '🏥', color: '#E15F59', types: 'hospital,pharmacy,clinic,doctors' },
+  { key: 'bank', label: 'Services', icon: '🏦', color: '#634FF1', types: 'bank,atm,post_office' },
+  { key: 'shopping', label: 'Shopping', icon: '🛍️', color: '#A564D2', types: 'mall,department_store,clothes' },
+  { key: 'transport', label: 'Transport', icon: '🚉', color: '#718390', types: 'bus_station,train_station,subway' },
+];
+
+// Map styles
 const MAP_STYLES = {
   voyager: {
     name: 'Voyager',
@@ -120,16 +139,6 @@ const MAP_STYLES = {
     name: 'Dark',
     url: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
     icon: '🌙',
-  },
-  liberty: {
-    name: 'Liberty HD',
-    url: 'https://tiles.openfreemap.org/styles/liberty',
-    icon: '🏛️',
-  },
-  bright: {
-    name: 'Bright HD',
-    url: 'https://tiles.openfreemap.org/styles/bright',
-    icon: '✨',
   },
   satellite: {
     name: 'Satellite',
@@ -153,42 +162,6 @@ const MAP_STYLES = {
 type StyleKey = keyof typeof MAP_STYLES;
 
 // =============================================================================
-// Common Button Styles (touch-friendly)
-// =============================================================================
-
-const BUTTON_BASE: React.CSSProperties = {
-  border: 'none',
-  borderRadius: '8px',
-  background: 'white',
-  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-  cursor: 'pointer',
-  touchAction: 'manipulation',
-  WebkitTapHighlightColor: 'transparent',
-  userSelect: 'none',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-};
-
-const BUTTON_PRIMARY: React.CSSProperties = {
-  ...BUTTON_BASE,
-  background: '#3b82f6',
-  color: 'white',
-};
-
-const BUTTON_DANGER: React.CSSProperties = {
-  ...BUTTON_BASE,
-  background: '#ef4444',
-  color: 'white',
-};
-
-const BUTTON_SUCCESS: React.CSSProperties = {
-  ...BUTTON_BASE,
-  background: '#22c55e',
-  color: 'white',
-};
-
-// =============================================================================
 // Shape Definition
 // =============================================================================
 
@@ -200,38 +173,47 @@ export class MapShape extends BaseBoxShapeUtil<IMapShape> {
     h: T.number,
     viewport: T.any,
     styleKey: T.string,
-    interactive: T.boolean,
-    waypoints: T.any,
+    title: T.string,
+    description: T.string,
+    annotations: T.any,
     route: T.any,
-    geoJsonLayers: T.any,
-    gpsUsers: T.any,
+    waypoints: T.any,
+    collaborators: T.any,
+    showSidebar: T.boolean,
+    // Legacy compatibility properties
+    interactive: T.boolean,
     showGPS: T.boolean,
+    showSearch: T.boolean,
+    showDirections: T.boolean,
+    sharingLocation: T.boolean,
+    gpsUsers: T.any,
   };
-
-  static readonly PRIMARY_COLOR = '#22c55e';
 
   getDefaultProps(): IMapShape['props'] {
     return {
-      w: 600,
-      h: 450,
+      w: 800,
+      h: 550,
       viewport: DEFAULT_VIEWPORT,
       styleKey: 'voyager',
-      interactive: true,
-      waypoints: [],
+      title: 'Collaborative Map',
+      description: 'Click to explore together',
+      annotations: [],
       route: null,
-      geoJsonLayers: [],
-      gpsUsers: [],
+      waypoints: [],
+      collaborators: [],
+      showSidebar: true,
+      // Legacy compatibility defaults
+      interactive: true,
       showGPS: false,
+      showSearch: false,
+      showDirections: false,
+      sharingLocation: false,
+      gpsUsers: [],
     };
   }
 
-  override canResize() {
-    return true;
-  }
-
-  override canEdit() {
-    return false;
-  }
+  override canResize() { return true; }
+  override canEdit() { return false; }
 
   override onResize(shape: IMapShape, info: TLResizeInfo<IMapShape>) {
     return resizeBox(shape, info);
@@ -247,31 +229,107 @@ export class MapShape extends BaseBoxShapeUtil<IMapShape> {
 }
 
 // =============================================================================
+// Styles
+// =============================================================================
+
+const styles = {
+  sidebar: {
+    width: 280,
+    background: '#fff',
+    borderRight: '1px solid #E8E8E8',
+    height: '100%',
+    overflowY: 'auto' as const,
+    fontSize: 13,
+    zIndex: 10,
+    position: 'relative' as const,
+  },
+  section: {
+    padding: '14px 16px',
+    borderBottom: '1px solid #E8E8E8',
+  },
+  sectionTitle: {
+    fontWeight: 600,
+    fontSize: 13,
+    color: '#222',
+    marginBottom: 10,
+  },
+  button: {
+    border: 'none',
+    borderRadius: 6,
+    background: '#fff',
+    cursor: 'pointer',
+    transition: 'background 0.15s',
+    pointerEvents: 'auto' as const,
+  },
+  toolbar: {
+    position: 'absolute' as const,
+    bottom: 20,
+    left: '50%',
+    transform: 'translateX(-50%)',
+    background: '#fff',
+    borderRadius: 12,
+    boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+    display: 'flex',
+    padding: 6,
+    gap: 4,
+    zIndex: 10000,
+    pointerEvents: 'auto' as const,
+  },
+  toolButton: {
+    width: 42,
+    height: 42,
+    border: 'none',
+    borderRadius: 8,
+    background: 'transparent',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 18,
+    transition: 'background 0.15s',
+    pointerEvents: 'auto' as const,
+  },
+  activeToolButton: {
+    background: '#222',
+    color: '#fff',
+  },
+  mapButton: {
+    pointerEvents: 'auto' as const,
+    zIndex: 10000,
+  },
+};
+
+// =============================================================================
 // Map Component
 // =============================================================================
 
 function MapComponent({ shape, editor }: { shape: IMapShape; editor: MapShape['editor'] }) {
-  const wrapperRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
-  const gpsMarkersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
-  const watchIdRef = useRef<number | null>(null);
+  const isMountedRef = useRef(true); // Track if component is still mounted
 
   const [isLoaded, setIsLoaded] = useState(false);
-  const [activePanel, setActivePanel] = useState<'none' | 'search' | 'route' | 'gps' | 'style'>('none');
+  const [activeTool, setActiveTool] = useState<'cursor' | 'marker' | 'line' | 'area' | 'eraser'>('cursor');
+  const [selectedColor, setSelectedColor] = useState(COLORS[4]);
+  const [showColorPicker, setShowColorPicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<{ name: string; lat: number; lng: number }[]>([]);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [nearbyPlaces, setNearbyPlaces] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
-  const [routeError, setRouteError] = useState<string | null>(null);
-  const [startInput, setStartInput] = useState('');
-  const [endInput, setEndInput] = useState('');
-  const [gpsStatus, setGpsStatus] = useState<'off' | 'locating' | 'sharing' | 'error'>('off');
-  const [gpsError, setGpsError] = useState<string | null>(null);
+  const [observingUser, setObservingUser] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState(false);
 
   const styleKey = (shape.props.styleKey || 'voyager') as StyleKey;
   const currentStyle = MAP_STYLES[styleKey] || MAP_STYLES.voyager;
+
+  // Track mounted state for cleanup
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   // ==========================================================================
   // Map Initialization
@@ -280,669 +338,429 @@ function MapComponent({ shape, editor }: { shape: IMapShape; editor: MapShape['e
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const styleUrl = typeof currentStyle.url === 'string' ? currentStyle.url : currentStyle.url;
-
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: styleUrl,
+      style: typeof currentStyle.url === 'string' ? currentStyle.url : currentStyle.url,
       center: [shape.props.viewport.center.lng, shape.props.viewport.center.lat],
       zoom: shape.props.viewport.zoom,
       bearing: shape.props.viewport.bearing,
       pitch: shape.props.viewport.pitch,
-      interactive: shape.props.interactive,
       attributionControl: false,
-      maxZoom: 22,
-      // Touch/pen settings
-      dragRotate: true,
-      touchZoomRotate: true,
-      touchPitch: true,
     });
 
     mapRef.current = map;
 
-    map.on('load', () => setIsLoaded(true));
-
-    map.on('moveend', () => {
-      const center = map.getCenter();
-      const newViewport: MapViewport = {
-        center: { lat: center.lat, lng: center.lng },
-        zoom: map.getZoom(),
-        bearing: map.getBearing(),
-        pitch: map.getPitch(),
-      };
-
-      const current = shape.props.viewport;
-      const changed =
-        Math.abs(current.center.lat - newViewport.center.lat) > 0.001 ||
-        Math.abs(current.center.lng - newViewport.center.lng) > 0.001 ||
-        Math.abs(current.zoom - newViewport.zoom) > 0.1;
-
-      if (changed) {
-        editor.updateShape<IMapShape>({
-          id: shape.id,
-          type: 'Map',
-          props: { viewport: newViewport },
-        });
-      }
-    });
-
-    // Click/tap to add waypoint when in routing mode
-    const handleMapClick = (e: maplibregl.MapMouseEvent) => {
-      if (activePanel === 'route' || e.originalEvent.shiftKey) {
-        addWaypoint({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+    const handleLoad = () => {
+      if (isMountedRef.current) {
+        setIsLoaded(true);
       }
     };
 
-    map.on('click', handleMapClick);
+    // Save viewport changes with null checks
+    const handleMoveEnd = () => {
+      if (!isMountedRef.current || !mapRef.current) return;
+      try {
+        const center = mapRef.current.getCenter();
+        editor.updateShape<IMapShape>({
+          id: shape.id,
+          type: 'Map',
+          props: {
+            viewport: {
+              center: { lat: center.lat, lng: center.lng },
+              zoom: mapRef.current.getZoom(),
+              bearing: mapRef.current.getBearing(),
+              pitch: mapRef.current.getPitch(),
+            },
+          },
+        });
+      } catch (err) {
+        // Map may have been destroyed, ignore
+      }
+    };
+
+    // Handle map clicks based on active tool
+    const handleClick = (e: maplibregl.MapMouseEvent) => {
+      if (!isMountedRef.current) return;
+      const coord = { lat: e.lngLat.lat, lng: e.lngLat.lng };
+
+      if (activeTool === 'marker') {
+        addAnnotation('marker', [coord]);
+      }
+    };
+
+    map.on('load', handleLoad);
+    map.on('moveend', handleMoveEnd);
+    map.on('click', handleClick);
 
     return () => {
-      map.off('click', handleMapClick);
-      map.remove();
+      // Remove event listeners before destroying map
+      map.off('load', handleLoad);
+      map.off('moveend', handleMoveEnd);
+      map.off('click', handleClick);
+
+      // Clear all markers
+      markersRef.current.forEach((marker) => {
+        try {
+          marker.remove();
+        } catch (err) {
+          // Marker may already be removed
+        }
+      });
+      markersRef.current.clear();
+
+      // Destroy the map
+      try {
+        map.remove();
+      } catch (err) {
+        // Map may already be destroyed
+      }
       mapRef.current = null;
       setIsLoaded(false);
     };
   }, [containerRef.current]);
 
-  // Handle style changes
+  // Style changes
   useEffect(() => {
-    if (!mapRef.current || !isLoaded) return;
-    const styleUrl = typeof currentStyle.url === 'string' ? currentStyle.url : currentStyle.url;
-    mapRef.current.setStyle(styleUrl);
+    if (!mapRef.current || !isLoaded || !isMountedRef.current) return;
+    try {
+      mapRef.current.setStyle(typeof currentStyle.url === 'string' ? currentStyle.url : currentStyle.url);
+    } catch (err) {
+      // Map may have been destroyed
+    }
   }, [styleKey, isLoaded]);
 
-  // Resize map when shape dimensions change
+  // Resize
   useEffect(() => {
-    if (mapRef.current && isLoaded) {
-      setTimeout(() => mapRef.current?.resize(), 0);
-    }
-  }, [shape.props.w, shape.props.h, isLoaded]);
+    if (!mapRef.current || !isLoaded || !isMountedRef.current) return;
+    const resizeTimeout = setTimeout(() => {
+      if (mapRef.current && isMountedRef.current) {
+        try {
+          mapRef.current.resize();
+        } catch (err) {
+          // Map may have been destroyed
+        }
+      }
+    }, 0);
+    return () => clearTimeout(resizeTimeout);
+  }, [shape.props.w, shape.props.h, isLoaded, shape.props.showSidebar]);
 
   // ==========================================================================
-  // Waypoint Markers
+  // Annotations
   // ==========================================================================
 
   useEffect(() => {
-    if (!mapRef.current || !isLoaded) return;
+    if (!mapRef.current || !isLoaded || !isMountedRef.current) return;
 
     const map = mapRef.current;
-    const currentIds = new Set(shape.props.waypoints.map((w: Waypoint) => w.id));
+    const currentIds = new Set(shape.props.annotations.map((a: Annotation) => a.id));
 
     // Remove old markers
     markersRef.current.forEach((marker, id) => {
       if (!currentIds.has(id)) {
-        marker.remove();
+        try {
+          marker.remove();
+        } catch (err) {
+          // Marker may already be removed
+        }
         markersRef.current.delete(id);
       }
     });
 
     // Add/update markers
-    shape.props.waypoints.forEach((waypoint: Waypoint, index: number) => {
-      let marker = markersRef.current.get(waypoint.id);
+    shape.props.annotations.forEach((ann: Annotation) => {
+      if (!isMountedRef.current || !mapRef.current) return;
+      if (ann.type !== 'marker' || !ann.visible) return;
 
-      if (!marker) {
-        const el = document.createElement('div');
-        el.className = 'map-waypoint-marker';
-        el.style.cssText = `
-          width: 40px;
-          height: 40px;
-          background: linear-gradient(135deg, #3b82f6, #1d4ed8);
-          border: 3px solid white;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 16px;
-          font-weight: bold;
-          color: white;
-          box-shadow: 0 3px 10px rgba(0,0,0,0.4);
-          cursor: grab;
-          touch-action: none;
-          z-index: 1000;
-        `;
-        el.textContent = String(index + 1);
-        el.title = waypoint.name || `Waypoint ${index + 1}`;
+      let marker = markersRef.current.get(ann.id);
+      const coord = ann.coordinates[0];
 
-        marker = new maplibregl.Marker({ element: el, draggable: true, anchor: 'center' })
-          .setLngLat([waypoint.coordinate.lng, waypoint.coordinate.lat])
-          .addTo(map);
+      if (!marker && coord) {
+        try {
+          const el = document.createElement('div');
+          el.className = 'map-annotation-marker';
+          el.style.cssText = `
+            width: 32px;
+            height: 32px;
+            background: ${ann.color};
+            border: 3px solid white;
+            border-radius: 50%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+          `;
+          el.textContent = '📍';
+          el.title = ann.name;
 
-        marker.on('dragend', () => {
-          const lngLat = marker!.getLngLat();
-          updateWaypointPosition(waypoint.id, { lat: lngLat.lat, lng: lngLat.lng });
-        });
+          const popup = new maplibregl.Popup({ offset: 20 })
+            .setHTML(`<div style="padding: 8px; font-size: 13px;"><strong>${ann.name}</strong></div>`);
 
-        markersRef.current.set(waypoint.id, marker);
-      } else {
-        marker.setLngLat([waypoint.coordinate.lng, waypoint.coordinate.lat]);
-        const el = marker.getElement();
-        if (el) {
-          el.textContent = String(index + 1);
-          el.title = waypoint.name || `Waypoint ${index + 1}`;
+          marker = new maplibregl.Marker({ element: el, draggable: true })
+            .setLngLat([coord.lng, coord.lat])
+            .setPopup(popup)
+            .addTo(map);
+
+          marker.on('dragend', () => {
+            if (!isMountedRef.current || !marker) return;
+            try {
+              const lngLat = marker.getLngLat();
+              updateAnnotationPosition(ann.id, [{ lat: lngLat.lat, lng: lngLat.lng }]);
+            } catch (err) {
+              // Marker may have been removed
+            }
+          });
+
+          markersRef.current.set(ann.id, marker);
+        } catch (err) {
+          // Map may have been destroyed
+        }
+      } else if (marker && coord) {
+        try {
+          marker.setLngLat([coord.lng, coord.lat]);
+        } catch (err) {
+          // Marker may have been removed
         }
       }
     });
-  }, [shape.props.waypoints, isLoaded]);
+
+    // Hide markers for invisible annotations
+    markersRef.current.forEach((marker, id) => {
+      const ann = shape.props.annotations.find((a: Annotation) => a.id === id);
+      if (ann && !ann.visible) {
+        try {
+          marker.remove();
+        } catch (err) {
+          // Marker may already be removed
+        }
+        markersRef.current.delete(id);
+      }
+    });
+  }, [shape.props.annotations, isLoaded]);
 
   // ==========================================================================
-  // GPS User Markers
+  // Collaborator presence (cursors/locations)
   // ==========================================================================
 
   useEffect(() => {
-    if (!mapRef.current || !isLoaded) return;
+    if (!mapRef.current || !isLoaded || !isMountedRef.current) return;
 
-    const map = mapRef.current;
-    const currentIds = new Set(shape.props.gpsUsers.map((u: GPSUser) => u.id));
-
-    // Remove old markers
-    gpsMarkersRef.current.forEach((marker, id) => {
-      if (!currentIds.has(id)) {
-        marker.remove();
-        gpsMarkersRef.current.delete(id);
-      }
-    });
-
-    // Add/update GPS markers
-    shape.props.gpsUsers.forEach((user: GPSUser) => {
-      let marker = gpsMarkersRef.current.get(user.id);
-      const emoji = user.isSelf ? '📍' : getPersonEmoji(user.id);
-
-      if (!marker) {
-        const el = document.createElement('div');
-        el.className = 'map-gps-marker';
-        el.style.cssText = `
-          width: 44px;
-          height: 44px;
-          background: ${user.isSelf ? `linear-gradient(135deg, ${user.color}, #1d4ed8)` : user.color};
-          border: 3px solid white;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 22px;
-          box-shadow: 0 3px 12px rgba(0,0,0,0.4);
-          cursor: pointer;
-          touch-action: none;
-          z-index: 999;
-          ${user.isSelf ? 'animation: gps-pulse 2s ease-in-out infinite;' : ''}
-        `;
-        el.textContent = emoji;
-        el.title = `${user.name}${user.isSelf ? ' (you)' : ''}`;
-
-        // Add popup
-        const popup = new maplibregl.Popup({ offset: 25, closeButton: false })
-          .setHTML(`
-            <div style="font-size: 13px; padding: 4px;">
-              <strong>${user.name}</strong>${user.isSelf ? ' (you)' : ''}
-              ${user.accuracy ? `<br><span style="color: #666;">±${Math.round(user.accuracy)}m</span>` : ''}
-            </div>
-          `);
-
-        marker = new maplibregl.Marker({ element: el, anchor: 'center' })
-          .setLngLat([user.coordinate.lng, user.coordinate.lat])
-          .setPopup(popup)
-          .addTo(map);
-
-        gpsMarkersRef.current.set(user.id, marker);
-      } else {
-        marker.setLngLat([user.coordinate.lng, user.coordinate.lat]);
-      }
-    });
-  }, [shape.props.gpsUsers, isLoaded]);
-
-  // ==========================================================================
-  // Route Rendering
-  // ==========================================================================
-
-  useEffect(() => {
-    if (!mapRef.current || !isLoaded) return;
-
-    const map = mapRef.current;
-    const sourceId = `route-${shape.id}`;
-    const layerId = `route-line-${shape.id}`;
-    const outlineLayerId = `route-outline-${shape.id}`;
-
-    // Wait for style to load
-    const renderRoute = () => {
-      // Remove existing
-      if (map.getLayer(outlineLayerId)) map.removeLayer(outlineLayerId);
-      if (map.getLayer(layerId)) map.removeLayer(layerId);
-      if (map.getSource(sourceId)) map.removeSource(sourceId);
-
-      // Add route if exists
-      if (shape.props.route?.geometry) {
-        map.addSource(sourceId, {
-          type: 'geojson',
-          data: { type: 'Feature', properties: {}, geometry: shape.props.route.geometry },
-        });
-
-        // Outline layer
-        map.addLayer({
-          id: outlineLayerId,
-          type: 'line',
-          source: sourceId,
-          layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: { 'line-color': '#1d4ed8', 'line-width': 8 },
-        });
-
-        // Main route layer
-        map.addLayer({
-          id: layerId,
-          type: 'line',
-          source: sourceId,
-          layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: { 'line-color': '#3b82f6', 'line-width': 5 },
-        });
-      }
-    };
-
-    if (map.isStyleLoaded()) {
-      renderRoute();
-    } else {
-      map.once('style.load', renderRoute);
-    }
-
-    return () => {
-      if (map.getLayer(outlineLayerId)) map.removeLayer(outlineLayerId);
-      if (map.getLayer(layerId)) map.removeLayer(layerId);
-      if (map.getSource(sourceId)) map.removeSource(sourceId);
-    };
-  }, [shape.props.route, isLoaded, shape.id]);
+    // TODO: Render collaborator cursors on map
+    // This would be integrated with tldraw's presence system
+  }, [shape.props.collaborators, isLoaded]);
 
   // ==========================================================================
   // Actions
   // ==========================================================================
 
-  const addWaypoint = useCallback((coord: Coordinate, name?: string) => {
-    const newWaypoint: Waypoint = {
-      id: `wp-${Date.now()}`,
-      coordinate: coord,
-      name: name || `Waypoint ${shape.props.waypoints.length + 1}`,
+  const addAnnotation = useCallback((type: Annotation['type'], coordinates: Coordinate[]) => {
+    const newAnnotation: Annotation = {
+      id: `ann-${Date.now()}`,
+      type,
+      name: `${type.charAt(0).toUpperCase() + type.slice(1)} ${shape.props.annotations.length + 1}`,
+      color: selectedColor,
+      visible: true,
+      coordinates,
+      createdAt: Date.now(),
     };
 
-    const updatedWaypoints = [...shape.props.waypoints, newWaypoint];
-
     editor.updateShape<IMapShape>({
       id: shape.id,
       type: 'Map',
-      props: { waypoints: updatedWaypoints },
+      props: { annotations: [...shape.props.annotations, newAnnotation] },
     });
+  }, [shape.props.annotations, selectedColor, shape.id, editor]);
 
-    if (updatedWaypoints.length >= 2) {
-      calculateRoute(updatedWaypoints);
-    }
-  }, [shape.props.waypoints, shape.id, editor]);
-
-  const updateWaypointPosition = useCallback((waypointId: string, coord: Coordinate) => {
-    const updatedWaypoints = shape.props.waypoints.map((wp: Waypoint) =>
-      wp.id === waypointId ? { ...wp, coordinate: coord } : wp
+  const updateAnnotationPosition = useCallback((annotationId: string, coordinates: Coordinate[]) => {
+    const updated = shape.props.annotations.map((ann: Annotation) =>
+      ann.id === annotationId ? { ...ann, coordinates } : ann
     );
-
     editor.updateShape<IMapShape>({
       id: shape.id,
       type: 'Map',
-      props: { waypoints: updatedWaypoints },
+      props: { annotations: updated },
     });
+  }, [shape.props.annotations, shape.id, editor]);
 
-    if (updatedWaypoints.length >= 2) {
-      calculateRoute(updatedWaypoints);
-    }
-  }, [shape.props.waypoints, shape.id, editor]);
-
-  const removeWaypoint = useCallback((waypointId: string) => {
-    const updatedWaypoints = shape.props.waypoints.filter((wp: Waypoint) => wp.id !== waypointId);
-
+  const toggleAnnotationVisibility = useCallback((annotationId: string) => {
+    const updated = shape.props.annotations.map((ann: Annotation) =>
+      ann.id === annotationId ? { ...ann, visible: !ann.visible } : ann
+    );
     editor.updateShape<IMapShape>({
       id: shape.id,
       type: 'Map',
-      props: {
-        waypoints: updatedWaypoints,
-        route: updatedWaypoints.length < 2 ? null : shape.props.route,
-      },
+      props: { annotations: updated },
     });
+  }, [shape.props.annotations, shape.id, editor]);
 
-    if (updatedWaypoints.length >= 2) {
-      calculateRoute(updatedWaypoints);
-    }
-  }, [shape.props.waypoints, shape.id, editor]);
-
-  const calculateRoute = useCallback(async (waypoints: Waypoint[]) => {
-    if (waypoints.length < 2) return;
-
-    setIsCalculatingRoute(true);
-    setRouteError(null);
-
-    try {
-      const coords = waypoints.map((wp) => `${wp.coordinate.lng},${wp.coordinate.lat}`).join(';');
-      const url = `${OSRM_BASE_URL}/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=true`;
-
-      const response = await fetch(url);
-      const data = await response.json() as { code: string; message?: string; routes?: Array<{ distance: number; duration: number; geometry: GeoJSON.LineString; legs?: Array<{ steps?: Array<{ maneuver?: { instruction?: string }; name?: string; distance: number; duration: number }> }> }> };
-
-      if (data.code !== 'Ok' || !data.routes?.[0]) {
-        throw new Error(data.message || 'Route calculation failed');
-      }
-
-      const route = data.routes[0];
-      const steps: RouteStep[] = route.legs?.flatMap((leg: any) =>
-        leg.steps?.map((step: any) => ({
-          instruction: step.maneuver?.instruction || step.name || 'Continue',
-          distance: step.distance,
-          duration: step.duration,
-          name: step.name || '',
-        })) || []
-      ) || [];
-
-      const routeInfo: RouteInfo = {
-        distance: route.distance,
-        duration: route.duration,
-        geometry: route.geometry,
-        steps,
-      };
-
-      editor.updateShape<IMapShape>({
-        id: shape.id,
-        type: 'Map',
-        props: { route: routeInfo },
-      });
-    } catch (err) {
-      console.error('Routing error:', err);
-      setRouteError(err instanceof Error ? err.message : 'Route calculation failed');
-    } finally {
-      setIsCalculatingRoute(false);
-    }
-  }, [shape.id, editor]);
-
-  const clearRoute = useCallback(() => {
+  const removeAnnotation = useCallback((annotationId: string) => {
+    const updated = shape.props.annotations.filter((ann: Annotation) => ann.id !== annotationId);
     editor.updateShape<IMapShape>({
       id: shape.id,
       type: 'Map',
-      props: { waypoints: [], route: null },
+      props: { annotations: updated },
     });
-    setStartInput('');
-    setEndInput('');
-  }, [shape.id, editor]);
+  }, [shape.props.annotations, shape.id, editor]);
 
-  const reverseRoute = useCallback(() => {
-    const reversed = [...shape.props.waypoints].reverse();
+  const hideAllAnnotations = useCallback(() => {
+    const updated = shape.props.annotations.map((ann: Annotation) => ({ ...ann, visible: false }));
     editor.updateShape<IMapShape>({
       id: shape.id,
       type: 'Map',
-      props: { waypoints: reversed },
+      props: { annotations: updated },
     });
-    if (reversed.length >= 2) {
-      calculateRoute(reversed);
-    }
-  }, [shape.props.waypoints, shape.id, editor, calculateRoute]);
+  }, [shape.props.annotations, shape.id, editor]);
 
   // ==========================================================================
   // Search
   // ==========================================================================
 
-  const searchLocation = useCallback(async (query?: string) => {
-    const q = query || searchQuery;
-    if (!q.trim()) return;
-
+  const searchPlaces = useCallback(async () => {
+    if (!searchQuery.trim()) return;
     setIsSearching(true);
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=6`,
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=6`,
         { headers: { 'User-Agent': 'CanvasWebsite/1.0' } }
       );
-      const data = await response.json() as Array<{ display_name: string; lat: string; lon: string }>;
-      setSearchResults(
-        data.map((r) => ({
-          name: r.display_name,
-          lat: parseFloat(r.lat),
-          lng: parseFloat(r.lon),
-        }))
-      );
+      const data = await response.json() as { display_name: string; lat: string; lon: string }[];
+      setSearchResults(data.map((r) => ({
+        name: r.display_name,
+        lat: parseFloat(r.lat),
+        lng: parseFloat(r.lon),
+      })));
     } catch (err) {
       console.error('Search error:', err);
-      setSearchResults([]);
     } finally {
       setIsSearching(false);
     }
   }, [searchQuery]);
 
-  // Debounced search as you type
-  useEffect(() => {
-    if (searchQuery.length < 3) {
-      setSearchResults([]);
-      return;
+  const selectSearchResult = useCallback((result: { lat: number; lng: number; name: string }) => {
+    if (mapRef.current && isMountedRef.current) {
+      try {
+        mapRef.current.flyTo({ center: [result.lng, result.lat], zoom: 15, duration: 1000 });
+      } catch (err) {
+        // Map may have been destroyed
+      }
     }
-
-    const timer = setTimeout(() => searchLocation(), 400);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
-  const flyTo = useCallback((coord: Coordinate, zoom?: number) => {
-    mapRef.current?.flyTo({
-      center: [coord.lng, coord.lat],
-      zoom: zoom ?? Math.max(mapRef.current.getZoom(), 14),
-      duration: 1000,
-    });
-  }, []);
-
-  const selectSearchResult = useCallback((result: { name: string; lat: number; lng: number }) => {
-    flyTo({ lat: result.lat, lng: result.lng }, 15);
     setSearchQuery('');
     setSearchResults([]);
-    setActivePanel('none');
-  }, [flyTo]);
+  }, []);
 
   // ==========================================================================
-  // GPS Location Sharing
+  // Find Nearby
   // ==========================================================================
 
-  const startGPS = useCallback(() => {
-    if (!navigator.geolocation) {
-      setGpsError('Geolocation not supported');
-      setGpsStatus('error');
+  const findNearby = useCallback(async (category: typeof NEARBY_CATEGORIES[0]) => {
+    if (!mapRef.current || !isMountedRef.current) return;
+
+    let bounds;
+    try {
+      bounds = mapRef.current.getBounds();
+    } catch (err) {
+      // Map may have been destroyed
       return;
     }
 
-    setGpsStatus('locating');
-    setGpsError(null);
+    try {
+      const query = `
+        [out:json][timeout:10];
+        (
+          node["amenity"~"${category.types.replace(/,/g, '|')}"](${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()});
+        );
+        out body 10;
+      `;
 
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      (position) => {
-        setGpsStatus('sharing');
+      const response = await fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        body: query,
+      });
 
-        const selfUser: GPSUser = {
-          id: `self-${Date.now()}`,
-          name: 'You',
-          color: '#3b82f6',
-          coordinate: {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          },
-          accuracy: position.coords.accuracy,
-          timestamp: Date.now(),
-          isSelf: true,
-        };
+      if (!isMountedRef.current) return;
 
-        // Update GPS users (keep others, update self)
-        const others = shape.props.gpsUsers.filter((u: GPSUser) => !u.isSelf);
-        editor.updateShape<IMapShape>({
-          id: shape.id,
-          type: 'Map',
-          props: {
-            gpsUsers: [...others, selfUser],
-            showGPS: true,
-          },
-        });
+      const data = await response.json() as { elements: { id: number; lat: number; lon: number; tags?: { name?: string; amenity?: string } }[] };
 
-        // Fly to location on first fix
-        if (gpsStatus === 'locating') {
-          flyTo({ lat: position.coords.latitude, lng: position.coords.longitude }, 15);
+      const places = data.elements.slice(0, 10).map((el) => ({
+        id: el.id,
+        name: el.tags?.name || category.label,
+        lat: el.lat,
+        lng: el.lon,
+        type: el.tags?.amenity || category.key,
+        color: category.color,
+      }));
+
+      if (!isMountedRef.current) return;
+      setNearbyPlaces(places);
+
+      // Add markers for nearby places
+      places.forEach((place: any) => {
+        if (isMountedRef.current) {
+          addAnnotation('marker', [{ lat: place.lat, lng: place.lng }]);
         }
-      },
-      (error) => {
-        setGpsStatus('error');
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            setGpsError('Location permission denied');
-            break;
-          case error.POSITION_UNAVAILABLE:
-            setGpsError('Location unavailable');
-            break;
-          case error.TIMEOUT:
-            setGpsError('Location request timeout');
-            break;
-          default:
-            setGpsError('Location error');
-        }
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
-      }
-    );
-  }, [shape.props.gpsUsers, shape.id, editor, gpsStatus, flyTo]);
-
-  const stopGPS = useCallback(() => {
-    if (watchIdRef.current !== null) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
+      });
+    } catch (err) {
+      console.error('Find nearby error:', err);
     }
+  }, [addAnnotation]);
 
-    setGpsStatus('off');
+  // ==========================================================================
+  // Observe User
+  // ==========================================================================
 
-    // Remove self from GPS users
-    const others = shape.props.gpsUsers.filter((u: GPSUser) => !u.isSelf);
+  const observeUser = useCallback((userId: string | null) => {
+    setObservingUser(userId);
+    if (userId && mapRef.current && isMountedRef.current) {
+      const collaborator = shape.props.collaborators.find((c: CollaboratorPresence) => c.id === userId);
+      if (collaborator?.location) {
+        try {
+          mapRef.current.flyTo({
+            center: [collaborator.location.lng, collaborator.location.lat],
+            zoom: 15,
+            duration: 1000,
+          });
+        } catch (err) {
+          // Map may have been destroyed
+        }
+      }
+    }
+  }, [shape.props.collaborators]);
+
+  // ==========================================================================
+  // Title/Description
+  // ==========================================================================
+
+  const updateTitle = useCallback((title: string) => {
     editor.updateShape<IMapShape>({
       id: shape.id,
       type: 'Map',
-      props: {
-        gpsUsers: others,
-        showGPS: others.length > 0,
-      },
+      props: { title },
     });
-  }, [shape.props.gpsUsers, shape.id, editor]);
+  }, [shape.id, editor]);
 
-  const fitToAllGPS = useCallback(() => {
-    if (shape.props.gpsUsers.length === 0 || !mapRef.current) return;
-
-    const bounds = new maplibregl.LngLatBounds();
-    shape.props.gpsUsers.forEach((user: GPSUser) => {
-      bounds.extend([user.coordinate.lng, user.coordinate.lat]);
+  const updateDescription = useCallback((description: string) => {
+    editor.updateShape<IMapShape>({
+      id: shape.id,
+      type: 'Map',
+      props: { description },
     });
-
-    mapRef.current.fitBounds(bounds, { padding: 60, maxZoom: 15 });
-  }, [shape.props.gpsUsers]);
-
-  // Quick locate me - one-shot location to center map and drop a pin
-  const [isLocating, setIsLocating] = useState(false);
-  const myLocationMarkerRef = useRef<maplibregl.Marker | null>(null);
-
-  // Helper to darken a color for gradient effect
-  const darkenColor = useCallback((hex: string): string => {
-    const num = parseInt(hex.replace('#', ''), 16);
-    const r = Math.max(0, (num >> 16) - 40);
-    const g = Math.max(0, ((num >> 8) & 0x00FF) - 40);
-    const b = Math.max(0, (num & 0x0000FF) - 40);
-    return `#${(r << 16 | g << 8 | b).toString(16).padStart(6, '0')}`;
-  }, []);
-
-  const locateMe = useCallback(() => {
-    if (!navigator.geolocation || !mapRef.current) {
-      setGpsError('Geolocation not supported');
-      return;
-    }
-
-    setIsLocating(true);
-
-    // Get user info from the editor
-    const userName = editor.user.getName() || 'You';
-    const userColor = editor.user.getColor() || '#3b82f6';
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setIsLocating(false);
-        const lng = position.coords.longitude;
-        const lat = position.coords.latitude;
-        const accuracy = position.coords.accuracy;
-
-        // Fly to location
-        mapRef.current?.flyTo({
-          center: [lng, lat],
-          zoom: 15,
-          duration: 1000,
-        });
-
-        // Create or update the "my location" marker
-        if (myLocationMarkerRef.current) {
-          myLocationMarkerRef.current.setLngLat([lng, lat]);
-        } else {
-          // Create marker element
-          const el = document.createElement('div');
-          el.className = 'my-location-marker';
-          el.style.cssText = `
-            width: 48px;
-            height: 48px;
-            background: linear-gradient(135deg, ${userColor}, ${darkenColor(userColor)});
-            border: 3px solid white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            box-shadow: 0 3px 12px rgba(0,0,0,0.4);
-            cursor: pointer;
-            z-index: 1000;
-            animation: my-location-pulse 2s ease-in-out infinite;
-          `;
-          el.textContent = '📍';
-          el.title = `${userName} (you)`;
-
-          // Add popup with name
-          const popup = new maplibregl.Popup({ offset: 25, closeButton: false })
-            .setHTML(`
-              <div style="font-size: 13px; padding: 4px 8px;">
-                <strong>${userName}</strong> (you)
-                ${accuracy ? `<br><span style="color: #666; font-size: 11px;">±${Math.round(accuracy)}m accuracy</span>` : ''}
-              </div>
-            `);
-
-          myLocationMarkerRef.current = new maplibregl.Marker({ element: el, anchor: 'center' })
-            .setLngLat([lng, lat])
-            .setPopup(popup)
-            .addTo(mapRef.current!);
-        }
-      },
-      (error) => {
-        setIsLocating(false);
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            setGpsError('Location permission denied');
-            break;
-          case error.POSITION_UNAVAILABLE:
-            setGpsError('Location unavailable');
-            break;
-          default:
-            setGpsError('Could not get location');
-        }
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  }, [editor, darkenColor]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-      }
-      if (myLocationMarkerRef.current) {
-        myLocationMarkerRef.current.remove();
-        myLocationMarkerRef.current = null;
-      }
-    };
-  }, []);
+  }, [shape.id, editor]);
 
   // ==========================================================================
-  // Style
+  // Toggle Sidebar
+  // ==========================================================================
+
+  const toggleSidebar = useCallback(() => {
+    editor.updateShape<IMapShape>({
+      id: shape.id,
+      type: 'Map',
+      props: { showSidebar: !shape.props.showSidebar },
+    });
+  }, [shape.id, shape.props.showSidebar, editor]);
+
+  // ==========================================================================
+  // Style Change
   // ==========================================================================
 
   const changeStyle = useCallback((key: StyleKey) => {
@@ -951,77 +769,25 @@ function MapComponent({ shape, editor }: { shape: IMapShape; editor: MapShape['e
       type: 'Map',
       props: { styleKey: key },
     });
-    setActivePanel('none');
   }, [shape.id, editor]);
 
   // ==========================================================================
-  // Helpers
+  // Event Handlers
   // ==========================================================================
 
-  const formatDistance = (meters: number) => {
-    if (meters < 1000) return `${Math.round(meters)}m`;
-    return `${(meters / 1000).toFixed(1)}km`;
-  };
-
-  const formatDuration = (seconds: number) => {
-    const mins = Math.round(seconds / 60);
-    if (mins < 60) return `${mins} min`;
-    const hrs = Math.floor(mins / 60);
-    const remainingMins = mins % 60;
-    return `${hrs}h ${remainingMins}m`;
-  };
-
-  const getPersonEmoji = (id: string): string => {
-    const hash = id.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-    return PERSON_EMOJIS[Math.abs(hash) % PERSON_EMOJIS.length];
-  };
-
-  // ==========================================================================
-  // Event Handlers - Stop propagation to tldraw
-  // ==========================================================================
-
-  // Stop events from bubbling up to tldraw
   const stopPropagation = useCallback((e: React.SyntheticEvent) => {
     e.stopPropagation();
   }, []);
 
-  // Prevent tldraw from capturing wheel/zoom events
-  // Using native event listener for better control
+  // Prevent browser zoom when over the map - use map zoom instead
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.stopPropagation();
-    // Don't preventDefault - let MapLibre handle the actual zoom
+    e.preventDefault();
+    // The map will handle zooming via its own wheel handler
   }, []);
 
-  // Native wheel event handler for the container (more reliable)
-  useEffect(() => {
-    const wrapper = wrapperRef.current;
-    if (!wrapper) return;
-
-    const nativeWheelHandler = (e: WheelEvent) => {
-      // Stop propagation to tldraw but let MapLibre handle it
-      e.stopPropagation();
-    };
-
-    // Use capture phase to intercept before tldraw
-    wrapper.addEventListener('wheel', nativeWheelHandler, { capture: true, passive: false });
-
-    return () => {
-      wrapper.removeEventListener('wheel', nativeWheelHandler, { capture: true });
-    };
-  }, []);
-
-  // Prevent tldraw from intercepting pointer events
-  // Note: Don't use setPointerCapture as it blocks child element interaction
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    e.stopPropagation();
-  }, []);
-
-  const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    e.stopPropagation();
-  }, []);
-
-  // For inputs, we need to prevent tldraw from stealing focus
-  const handleInputFocus = useCallback((e: React.FocusEvent) => {
+  // Capture all pointer events to prevent tldraw from intercepting
+  const capturePointerEvents = useCallback((e: React.PointerEvent) => {
     e.stopPropagation();
   }, []);
 
@@ -1032,261 +798,259 @@ function MapComponent({ shape, editor }: { shape: IMapShape; editor: MapShape['e
   return (
     <HTMLContainer>
       <style>{`
-        @keyframes gps-pulse {
-          0%, 100% { transform: scale(1); box-shadow: 0 3px 12px rgba(0,0,0,0.4); }
-          50% { transform: scale(1.08); box-shadow: 0 4px 16px rgba(59,130,246,0.5); }
-        }
-        @keyframes my-location-pulse {
-          0%, 100% { transform: scale(1); box-shadow: 0 3px 12px rgba(0,0,0,0.4); }
-          50% { transform: scale(1.1); box-shadow: 0 4px 20px rgba(59,130,246,0.6); }
-        }
-        .map-btn:hover { filter: brightness(1.05); }
-        .map-btn:active { transform: scale(0.96); }
-        .map-result:hover { background: #f3f4f6 !important; }
-        .map-container * { pointer-events: auto !important; }
-        .my-location-marker:hover { transform: scale(1.15) !important; }
+        .mapus-sidebar::-webkit-scrollbar { width: 6px; }
+        .mapus-sidebar::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+        .mapus-btn:hover { background: #f7f7f7 !important; }
+        .mapus-btn:active { transform: scale(0.97); }
+        .mapus-category:hover { background: #f7f7f7; }
+        .mapus-annotation:hover { background: #f7f7f7; }
+        .mapus-result:hover { background: #f3f4f6; }
+        .mapus-tool:hover { background: #f7f7f7; }
+        .mapus-tool.active { background: #222 !important; color: #fff !important; }
+        .mapus-color:hover { transform: scale(1.15); }
+        .mapus-color.selected { transform: scale(1.2); box-shadow: 0 0 0 2px #222; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
       `}</style>
 
       <div
-        ref={wrapperRef}
-        className="map-container"
         style={{
           width: shape.props.w,
           height: shape.props.h,
-          borderRadius: '12px',
+          borderRadius: 8,
           overflow: 'hidden',
           background: '#e5e7eb',
+          display: 'flex',
           position: 'relative',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+          fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+          zIndex: 1,
         }}
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
-        onPointerMove={stopPropagation}
-        onTouchStart={stopPropagation}
-        onTouchMove={stopPropagation}
-        onTouchEnd={stopPropagation}
+        onPointerDown={capturePointerEvents}
+        onPointerMove={capturePointerEvents}
+        onPointerUp={capturePointerEvents}
         onWheel={handleWheel}
         onClick={stopPropagation}
         onDoubleClick={stopPropagation}
-        onContextMenu={stopPropagation}
         onKeyDown={stopPropagation}
-        onKeyUp={stopPropagation}
+        onContextMenu={stopPropagation}
       >
-        {/* Map container */}
-        <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
-
-        {/* Top toolbar */}
-        <div
-          style={{
-            position: 'absolute',
-            top: 10,
-            left: 10,
-            right: 10,
-            display: 'flex',
-            gap: 8,
-            zIndex: 1000,
-          }}
-        >
-          {/* Search bar */}
-          <div style={{ flex: 1, maxWidth: 320, position: 'relative' }}>
-            <div style={{ display: 'flex', gap: 6 }}>
+        {/* Left Sidebar */}
+        {shape.props.showSidebar && (
+          <div className="mapus-sidebar" style={styles.sidebar}>
+            {/* Map Details */}
+            <div style={styles.section}>
               <input
-                type="text"
-                placeholder="Search places..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  e.stopPropagation();
-                  if (e.key === 'Enter') searchLocation();
-                }}
-                onFocus={(e) => {
-                  handleInputFocus(e);
-                  setActivePanel('search');
-                }}
-                onPointerDown={stopPropagation}
-                onTouchStart={stopPropagation}
+                value={shape.props.title}
+                onChange={(e) => updateTitle(e.target.value)}
+                onFocus={() => setEditingTitle(true)}
+                onBlur={() => setEditingTitle(false)}
                 style={{
-                  flex: 1,
-                  padding: '12px 14px',
+                  width: '100%',
                   border: 'none',
-                  borderRadius: '10px',
-                  fontSize: '14px',
-                  background: 'white',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                  touchAction: 'manipulation',
+                  fontSize: 15,
+                  fontWeight: 600,
+                  color: '#222',
+                  background: 'transparent',
+                  borderBottom: editingTitle ? '2px solid #E8E8E8' : '2px solid transparent',
+                  outline: 'none',
+                  padding: 0,
+                  marginBottom: 4,
                 }}
               />
-              <button
-                onClick={() => searchLocation()}
-                disabled={isSearching}
-                className="map-btn"
-                style={{ ...BUTTON_PRIMARY, width: 44, height: 44, fontSize: '16px' }}
-              >
-                {isSearching ? '⏳' : '🔍'}
-              </button>
+              <input
+                value={shape.props.description}
+                onChange={(e) => updateDescription(e.target.value)}
+                style={{
+                  width: '100%',
+                  border: 'none',
+                  fontSize: 13,
+                  color: '#626C72',
+                  background: 'transparent',
+                  outline: 'none',
+                  padding: 0,
+                }}
+                placeholder="Add a description..."
+              />
             </div>
 
-            {/* Search results */}
-            {activePanel === 'search' && searchResults.length > 0 && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  marginTop: 6,
-                  background: 'white',
-                  borderRadius: '10px',
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-                  maxHeight: 280,
-                  overflowY: 'auto',
-                  zIndex: 1001,
-                }}
-              >
-                {searchResults.map((result, i) => (
+            {/* Search */}
+            <div style={styles.section}>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.key === 'Enter') searchPlaces();
+                  }}
+                  placeholder="Search for a place..."
+                  style={{
+                    flex: 1,
+                    padding: '10px 12px',
+                    border: '1px solid #E8E8E8',
+                    borderRadius: 6,
+                    fontSize: 13,
+                    outline: 'none',
+                  }}
+                />
+                <button
+                  onClick={searchPlaces}
+                  className="mapus-btn"
+                  style={{
+                    ...styles.button,
+                    padding: '10px 14px',
+                    border: '1px solid #E8E8E8',
+                  }}
+                >
+                  {isSearching ? '⏳' : '🔍'}
+                </button>
+              </div>
+
+              {/* Search Results */}
+              {searchResults.length > 0 && (
+                <div style={{ marginTop: 8, maxHeight: 200, overflowY: 'auto' }}>
+                  {searchResults.map((result, i) => (
+                    <div
+                      key={i}
+                      className="mapus-result"
+                      onClick={() => selectSearchResult(result)}
+                      style={{
+                        padding: '10px 8px',
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        borderRadius: 4,
+                      }}
+                    >
+                      📍 {result.name.slice(0, 50)}...
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Find Nearby */}
+            <div style={styles.section}>
+              <div style={styles.sectionTitle}>Find nearby</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
+                {NEARBY_CATEGORIES.map((cat) => (
                   <div
-                    key={i}
-                    className="map-result"
-                    onClick={() => selectSearchResult(result)}
+                    key={cat.key}
+                    className="mapus-category"
+                    onClick={() => findNearby(cat)}
                     style={{
-                      padding: '12px 14px',
+                      textAlign: 'center',
+                      padding: '10px 4px',
+                      borderRadius: 6,
                       cursor: 'pointer',
-                      borderBottom: '1px solid #eee',
-                      fontSize: '13px',
-                      touchAction: 'manipulation',
+                      fontSize: 11,
+                      color: '#626C72',
                     }}
                   >
-                    📍 {result.name.length > 55 ? result.name.slice(0, 55) + '...' : result.name}
+                    <div style={{ fontSize: 22, marginBottom: 4 }}>{cat.icon}</div>
+                    {cat.label}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Collaborators */}
+            {shape.props.collaborators.length > 0 && (
+              <div style={styles.section}>
+                <div style={styles.sectionTitle}>People ({shape.props.collaborators.length})</div>
+                {shape.props.collaborators.map((collab: CollaboratorPresence) => (
+                  <div
+                    key={collab.id}
+                    className="mapus-annotation"
+                    onClick={() => observeUser(observingUser === collab.id ? null : collab.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                      padding: '8px 6px',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      background: observingUser === collab.id ? '#f0fdf4' : 'transparent',
+                    }}
+                  >
+                    <div style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      background: collab.color,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 12,
+                      color: 'white',
+                      fontWeight: 600,
+                    }}>
+                      {collab.name[0].toUpperCase()}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>{collab.name}</div>
+                      {observingUser === collab.id && (
+                        <div style={{ fontSize: 11, color: '#22c55e' }}>👁️ Observing</div>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
             )}
-          </div>
 
-          {/* Quick action buttons */}
-          <div style={{ display: 'flex', gap: 6, pointerEvents: 'auto' }}>
-            {/* Directions */}
-            <button
-              onClick={() => setActivePanel(activePanel === 'route' ? 'none' : 'route')}
-              className="map-btn"
-              style={{
-                ...BUTTON_BASE,
-                width: 44,
-                height: 44,
-                fontSize: '18px',
-                background: activePanel === 'route' ? '#3b82f6' : 'white',
-                color: activePanel === 'route' ? 'white' : 'inherit',
-              }}
-              title="Directions"
-            >
-              🚗
-            </button>
-
-            {/* GPS */}
-            <button
-              onClick={() => setActivePanel(activePanel === 'gps' ? 'none' : 'gps')}
-              className="map-btn"
-              style={{
-                ...BUTTON_BASE,
-                width: 44,
-                height: 44,
-                fontSize: '18px',
-                background: gpsStatus === 'sharing' ? '#22c55e' : activePanel === 'gps' ? '#3b82f6' : 'white',
-                color: gpsStatus === 'sharing' || activePanel === 'gps' ? 'white' : 'inherit',
-              }}
-              title="Share location"
-            >
-              📍
-            </button>
-
-            {/* Style */}
-            <button
-              onClick={() => setActivePanel(activePanel === 'style' ? 'none' : 'style')}
-              className="map-btn"
-              style={{ ...BUTTON_BASE, width: 44, height: 44, fontSize: '16px' }}
-              title="Map style"
-            >
-              {currentStyle.icon}
-            </button>
-          </div>
-        </div>
-
-        {/* Style menu */}
-        {activePanel === 'style' && (
-          <div
-            style={{
-              position: 'absolute',
-              top: 62,
-              right: 10,
-              background: 'white',
-              borderRadius: '10px',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-              zIndex: 1001,
-              minWidth: 150,
-              pointerEvents: 'auto',
-            }}
-          >
-            {Object.entries(MAP_STYLES).map(([key, style]) => (
-              <div
-                key={key}
-                className="map-result"
-                onClick={() => changeStyle(key as StyleKey)}
-                style={{
-                  padding: '12px 14px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  background: key === styleKey ? '#f3f4f6' : 'white',
-                  touchAction: 'manipulation',
-                }}
-              >
-                {style.icon} {style.name}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Directions panel */}
-        {activePanel === 'route' && (
-          <div
-            style={{
-              position: 'absolute',
-              top: 62,
-              left: 10,
-              width: 300,
-              background: 'white',
-              borderRadius: '12px',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-              zIndex: 1001,
-              pointerEvents: 'auto',
-              maxHeight: shape.props.h - 80,
-              overflowY: 'auto',
-            }}
-          >
-            <div style={{ padding: 14 }}>
-              <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
-                <span>🚗 Directions</span>
-                <button onClick={() => setActivePanel('none')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>✕</button>
+            {/* Annotations */}
+            <div style={styles.section}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div style={styles.sectionTitle}>Annotations</div>
+                <button
+                  onClick={hideAllAnnotations}
+                  className="mapus-btn"
+                  style={{ ...styles.button, fontSize: 12, padding: '4px 8px', color: '#626C72' }}
+                >
+                  Hide all
+                </button>
               </div>
 
-              {/* Waypoints list */}
-              {shape.props.waypoints.length > 0 && (
-                <div style={{ marginBottom: 12 }}>
-                  {shape.props.waypoints.map((wp: Waypoint, i: number) => (
-                    <div key={wp.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                      <span style={{
-                        width: 24, height: 24, borderRadius: '50%', background: '#3b82f6',
-                        color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 12, fontWeight: 600,
-                      }}>
-                        {i + 1}
-                      </span>
-                      <span style={{ flex: 1, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {wp.name || `${wp.coordinate.lat.toFixed(4)}, ${wp.coordinate.lng.toFixed(4)}`}
-                      </span>
+              {shape.props.annotations.length === 0 ? (
+                <div style={{ fontSize: 12, color: '#9ca3af', textAlign: 'center', padding: 16 }}>
+                  No annotations yet.<br />Use the tools below to add some!
+                </div>
+              ) : (
+                <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                  {shape.props.annotations.map((ann: Annotation) => (
+                    <div
+                      key={ann.id}
+                      className="mapus-annotation"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '8px 6px',
+                        borderRadius: 6,
+                        cursor: 'pointer',
+                        opacity: ann.visible ? 1 : 0.5,
+                      }}
+                    >
+                      <div style={{
+                        width: 12,
+                        height: 12,
+                        borderRadius: '50%',
+                        background: ann.color,
+                      }} />
+                      <div style={{ flex: 1, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {ann.name}
+                      </div>
                       <button
-                        onClick={() => removeWaypoint(wp.id)}
-                        className="map-btn"
-                        style={{ ...BUTTON_BASE, width: 28, height: 28, fontSize: 14, background: '#fee2e2', color: '#ef4444' }}
+                        onClick={(e) => { e.stopPropagation(); toggleAnnotationVisibility(ann.id); }}
+                        className="mapus-btn"
+                        style={{ ...styles.button, padding: 4, fontSize: 14 }}
+                      >
+                        {ann.visible ? '👁️' : '👁️‍🗨️'}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); removeAnnotation(ann.id); }}
+                        className="mapus-btn"
+                        style={{ ...styles.button, padding: 4, fontSize: 14, color: '#E15F59' }}
                       >
                         ✕
                       </button>
@@ -1294,229 +1058,271 @@ function MapComponent({ shape, editor }: { shape: IMapShape; editor: MapShape['e
                   ))}
                 </div>
               )}
+            </div>
 
-              {/* Route info */}
-              {shape.props.route && (
-                <div style={{ background: '#f0fdf4', padding: 10, borderRadius: 8, marginBottom: 12 }}>
-                  <div style={{ display: 'flex', gap: 16, fontSize: 14, fontWeight: 500 }}>
-                    <span>📏 {formatDistance(shape.props.route.distance)}</span>
-                    <span>⏱️ {formatDuration(shape.props.route.duration)}</span>
-                  </div>
-                </div>
-              )}
-
-              {isCalculatingRoute && (
-                <div style={{ color: '#6b7280', fontSize: 13, marginBottom: 12 }}>⏳ Calculating route...</div>
-              )}
-
-              {routeError && (
-                <div style={{ color: '#ef4444', fontSize: 13, marginBottom: 12 }}>⚠️ {routeError}</div>
-              )}
-
-              {/* Actions */}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {shape.props.waypoints.length >= 2 && (
-                  <button onClick={reverseRoute} className="map-btn" style={{ ...BUTTON_BASE, padding: '8px 12px', fontSize: 13 }}>
-                    🔄 Reverse
-                  </button>
-                )}
-                {shape.props.waypoints.length > 0 && (
-                  <button onClick={clearRoute} className="map-btn" style={{ ...BUTTON_DANGER, padding: '8px 12px', fontSize: 13 }}>
-                    🗑️ Clear
-                  </button>
-                )}
-              </div>
-
-              <div style={{ marginTop: 12, fontSize: 12, color: '#9ca3af' }}>
-                Tap map or shift+click to add waypoints
-              </div>
+            {/* Attribution */}
+            <div style={{ ...styles.section, borderBottom: 'none', fontSize: 11, color: '#9ca3af' }}>
+              © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener" style={{ color: '#9ca3af' }}>OpenStreetMap</a>
             </div>
           </div>
         )}
 
-        {/* GPS panel */}
-        {activePanel === 'gps' && (
-          <div
+        {/* Map Container */}
+        <div style={{ flex: 1, position: 'relative' }}>
+          <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+
+          {/* Sidebar Toggle */}
+          <button
+            onClick={toggleSidebar}
+            className="mapus-btn"
             style={{
               position: 'absolute',
-              top: 62,
+              top: 10,
               left: 10,
-              width: 280,
-              background: 'white',
-              borderRadius: '12px',
-              boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-              zIndex: 1001,
-              pointerEvents: 'auto',
-            }}
-          >
-            <div style={{ padding: 14 }}>
-              <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
-                <span>📍 Location Sharing</span>
-                <button onClick={() => setActivePanel('none')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>✕</button>
-              </div>
-
-              {/* GPS status */}
-              <div style={{ marginBottom: 14 }}>
-                {gpsStatus === 'off' && (
-                  <button onClick={startGPS} className="map-btn" style={{ ...BUTTON_SUCCESS, width: '100%', padding: '12px', fontSize: 14 }}>
-                    📍 Share My Location
-                  </button>
-                )}
-                {gpsStatus === 'locating' && (
-                  <div style={{ color: '#3b82f6', fontSize: 14 }}>⏳ Getting your location...</div>
-                )}
-                {gpsStatus === 'sharing' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ color: '#22c55e', fontSize: 14, fontWeight: 500 }}>✅ Sharing your location</div>
-                    <button onClick={stopGPS} className="map-btn" style={{ ...BUTTON_DANGER, width: '100%', padding: '10px', fontSize: 13 }}>
-                      Stop Sharing
-                    </button>
-                  </div>
-                )}
-                {gpsStatus === 'error' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ color: '#ef4444', fontSize: 13 }}>⚠️ {gpsError}</div>
-                    <button onClick={startGPS} className="map-btn" style={{ ...BUTTON_PRIMARY, width: '100%', padding: '10px', fontSize: 13 }}>
-                      Try Again
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* People nearby */}
-              {shape.props.gpsUsers.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8, color: '#374151' }}>
-                    People ({shape.props.gpsUsers.length})
-                  </div>
-                  {shape.props.gpsUsers.map((user: GPSUser) => (
-                    <div
-                      key={user.id}
-                      onClick={() => flyTo(user.coordinate, 16)}
-                      className="map-result"
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        padding: '10px 8px',
-                        cursor: 'pointer',
-                        borderRadius: 6,
-                        marginBottom: 4,
-                        touchAction: 'manipulation',
-                      }}
-                    >
-                      <span style={{
-                        width: 32, height: 32, borderRadius: '50%', background: user.color,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16,
-                      }}>
-                        {user.isSelf ? '📍' : getPersonEmoji(user.id)}
-                      </span>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 500 }}>{user.name}{user.isSelf ? ' (you)' : ''}</div>
-                        {user.accuracy && <div style={{ fontSize: 11, color: '#9ca3af' }}>±{Math.round(user.accuracy)}m</div>}
-                      </div>
-                    </div>
-                  ))}
-                  {shape.props.gpsUsers.length > 1 && (
-                    <button onClick={fitToAllGPS} className="map-btn" style={{ ...BUTTON_BASE, width: '100%', padding: '10px', fontSize: 13, marginTop: 8 }}>
-                      👥 Fit All
-                    </button>
-                  )}
-                </div>
-              )}
-
-              <div style={{ marginTop: 12, fontSize: 11, color: '#9ca3af' }}>
-                Location shared with people on this canvas
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Zoom controls */}
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 12,
-            right: 12,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 6,
-            zIndex: 1000,
-            pointerEvents: 'auto',
-          }}
-        >
-          <button
-            onClick={() => mapRef.current?.zoomIn()}
-            className="map-btn"
-            style={{ ...BUTTON_BASE, width: 40, height: 40, fontSize: 20 }}
-            title="Zoom in"
-          >
-            +
-          </button>
-          <button
-            onClick={() => mapRef.current?.zoomOut()}
-            className="map-btn"
-            style={{ ...BUTTON_BASE, width: 40, height: 40, fontSize: 20 }}
-            title="Zoom out"
-          >
-            −
-          </button>
-          <button
-            onClick={locateMe}
-            disabled={isLocating}
-            className="map-btn"
-            style={{
-              ...BUTTON_BASE,
-              width: 40,
-              height: 40,
-              fontSize: 18,
-              marginTop: 4,
-              background: isLocating ? '#dbeafe' : 'white',
-            }}
-            title="Zoom to my location"
-          >
-            {isLocating ? '⏳' : '⊙'}
-          </button>
-        </div>
-
-        {/* Quick route info badge (when panel closed) */}
-        {activePanel !== 'route' && shape.props.route && (
-          <div
-            onClick={() => setActivePanel('route')}
-            style={{
-              position: 'absolute',
-              bottom: 12,
-              left: 12,
-              background: 'white',
-              borderRadius: '10px',
-              padding: '10px 14px',
+              width: 36,
+              height: 36,
+              borderRadius: 8,
+              background: '#fff',
+              border: 'none',
               boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-              fontSize: '13px',
-              zIndex: 1000,
-              pointerEvents: 'auto',
               cursor: 'pointer',
               display: 'flex',
-              gap: 14,
-              touchAction: 'manipulation',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 18,
+              zIndex: 10000,
+              pointerEvents: 'auto',
             }}
           >
-            <span>📏 {formatDistance(shape.props.route.distance)}</span>
-            <span>⏱️ {formatDuration(shape.props.route.duration)}</span>
-          </div>
-        )}
+            {shape.props.showSidebar ? '◀' : '▶'}
+          </button>
 
-        {/* Click outside to close panels */}
-        {activePanel !== 'none' && (
-          <div
-            style={{ position: 'absolute', inset: 0, zIndex: 999, pointerEvents: 'auto' }}
-            onClick={(e) => {
-              e.stopPropagation();
-              setActivePanel('none');
-            }}
-            onPointerDown={stopPropagation}
-            onTouchStart={stopPropagation}
-          />
-        )}
+          {/* Style Picker */}
+          <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10000, pointerEvents: 'auto' }}>
+            <select
+              value={styleKey}
+              onChange={(e) => changeStyle(e.target.value as StyleKey)}
+              style={{
+                padding: '8px 12px',
+                borderRadius: 6,
+                border: 'none',
+                background: '#fff',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                fontSize: 13,
+                cursor: 'pointer',
+                pointerEvents: 'auto',
+              }}
+            >
+              {Object.entries(MAP_STYLES).map(([key, style]) => (
+                <option key={key} value={key}>{style.icon} {style.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Zoom Controls */}
+          <div style={{ position: 'absolute', bottom: 80, right: 10, display: 'flex', flexDirection: 'column', gap: 4, zIndex: 10000, pointerEvents: 'auto' }}>
+            <button
+              onClick={() => mapRef.current?.zoomIn()}
+              className="mapus-btn"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: '#fff',
+                border: 'none',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                cursor: 'pointer',
+                fontSize: 18,
+                pointerEvents: 'auto',
+              }}
+            >
+              +
+            </button>
+            <button
+              onClick={() => mapRef.current?.zoomOut()}
+              className="mapus-btn"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: '#fff',
+                border: 'none',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                cursor: 'pointer',
+                fontSize: 18,
+                pointerEvents: 'auto',
+              }}
+            >
+              −
+            </button>
+            <button
+              onClick={() => {
+                navigator.geolocation?.getCurrentPosition((pos) => {
+                  mapRef.current?.flyTo({
+                    center: [pos.coords.longitude, pos.coords.latitude],
+                    zoom: 15,
+                    duration: 1000,
+                  });
+                });
+              }}
+              className="mapus-btn"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 8,
+                background: '#fff',
+                border: 'none',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                cursor: 'pointer',
+                fontSize: 16,
+                marginTop: 4,
+                pointerEvents: 'auto',
+              }}
+              title="My location"
+            >
+              ⊙
+            </button>
+          </div>
+
+          {/* Drawing Toolbar (Mapus-style) */}
+          <div style={styles.toolbar}>
+            {/* Cursor Tool */}
+            <button
+              onClick={() => setActiveTool('cursor')}
+              className={`mapus-tool ${activeTool === 'cursor' ? 'active' : ''}`}
+              style={styles.toolButton}
+              title="Select"
+            >
+              ↖️
+            </button>
+
+            {/* Marker Tool */}
+            <button
+              onClick={() => setActiveTool('marker')}
+              className={`mapus-tool ${activeTool === 'marker' ? 'active' : ''}`}
+              style={styles.toolButton}
+              title="Add marker"
+            >
+              📍
+            </button>
+
+            {/* Line Tool */}
+            <button
+              onClick={() => setActiveTool('line')}
+              className={`mapus-tool ${activeTool === 'line' ? 'active' : ''}`}
+              style={styles.toolButton}
+              title="Draw line"
+            >
+              📏
+            </button>
+
+            {/* Area Tool */}
+            <button
+              onClick={() => setActiveTool('area')}
+              className={`mapus-tool ${activeTool === 'area' ? 'active' : ''}`}
+              style={styles.toolButton}
+              title="Draw area"
+            >
+              ⬡
+            </button>
+
+            {/* Eraser */}
+            <button
+              onClick={() => setActiveTool('eraser')}
+              className={`mapus-tool ${activeTool === 'eraser' ? 'active' : ''}`}
+              style={styles.toolButton}
+              title="Eraser"
+            >
+              🧹
+            </button>
+
+            {/* Divider */}
+            <div style={{ width: 1, background: '#E8E8E8', margin: '4px 6px' }} />
+
+            {/* Color Picker */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setShowColorPicker(!showColorPicker)}
+                style={{
+                  ...styles.toolButton,
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                }}
+                title="Color"
+              >
+                <div style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: '50%',
+                  background: selectedColor,
+                  border: '2px solid #fff',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                }} />
+              </button>
+
+              {showColorPicker && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: '100%',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  marginBottom: 8,
+                  background: '#fff',
+                  borderRadius: 8,
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+                  padding: 8,
+                  display: 'flex',
+                  gap: 6,
+                }}>
+                  {COLORS.map((color) => (
+                    <div
+                      key={color}
+                      className={`mapus-color ${selectedColor === color ? 'selected' : ''}`}
+                      onClick={() => { setSelectedColor(color); setShowColorPicker(false); }}
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: '50%',
+                        background: color,
+                        cursor: 'pointer',
+                        transition: 'transform 0.15s',
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Observing Indicator */}
+          {observingUser && (
+            <div style={{
+              position: 'absolute',
+              top: 8,
+              left: 8,
+              right: 8,
+              bottom: 8,
+              pointerEvents: 'none',
+              border: `3px solid ${shape.props.collaborators.find((c: CollaboratorPresence) => c.id === observingUser)?.color || '#3b82f6'}`,
+              borderRadius: 8,
+            }}>
+              <div style={{
+                position: 'absolute',
+                top: -30,
+                left: 10,
+                background: shape.props.collaborators.find((c: CollaboratorPresence) => c.id === observingUser)?.color || '#3b82f6',
+                color: '#fff',
+                padding: '4px 10px',
+                borderRadius: 4,
+                fontSize: 12,
+                fontWeight: 500,
+              }}>
+                👁️ Observing {shape.props.collaborators.find((c: CollaboratorPresence) => c.id === observingUser)?.name}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </HTMLContainer>
   );
