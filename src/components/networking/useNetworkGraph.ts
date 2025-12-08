@@ -156,10 +156,36 @@ export function useNetworkGraph(options: UseNetworkGraphOptions = {}): UseNetwor
 
       // Fetch graph, optionally scoped to room
       let graph: NetworkGraph;
-      if (participantIds.length > 0) {
-        graph = await getRoomNetworkGraph(participantIds);
-      } else {
-        graph = await getMyNetworkGraph();
+      try {
+        if (participantIds.length > 0) {
+          graph = await getRoomNetworkGraph(participantIds);
+        } else {
+          graph = await getMyNetworkGraph();
+        }
+      } catch (apiError: any) {
+        // If API call fails (e.g., 401 Unauthorized), fall back to showing room participants
+        console.warn('Network graph API failed, falling back to room participants:', apiError.message);
+        const fallbackNodes: GraphNode[] = roomParticipants.map(participant => ({
+          id: participant.id,
+          username: participant.username,
+          displayName: participant.username,
+          avatarColor: participant.color,
+          isInRoom: true,
+          roomPresenceColor: participant.color,
+          isCurrentUser: participant.id === session.username || participant.id === roomParticipants[0]?.id,
+          isAnonymous: false,
+          trustLevelTo: undefined,
+          trustLevelFrom: undefined,
+        }));
+
+        setState({
+          nodes: fallbackNodes,
+          edges: [],
+          myConnections: [],
+          isLoading: false,
+          error: null, // Don't show error to user - graceful degradation
+        });
+        return;
       }
 
       // Enrich nodes with room status, current user flag, and anonymous status

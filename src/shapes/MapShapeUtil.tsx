@@ -338,6 +338,7 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [_nearbyPlaces, setNearbyPlaces] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [isFetchingNearby, setIsFetchingNearby] = useState(false);
   const [observingUser, setObservingUser] = useState<string | null>(null);
 
   const styleKey = (shape.props.styleKey || 'voyager') as StyleKey;
@@ -578,12 +579,12 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
   // Actions
   // ==========================================================================
 
-  const addAnnotation = useCallback((type: Annotation['type'], coordinates: Coordinate[]) => {
+  const addAnnotation = useCallback((type: Annotation['type'], coordinates: Coordinate[], options?: { name?: string; color?: string }) => {
     const newAnnotation: Annotation = {
-      id: `ann-${Date.now()}`,
+      id: `ann-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       type,
-      name: `${type.charAt(0).toUpperCase() + type.slice(1)} ${shape.props.annotations.length + 1}`,
-      color: selectedColor,
+      name: options?.name || `${type.charAt(0).toUpperCase() + type.slice(1)} ${shape.props.annotations.length + 1}`,
+      color: options?.color || selectedColor,
       visible: true,
       coordinates,
       createdAt: Date.now(),
@@ -680,11 +681,16 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
   const findNearby = useCallback(async (category: typeof NEARBY_CATEGORIES[0]) => {
     if (!mapRef.current || !isMountedRef.current) return;
 
+    console.log('🗺️ findNearby called for category:', category.label);
+    setIsFetchingNearby(true);
+
     let bounds;
     try {
       bounds = mapRef.current.getBounds();
+      console.log('🗺️ Map bounds:', bounds.toString());
     } catch (err) {
-      // Map may have been destroyed
+      console.error('🗺️ Error getting bounds:', err);
+      setIsFetchingNearby(false);
       return;
     }
 
@@ -696,15 +702,21 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
         );
         out body 10;
       `;
+      console.log('🗺️ Overpass query:', query);
 
       const response = await fetch('https://overpass-api.de/api/interpreter', {
         method: 'POST',
         body: query,
       });
 
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current) {
+        setIsFetchingNearby(false);
+        return;
+      }
 
+      console.log('🗺️ Overpass response status:', response.status);
       const data = await response.json() as { elements: { id: number; lat: number; lon: number; tags?: { name?: string; amenity?: string } }[] };
+      console.log('🗺️ Found', data.elements.length, 'places');
 
       const places = data.elements.slice(0, 10).map((el) => ({
         id: el.id,
@@ -715,17 +727,26 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
         color: category.color,
       }));
 
-      if (!isMountedRef.current) return;
+      if (!isMountedRef.current) {
+        setIsFetchingNearby(false);
+        return;
+      }
       setNearbyPlaces(places);
 
       // Add markers for nearby places
+      console.log('🗺️ Adding', places.length, 'markers');
       places.forEach((place: any) => {
         if (isMountedRef.current) {
-          addAnnotation('marker', [{ lat: place.lat, lng: place.lng }]);
+          addAnnotation('marker', [{ lat: place.lat, lng: place.lng }], {
+            name: place.name,
+            color: place.color,
+          });
         }
       });
+      setIsFetchingNearby(false);
     } catch (err) {
-      console.error('Find nearby error:', err);
+      console.error('🗺️ Find nearby error:', err);
+      setIsFetchingNearby(false);
     }
   }, [addAnnotation]);
 
@@ -972,19 +993,21 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
 
               {/* Find Nearby */}
               <div style={styles.section}>
-                <div style={styles.sectionTitle}>Find nearby</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
+                <div style={styles.sectionTitle}>
+                  Find nearby {isFetchingNearby && <span style={{ marginLeft: 8, fontSize: 12 }}>⏳</span>}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, opacity: isFetchingNearby ? 0.5 : 1 }}>
                   {NEARBY_CATEGORIES.map((cat) => (
                     <div
                       key={cat.key}
                       className="mapus-category"
-                      onClick={() => findNearby(cat)}
+                      onClick={() => !isFetchingNearby && findNearby(cat)}
                       onPointerDown={stopPropagation}
                       style={{
                         textAlign: 'center',
                         padding: '10px 4px',
                         borderRadius: 6,
-                        cursor: 'pointer',
+                        cursor: isFetchingNearby ? 'wait' : 'pointer',
                         fontSize: 11,
                         color: '#626C72',
                       }}
