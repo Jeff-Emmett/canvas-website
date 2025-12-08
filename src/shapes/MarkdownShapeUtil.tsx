@@ -28,6 +28,7 @@ import '@mdxeditor/editor/style.css'
 import { BaseBoxShapeUtil, TLBaseShape, HTMLContainer } from '@tldraw/tldraw'
 import { StandardizedToolWrapper } from '../components/StandardizedToolWrapper'
 import { usePinnedToView } from '../hooks/usePinnedToView'
+import { useMaximize } from '../hooks/useMaximize'
 
 export type IMarkdownShape = TLBaseShape<
   'Markdown',
@@ -89,6 +90,15 @@ export class MarkdownShape extends BaseBoxShapeUtil<IMarkdownShape> {
     // Use the pinning hook
     usePinnedToView(this.editor, shape.id, shape.props.pinnedToView)
 
+    // Use the maximize hook for fullscreen functionality
+    const { isMaximized, toggleMaximize } = useMaximize({
+      editor: this.editor,
+      shapeId: shape.id,
+      currentW: shape.props.w,
+      currentH: shape.props.h,
+      shapeType: 'Markdown',
+    })
+
     const handleClose = () => {
       this.editor.deleteShape(shape.id)
     }
@@ -140,6 +150,8 @@ export class MarkdownShape extends BaseBoxShapeUtil<IMarkdownShape> {
           onClose={handleClose}
           onMinimize={handleMinimize}
           isMinimized={isMinimized}
+          onMaximize={toggleMaximize}
+          isMaximized={isMaximized}
           editor={this.editor}
           shapeId={shape.id}
           isPinnedToView={shape.props.pinnedToView}

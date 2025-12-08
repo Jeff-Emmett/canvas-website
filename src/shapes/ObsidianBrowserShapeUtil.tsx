@@ -12,6 +12,7 @@ import { findNonOverlappingPosition } from "@/utils/shapeCollisionUtils"
 import { StandardizedToolWrapper } from "../components/StandardizedToolWrapper"
 import { AuthContext } from "../context/AuthContext"
 import { usePinnedToView } from "../hooks/usePinnedToView"
+import { useMaximize } from "../hooks/useMaximize"
 
 type IObsidianBrowser = TLBaseShape<
   "ObsidianBrowser",
@@ -46,7 +47,16 @@ export class ObsidianBrowserShape extends BaseBoxShapeUtil<IObsidianBrowser> {
 
     // Use the pinning hook to keep the shape fixed to viewport when pinned
     usePinnedToView(this.editor, shape.id, shape.props.pinnedToView)
-    
+
+    // Use the maximize hook for fullscreen functionality
+    const { isMaximized, toggleMaximize } = useMaximize({
+      editor: this.editor,
+      shapeId: shape.id,
+      currentW: w,
+      currentH: h,
+      shapeType: 'ObsidianBrowser',
+    })
+
     // Wrapper component to access auth context
     const ObsidianBrowserContent: React.FC<{ vaultName?: string }> = ({ vaultName }) => {
 
@@ -342,6 +352,8 @@ export class ObsidianBrowserShape extends BaseBoxShapeUtil<IObsidianBrowser> {
             onClose={handleClose}
             onMinimize={handleMinimize}
             isMinimized={isMinimized}
+            onMaximize={toggleMaximize}
+            isMaximized={isMaximized}
             editor={this.editor}
             shapeId={shape.id}
             headerContent={headerContent}

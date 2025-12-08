@@ -2,6 +2,7 @@ import { BaseBoxShapeUtil, TLBaseShape, HTMLContainer } from "tldraw"
 import { useCallback, useState } from "react"
 import { StandardizedToolWrapper } from "../components/StandardizedToolWrapper"
 import { usePinnedToView } from "../hooks/usePinnedToView"
+import { useMaximize } from "../hooks/useMaximize"
 
 export type IEmbedShape = TLBaseShape<
   "Embed",
@@ -173,6 +174,15 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
     // Use the pinning hook
     usePinnedToView(this.editor, shape.id, shape.props.pinnedToView)
 
+    // Use the maximize hook for fullscreen functionality
+    const { isMaximized, toggleMaximize } = useMaximize({
+      editor: this.editor,
+      shapeId: shape.id,
+      currentW: shape.props.w,
+      currentH: shape.props.h,
+      shapeType: 'Embed',
+    })
+
     const handleClose = () => {
       this.editor.deleteShape(shape.id)
     }
@@ -271,6 +281,8 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
             onClose={handleClose}
             onMinimize={handleMinimize}
             isMinimized={isMinimized}
+            onMaximize={toggleMaximize}
+            isMaximized={isMaximized}
             editor={this.editor}
             shapeId={shape.id}
             isPinnedToView={shape.props.pinnedToView}
@@ -361,6 +373,8 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
             onClose={handleClose}
             onMinimize={handleMinimize}
             isMinimized={isMinimized}
+            onMaximize={toggleMaximize}
+            isMaximized={isMaximized}
             editor={this.editor}
             shapeId={shape.id}
             isPinnedToView={shape.props.pinnedToView}
@@ -429,6 +443,8 @@ export class EmbedShape extends BaseBoxShapeUtil<IEmbedShape> {
           onClose={handleClose}
           onMinimize={handleMinimize}
           isMinimized={isMinimized}
+          onMaximize={toggleMaximize}
+          isMaximized={isMaximized}
           editor={this.editor}
           shapeId={shape.id}
           isPinnedToView={shape.props.pinnedToView}

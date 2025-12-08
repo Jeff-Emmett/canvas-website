@@ -8,6 +8,7 @@ import { holosphereService, HoloSphereService, HolonConnection } from "@/lib/Hol
 import * as h3 from 'h3-js'
 import { StandardizedToolWrapper } from "../components/StandardizedToolWrapper"
 import { usePinnedToView } from "../hooks/usePinnedToView"
+import { useMaximize } from "../hooks/useMaximize"
 
 type IHolon = TLBaseShape<
   "Holon",
@@ -111,6 +112,15 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
 
     // Use the pinning hook to keep the shape fixed to viewport when pinned
     usePinnedToView(this.editor, shape.id, shape.props.pinnedToView)
+
+    // Use the maximize hook for fullscreen functionality
+    const { isMaximized, toggleMaximize } = useMaximize({
+      editor: this.editor,
+      shapeId: shape.id,
+      currentW: shape.props.w,
+      currentH: shape.props.h,
+      shapeType: 'Holon',
+    })
 
     // Note: Auto-initialization is disabled. Users must manually enter Holon IDs.
     // This prevents the shape from auto-generating IDs based on coordinates.
@@ -763,6 +773,8 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
           onClose={handleClose}
           onMinimize={handleMinimize}
           isMinimized={isMinimized}
+          onMaximize={toggleMaximize}
+          isMaximized={isMaximized}
           headerContent={headerContent}
           editor={this.editor}
           shapeId={shape.id}

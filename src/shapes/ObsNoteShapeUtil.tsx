@@ -32,6 +32,7 @@ import { logGitHubSetupStatus } from '@/lib/githubSetupValidator'
 import { getClientConfig } from '@/lib/clientConfig'
 import { StandardizedToolWrapper } from '../components/StandardizedToolWrapper'
 import { usePinnedToView } from '../hooks/usePinnedToView'
+import { useMaximize } from '../hooks/useMaximize'
 
 // Main ObsNote component with full markdown editing
 const ObsNoteComponent: React.FC<{
@@ -49,6 +50,15 @@ const ObsNoteComponent: React.FC<{
 
   // Use the pinning hook to keep the shape fixed to viewport when pinned
   usePinnedToView(shapeUtil.editor, shape.id, shape.props.pinnedToView)
+
+  // Use the maximize hook for fullscreen functionality
+  const { isMaximized, toggleMaximize } = useMaximize({
+    editor: shapeUtil.editor,
+    shapeId: shape.id,
+    currentW: shape.props.w,
+    currentH: shape.props.h,
+    shapeType: 'ObsNote',
+  })
 
   // Track content changes for sync button visibility
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(shape.props.isModified)
@@ -486,6 +496,8 @@ ${contentToSync}`
         onClose={handleClose}
         onMinimize={handleMinimize}
         isMinimized={isMinimized}
+        onMaximize={toggleMaximize}
+        isMaximized={isMaximized}
         headerContent={headerContent}
         editor={shapeUtil.editor}
         shapeId={shape.id}

@@ -10,6 +10,7 @@ import { getRunPodConfig } from "@/lib/clientConfig"
 import { aiOrchestrator, isAIOrchestratorAvailable } from "@/lib/aiOrchestrator"
 import { StandardizedToolWrapper } from "@/components/StandardizedToolWrapper"
 import { usePinnedToView } from "@/hooks/usePinnedToView"
+import { useMaximize } from "@/hooks/useMaximize"
 
 // Feature flag: Set to false when AI Orchestrator or RunPod API is ready for production
 const USE_MOCK_API = false
@@ -326,6 +327,15 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
     // Pin to view functionality
     usePinnedToView(editor, shape.id, shape.props.pinnedToView)
 
+    // Use the maximize hook for fullscreen functionality
+    const { isMaximized, toggleMaximize } = useMaximize({
+      editor: editor,
+      shapeId: shape.id,
+      currentW: shape.props.w,
+      currentH: shape.props.h,
+      shapeType: 'ImageGen',
+    })
+
     const handlePinToggle = () => {
       editor.updateShape<IImageGen>({
         id: shape.id,
@@ -589,6 +599,8 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
           onClose={handleClose}
           onMinimize={handleMinimize}
           isMinimized={isMinimized}
+          onMaximize={toggleMaximize}
+          isMaximized={isMaximized}
           editor={editor}
           shapeId={shape.id}
           tags={shape.props.tags || []}

@@ -16,6 +16,7 @@ import { findNonOverlappingPosition } from "@/utils/shapeCollisionUtils"
 import React, { useState } from "react"
 import { StandardizedToolWrapper } from "../components/StandardizedToolWrapper"
 import { usePinnedToView } from "../hooks/usePinnedToView"
+import { useMaximize } from "../hooks/useMaximize"
 
 type IPrompt = TLBaseShape<
   "Prompt",
@@ -373,6 +374,15 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
     // Use the pinning hook
     usePinnedToView(this.editor, shape.id, shape.props.pinnedToView)
 
+    // Use the maximize hook for fullscreen functionality
+    const { isMaximized, toggleMaximize } = useMaximize({
+      editor: this.editor,
+      shapeId: shape.id,
+      currentW: shape.props.w,
+      currentH: shape.props.h,
+      shapeType: 'Prompt',
+    })
+
     const handleClose = () => {
       this.editor.deleteShape(shape.id)
     }
@@ -403,6 +413,8 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
           onClose={handleClose}
           onMinimize={handleMinimize}
           isMinimized={isMinimized}
+          onMaximize={toggleMaximize}
+          isMaximized={isMaximized}
           editor={this.editor}
           shapeId={shape.id}
           isPinnedToView={shape.props.pinnedToView}

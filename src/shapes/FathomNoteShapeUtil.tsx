@@ -3,6 +3,7 @@ import { BaseBoxShapeUtil, TLBaseShape, createShapeId, IndexKey, TLParentId, HTM
 import type { JSX } from 'react'
 import { StandardizedToolWrapper } from '../components/StandardizedToolWrapper'
 import { usePinnedToView } from '../hooks/usePinnedToView'
+import { useMaximize } from '../hooks/useMaximize'
 
 export type IFathomNoteShape = TLBaseShape<
   'FathomNote',
@@ -44,6 +45,15 @@ export class FathomNoteShape extends BaseBoxShapeUtil<IFathomNoteShape> {
 
     // Use the pinning hook
     usePinnedToView(this.editor, shape.id, shape.props.pinnedToView)
+
+    // Use the maximize hook for fullscreen functionality
+    const { isMaximized, toggleMaximize } = useMaximize({
+      editor: this.editor,
+      shapeId: shape.id,
+      currentW: shape.props.w,
+      currentH: shape.props.h,
+      shapeType: 'FathomNote',
+    })
 
     const handleClose = () => {
       this.editor.deleteShape(shape.id)
@@ -513,6 +523,8 @@ export class FathomNoteShape extends BaseBoxShapeUtil<IFathomNoteShape> {
           onClose={handleClose}
           onMinimize={handleMinimize}
           isMinimized={isMinimized}
+          onMaximize={toggleMaximize}
+          isMaximized={isMaximized}
           editor={this.editor}
           shapeId={shape.id}
           isPinnedToView={shape.props.pinnedToView}

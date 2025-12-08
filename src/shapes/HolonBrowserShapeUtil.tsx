@@ -8,6 +8,7 @@ import { HolonBrowser } from "../components/HolonBrowser"
 import { HolonData } from "../lib/HoloSphereService"
 import { StandardizedToolWrapper } from "../components/StandardizedToolWrapper"
 import { usePinnedToView } from "../hooks/usePinnedToView"
+import { useMaximize } from "../hooks/useMaximize"
 
 type IHolonBrowser = TLBaseShape<
   "HolonBrowser",
@@ -42,6 +43,15 @@ export class HolonBrowserShape extends BaseBoxShapeUtil<IHolonBrowser> {
 
     // Use the pinning hook to keep the shape fixed to viewport when pinned
     usePinnedToView(this.editor, shape.id, shape.props.pinnedToView)
+
+    // Use the maximize hook for fullscreen functionality
+    const { isMaximized, toggleMaximize } = useMaximize({
+      editor: this.editor,
+      shapeId: shape.id,
+      currentW: w,
+      currentH: h,
+      shapeType: 'HolonBrowser',
+    })
 
     const handleSelectHolon = (holonData: HolonData) => {
       // Store current camera position to prevent it from changing
@@ -146,6 +156,8 @@ export class HolonBrowserShape extends BaseBoxShapeUtil<IHolonBrowser> {
           onClose={handleClose}
           onMinimize={handleMinimize}
           isMinimized={isMinimized}
+          onMaximize={toggleMaximize}
+          isMaximized={isMaximized}
           editor={this.editor}
           shapeId={shape.id}
           isPinnedToView={shape.props.pinnedToView}

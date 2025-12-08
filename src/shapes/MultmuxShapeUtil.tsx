@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { BaseBoxShapeUtil, TLBaseShape, HTMLContainer, Geometry2d, Rectangle2d, T, createShapePropsMigrationIds, createShapePropsMigrationSequence } from 'tldraw'
 import { StandardizedToolWrapper } from '../components/StandardizedToolWrapper'
 import { usePinnedToView } from '../hooks/usePinnedToView'
+import { useMaximize } from '../hooks/useMaximize'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -157,6 +158,15 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
 
     // Use the pinning hook
     usePinnedToView(this.editor, shape.id, shape.props.pinnedToView)
+
+    // Use the maximize hook for fullscreen functionality
+    const { isMaximized, toggleMaximize } = useMaximize({
+      editor: this.editor,
+      shapeId: shape.id,
+      currentW: shape.props.w,
+      currentH: shape.props.h,
+      shapeType: 'Multmux',
+    })
 
     // Runtime fix: correct old serverUrl port (3000 -> 3002)
     // This handles shapes that may not have been migrated yet
@@ -511,6 +521,8 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
             onClose={handleClose}
             onMinimize={handleMinimize}
             isMinimized={isMinimized}
+            onMaximize={toggleMaximize}
+            isMaximized={isMaximized}
             editor={this.editor}
             shapeId={shape.id}
             isPinnedToView={shape.props.pinnedToView}
@@ -718,6 +730,8 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
           onClose={handleClose}
           onMinimize={handleMinimize}
           isMinimized={isMinimized}
+          onMaximize={toggleMaximize}
+          isMaximized={isMaximized}
           editor={this.editor}
           shapeId={shape.id}
           isPinnedToView={shape.props.pinnedToView}

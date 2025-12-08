@@ -9,6 +9,7 @@ import React, { useState, useRef, useEffect } from "react"
 import { getRunPodVideoConfig } from "@/lib/clientConfig"
 import { StandardizedToolWrapper } from "@/components/StandardizedToolWrapper"
 import { usePinnedToView } from "@/hooks/usePinnedToView"
+import { useMaximize } from "@/hooks/useMaximize"
 
 // Type for RunPod job response
 interface RunPodJobResponse {
@@ -104,6 +105,15 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
 
     // Pin to view functionality
     usePinnedToView(editor, shape.id, shape.props.pinnedToView)
+
+    // Use the maximize hook for fullscreen functionality
+    const { isMaximized, toggleMaximize } = useMaximize({
+      editor: editor,
+      shapeId: shape.id,
+      currentW: shape.props.w,
+      currentH: shape.props.h,
+      shapeType: 'VideoGen',
+    })
 
     const handlePinToggle = () => {
       editor.updateShape<IVideoGen>({
@@ -387,6 +397,8 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
           onClose={handleClose}
           onMinimize={handleMinimize}
           isMinimized={isMinimized}
+          onMaximize={toggleMaximize}
+          isMaximized={isMaximized}
           editor={editor}
           shapeId={shape.id}
           tags={shape.props.tags}

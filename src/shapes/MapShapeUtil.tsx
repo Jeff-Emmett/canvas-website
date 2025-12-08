@@ -19,6 +19,8 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { StandardizedToolWrapper } from '../components/StandardizedToolWrapper';
+import { usePinnedToView } from '../hooks/usePinnedToView';
+import { useMaximize } from '../hooks/useMaximize';
 
 // =============================================================================
 // Types
@@ -343,6 +345,18 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
 
   const styleKey = (shape.props.styleKey || 'voyager') as StyleKey;
   const currentStyle = MAP_STYLES[styleKey] || MAP_STYLES.voyager;
+
+  // Use the pinning hook to keep the shape fixed to viewport when pinned
+  usePinnedToView(editor, shape.id, shape.props.pinnedToView);
+
+  // Use the maximize hook for fullscreen functionality
+  const { isMaximized, toggleMaximize } = useMaximize({
+    editor: editor,
+    shapeId: shape.id,
+    currentW: shape.props.w,
+    currentH: shape.props.h,
+    shapeType: 'Map',
+  });
 
   // Track mounted state for cleanup
   useEffect(() => {
@@ -908,6 +922,8 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
         onClose={handleClose}
         onMinimize={handleMinimize}
         isMinimized={shape.props.isMinimized}
+        onMaximize={toggleMaximize}
+        isMaximized={isMaximized}
         editor={editor}
         shapeId={shape.id}
         isPinnedToView={shape.props.pinnedToView}

@@ -9,6 +9,7 @@ import React, { useState, useContext } from "react"
 import { FathomMeetingsPanel } from "../components/FathomMeetingsPanel"
 import { StandardizedToolWrapper } from "../components/StandardizedToolWrapper"
 import { usePinnedToView } from "../hooks/usePinnedToView"
+import { useMaximize } from "../hooks/useMaximize"
 import { FathomNoteShape } from "./FathomNoteShapeUtil"
 import { WORKER_URL, LOCAL_WORKER_URL } from "../constants/workerUrl"
 import { getFathomApiKey } from "../lib/fathomApiKey"
@@ -47,6 +48,15 @@ export class FathomMeetingsBrowserShape extends BaseBoxShapeUtil<IFathomMeetings
 
     // Use the pinning hook to keep the shape fixed to viewport when pinned
     usePinnedToView(this.editor, shape.id, shape.props.pinnedToView)
+
+    // Use the maximize hook for fullscreen functionality
+    const { isMaximized, toggleMaximize } = useMaximize({
+      editor: this.editor,
+      shapeId: shape.id,
+      currentW: w,
+      currentH: h,
+      shapeType: 'FathomMeetingsBrowser',
+    })
 
     const handleClose = () => {
       setIsOpen(false)
@@ -518,6 +528,8 @@ export class FathomMeetingsBrowserShape extends BaseBoxShapeUtil<IFathomMeetings
             onClose={handleClose}
             onMinimize={handleMinimize}
             isMinimized={isMinimized}
+            onMaximize={toggleMaximize}
+            isMaximized={isMaximized}
             editor={this.editor}
             shapeId={shape.id}
             isPinnedToView={shape.props.pinnedToView}

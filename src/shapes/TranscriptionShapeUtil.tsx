@@ -8,6 +8,7 @@ import { useWhisperTranscription } from "../hooks/useWhisperTranscriptionSimple"
 import { useWebSpeechTranscription } from "../hooks/useWebSpeechTranscription"
 import { StandardizedToolWrapper } from "../components/StandardizedToolWrapper"
 import { usePinnedToView } from "../hooks/usePinnedToView"
+import { useMaximize } from "../hooks/useMaximize"
 
 type ITranscription = TLBaseShape<
   "Transcription",
@@ -101,6 +102,15 @@ export class TranscriptionShape extends BaseBoxShapeUtil<ITranscription> {
 
     // Use the pinning hook to keep the shape fixed to viewport when pinned
     usePinnedToView(this.editor, shape.id, shape.props.pinnedToView)
+
+    // Use the maximize hook for fullscreen functionality
+    const { isMaximized, toggleMaximize } = useMaximize({
+      editor: this.editor,
+      shapeId: shape.id,
+      currentW: w,
+      currentH: h,
+      shapeType: 'Transcription',
+    })
 
     // Local Whisper model is always available (no API key needed)
     const isLocalWhisperAvailable = true
@@ -682,6 +692,8 @@ export class TranscriptionShape extends BaseBoxShapeUtil<ITranscription> {
           onClose={handleClose}
           onMinimize={handleMinimize}
           isMinimized={isMinimized}
+          onMaximize={toggleMaximize}
+          isMaximized={isMaximized}
           headerContent={headerContent}
           editor={this.editor}
           shapeId={shape.id}
