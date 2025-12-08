@@ -1339,11 +1339,23 @@ export function MycelialIntelligenceBar() {
     }
   }, [editor, suggestedTools, spawnedToolIds])
 
+  // Responsive layout - detect window width
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024)
+  const isMobile = windowWidth < 640
+  const isNarrow = windowWidth < 768
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   // Height: taller when showing suggestion chips (single tool or 2+ selected)
   const showSuggestions = selectedToolInfo || (selectionInfo && selectionInfo.count > 1)
   const collapsedHeight = showSuggestions ? 76 : 48
-  const maxExpandedHeight = 400
-  const barWidth = 520 // Consistent width
+  const maxExpandedHeight = isMobile ? 300 : 400
+  // Responsive width: full width on mobile, percentage on narrow, fixed on desktop
+  const barWidth = isMobile ? 'calc(100% - 20px)' : isNarrow ? 'calc(100% - 120px)' : 520
 
   // Calculate dynamic height when expanded based on content
   // Header: ~45px, Input area: ~56px, padding: ~24px = ~125px fixed
@@ -1360,17 +1372,20 @@ export function MycelialIntelligenceBar() {
       className="mycelial-intelligence-bar"
       style={{
         position: 'fixed',
-        top: '10px',
+        // On mobile: bottom of screen, on desktop: top center
+        top: isMobile ? 'auto' : '10px',
+        bottom: isMobile ? '70px' : 'auto', // Above bottom toolbar on mobile
         left: '50%',
         transform: 'translateX(-50%)',
         width: barWidth,
+        maxWidth: isMobile ? 'none' : '520px',
         height: isExpanded ? 'auto' : collapsedHeight,
         minHeight: isExpanded ? minExpandedHeight : collapsedHeight,
         maxHeight: isExpanded ? maxExpandedHeight : collapsedHeight,
         zIndex: isModalOpen ? 1 : 99999, // Lower z-index when modals are open
         pointerEvents: isModalOpen ? 'none' : 'auto', // Disable interactions when modal is open
         opacity: isModalOpen ? 0.3 : 1, // Fade when modal is open
-        transition: 'opacity 0.2s ease, z-index 0s',
+        transition: 'opacity 0.2s ease, z-index 0s, top 0.3s ease, bottom 0.3s ease, width 0.3s ease',
       }}
       onPointerEnter={() => setIsHovering(true)}
       onPointerLeave={() => setIsHovering(false)}

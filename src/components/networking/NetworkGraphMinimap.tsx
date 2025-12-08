@@ -62,11 +62,12 @@ const styles = {
     gap: '8px',
   },
   panel: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: 'rgba(20, 20, 25, 0.95)',
     borderRadius: '12px',
-    boxShadow: '0 2px 12px rgba(0, 0, 0, 0.15)',
+    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)',
     overflow: 'hidden',
     transition: 'all 0.2s ease',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
   },
   panelCollapsed: {
     width: '48px',
@@ -81,13 +82,13 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: '8px 12px',
-    borderBottom: '1px solid rgba(0, 0, 0, 0.1)',
-    backgroundColor: 'rgba(0, 0, 0, 0.02)',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
   },
   title: {
     fontSize: '12px',
     fontWeight: 600,
-    color: '#1a1a2e',
+    color: '#e0e0e0',
     margin: 0,
   },
   headerButtons: {
@@ -105,8 +106,8 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     fontSize: '14px',
-    color: '#666',
-    transition: 'background-color 0.15s',
+    color: '#a0a0a0',
+    transition: 'background-color 0.15s, color 0.15s',
   },
   canvas: {
     display: 'block',
@@ -131,9 +132,10 @@ const styles = {
     display: 'flex',
     gap: '12px',
     padding: '6px 12px',
-    borderTop: '1px solid rgba(0, 0, 0, 0.1)',
+    borderTop: '1px solid rgba(255, 255, 255, 0.1)',
     fontSize: '11px',
-    color: '#666',
+    color: '#888',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
   },
   stat: {
     display: 'flex',
@@ -214,22 +216,74 @@ export function NetworkGraphMinimap({
     // Create container group
     const g = svg.append('g');
 
+    // Create arrow marker definitions for edges
+    const defs = svg.append('defs');
+
+    // Arrow marker for regular edges (grey)
+    defs.append('marker')
+      .attr('id', 'arrow-grey')
+      .attr('viewBox', '0 -5 10 10')
+      .attr('refX', 18)
+      .attr('refY', 0)
+      .attr('markerWidth', 6)
+      .attr('markerHeight', 6)
+      .attr('orient', 'auto')
+      .append('path')
+      .attr('d', 'M0,-4L10,0L0,4')
+      .attr('fill', 'rgba(150, 150, 150, 0.6)');
+
+    // Arrow marker for connected (yellow)
+    defs.append('marker')
+      .attr('id', 'arrow-connected')
+      .attr('viewBox', '0 -5 10 10')
+      .attr('refX', 18)
+      .attr('refY', 0)
+      .attr('markerWidth', 6)
+      .attr('markerHeight', 6)
+      .attr('orient', 'auto')
+      .append('path')
+      .attr('d', 'M0,-4L10,0L0,4')
+      .attr('fill', 'rgba(234, 179, 8, 0.8)');
+
+    // Arrow marker for trusted (green)
+    defs.append('marker')
+      .attr('id', 'arrow-trusted')
+      .attr('viewBox', '0 -5 10 10')
+      .attr('refX', 18)
+      .attr('refY', 0)
+      .attr('markerWidth', 6)
+      .attr('markerHeight', 6)
+      .attr('orient', 'auto')
+      .append('path')
+      .attr('d', 'M0,-4L10,0L0,4')
+      .attr('fill', 'rgba(34, 197, 94, 0.8)');
+
     // Helper to get edge color based on trust level
     const getEdgeColor = (d: SimulationLink) => {
       const edge = edges.find(e => e.id === d.id);
-      if (!edge) return 'rgba(0, 0, 0, 0.15)';
+      if (!edge) return 'rgba(150, 150, 150, 0.4)';
 
       // Use effective trust level for mutual connections, otherwise the edge's trust level
       const level = edge.effectiveTrustLevel || edge.trustLevel;
       if (level === 'trusted') {
-        return 'rgba(34, 197, 94, 0.6)'; // green
+        return 'rgba(34, 197, 94, 0.7)'; // green
       } else if (level === 'connected') {
-        return 'rgba(234, 179, 8, 0.6)'; // yellow
+        return 'rgba(234, 179, 8, 0.7)'; // yellow
       }
-      return 'rgba(0, 0, 0, 0.15)';
+      return 'rgba(150, 150, 150, 0.4)';
     };
 
-    // Create edges
+    // Helper to get arrow marker based on trust level
+    const getArrowMarker = (d: SimulationLink) => {
+      const edge = edges.find(e => e.id === d.id);
+      if (!edge) return 'url(#arrow-grey)';
+      const level = edge.effectiveTrustLevel || edge.trustLevel;
+      if (level === 'trusted') return 'url(#arrow-trusted)';
+      if (level === 'connected') return 'url(#arrow-connected)';
+      return 'url(#arrow-grey)';
+    };
+
+    // Create edges as paths (lines) with arrow markers
     const link = g.append('g')
       .attr('class', 'links')
       .selectAll('line')
@@ -237,6 +291,7 @@ export function NetworkGraphMinimap({
       .join('line')
       .attr('stroke', d => getEdgeColor(d))
       .attr('stroke-width', d => d.isMutual ? 2.5 : 1.5)
+      .attr('marker-end', d => getArrowMarker(d))
       .style('cursor', 'pointer')
       .on('click', (event, d) => {
         event.stopPropagation();
