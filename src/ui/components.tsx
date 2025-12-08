@@ -117,194 +117,226 @@ function CustomSharePanel() {
     return groups
   }, [allShortcuts])
 
+  // Separator component for unified menu
+  const Separator = () => (
+    <div style={{
+      width: '1px',
+      height: '20px',
+      background: 'var(--color-panel-contrast)',
+      opacity: 0.5,
+    }} />
+  )
+
   return (
-    <div className="tlui-share-zone" draggable={false} style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
-      {/* CryptID dropdown - leftmost */}
-      <CryptIDDropdown isDarkMode={isDarkMode} />
+    <div className="tlui-share-zone" draggable={false} style={{ position: 'relative' }}>
+      {/* Unified menu container - grey oval */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0',
+        background: 'var(--color-muted-1)',
+        borderRadius: '20px',
+        border: '1px solid var(--color-panel-contrast)',
+        padding: '4px 6px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+      }}>
+        {/* CryptID dropdown - leftmost */}
+        <div style={{ padding: '0 4px' }}>
+          <CryptIDDropdown isDarkMode={isDarkMode} />
+        </div>
 
-      {/* Star board button */}
-      <StarBoardButton className="share-panel-btn" />
+        <Separator />
 
-      {/* Settings gear button with dropdown */}
-      <div style={{ position: 'relative' }}>
-        <button
-          onClick={() => setShowSettingsDropdown(!showSettingsDropdown)}
-          className="share-panel-btn"
-          style={{
-            background: showSettingsDropdown ? 'var(--color-muted-2)' : 'none',
-            border: 'none',
-            padding: '6px',
-            cursor: 'pointer',
-            borderRadius: '6px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--color-text-1)',
-            opacity: showSettingsDropdown ? 1 : 0.7,
-            transition: 'opacity 0.15s, background 0.15s',
-            pointerEvents: 'all',
-            zIndex: 10,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.opacity = '1'
-            e.currentTarget.style.background = 'var(--color-muted-2)'
-          }}
-          onMouseLeave={(e) => {
-            if (!showSettingsDropdown) {
-              e.currentTarget.style.opacity = '0.7'
-              e.currentTarget.style.background = 'none'
-            }
-          }}
-          title="Settings"
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-          </svg>
-        </button>
+        {/* Star board button */}
+        <div style={{ padding: '0 2px' }}>
+          <StarBoardButton className="share-panel-btn" />
+        </div>
 
-        {/* Settings dropdown */}
-        {showSettingsDropdown && (
-          <>
-            <div
-              style={{
-                position: 'fixed',
-                inset: 0,
-                zIndex: 99998,
-              }}
-              onClick={() => setShowSettingsDropdown(false)}
-            />
-            <div
-              style={{
-                position: 'absolute',
-                top: 'calc(100% + 8px)',
-                right: 0,
-                minWidth: '200px',
-                background: 'var(--color-panel)',
-                border: '1px solid var(--color-panel-contrast)',
-                borderRadius: '8px',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
-                zIndex: 99999,
-                padding: '8px 0',
-              }}
-            >
-              {/* Dark mode toggle */}
-              <button
-                onClick={() => {
-                  handleToggleDarkMode()
-                }}
+        <Separator />
+
+        {/* Settings gear button with dropdown */}
+        <div style={{ position: 'relative', padding: '0 2px' }}>
+          <button
+            onClick={() => setShowSettingsDropdown(!showSettingsDropdown)}
+            className="share-panel-btn"
+            style={{
+              background: showSettingsDropdown ? 'var(--color-muted-2)' : 'none',
+              border: 'none',
+              padding: '6px',
+              cursor: 'pointer',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--color-text-1)',
+              opacity: showSettingsDropdown ? 1 : 0.7,
+              transition: 'opacity 0.15s, background 0.15s',
+              pointerEvents: 'all',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.opacity = '1'
+              e.currentTarget.style.background = 'var(--color-muted-2)'
+            }}
+            onMouseLeave={(e) => {
+              if (!showSettingsDropdown) {
+                e.currentTarget.style.opacity = '0.7'
+                e.currentTarget.style.background = 'none'
+              }
+            }}
+            title="Settings"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </button>
+
+          {/* Settings dropdown */}
+          {showSettingsDropdown && (
+            <>
+              <div
                 style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '12px',
-                  padding: '10px 16px',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--color-text)',
-                  fontSize: '13px',
-                  textAlign: 'left',
+                  position: 'fixed',
+                  inset: 0,
+                  zIndex: 99998,
                 }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'var(--color-muted-2)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'none'
+                onClick={() => setShowSettingsDropdown(false)}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 8px)',
+                  right: 0,
+                  minWidth: '200px',
+                  background: 'var(--color-panel)',
+                  border: '1px solid var(--color-panel-contrast)',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+                  zIndex: 99999,
+                  padding: '8px 0',
                 }}
               >
-                <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ fontSize: '16px' }}>{isDarkMode ? '🌙' : '☀️'}</span>
-                  <span>Appearance</span>
-                </span>
-                <span style={{
-                  fontSize: '11px',
-                  padding: '2px 8px',
-                  borderRadius: '4px',
-                  background: 'var(--color-muted-2)',
-                  color: 'var(--color-text-3)',
-                }}>
-                  {isDarkMode ? 'Dark' : 'Light'}
-                </span>
-              </button>
+                {/* Dark mode toggle */}
+                <button
+                  onClick={() => {
+                    handleToggleDarkMode()
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    padding: '10px 16px',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--color-text)',
+                    fontSize: '13px',
+                    textAlign: 'left',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'var(--color-muted-2)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'none'
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '16px' }}>{isDarkMode ? '🌙' : '☀️'}</span>
+                    <span>Appearance</span>
+                  </span>
+                  <span style={{
+                    fontSize: '11px',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    background: 'var(--color-muted-2)',
+                    color: 'var(--color-text-3)',
+                  }}>
+                    {isDarkMode ? 'Dark' : 'Light'}
+                  </span>
+                </button>
 
-              <div style={{ height: '1px', background: 'var(--color-panel-contrast)', margin: '4px 0' }} />
+                <div style={{ height: '1px', background: 'var(--color-panel-contrast)', margin: '4px 0' }} />
 
-              {/* All settings */}
-              <button
-                onClick={() => {
-                  setShowSettingsDropdown(false)
-                  setShowSettings(true)
-                }}
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '10px',
-                  padding: '10px 16px',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--color-text)',
-                  fontSize: '13px',
-                  textAlign: 'left',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'var(--color-muted-2)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'none'
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="3"></circle>
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                </svg>
-                <span>All Settings...</span>
-              </button>
-            </div>
-          </>
-        )}
+                {/* All settings */}
+                <button
+                  onClick={() => {
+                    setShowSettingsDropdown(false)
+                    setShowSettings(true)
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '10px 16px',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--color-text)',
+                    fontSize: '13px',
+                    textAlign: 'left',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'var(--color-muted-2)'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'none'
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="3"></circle>
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                  </svg>
+                  <span>All Settings...</span>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+
+        <Separator />
+
+        {/* Help/Keyboard shortcuts button - rightmost */}
+        <div style={{ padding: '0 4px' }}>
+          <button
+            onClick={() => setShowShortcuts(!showShortcuts)}
+            className="share-panel-btn"
+            style={{
+              background: showShortcuts ? 'var(--color-muted-2)' : 'none',
+              border: 'none',
+              padding: '6px',
+              cursor: 'pointer',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--color-text-1)',
+              opacity: showShortcuts ? 1 : 0.7,
+              transition: 'opacity 0.15s, background 0.15s',
+              pointerEvents: 'all',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.opacity = '1'
+              e.currentTarget.style.background = 'var(--color-muted-2)'
+            }}
+            onMouseLeave={(e) => {
+              if (!showShortcuts) {
+                e.currentTarget.style.opacity = '0.7'
+                e.currentTarget.style.background = 'none'
+              }
+            }}
+            title="Keyboard shortcuts (?)"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </button>
+        </div>
       </div>
-
-      {/* Help/Keyboard shortcuts button - rightmost */}
-      <button
-        onClick={() => setShowShortcuts(!showShortcuts)}
-        className="share-panel-btn"
-        style={{
-          background: showShortcuts ? 'var(--color-muted-2)' : 'none',
-          border: 'none',
-          padding: '6px',
-          cursor: 'pointer',
-          borderRadius: '6px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--color-text-1)',
-          opacity: showShortcuts ? 1 : 0.7,
-          transition: 'opacity 0.15s, background 0.15s',
-          pointerEvents: 'all',
-          zIndex: 10,
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.opacity = '1'
-          e.currentTarget.style.background = 'var(--color-muted-2)'
-        }}
-        onMouseLeave={(e) => {
-          if (!showShortcuts) {
-            e.currentTarget.style.opacity = '0.7'
-            e.currentTarget.style.background = 'none'
-          }
-        }}
-        title="Keyboard shortcuts (?)"
-      >
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10"></circle>
-          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-          <line x1="12" y1="17" x2="12.01" y2="17"></line>
-        </svg>
-      </button>
 
       {/* Keyboard shortcuts panel */}
       {showShortcuts && (
