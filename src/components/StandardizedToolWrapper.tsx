@@ -44,6 +44,10 @@ export interface StandardizedToolWrapperProps {
   onMinimize?: () => void
   /** Whether the tool is minimized */
   isMinimized?: boolean
+  /** Callback when maximize button is clicked */
+  onMaximize?: () => void
+  /** Whether the tool is maximized (fullscreen) */
+  isMaximized?: boolean
   /** Optional custom header content */
   headerContent?: ReactNode
   /** Editor instance for shape selection */
@@ -76,6 +80,8 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
   onClose,
   onMinimize,
   isMinimized = false,
+  onMaximize,
+  isMaximized = false,
   headerContent,
   editor,
   shapeId,
@@ -90,6 +96,22 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
   const [editingTagInput, setEditingTagInput] = useState('')
   const tagInputRef = useRef<HTMLInputElement>(null)
   const isDarkMode = useIsDarkMode()
+
+  // Handle Esc key to exit maximize mode
+  useEffect(() => {
+    if (!isMaximized || !onMaximize) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        onMaximize()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
+  }, [isMaximized, onMaximize])
 
   // Dark mode aware colors
   const colors = useMemo(() => isDarkMode ? {
@@ -241,6 +263,16 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
     ...buttonBaseStyle,
     backgroundColor: isSelected ? 'rgba(255,255,255,0.2)' : `${primaryColor}20`,
     color: isSelected ? 'white' : primaryColor,
+  }
+
+  const maximizeButtonStyle: React.CSSProperties = {
+    ...buttonBaseStyle,
+    backgroundColor: isMaximized
+      ? (isSelected ? 'rgba(255,255,255,0.4)' : primaryColor)
+      : (isSelected ? 'rgba(255,255,255,0.2)' : `${primaryColor}20`),
+    color: isMaximized
+      ? (isSelected ? 'white' : 'white')
+      : (isSelected ? 'white' : primaryColor),
   }
 
   const contentStyle: React.CSSProperties = {
@@ -488,6 +520,20 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
           >
             _
           </button>
+          {onMaximize && (
+            <button
+              style={maximizeButtonStyle}
+              onClick={(e) => handleButtonClick(e, onMaximize)}
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => handleButtonTouch(e, onMaximize)}
+              onTouchEnd={(e) => e.stopPropagation()}
+              title={isMaximized ? "Exit fullscreen (Esc)" : "Maximize"}
+              aria-label={isMaximized ? "Exit fullscreen" : "Maximize"}
+            >
+              {isMaximized ? '⊡' : '⤢'}
+            </button>
+          )}
           <button
             style={closeButtonStyle}
             onClick={(e) => handleButtonClick(e, onClose)}

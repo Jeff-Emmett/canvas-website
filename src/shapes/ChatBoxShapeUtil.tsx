@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react"
 import { BaseBoxShapeUtil, TLBaseShape, HTMLContainer } from "tldraw"
 import { StandardizedToolWrapper } from "../components/StandardizedToolWrapper"
 import { usePinnedToView } from "../hooks/usePinnedToView"
+import { useMaximize } from "../hooks/useMaximize"
 
 export type IChatBoxShape = TLBaseShape<
   "ChatBox",
@@ -43,6 +44,15 @@ export class ChatBoxShape extends BaseBoxShapeUtil<IChatBoxShape> {
     // Use the pinning hook to keep the shape fixed to viewport when pinned
     usePinnedToView(this.editor, shape.id, shape.props.pinnedToView)
 
+    // Use the maximize hook for fullscreen functionality
+    const { isMaximized, toggleMaximize } = useMaximize({
+      editor: this.editor,
+      shapeId: shape.id,
+      currentW: shape.props.w,
+      currentH: shape.props.h,
+      shapeType: 'ChatBox',
+    })
+
     const handleClose = () => {
       this.editor.deleteShape(shape.id)
     }
@@ -73,6 +83,8 @@ export class ChatBoxShape extends BaseBoxShapeUtil<IChatBoxShape> {
           onClose={handleClose}
           onMinimize={handleMinimize}
           isMinimized={isMinimized}
+          onMaximize={toggleMaximize}
+          isMaximized={isMaximized}
           editor={this.editor}
           shapeId={shape.id}
           isPinnedToView={shape.props.pinnedToView}
