@@ -312,11 +312,8 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
 
     const initializeHandle = async () => {
       try {
-        // CRITICAL: Wait for the network adapter to be ready before creating document
-        // This ensures the WebSocket connection is established for sync
-        await adapter.whenReady()
-
-        if (!mounted) return
+        // OFFLINE-FIRST: Load from IndexedDB immediately, don't wait for network
+        // Network sync happens in the background after local data is loaded
 
         let handle: DocHandle<TLStoreSnapshot>
         let loadedFromLocal = false
@@ -354,7 +351,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
             const localShapeCount = localDoc?.store ? Object.values(localDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
 
             if (localRecordCount > 0) {
-              console.log(`Loaded document from IndexedDB: ${localRecordCount} records, ${localShapeCount} shapes`)
+              console.log(`📦 Loaded document from IndexedDB: ${localRecordCount} records, ${localShapeCount} shapes`)
 
               // CRITICAL: Migrate local IndexedDB data to fix any invalid indices
               // This ensures shapes with old-format indices like "b1" are fixed
@@ -394,107 +391,144 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
 
         if (!mounted) return
 
-        // Sync with server to get latest data (or upload local changes if offline was edited)
-        // This ensures we're in sync even if we loaded from IndexedDB
-        try {
-          const response = await fetch(`${workerUrl}/room/${roomId}`)
-          if (response.ok) {
-            let serverDoc = await response.json() as TLStoreSnapshot
-
-            // Migrate server data to fix any invalid indices
-            if (serverDoc.store) {
-              serverDoc = {
-                ...serverDoc,
-                store: migrateStoreData(serverDoc.store)
-              }
-            }
-
-            const serverShapeCount = serverDoc.store ? Object.values(serverDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
-            const serverRecordCount = Object.keys(serverDoc.store || {}).length
-
-            // Get current local state
-            const localDoc = handle.doc()
-            const localRecordCount = localDoc?.store ? Object.keys(localDoc.store).length : 0
-
-            // Merge server data with local data
-            // Strategy:
-            // 1. If local is EMPTY, use server data (bootstrap from R2)
-            // 2. If local HAS data, only add server records that don't exist locally
-            //    (preserve offline changes, let Automerge CRDT sync handle conflicts)
-            if (serverDoc.store && serverRecordCount > 0) {
-              handle.change((doc: any) => {
-                // Initialize store if it doesn't exist
-                if (!doc.store) {
-                  doc.store = {}
-                }
-
-                const localIsEmpty = Object.keys(doc.store).length === 0
-                let addedFromServer = 0
-                let skippedExisting = 0
-
-                Object.entries(serverDoc.store).forEach(([id, record]) => {
-                  if (localIsEmpty) {
-                    // Local is empty - bootstrap everything from server
-                    doc.store[id] = record
-                    addedFromServer++
-                  } else if (!doc.store[id]) {
-                    // Local has data but missing this record - add from server
-                    // This handles: shapes created on another device and synced to R2
-                    doc.store[id] = record
-                    addedFromServer++
-                  } else {
-                    // Record exists locally - preserve local version
-                    // The Automerge binary sync will handle merging conflicts via CRDT
-                    // This preserves offline edits to existing shapes
-                    skippedExisting++
-                  }
-                })
-
-                console.log(`📥 Merge strategy: local was ${localIsEmpty ? 'EMPTY' : 'populated'}, added ${addedFromServer} from server, preserved ${skippedExisting} local records`)
-              })
-
-              const finalDoc = handle.doc()
-              const finalRecordCount = finalDoc?.store ? Object.keys(finalDoc.store).length : 0
-              console.log(`Merged server data: server had ${serverRecordCount}, local had ${localRecordCount}, final has ${finalRecordCount} records`)
-            } else if (!loadedFromLocal) {
-              // Server is empty and we didn't load from local - fresh start
-              console.log(`Starting fresh - no data on server or locally`)
-            }
-          } else if (response.status === 404) {
-            // No document found on server
-            if (loadedFromLocal) {
-              console.log(`No server document, but loaded ${handle.doc()?.store ? Object.keys(handle.doc()!.store).length : 0} records from local storage`)
-            } else {
-              console.log(`No document found on server - starting fresh`)
-            }
-          } else {
-            console.warn(`Failed to load document from server: ${response.status} ${response.statusText}`)
-          }
-        } catch (error) {
-          // Network error - continue with local data if available
-          if (loadedFromLocal) {
-            console.log(`Offline mode: using local data from IndexedDB`)
-          } else {
-            console.error("Error loading from server (offline?):", error)
-          }
-        }
-
-        // Verify final document state
-        const finalDoc = handle.doc() as any
-        const finalStoreKeys = finalDoc?.store ? Object.keys(finalDoc.store).length : 0
-        const finalShapeCount = finalDoc?.store ? Object.values(finalDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
-        console.log(`Automerge handle ready: ${finalStoreKeys} records, ${finalShapeCount} shapes (loaded from ${loadedFromLocal ? 'IndexedDB' : 'server/new'})`)
-
-        // CRITICAL: Set the documentId on the adapter BEFORE setHandle
-        // This ensures the adapter can properly route incoming binary sync messages
-        // The server may send sync messages immediately after connection, before we send anything
+        // OFFLINE-FIRST: Set the handle and mark as ready BEFORE network sync
+        // This allows the UI to render immediately with local data
         if (handle.url) {
           adapter.setDocumentId(handle.url)
           console.log(`📋 Set documentId on adapter: ${handle.url}`)
         }
 
-        setHandle(handle)
-        setIsLoading(false)
+        // If we loaded from local, set handle immediately so UI can render
+        if (loadedFromLocal) {
+          const localDoc = handle.doc() as any
+          const localShapeCount = localDoc?.store ? Object.values(localDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
+          console.log(`📴 Offline-ready: ${localShapeCount} shapes available from IndexedDB`)
+          setHandle(handle)
+          setIsLoading(false)
+        }
+
+        // Sync with server in the background (non-blocking for offline-first)
+        // This runs in parallel - if it fails, we still have local data
+        const syncWithServer = async () => {
+          try {
+            // Wait for network adapter with a timeout
+            const networkReadyPromise = adapter.whenReady()
+            const timeoutPromise = new Promise<'timeout'>((resolve) =>
+              setTimeout(() => resolve('timeout'), 5000)
+            )
+
+            const result = await Promise.race([networkReadyPromise, timeoutPromise])
+
+            if (result === 'timeout') {
+              console.log(`⏱️ Network adapter timeout - continuing in offline mode`)
+              // If we haven't set the handle yet (no local data), set it now
+              if (!loadedFromLocal && mounted) {
+                setHandle(handle)
+                setIsLoading(false)
+              }
+              return
+            }
+
+            if (!mounted) return
+
+            const response = await fetch(`${workerUrl}/room/${roomId}`)
+            if (response.ok) {
+              let serverDoc = await response.json() as TLStoreSnapshot
+
+              // Migrate server data to fix any invalid indices
+              if (serverDoc.store) {
+                serverDoc = {
+                  ...serverDoc,
+                  store: migrateStoreData(serverDoc.store)
+                }
+              }
+
+              const serverShapeCount = serverDoc.store ? Object.values(serverDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
+              const serverRecordCount = Object.keys(serverDoc.store || {}).length
+
+              // Get current local state
+              const localDoc = handle.doc()
+              const localRecordCount = localDoc?.store ? Object.keys(localDoc.store).length : 0
+
+              // Merge server data with local data
+              // Strategy:
+              // 1. If local is EMPTY, use server data (bootstrap from R2)
+              // 2. If local HAS data, only add server records that don't exist locally
+              //    (preserve offline changes, let Automerge CRDT sync handle conflicts)
+              if (serverDoc.store && serverRecordCount > 0) {
+                handle.change((doc: any) => {
+                  // Initialize store if it doesn't exist
+                  if (!doc.store) {
+                    doc.store = {}
+                  }
+
+                  const localIsEmpty = Object.keys(doc.store).length === 0
+                  let addedFromServer = 0
+                  let skippedExisting = 0
+
+                  Object.entries(serverDoc.store).forEach(([id, record]) => {
+                    if (localIsEmpty) {
+                      // Local is empty - bootstrap everything from server
+                      doc.store[id] = record
+                      addedFromServer++
+                    } else if (!doc.store[id]) {
+                      // Local has data but missing this record - add from server
+                      // This handles: shapes created on another device and synced to R2
+                      doc.store[id] = record
+                      addedFromServer++
+                    } else {
+                      // Record exists locally - preserve local version
+                      // The Automerge binary sync will handle merging conflicts via CRDT
+                      // This preserves offline edits to existing shapes
+                      skippedExisting++
+                    }
+                  })
+
+                  console.log(`📥 Merge strategy: local was ${localIsEmpty ? 'EMPTY' : 'populated'}, added ${addedFromServer} from server, preserved ${skippedExisting} local records`)
+                })
+
+                const finalDoc = handle.doc()
+                const finalRecordCount = finalDoc?.store ? Object.keys(finalDoc.store).length : 0
+                console.log(`🔄 Merged server data: server had ${serverRecordCount}, local had ${localRecordCount}, final has ${finalRecordCount} records`)
+              } else if (!loadedFromLocal) {
+                // Server is empty and we didn't load from local - fresh start
+                console.log(`Starting fresh - no data on server or locally`)
+              }
+            } else if (response.status === 404) {
+              // No document found on server
+              if (loadedFromLocal) {
+                console.log(`No server document, but loaded ${handle.doc()?.store ? Object.keys(handle.doc()!.store).length : 0} records from local storage`)
+              } else {
+                console.log(`No document found on server - starting fresh`)
+              }
+            } else {
+              console.warn(`Failed to load document from server: ${response.status} ${response.statusText}`)
+            }
+          } catch (error) {
+            // Network error - continue with local data if available
+            if (loadedFromLocal) {
+              console.log(`📴 Offline mode: using local data from IndexedDB`)
+            } else {
+              console.error("Error loading from server (offline?):", error)
+            }
+          }
+
+          // Verify final document state
+          const finalDoc = handle.doc() as any
+          const finalStoreKeys = finalDoc?.store ? Object.keys(finalDoc.store).length : 0
+          const finalShapeCount = finalDoc?.store ? Object.values(finalDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
+          console.log(`✅ Automerge handle ready: ${finalStoreKeys} records, ${finalShapeCount} shapes (loaded from ${loadedFromLocal ? 'IndexedDB' : 'server/new'})`)
+
+          // If we haven't set the handle yet (no local data), set it now after server sync
+          if (!loadedFromLocal && mounted) {
+            setHandle(handle)
+            setIsLoading(false)
+          }
+        }
+
+        // Start server sync in background (don't await - non-blocking)
+        syncWithServer()
+
       } catch (error) {
         console.error("Error initializing Automerge handle:", error)
         if (mounted) {
