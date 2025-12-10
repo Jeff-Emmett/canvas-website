@@ -105,6 +105,77 @@ const DEFAULT_VIEWPORT: MapViewport = {
 
 const OSRM_BASE_URL = 'https://routing.jeffemmett.com';
 
+// =============================================================================
+// Geo Calculation Helpers
+// =============================================================================
+
+// Haversine distance calculation (returns meters)
+function calculateDistance(coords: Coordinate[]): number {
+  if (coords.length < 2) return 0;
+
+  const R = 6371000; // Earth's radius in meters
+  let total = 0;
+
+  for (let i = 0; i < coords.length - 1; i++) {
+    const lat1 = coords[i].lat * Math.PI / 180;
+    const lat2 = coords[i + 1].lat * Math.PI / 180;
+    const dLat = (coords[i + 1].lat - coords[i].lat) * Math.PI / 180;
+    const dLng = (coords[i + 1].lng - coords[i].lng) * Math.PI / 180;
+
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1) * Math.cos(lat2) *
+              Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    total += R * c;
+  }
+
+  return total;
+}
+
+// Shoelace formula for polygon area (returns square meters)
+function calculateArea(coords: Coordinate[]): number {
+  if (coords.length < 3) return 0;
+
+  // Convert to projected coordinates (approximate for small areas)
+  const centerLat = coords.reduce((sum, c) => sum + c.lat, 0) / coords.length;
+  const metersPerDegreeLat = 111320;
+  const metersPerDegreeLng = 111320 * Math.cos(centerLat * Math.PI / 180);
+
+  const projected = coords.map(c => ({
+    x: c.lng * metersPerDegreeLng,
+    y: c.lat * metersPerDegreeLat,
+  }));
+
+  // Shoelace formula
+  let area = 0;
+  for (let i = 0; i < projected.length; i++) {
+    const j = (i + 1) % projected.length;
+    area += projected[i].x * projected[j].y;
+    area -= projected[j].x * projected[i].y;
+  }
+
+  return Math.abs(area / 2);
+}
+
+// Format distance for display
+function formatDistance(meters: number): string {
+  if (meters < 1000) {
+    return `${Math.round(meters)} m`;
+  }
+  return `${(meters / 1000).toFixed(2)} km`;
+}
+
+// Format area for display
+function formatArea(sqMeters: number): string {
+  if (sqMeters < 10000) {
+    return `${Math.round(sqMeters)} m²`;
+  } else if (sqMeters < 1000000) {
+    return `${(sqMeters / 10000).toFixed(2)} ha`;
+  }
+  return `${(sqMeters / 1000000).toFixed(2)} km²`;
+}
+
 // Mapus color palette
 const COLORS = [
   '#E15F59', // Red
@@ -331,10 +402,24 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
   const activeToolRef = useRef(activeTool); // Ref to track current tool in event handlers
   const [selectedColor, setSelectedColor] = useState(COLORS[4]);
 
-  // Keep ref in sync with state
+  // Drawing state for lines and areas
+  const [drawingPoints, setDrawingPoints] = useState<Coordinate[]>([]);
+  const drawingPointsRef = useRef<Coordinate[]>([]);
+
+  // Keep refs in sync with state
   useEffect(() => {
     activeToolRef.current = activeTool;
+    // Clear drawing points when switching tools
+    if (activeTool !== 'line' && activeTool !== 'area') {
+      setDrawingPoints([]);
+      drawingPointsRef.current = [];
+    }
   }, [activeTool]);
+
+  useEffect(() => {
+    drawingPointsRef.current = drawingPoints;
+  }, [drawingPoints]);
+
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -418,24 +503,75 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
       if (!isMountedRef.current) return;
       const coord = { lat: e.lngLat.lat, lng: e.lngLat.lng };
       const currentTool = activeToolRef.current;
+      const currentDrawingPoints = drawingPointsRef.current;
 
-      console.log('Map click with tool:', currentTool, 'at', coord);
+      console.log('Map click with tool:', currentTool, 'at', coord, 'points:', currentDrawingPoints.length);
 
       if (currentTool === 'marker') {
         addAnnotation('marker', [coord]);
+      } else if (currentTool === 'line') {
+        // Add point to line drawing
+        const newPoints = [...currentDrawingPoints, coord];
+        setDrawingPoints(newPoints);
+        drawingPointsRef.current = newPoints;
+      } else if (currentTool === 'area') {
+        // Add point to area drawing
+        const newPoints = [...currentDrawingPoints, coord];
+        setDrawingPoints(newPoints);
+        drawingPointsRef.current = newPoints;
+      } else if (currentTool === 'eraser') {
+        // Find and remove annotation at click location
+        // Check if clicked near any annotation
+        const clickThreshold = 0.0005; // ~50m at equator
+        const annotationToRemove = shape.props.annotations.find((ann: Annotation) => {
+          if (ann.type === 'marker') {
+            const annCoord = ann.coordinates[0];
+            return Math.abs(annCoord.lat - coord.lat) < clickThreshold &&
+                   Math.abs(annCoord.lng - coord.lng) < clickThreshold;
+          } else {
+            // For lines/areas, check if click is near any point
+            return ann.coordinates.some((c: Coordinate) =>
+              Math.abs(c.lat - coord.lat) < clickThreshold &&
+              Math.abs(c.lng - coord.lng) < clickThreshold
+            );
+          }
+        });
+        if (annotationToRemove) {
+          removeAnnotation(annotationToRemove.id);
+        }
       }
-      // TODO: Implement line and area drawing
+    };
+
+    // Handle double-click to finish line/area drawing
+    const handleDblClick = (_e: maplibregl.MapMouseEvent) => {
+      if (!isMountedRef.current) return;
+      const currentTool = activeToolRef.current;
+      const currentDrawingPoints = drawingPointsRef.current;
+
+      console.log('Map double-click with tool:', currentTool, 'points:', currentDrawingPoints.length);
+
+      if (currentTool === 'line' && currentDrawingPoints.length >= 2) {
+        addAnnotation('line', currentDrawingPoints);
+        setDrawingPoints([]);
+        drawingPointsRef.current = [];
+      } else if (currentTool === 'area' && currentDrawingPoints.length >= 3) {
+        addAnnotation('area', currentDrawingPoints);
+        setDrawingPoints([]);
+        drawingPointsRef.current = [];
+      }
     };
 
     map.on('load', handleLoad);
     map.on('moveend', handleMoveEnd);
     map.on('click', handleClick);
+    map.on('dblclick', handleDblClick);
 
     return () => {
       // Remove event listeners before destroying map
       map.off('load', handleLoad);
       map.off('moveend', handleMoveEnd);
       map.off('click', handleClick);
+      map.off('dblclick', handleDblClick);
 
       // Clear all markers
       markersRef.current.forEach((marker) => {
@@ -576,7 +712,254 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
         markersRef.current.delete(id);
       }
     });
+
+    // Render lines and areas
+    shape.props.annotations.forEach((ann: Annotation) => {
+      if (!isMountedRef.current || !mapRef.current) return;
+      if (!ann.visible) {
+        // Remove layer/source if hidden
+        try {
+          if (map.getLayer(`ann-layer-${ann.id}`)) map.removeLayer(`ann-layer-${ann.id}`);
+          if (ann.type === 'area' && map.getLayer(`ann-fill-${ann.id}`)) map.removeLayer(`ann-fill-${ann.id}`);
+          if (map.getSource(`ann-source-${ann.id}`)) map.removeSource(`ann-source-${ann.id}`);
+        } catch (err) { /* ignore */ }
+        return;
+      }
+
+      if (ann.type === 'line' && ann.coordinates.length >= 2) {
+        const coords = ann.coordinates.map((c: Coordinate) => [c.lng, c.lat]);
+        const sourceId = `ann-source-${ann.id}`;
+        const layerId = `ann-layer-${ann.id}`;
+
+        try {
+          if (map.getSource(sourceId)) {
+            (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData({
+              type: 'Feature',
+              properties: {},
+              geometry: { type: 'LineString', coordinates: coords },
+            });
+          } else {
+            map.addSource(sourceId, {
+              type: 'geojson',
+              data: {
+                type: 'Feature',
+                properties: {},
+                geometry: { type: 'LineString', coordinates: coords },
+              },
+            });
+            map.addLayer({
+              id: layerId,
+              type: 'line',
+              source: sourceId,
+              paint: {
+                'line-color': ann.color,
+                'line-width': 4,
+                'line-opacity': 0.8,
+              },
+            });
+          }
+        } catch (err) {
+          console.warn('Error rendering line:', err);
+        }
+      } else if (ann.type === 'area' && ann.coordinates.length >= 3) {
+        const coords = ann.coordinates.map((c: Coordinate) => [c.lng, c.lat]);
+        // Close the polygon
+        const closedCoords = [...coords, coords[0]];
+        const sourceId = `ann-source-${ann.id}`;
+        const fillLayerId = `ann-fill-${ann.id}`;
+        const lineLayerId = `ann-layer-${ann.id}`;
+
+        try {
+          if (map.getSource(sourceId)) {
+            (map.getSource(sourceId) as maplibregl.GeoJSONSource).setData({
+              type: 'Feature',
+              properties: {},
+              geometry: { type: 'Polygon', coordinates: [closedCoords] },
+            });
+          } else {
+            map.addSource(sourceId, {
+              type: 'geojson',
+              data: {
+                type: 'Feature',
+                properties: {},
+                geometry: { type: 'Polygon', coordinates: [closedCoords] },
+              },
+            });
+            map.addLayer({
+              id: fillLayerId,
+              type: 'fill',
+              source: sourceId,
+              paint: {
+                'fill-color': ann.color,
+                'fill-opacity': 0.3,
+              },
+            });
+            map.addLayer({
+              id: lineLayerId,
+              type: 'line',
+              source: sourceId,
+              paint: {
+                'line-color': ann.color,
+                'line-width': 3,
+                'line-opacity': 0.8,
+              },
+            });
+          }
+        } catch (err) {
+          console.warn('Error rendering area:', err);
+        }
+      }
+    });
+
+    // Clean up removed annotation layers
+    currentIds.forEach((id) => {
+      const ann = shape.props.annotations.find((a: Annotation) => a.id === id);
+      if (!ann) {
+        try {
+          if (map.getLayer(`ann-layer-${id}`)) map.removeLayer(`ann-layer-${id}`);
+          if (map.getLayer(`ann-fill-${id}`)) map.removeLayer(`ann-fill-${id}`);
+          if (map.getSource(`ann-source-${id}`)) map.removeSource(`ann-source-${id}`);
+        } catch (err) { /* ignore */ }
+      }
+    });
   }, [shape.props.annotations, isLoaded]);
+
+  // ==========================================================================
+  // Drawing Preview (for lines/areas in progress)
+  // ==========================================================================
+
+  useEffect(() => {
+    if (!mapRef.current || !isLoaded || !isMountedRef.current) return;
+
+    const map = mapRef.current;
+    const sourceId = 'drawing-preview';
+    const lineLayerId = 'drawing-preview-line';
+    const fillLayerId = 'drawing-preview-fill';
+    const pointsLayerId = 'drawing-preview-points';
+
+    try {
+      // Remove existing preview layers first
+      if (map.getLayer(pointsLayerId)) map.removeLayer(pointsLayerId);
+      if (map.getLayer(fillLayerId)) map.removeLayer(fillLayerId);
+      if (map.getLayer(lineLayerId)) map.removeLayer(lineLayerId);
+      if (map.getSource(sourceId)) map.removeSource(sourceId);
+
+      if (drawingPoints.length === 0) return;
+
+      const coords = drawingPoints.map((c) => [c.lng, c.lat]);
+
+      if (activeTool === 'line' && coords.length >= 1) {
+        map.addSource(sourceId, {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: [
+              ...(coords.length >= 2 ? [{
+                type: 'Feature' as const,
+                properties: {},
+                geometry: { type: 'LineString' as const, coordinates: coords },
+              }] : []),
+              ...coords.map((coord) => ({
+                type: 'Feature' as const,
+                properties: {},
+                geometry: { type: 'Point' as const, coordinates: coord },
+              })),
+            ],
+          },
+        });
+        if (coords.length >= 2) {
+          map.addLayer({
+            id: lineLayerId,
+            type: 'line',
+            source: sourceId,
+            paint: {
+              'line-color': selectedColor,
+              'line-width': 4,
+              'line-opacity': 0.6,
+              'line-dasharray': [2, 2],
+            },
+          });
+        }
+        map.addLayer({
+          id: pointsLayerId,
+          type: 'circle',
+          source: sourceId,
+          filter: ['==', '$type', 'Point'],
+          paint: {
+            'circle-radius': 6,
+            'circle-color': selectedColor,
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#fff',
+          },
+        });
+      } else if (activeTool === 'area' && coords.length >= 1) {
+        const closedCoords = coords.length >= 3 ? [...coords, coords[0]] : coords;
+        map.addSource(sourceId, {
+          type: 'geojson',
+          data: {
+            type: 'FeatureCollection',
+            features: [
+              ...(coords.length >= 3 ? [{
+                type: 'Feature' as const,
+                properties: {},
+                geometry: { type: 'Polygon' as const, coordinates: [closedCoords] },
+              }] : []),
+              ...(coords.length >= 2 ? [{
+                type: 'Feature' as const,
+                properties: {},
+                geometry: { type: 'LineString' as const, coordinates: coords },
+              }] : []),
+              ...coords.map((coord) => ({
+                type: 'Feature' as const,
+                properties: {},
+                geometry: { type: 'Point' as const, coordinates: coord },
+              })),
+            ],
+          },
+        });
+        if (coords.length >= 3) {
+          map.addLayer({
+            id: fillLayerId,
+            type: 'fill',
+            source: sourceId,
+            filter: ['==', '$type', 'Polygon'],
+            paint: {
+              'fill-color': selectedColor,
+              'fill-opacity': 0.2,
+            },
+          });
+        }
+        if (coords.length >= 2) {
+          map.addLayer({
+            id: lineLayerId,
+            type: 'line',
+            source: sourceId,
+            filter: ['==', '$type', 'LineString'],
+            paint: {
+              'line-color': selectedColor,
+              'line-width': 3,
+              'line-opacity': 0.6,
+              'line-dasharray': [2, 2],
+            },
+          });
+        }
+        map.addLayer({
+          id: pointsLayerId,
+          type: 'circle',
+          source: sourceId,
+          filter: ['==', '$type', 'Point'],
+          paint: {
+            'circle-radius': 6,
+            'circle-color': selectedColor,
+            'circle-stroke-width': 2,
+            'circle-stroke-color': '#fff',
+          },
+        });
+      }
+    } catch (err) {
+      console.warn('Error rendering drawing preview:', err);
+    }
+  }, [drawingPoints, activeTool, selectedColor, isLoaded]);
 
   // ==========================================================================
   // Collaborator presence (cursors/locations)
@@ -1121,8 +1504,20 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
                           borderRadius: '50%',
                           background: ann.color,
                         }} />
-                        <div style={{ flex: 1, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {ann.name}
+                        <div style={{ flex: 1, overflow: 'hidden' }}>
+                          <div style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {ann.name}
+                          </div>
+                          {ann.type === 'line' && ann.coordinates.length >= 2 && (
+                            <div style={{ fontSize: 10, color: '#666', marginTop: 1 }}>
+                              📏 {formatDistance(calculateDistance(ann.coordinates))}
+                            </div>
+                          )}
+                          {ann.type === 'area' && ann.coordinates.length >= 3 && (
+                            <div style={{ fontSize: 10, color: '#666', marginTop: 1 }}>
+                              ⬡ {formatArea(calculateArea(ann.coordinates))} • {formatDistance(calculateDistance([...ann.coordinates, ann.coordinates[0]]))} perimeter
+                            </div>
+                          )}
                         </div>
                         <button
                           onClick={(e) => { e.stopPropagation(); toggleAnnotationVisibility(ann.id); }}
@@ -1272,6 +1667,43 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
                 ⊙
               </button>
             </div>
+
+            {/* Measurement Display and Drawing Instructions */}
+            {(activeTool === 'line' || activeTool === 'area') && (
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 80,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  background: '#fff',
+                  borderRadius: 8,
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                  padding: '8px 14px',
+                  zIndex: 10000,
+                  pointerEvents: 'none',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 4,
+                }}
+              >
+                {drawingPoints.length > 0 && (
+                  <div style={{ fontSize: 14, fontWeight: 600, color: selectedColor }}>
+                    {activeTool === 'line' && formatDistance(calculateDistance(drawingPoints))}
+                    {activeTool === 'area' && drawingPoints.length >= 3 && formatArea(calculateArea(drawingPoints))}
+                    {activeTool === 'area' && drawingPoints.length < 3 && `${drawingPoints.length}/3 points`}
+                  </div>
+                )}
+                <div style={{ fontSize: 11, color: '#666' }}>
+                  {drawingPoints.length === 0 && 'Click to start drawing'}
+                  {drawingPoints.length > 0 && activeTool === 'line' && drawingPoints.length < 2 && 'Click to add more points'}
+                  {drawingPoints.length >= 2 && activeTool === 'line' && 'Double-click to finish line'}
+                  {drawingPoints.length > 0 && activeTool === 'area' && drawingPoints.length < 3 && 'Click to add more points'}
+                  {drawingPoints.length >= 3 && activeTool === 'area' && 'Double-click to finish area'}
+                </div>
+              </div>
+            )}
 
             {/* Drawing Toolbar (Mapus-style) */}
             <div style={styles.toolbar} onPointerDown={stopPropagation}>

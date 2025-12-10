@@ -88,6 +88,29 @@ CREATE INDEX IF NOT EXISTS idx_board_perms_board ON board_permissions(board_id);
 CREATE INDEX IF NOT EXISTS idx_board_perms_user ON board_permissions(user_id);
 CREATE INDEX IF NOT EXISTS idx_board_perms_board_user ON board_permissions(board_id, user_id);
 
+-- Access tokens for shareable links with specific permission levels
+-- Anonymous users can use these tokens to get edit/admin access without authentication
+CREATE TABLE IF NOT EXISTS board_access_tokens (
+  id TEXT PRIMARY KEY,
+  board_id TEXT NOT NULL,
+  token TEXT NOT NULL UNIQUE,                -- Random hex token (64 chars)
+  permission TEXT NOT NULL CHECK (permission IN ('view', 'edit', 'admin')),
+  created_by TEXT NOT NULL,                  -- User ID who created the token
+  created_at TEXT DEFAULT (datetime('now')),
+  expires_at TEXT,                           -- NULL = never expires
+  max_uses INTEGER,                          -- NULL = unlimited
+  use_count INTEGER DEFAULT 0,
+  is_active INTEGER DEFAULT 1,               -- 1 = active, 0 = revoked
+  label TEXT,                                -- Optional label for identification
+  FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- Access token indexes
+CREATE INDEX IF NOT EXISTS idx_access_tokens_board ON board_access_tokens(board_id);
+CREATE INDEX IF NOT EXISTS idx_access_tokens_token ON board_access_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_access_tokens_active ON board_access_tokens(board_id, is_active);
+
 -- =============================================================================
 -- User Networking / Social Graph System
 -- =============================================================================

@@ -29,7 +29,7 @@ interface NetworkGraphMinimapProps {
   edges: GraphEdge[];
   myConnections: string[];
   currentUserId?: string;
-  onConnect: (userId: string) => Promise<void>;
+  onConnect: (userId: string, trustLevel?: TrustLevel) => Promise<void>;
   onDisconnect?: (connectionId: string) => Promise<void>;
   onNodeClick?: (node: GraphNode) => void;
   onEdgeClick?: (edge: GraphEdge) => void;
@@ -38,6 +38,7 @@ interface NetworkGraphMinimapProps {
   height?: number;
   isCollapsed?: boolean;
   onToggleCollapse?: () => void;
+  isDarkMode?: boolean;
 }
 
 interface SimulationNode extends d3.SimulationNodeDatum, GraphNode {}
@@ -47,10 +48,10 @@ interface SimulationLink extends d3.SimulationLinkDatum<SimulationNode> {
 }
 
 // =============================================================================
-// Styles
+// Styles - Theme-aware functions
 // =============================================================================
 
-const styles = {
+const getStyles = (isDarkMode: boolean) => ({
   container: {
     position: 'fixed' as const,
     bottom: '60px',
@@ -62,12 +63,12 @@ const styles = {
     gap: '8px',
   },
   panel: {
-    backgroundColor: 'rgba(20, 20, 25, 0.95)',
+    backgroundColor: isDarkMode ? 'rgba(20, 20, 25, 0.95)' : 'rgba(255, 255, 255, 0.98)',
     borderRadius: '12px',
-    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)',
+    boxShadow: isDarkMode ? '0 4px 20px rgba(0, 0, 0, 0.4)' : '0 4px 20px rgba(0, 0, 0, 0.15)',
     overflow: 'hidden',
     transition: 'all 0.2s ease',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+    border: isDarkMode ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.1)',
   },
   panelCollapsed: {
     width: '48px',
@@ -82,13 +83,13 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: '8px 12px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderBottom: isDarkMode ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.1)',
+    backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)',
   },
   title: {
     fontSize: '12px',
     fontWeight: 600,
-    color: '#e0e0e0',
+    color: isDarkMode ? '#e0e0e0' : '#374151',
     margin: 0,
   },
   headerButtons: {
@@ -106,16 +107,17 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     fontSize: '14px',
-    color: '#a0a0a0',
+    color: isDarkMode ? '#a0a0a0' : '#6b7280',
     transition: 'background-color 0.15s, color 0.15s',
   },
   canvas: {
     display: 'block',
+    backgroundColor: isDarkMode ? 'transparent' : 'rgba(249, 250, 251, 0.5)',
   },
   tooltip: {
     position: 'absolute' as const,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    color: '#fff',
+    backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.95)',
+    color: isDarkMode ? '#fff' : '#1f2937',
     padding: '6px 10px',
     borderRadius: '6px',
     fontSize: '12px',
@@ -124,6 +126,8 @@ const styles = {
     zIndex: 1001,
     transform: 'translate(-50%, -100%)',
     marginTop: '-8px',
+    boxShadow: isDarkMode ? 'none' : '0 2px 8px rgba(0, 0, 0, 0.15)',
+    border: isDarkMode ? 'none' : '1px solid rgba(0, 0, 0, 0.1)',
   },
   collapsedIcon: {
     fontSize: '20px',
@@ -132,10 +136,10 @@ const styles = {
     display: 'flex',
     gap: '12px',
     padding: '6px 12px',
-    borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+    borderTop: isDarkMode ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.08)',
     fontSize: '11px',
-    color: '#888',
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    color: isDarkMode ? '#888' : '#6b7280',
+    backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.02)',
   },
   stat: {
     display: 'flex',
@@ -147,7 +151,7 @@ const styles = {
     height: '8px',
     borderRadius: '50%',
   },
-};
+});
 
 // =============================================================================
 // Component
@@ -167,6 +171,7 @@ export function NetworkGraphMinimap({
   height = 180,
   isCollapsed = false,
   onToggleCollapse,
+  isDarkMode = false,
 }: NetworkGraphMinimapProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
@@ -174,6 +179,9 @@ export function NetworkGraphMinimap({
   const [selectedNode, setSelectedNode] = useState<{ node: GraphNode; x: number; y: number } | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const simulationRef = useRef<d3.Simulation<SimulationNode, SimulationLink> | null>(null);
+
+  // Get theme-aware styles
+  const styles = React.useMemo(() => getStyles(isDarkMode), [isDarkMode]);
 
   // Count stats
   const inRoomCount = nodes.filter(n => n.isInRoom).length;
@@ -202,14 +210,18 @@ export function NetworkGraphMinimap({
         isMutual: e.isMutual,
       }));
 
-    // Create the simulation
+    // Create the simulation with faster decay for stabilization
     const simulation = d3.forceSimulation<SimulationNode>(simNodes)
       .force('link', d3.forceLink<SimulationNode, SimulationLink>(simLinks)
         .id(d => d.id)
         .distance(40))
       .force('charge', d3.forceManyBody().strength(-80))
       .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide().radius(12));
+      .force('collision', d3.forceCollide().radius(12))
+      // Speed up stabilization: higher decay = faster settling
+      .alphaDecay(0.05)
+      // Lower alpha min threshold for stopping
+      .alphaMin(0.01);
 
     simulationRef.current = simulation;
 
@@ -404,6 +416,12 @@ export function NetworkGraphMinimap({
         .attr('cy', d => Math.max(8, Math.min(height - 8, d.y!)));
     });
 
+    // Stop simulation when it stabilizes (alpha reaches alphaMin)
+    simulation.on('end', () => {
+      // Simulation has stabilized, nodes will stay in place unless dragged
+      simulation.stop();
+    });
+
     return () => {
       simulation.stop();
     };
@@ -573,7 +591,9 @@ export function NetworkGraphMinimap({
                     onClick={async () => {
                       setIsConnecting(true);
                       try {
-                        await onConnect(selectedNode.node.id);
+                        // Use username for API call (CryptID username), not tldraw session id
+                        const userId = selectedNode.node.username || selectedNode.node.id;
+                        await onConnect(userId, 'connected');
                       } catch (err) {
                         console.error('Failed to connect:', err);
                       }
@@ -597,9 +617,10 @@ export function NetworkGraphMinimap({
                     onClick={async () => {
                       setIsConnecting(true);
                       try {
-                        // Connect with trusted level
-                        await onConnect(selectedNode.node.id);
-                        // Then upgrade - would need separate call
+                        // Use username for API call (CryptID username), not tldraw session id
+                        // Connect with trusted level directly
+                        const userId = selectedNode.node.username || selectedNode.node.id;
+                        await onConnect(userId, 'trusted');
                       } catch (err) {
                         console.error('Failed to connect:', err);
                       }

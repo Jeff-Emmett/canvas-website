@@ -23,7 +23,13 @@ import {
   handleGrantPermission,
   handleRevokePermission,
   handleUpdateBoard,
+  handleCreateAccessToken,
+  handleListAccessTokens,
+  handleRevokeAccessToken,
 } from "./boardPermissions"
+import {
+  handleSendBackupEmail,
+} from "./cryptidAuth"
 
 // make sure our sync durable objects are made available to cloudflare
 export { AutomergeDurableObject } from "./AutomergeDurableObject"
@@ -827,6 +833,13 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
   })
 
   // =============================================================================
+  // CryptID Auth API
+  // =============================================================================
+
+  // Send backup email for multi-device setup
+  .post("/api/auth/send-backup-email", handleSendBackupEmail)
+
+  // =============================================================================
   // User Networking / Social Graph API
   // =============================================================================
 
@@ -876,6 +889,19 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
   // Update board settings (admin only)
   .patch("/boards/:boardId", (req, env) =>
     handleUpdateBoard(req.params.boardId, req, env))
+
+  // Access token endpoints for shareable links
+  // Create a new access token (admin only)
+  .post("/boards/:boardId/access-tokens", (req, env) =>
+    handleCreateAccessToken(req.params.boardId, req, env))
+
+  // List all access tokens for a board (admin only)
+  .get("/boards/:boardId/access-tokens", (req, env) =>
+    handleListAccessTokens(req.params.boardId, req, env))
+
+  // Revoke an access token (admin only)
+  .delete("/boards/:boardId/access-tokens/:tokenId", (req, env) =>
+    handleRevokeAccessToken(req.params.boardId, req.params.tokenId, req, env))
 
 async function backupAllBoards(env: Environment) {
   try {

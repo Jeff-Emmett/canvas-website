@@ -16,6 +16,7 @@ upstream_protocol = "https"
 [dev.miniflare]
 kv_persist = true
 r2_persist = true
+d1_persist = true
 durable_objects_persist = true
 
 [durable_objects]
@@ -37,6 +38,10 @@ binding = 'BOARD_BACKUPS_BUCKET'
 bucket_name = 'board-backups-preview'
 preview_bucket_name = 'board-backups-preview'
 
+[[d1_databases]]
+binding = "CRYPTID_DB"
+database_name = "cryptid-auth-dev"
+database_id = "35fbe755-0e7c-4b9a-a454-34f945e5f7cc"
 
 [observability]
 enabled = true

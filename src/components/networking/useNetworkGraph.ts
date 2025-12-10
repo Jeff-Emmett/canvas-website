@@ -21,6 +21,7 @@ import {
   type NetworkGraph,
   type GraphNode,
   type GraphEdge,
+  type TrustLevel,
 } from '../../lib/networking';
 
 // =============================================================================
@@ -53,8 +54,8 @@ export interface UseNetworkGraphOptions {
 export interface UseNetworkGraphReturn extends NetworkGraphState {
   // Refresh the graph from the server
   refresh: () => Promise<void>;
-  // Connect to a user
-  connect: (userId: string) => Promise<void>;
+  // Connect to a user with optional trust level
+  connect: (userId: string, trustLevel?: TrustLevel) => Promise<void>;
   // Disconnect from a user
   disconnect: (connectionId: string) => Promise<void>;
   // Check if connected to a user
@@ -267,9 +268,9 @@ export function useNetworkGraph(options: UseNetworkGraphOptions = {}): UseNetwor
   }, [participantIds, participantColorMap]);
 
   // Connect to a user
-  const connect = useCallback(async (userId: string) => {
+  const connect = useCallback(async (userId: string, trustLevel: TrustLevel = 'connected') => {
     try {
-      await createConnection(userId);
+      await createConnection(userId, trustLevel);
       // Refresh the graph to get updated state
       await fetchGraph(true);
       clearGraphCache();

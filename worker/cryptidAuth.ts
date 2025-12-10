@@ -12,7 +12,7 @@ function generateUUID(): string {
   return crypto.randomUUID();
 }
 
-// Send email via SendGrid
+// Send email via Resend
 async function sendEmail(
   env: Environment,
   to: string,
@@ -20,24 +20,33 @@ async function sendEmail(
   htmlContent: string
 ): Promise<boolean> {
   try {
-    const response = await fetch('https://api.sendgrid.com/v3/mail/send', {
+    if (!env.RESEND_API_KEY) {
+      console.error('RESEND_API_KEY not configured');
+      return false;
+    }
+
+    const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${env.SENDGRID_API_KEY}`,
+        'Authorization': `Bearer ${env.RESEND_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        personalizations: [{ to: [{ email: to }] }],
-        from: { email: env.CRYPTID_EMAIL_FROM || 'noreply@jeffemmett.com', name: 'CryptID' },
+        from: env.CRYPTID_EMAIL_FROM || 'CryptID <noreply@jeffemmett.com>',
+        to: [to],
         subject,
-        content: [{ type: 'text/html', value: htmlContent }],
+        html: htmlContent,
       }),
     });
 
     if (!response.ok) {
-      console.error('SendGrid error:', await response.text());
+      const errorText = await response.text();
+      console.error('Resend error:', errorText);
       return false;
     }
+
+    const result = await response.json() as { id?: string };
+    console.log('Email sent successfully, id:', result.id);
     return true;
   } catch (error) {
     console.error('Email send error:', error);
@@ -441,6 +450,174 @@ export async function handleLinkDevice(
 
   } catch (error) {
     console.error('Link device error:', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+/**
+ * Send a backup email to set up account on another device
+ * POST /api/auth/send-backup-email
+ * Body: { email, username }
+ *
+ * This is called during registration when the user provides an email.
+ * It sends an email with a link to set up their account on another device.
+ */
+export async function handleSendBackupEmail(
+  request: Request,
+  env: Environment
+): Promise<Response> {
+  try {
+    const body = await request.json() as {
+      email: string;
+      username: string;
+    };
+
+    const { email, username } = body;
+
+    if (!email || !username) {
+      return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return new Response(JSON.stringify({ error: 'Invalid email format' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const db = env.CRYPTID_DB;
+    if (!db) {
+      // If no DB, still try to send email (graceful degradation)
+      console.log('No database configured, attempting to send email directly');
+    }
+
+    // If DB exists, create/update user record
+    if (db) {
+      // Check if user already exists
+      const existingUser = await db.prepare(
+        'SELECT * FROM users WHERE cryptid_username = ?'
+      ).bind(username).first<User>();
+
+      if (existingUser) {
+        // Update email if user exists
+        await db.prepare(
+          "UPDATE users SET email = ?, updated_at = datetime('now') WHERE cryptid_username = ?"
+        ).bind(email, username).run();
+      } else {
+        // Create new user record
+        const userId = crypto.randomUUID();
+        await db.prepare(
+          'INSERT INTO users (id, email, cryptid_username, email_verified) VALUES (?, ?, ?, 0)'
+        ).bind(userId, email, username).run();
+      }
+    }
+
+    // Send the backup email
+    const appUrl = env.APP_URL || 'https://jeffemmett.com';
+    const setupUrl = `${appUrl}/setup-device?username=${encodeURIComponent(username)}`;
+
+    const emailSent = await sendEmail(
+      env,
+      email,
+      `Set up CryptID "${username}" on another device`,
+      `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { text-align: center; margin-bottom: 30px; }
+          .icon { font-size: 48px; margin-bottom: 10px; }
+          h1 { color: #8b5cf6; margin: 0 0 10px 0; }
+          .card { background: #f9fafb; border-radius: 12px; padding: 24px; margin: 20px 0; }
+          .step { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+          .step-number { background: #8b5cf6; color: white; width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; flex-shrink: 0; }
+          .button { display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); color: white; text-decoration: none; border-radius: 10px; font-weight: 600; margin: 20px 0; }
+          .footer { color: #666; font-size: 12px; text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; }
+          .warning { background: #fef3c7; border-radius: 8px; padding: 12px 16px; margin: 20px 0; color: #92400e; font-size: 13px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="icon">🔐</div>
+          <h1>Welcome to CryptID</h1>
+          <p>Your passwordless account is ready!</p>
+        </div>
+
+        <p>Hi <strong>${username}</strong>,</p>
+
+        <p>Your CryptID account has been created on your current device. To access your account from another device (like your phone), follow these steps:</p>
+
+        <div class="card">
+          <div class="step">
+            <span class="step-number">1</span>
+            <div>
+              <strong>Open the link below on your other device</strong>
+              <p style="margin: 4px 0 0 0; color: #666; font-size: 14px;">Use your phone, tablet, or another computer</p>
+            </div>
+          </div>
+          <div class="step">
+            <span class="step-number">2</span>
+            <div>
+              <strong>A new cryptographic key will be generated</strong>
+              <p style="margin: 4px 0 0 0; color: #666; font-size: 14px;">This key is unique to that device and stored securely in the browser</p>
+            </div>
+          </div>
+          <div class="step">
+            <span class="step-number">3</span>
+            <div>
+              <strong>You're set! Both devices can now access your account</strong>
+              <p style="margin: 4px 0 0 0; color: #666; font-size: 14px;">No passwords to remember - your browser handles authentication</p>
+            </div>
+          </div>
+        </div>
+
+        <div style="text-align: center;">
+          <a href="${setupUrl}" class="button">Set Up on Another Device</a>
+        </div>
+
+        <div class="warning">
+          <strong>⚠️ Security Note:</strong> Only open this link on devices you own. Each device that accesses your account stores a unique cryptographic key.
+        </div>
+
+        <div class="footer">
+          <p>This email was sent because you created a CryptID account and opted for multi-device backup.</p>
+          <p>If you didn't request this, you can safely ignore this email.</p>
+          <p style="margin-top: 16px;">CryptID by <a href="${appUrl}" style="color: #8b5cf6;">jeffemmett.com</a></p>
+        </div>
+      </body>
+      </html>
+      `
+    );
+
+    if (emailSent) {
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Backup email sent successfully',
+      }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    } else {
+      return new Response(JSON.stringify({
+        error: 'Failed to send email',
+        message: 'Please check your email address and try again',
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+  } catch (error) {
+    console.error('Send backup email error:', error);
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

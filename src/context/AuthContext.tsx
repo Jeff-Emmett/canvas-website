@@ -20,6 +20,10 @@ interface AuthContextType {
   canEdit: () => boolean;
   /** Check if user is admin for the current board */
   isAdmin: () => boolean;
+  /** Current access token from URL (if any) */
+  accessToken: string | null;
+  /** Set access token (from URL parameter) */
+  setAccessToken: (token: string | null) => void;
 }
 
 const initialSession: Session = {
@@ -35,6 +39,22 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [session, setSessionState] = useState<Session>(initialSession);
+  const [accessToken, setAccessTokenState] = useState<string | null>(null);
+
+  // Extract access token from URL on mount
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    if (token) {
+      console.log('🔑 Access token found in URL');
+      setAccessTokenState(token);
+      // Optionally remove from URL to clean it up (but keep the token in state)
+      // This prevents the token from being shared if someone copies the URL
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('token');
+      window.history.replaceState({}, '', newUrl.toString());
+    }
+  }, []);
 
   // Update session with partial data
   const setSession = useCallback((updatedSession: Partial<Session>) => {
@@ -175,12 +195,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [clearSession]);
 
+  // Setter for access token
+  const setAccessToken = useCallback((token: string | null) => {
+    setAccessTokenState(token);
+    // Clear cached permissions when token changes (they may be different)
+    if (token) {
+      setSessionState(prev => ({
+        ...prev,
+        boardPermissions: {},
+        currentBoardPermission: undefined,
+      }));
+    }
+  }, []);
+
   /**
    * Fetch and cache the user's permission level for a specific board
+   * Includes access token if available (from share link)
    */
   const fetchBoardPermission = useCallback(async (boardId: string): Promise<PermissionLevel> => {
-    // Check cache first
-    if (session.boardPermissions?.[boardId]) {
+    // Check cache first (but only if no access token - token changes permissions)
+    if (!accessToken && session.boardPermissions?.[boardId]) {
       return session.boardPermissions[boardId];
     }
 
@@ -197,22 +231,34 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       }
 
-      const response = await fetch(`${WORKER_URL}/boards/${boardId}/permission`, {
+      // Build URL with optional access token
+      let url = `${WORKER_URL}/boards/${boardId}/permission`;
+      if (accessToken) {
+        url += `?token=${encodeURIComponent(accessToken)}`;
+        console.log('🔑 Including access token in permission check');
+      }
+
+      const response = await fetch(url, {
         method: 'GET',
         headers,
       });
 
       if (!response.ok) {
         console.error('Failed to fetch board permission:', response.status);
-        // Default to 'view' for unauthenticated, 'edit' for authenticated
-        return session.authed ? 'edit' : 'view';
+        // Default to 'view' for unauthenticated (secure by default)
+        return 'view';
       }
 
       const data = await response.json() as {
         permission: PermissionLevel;
         isOwner: boolean;
         boardExists: boolean;
+        grantedByToken?: boolean;
       };
+
+      if (data.grantedByToken) {
+        console.log('🔓 Permission granted via access token:', data.permission);
+      }
 
       // Cache the permission
       setSessionState(prev => ({
@@ -227,10 +273,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return data.permission;
     } catch (error) {
       console.error('Error fetching board permission:', error);
-      // Default to 'view' for unauthenticated, 'edit' for authenticated
-      return session.authed ? 'edit' : 'view';
+      // Default to 'view' (secure by default)
+      return 'view';
     }
-  }, [session.authed, session.username, session.boardPermissions]);
+  }, [session.authed, session.username, session.boardPermissions, accessToken]);
 
   /**
    * Check if user can edit the current board
@@ -278,7 +324,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     fetchBoardPermission,
     canEdit,
     isAdmin,
-  }), [session, setSession, clearSession, initialize, login, register, logout, fetchBoardPermission, canEdit, isAdmin]);
+    accessToken,
+    setAccessToken,
+  }), [session, setSession, clearSession, initialize, login, register, logout, fetchBoardPermission, canEdit, isAdmin, accessToken, setAccessToken]);
 
   return (
     <AuthContext.Provider value={contextValue}>

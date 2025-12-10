@@ -11,6 +11,7 @@ export interface Session {
   authed: boolean;
   loading: boolean;
   backupCreated: boolean | null;
+  email?: string; // Email for account backup
   obsidianVaultPath?: string;
   obsidianVaultName?: string;
   error?: string;

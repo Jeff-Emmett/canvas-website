@@ -948,28 +948,33 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
               )}
             </div>
 
-            {/* Input Section */}
+            {/* Input Section - Mobile Optimized */}
             <div
               style={{
                 display: "flex",
+                flexDirection: shape.props.w < 350 ? "column" : "row",
                 gap: 8,
                 flexShrink: 0,
+                padding: "4px 0",
               }}
             >
-              <input
+              <textarea
                 style={{
                   flex: 1,
-                  height: "36px",
+                  minHeight: "48px",
+                  height: shape.props.w < 350 ? "60px" : "48px",
                   backgroundColor: "#fff",
                   border: "1px solid #ddd",
-                  borderRadius: "6px",
-                  fontSize: 13,
-                  padding: "0 10px",
+                  borderRadius: "8px",
+                  fontSize: 14,
+                  padding: "12px",
                   touchAction: "manipulation",
-                  minHeight: "44px",
+                  resize: "none",
+                  fontFamily: "inherit",
+                  lineHeight: "1.4",
+                  WebkitAppearance: "none",
                 }}
-                type="text"
-                placeholder="Enter image prompt..."
+                placeholder="Describe the image you want to generate..."
                 value={shape.props.prompt}
                 onChange={(e) => {
                   editor.updateShape<IImageGen>({
@@ -1000,20 +1005,26 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
               />
               <button
                 style={{
-                  height: "36px",
-                  padding: "0 16px",
+                  height: shape.props.w < 350 ? "48px" : "48px",
+                  padding: "0 20px",
                   pointerEvents: "all",
                   cursor: shape.props.prompt.trim() && !shape.props.isLoading ? "pointer" : "not-allowed",
                   backgroundColor: shape.props.prompt.trim() && !shape.props.isLoading ? ImageGenShape.PRIMARY_COLOR : "#ccc",
                   color: "white",
                   border: "none",
-                  borderRadius: "6px",
-                  fontWeight: "500",
-                  fontSize: "13px",
+                  borderRadius: "8px",
+                  fontWeight: "600",
+                  fontSize: "14px",
                   opacity: shape.props.prompt.trim() && !shape.props.isLoading ? 1 : 0.6,
                   touchAction: "manipulation",
-                  minWidth: "44px",
-                  minHeight: "44px",
+                  minWidth: shape.props.w < 350 ? "100%" : "100px",
+                  minHeight: "48px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "6px",
+                  transition: "background-color 0.15s, transform 0.1s",
+                  WebkitTapHighlightColor: "transparent",
                 }}
                 onPointerDown={(e) => {
                   e.stopPropagation()
@@ -1024,10 +1035,13 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
                 }}
                 onTouchStart={(e) => {
                   e.stopPropagation()
+                  // Visual feedback on touch
+                  e.currentTarget.style.transform = "scale(0.98)"
                 }}
                 onTouchEnd={(e) => {
                   e.stopPropagation()
                   e.preventDefault()
+                  e.currentTarget.style.transform = "scale(1)"
                   if (shape.props.prompt.trim() && !shape.props.isLoading) {
                     handleGenerate()
                   }
@@ -1041,6 +1055,7 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
                 }}
                 disabled={shape.props.isLoading || !shape.props.prompt.trim()}
               >
+                <span style={{ fontSize: "16px" }}>✨</span>
                 Generate
               </button>
             </div>

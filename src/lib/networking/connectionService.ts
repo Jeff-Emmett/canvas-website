@@ -30,13 +30,41 @@ const API_BASE = '/api/networking';
 // Helper Functions
 // =============================================================================
 
+/**
+ * Get the current user's CryptID username from localStorage session
+ */
+function getCurrentUserId(): string | null {
+  try {
+    const sessionStr = localStorage.getItem('cryptid_session');
+    if (sessionStr) {
+      const session = JSON.parse(sessionStr);
+      if (session.authed && session.username) {
+        return session.username;
+      }
+    }
+  } catch {
+    // Ignore parsing errors
+  }
+  return null;
+}
+
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
+  // Get the current user ID for authentication
+  const userId = getCurrentUserId();
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string> || {}),
+  };
+
+  // Add user ID header for authentication
+  if (userId) {
+    headers['X-User-Id'] = userId;
+  }
+
   const response = await fetch(url, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
+    headers,
   });
 
   if (!response.ok) {

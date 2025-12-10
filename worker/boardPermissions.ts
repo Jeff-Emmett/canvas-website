@@ -1,4 +1,4 @@
-import { Environment, Board, BoardPermission, PermissionLevel, PermissionCheckResult, User } from './types';
+import { Environment, Board, BoardPermission, PermissionLevel, PermissionCheckResult, User, BoardAccessToken } from './types';
 
 // Generate a UUID v4
 function generateUUID(): string {
@@ -7,22 +7,37 @@ function generateUUID(): string {
 
 /**
  * Get a user's effective permission for a board
- * Priority: explicit permission > board owner (admin) > default permission
+ * Priority: access token > explicit permission > board owner (admin) > default permission
+ *
+ * @param accessToken - Optional access token from share link (grants specific permission)
  */
 export async function getEffectivePermission(
   db: D1Database,
   boardId: string,
-  userId: string | null
+  userId: string | null,
+  accessToken?: string | null
 ): Promise<PermissionCheckResult> {
   // Check if board exists
   const board = await db.prepare(
     'SELECT * FROM boards WHERE id = ?'
   ).bind(boardId).first<Board>();
 
-  // Board doesn't exist - treat as new board, anyone authenticated can create
+  // If an access token is provided, validate it and use its permission level
+  if (accessToken) {
+    const tokenPermission = await validateAccessToken(db, boardId, accessToken);
+    if (tokenPermission) {
+      return {
+        permission: tokenPermission,
+        isOwner: false,
+        boardExists: !!board,
+        grantedByToken: true
+      };
+    }
+  }
+
+  // Board doesn't exist in permissions DB
+  // Anonymous users get VIEW by default, authenticated users can edit
   if (!board) {
-    // If user is authenticated, they can create the board (will become owner)
-    // If not authenticated, view-only (they'll see empty canvas but can't edit)
     return {
       permission: userId ? 'edit' : 'view',
       isOwner: false,
@@ -30,10 +45,11 @@ export async function getEffectivePermission(
     };
   }
 
-  // If user is not authenticated, return default permission
+  // If user is not authenticated, return VIEW (secure by default)
+  // To grant edit access to anonymous users, they must use a share link with access token
   if (!userId) {
     return {
-      permission: board.default_permission as PermissionLevel,
+      permission: 'view',
       isOwner: false,
       boardExists: true
     };
@@ -127,6 +143,7 @@ export async function ensureBoardExists(
 /**
  * GET /boards/:boardId/permission
  * Get current user's permission for a board
+ * Query params: ?token=<access_token> - optional access token from share link
  */
 export async function handleGetPermission(
   boardId: string,
@@ -136,9 +153,9 @@ export async function handleGetPermission(
   try {
     const db = env.CRYPTID_DB;
     if (!db) {
-      // No database - default to edit for backwards compatibility
+      // No database - default to view for anonymous (secure by default)
       return new Response(JSON.stringify({
-        permission: 'edit',
+        permission: 'view',
         isOwner: false,
         boardExists: false,
         message: 'Permission system not configured'
@@ -161,7 +178,11 @@ export async function handleGetPermission(
       }
     }
 
-    const result = await getEffectivePermission(db, boardId, userId);
+    // Get access token from query params if provided
+    const url = new URL(request.url);
+    const accessToken = url.searchParams.get('token');
+
+    const result = await getEffectivePermission(db, boardId, userId, accessToken);
 
     return new Response(JSON.stringify(result), {
       headers: { 'Content-Type': 'application/json' },
@@ -573,6 +594,307 @@ export async function handleUpdateBoard(
 
   } catch (error) {
     console.error('Update board error:', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+// =============================================================================
+// Access Token Functions
+// =============================================================================
+
+/**
+ * Generate a cryptographically secure random token
+ */
+function generateAccessToken(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
+ * Validate an access token and return the permission level if valid
+ */
+export async function validateAccessToken(
+  db: D1Database,
+  boardId: string,
+  token: string
+): Promise<PermissionLevel | null> {
+  const accessToken = await db.prepare(`
+    SELECT * FROM board_access_tokens
+    WHERE board_id = ? AND token = ? AND is_active = 1
+  `).bind(boardId, token).first<BoardAccessToken>();
+
+  if (!accessToken) {
+    return null;
+  }
+
+  // Check expiration
+  if (accessToken.expires_at) {
+    const expiresAt = new Date(accessToken.expires_at);
+    if (expiresAt < new Date()) {
+      return null;
+    }
+  }
+
+  // Check max uses
+  if (accessToken.max_uses !== null && accessToken.use_count >= accessToken.max_uses) {
+    return null;
+  }
+
+  // Increment use count
+  await db.prepare(`
+    UPDATE board_access_tokens SET use_count = use_count + 1 WHERE id = ?
+  `).bind(accessToken.id).run();
+
+  return accessToken.permission;
+}
+
+/**
+ * POST /boards/:boardId/access-tokens
+ * Create a new access token (admin only)
+ * Body: { permission, label?, expiresIn?, maxUses? }
+ */
+export async function handleCreateAccessToken(
+  boardId: string,
+  request: Request,
+  env: Environment
+): Promise<Response> {
+  try {
+    const db = env.CRYPTID_DB;
+    if (!db) {
+      return new Response(JSON.stringify({ error: 'Database not configured' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Authenticate user
+    const publicKey = request.headers.get('X-CryptID-PublicKey');
+    if (!publicKey) {
+      return new Response(JSON.stringify({ error: 'Authentication required' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const deviceKey = await db.prepare(
+      'SELECT user_id FROM device_keys WHERE public_key = ?'
+    ).bind(publicKey).first<{ user_id: string }>();
+
+    if (!deviceKey) {
+      return new Response(JSON.stringify({ error: 'Invalid credentials' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Check if user is admin
+    const permCheck = await getEffectivePermission(db, boardId, deviceKey.user_id);
+    if (permCheck.permission !== 'admin') {
+      return new Response(JSON.stringify({ error: 'Admin access required' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const body = await request.json() as {
+      permission: PermissionLevel;
+      label?: string;
+      expiresIn?: number;  // seconds from now
+      maxUses?: number;
+    };
+
+    if (!body.permission || !['view', 'edit', 'admin'].includes(body.permission)) {
+      return new Response(JSON.stringify({ error: 'Invalid permission level' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Ensure board exists
+    await ensureBoardExists(db, boardId, deviceKey.user_id);
+
+    const token = generateAccessToken();
+    const id = generateUUID();
+
+    // Calculate expiration
+    let expiresAt: string | null = null;
+    if (body.expiresIn) {
+      const expDate = new Date(Date.now() + body.expiresIn * 1000);
+      expiresAt = expDate.toISOString();
+    }
+
+    await db.prepare(`
+      INSERT INTO board_access_tokens (id, board_id, token, permission, created_by, expires_at, max_uses, label, use_count, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 1)
+    `).bind(
+      id,
+      boardId,
+      token,
+      body.permission,
+      deviceKey.user_id,
+      expiresAt,
+      body.maxUses || null,
+      body.label || null
+    ).run();
+
+    return new Response(JSON.stringify({
+      success: true,
+      token,
+      id,
+      permission: body.permission,
+      expiresAt,
+      maxUses: body.maxUses || null,
+      label: body.label || null
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('Create access token error:', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+/**
+ * GET /boards/:boardId/access-tokens
+ * List all access tokens for a board (admin only)
+ */
+export async function handleListAccessTokens(
+  boardId: string,
+  request: Request,
+  env: Environment
+): Promise<Response> {
+  try {
+    const db = env.CRYPTID_DB;
+    if (!db) {
+      return new Response(JSON.stringify({ error: 'Database not configured' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Authenticate user
+    const publicKey = request.headers.get('X-CryptID-PublicKey');
+    if (!publicKey) {
+      return new Response(JSON.stringify({ error: 'Authentication required' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const deviceKey = await db.prepare(
+      'SELECT user_id FROM device_keys WHERE public_key = ?'
+    ).bind(publicKey).first<{ user_id: string }>();
+
+    if (!deviceKey) {
+      return new Response(JSON.stringify({ error: 'Invalid credentials' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Check if user is admin
+    const permCheck = await getEffectivePermission(db, boardId, deviceKey.user_id);
+    if (permCheck.permission !== 'admin') {
+      return new Response(JSON.stringify({ error: 'Admin access required' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const tokens = await db.prepare(`
+      SELECT id, board_id, permission, created_at, expires_at, max_uses, use_count, is_active, label
+      FROM board_access_tokens
+      WHERE board_id = ?
+      ORDER BY created_at DESC
+    `).bind(boardId).all<Omit<BoardAccessToken, 'token' | 'created_by'>>();
+
+    return new Response(JSON.stringify({
+      tokens: tokens.results || []
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('List access tokens error:', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+/**
+ * DELETE /boards/:boardId/access-tokens/:tokenId
+ * Revoke an access token (admin only)
+ */
+export async function handleRevokeAccessToken(
+  boardId: string,
+  tokenId: string,
+  request: Request,
+  env: Environment
+): Promise<Response> {
+  try {
+    const db = env.CRYPTID_DB;
+    if (!db) {
+      return new Response(JSON.stringify({ error: 'Database not configured' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Authenticate user
+    const publicKey = request.headers.get('X-CryptID-PublicKey');
+    if (!publicKey) {
+      return new Response(JSON.stringify({ error: 'Authentication required' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const deviceKey = await db.prepare(
+      'SELECT user_id FROM device_keys WHERE public_key = ?'
+    ).bind(publicKey).first<{ user_id: string }>();
+
+    if (!deviceKey) {
+      return new Response(JSON.stringify({ error: 'Invalid credentials' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Check if user is admin
+    const permCheck = await getEffectivePermission(db, boardId, deviceKey.user_id);
+    if (permCheck.permission !== 'admin') {
+      return new Response(JSON.stringify({ error: 'Admin access required' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Deactivate the token (soft delete)
+    await db.prepare(`
+      UPDATE board_access_tokens SET is_active = 0 WHERE id = ? AND board_id = ?
+    `).bind(tokenId, boardId).run();
+
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'Access token revoked'
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('Revoke access token error:', error);
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

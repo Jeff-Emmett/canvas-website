@@ -16,24 +16,48 @@ interface InviteDialogProps extends TLUiDialogProps {
   boardSlug: string
 }
 
-type TabType = 'qr' | 'url' | 'nfc' | 'audio'
+type PermissionType = 'view' | 'edit' | 'admin'
+
+const PERMISSION_LABELS: Record<PermissionType, { label: string; description: string; color: string }> = {
+  view: { label: 'View', description: 'Can view but not edit', color: '#6b7280' },
+  edit: { label: 'Edit', description: 'Can view and edit', color: '#3b82f6' },
+  admin: { label: 'Admin', description: 'Full control', color: '#10b981' },
+}
 
 export function InviteDialog({ onClose, boardUrl, boardSlug }: InviteDialogProps) {
-  const [activeTab, setActiveTab] = useState<TabType>('qr')
   const [copied, setCopied] = useState(false)
   const [nfcStatus, setNfcStatus] = useState<'idle' | 'writing' | 'success' | 'error' | 'unsupported'>('idle')
   const [nfcMessage, setNfcMessage] = useState('')
+  const [permission, setPermission] = useState<PermissionType>('edit')
 
-  // Check NFC support on mount
+  // Check NFC support on mount and add ESC key handler
   useEffect(() => {
     if (!('NDEFReader' in window)) {
       setNfcStatus('unsupported')
     }
-  }, [])
+
+    // ESC key handler to close dialog
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopPropagation()
+        onClose()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown, true)
+    return () => document.removeEventListener('keydown', handleKeyDown, true)
+  }, [onClose])
+
+  // Generate URL with permission parameter
+  const getShareUrl = () => {
+    const url = new URL(boardUrl)
+    url.searchParams.set('access', permission)
+    return url.toString()
+  }
 
   const handleCopyUrl = async () => {
     try {
-      await navigator.clipboard.writeText(boardUrl)
+      await navigator.clipboard.writeText(getShareUrl())
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
@@ -55,7 +79,7 @@ export function InviteDialog({ onClose, boardUrl, boardSlug }: InviteDialogProps
       const ndef = new (window as any).NDEFReader()
       await ndef.write({
         records: [
-          { recordType: "url", data: boardUrl }
+          { recordType: "url", data: getShareUrl() }
         ]
       })
 
@@ -78,26 +102,13 @@ export function InviteDialog({ onClose, boardUrl, boardSlug }: InviteDialogProps
     }
   }
 
-  const tabStyle = (tab: TabType) => ({
-    flex: 1,
-    padding: '10px 16px',
-    border: 'none',
-    background: activeTab === tab ? '#3b82f6' : '#f3f4f6',
-    color: activeTab === tab ? 'white' : '#374151',
-    cursor: 'pointer',
-    fontWeight: activeTab === tab ? 600 : 400,
-    fontSize: '13px',
-    transition: 'all 0.2s ease',
-    borderRadius: tab === 'qr' ? '6px 0 0 6px' : tab === 'audio' ? '0 6px 6px 0' : '0',
-  })
-
   return (
     <>
       <TldrawUiDialogHeader>
         <TldrawUiDialogTitle>Invite to Board</TldrawUiDialogTitle>
         <TldrawUiDialogCloseButton />
       </TldrawUiDialogHeader>
-      <TldrawUiDialogBody style={{ maxWidth: 420, minHeight: 380 }}>
+      <TldrawUiDialogBody style={{ maxWidth: 420 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {/* Board name display */}
           <div style={{
@@ -111,228 +122,230 @@ export function InviteDialog({ onClose, boardUrl, boardSlug }: InviteDialogProps
             <span style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>{boardSlug}</span>
           </div>
 
-          {/* Tab navigation */}
-          <div style={{ display: 'flex', borderRadius: '6px', overflow: 'hidden' }}>
-            <button style={tabStyle('qr')} onClick={() => setActiveTab('qr')}>
-              QR Code
-            </button>
-            <button style={tabStyle('url')} onClick={() => setActiveTab('url')}>
-              URL
-            </button>
-            <button style={tabStyle('nfc')} onClick={() => setActiveTab('nfc')}>
-              NFC
-            </button>
-            <button style={tabStyle('audio')} onClick={() => setActiveTab('audio')}>
-              Audio
-            </button>
-          </div>
-
-          {/* Tab content */}
+          {/* Permission selector */}
           <div style={{
-            minHeight: 220,
             display: 'flex',
             flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
+            gap: '8px',
+          }}>
+            <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 500 }}>Access Level</span>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {(['view', 'edit', 'admin'] as PermissionType[]).map((perm) => {
+                const isActive = permission === perm
+                const { label, description, color } = PERMISSION_LABELS[perm]
+                return (
+                  <button
+                    key={perm}
+                    onClick={() => setPermission(perm)}
+                    style={{
+                      flex: 1,
+                      padding: '10px 8px',
+                      border: isActive ? `2px solid ${color}` : '2px solid #e5e7eb',
+                      background: isActive ? `${color}10` : 'white',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.borderColor = color
+                        e.currentTarget.style.background = `${color}08`
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isActive) {
+                        e.currentTarget.style.borderColor = '#e5e7eb'
+                        e.currentTarget.style.background = 'white'
+                      }
+                    }}
+                  >
+                    <span style={{
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: isActive ? color : '#374151'
+                    }}>
+                      {label}
+                    </span>
+                    <span style={{
+                      fontSize: '10px',
+                      color: '#9ca3af',
+                      lineHeight: 1.2,
+                    }}>
+                      {description}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* QR Code and URL side by side */}
+          <div style={{
+            display: 'flex',
+            gap: '16px',
             padding: '16px',
             backgroundColor: '#fafafa',
             borderRadius: '8px',
             border: '1px solid #e5e7eb'
           }}>
-            {activeTab === 'qr' && (
-              <div style={{ textAlign: 'center' }}>
-                <div style={{
-                  padding: '16px',
-                  backgroundColor: 'white',
-                  borderRadius: '12px',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                  display: 'inline-block'
-                }}>
-                  <QRCodeSVG
-                    value={boardUrl}
-                    size={180}
-                    level="M"
-                    includeMargin={false}
-                  />
-                </div>
-                <p style={{
-                  marginTop: '16px',
-                  fontSize: '13px',
-                  color: '#6b7280',
-                  lineHeight: 1.5
-                }}>
-                  Scan this QR code with a mobile device to join the board
-                </p>
-              </div>
-            )}
+            {/* QR Code */}
+            <div style={{
+              padding: '12px',
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
+              flexShrink: 0,
+            }}>
+              <QRCodeSVG
+                value={getShareUrl()}
+                size={120}
+                level="M"
+                includeMargin={false}
+              />
+            </div>
 
-            {activeTab === 'url' && (
-              <div style={{ width: '100%', textAlign: 'center' }}>
-                <div style={{
-                  padding: '12px',
-                  backgroundColor: 'white',
-                  borderRadius: '8px',
-                  border: '1px solid #d1d5db',
-                  marginBottom: '16px',
-                  wordBreak: 'break-all',
-                  fontSize: '13px',
-                  fontFamily: 'monospace',
-                  color: '#374151'
-                }}>
-                  {boardUrl}
-                </div>
-                <button
-                  onClick={handleCopyUrl}
-                  style={{
-                    padding: '10px 24px',
-                    backgroundColor: copied ? '#10b981' : '#3b82f6',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: 500,
-                    transition: 'all 0.2s ease',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    margin: '0 auto'
-                  }}
-                >
-                  {copied ? (
-                    <>
-                      <span>Copied!</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Copy URL</span>
-                    </>
-                  )}
-                </button>
-                <p style={{
-                  marginTop: '16px',
-                  fontSize: '13px',
-                  color: '#6b7280'
-                }}>
-                  Share this link with anyone to invite them to your board
-                </p>
+            {/* URL and Copy Button */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '12px' }}>
+              <div style={{
+                padding: '10px',
+                backgroundColor: 'white',
+                borderRadius: '6px',
+                border: '1px solid #d1d5db',
+                wordBreak: 'break-all',
+                fontSize: '11px',
+                fontFamily: 'monospace',
+                color: '#374151',
+                lineHeight: 1.4,
+                maxHeight: '60px',
+                overflowY: 'auto',
+              }}>
+                {getShareUrl()}
               </div>
-            )}
-
-            {activeTab === 'nfc' && (
-              <div style={{ width: '100%', textAlign: 'center' }}>
-                {nfcStatus === 'unsupported' ? (
+              <button
+                onClick={handleCopyUrl}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: copied ? '#10b981' : '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                }}
+              >
+                {copied ? (
                   <>
-                    <div style={{
-                      fontSize: '48px',
-                      marginBottom: '16px',
-                      opacity: 0.5
-                    }}>
-                      NFC
-                    </div>
-                    <p style={{
-                      fontSize: '14px',
-                      color: '#6b7280',
-                      marginBottom: '8px'
-                    }}>
-                      NFC is not supported on this device
-                    </p>
-                    <p style={{
-                      fontSize: '12px',
-                      color: '#9ca3af'
-                    }}>
-                      Try using a mobile device with NFC capability
-                    </p>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                    <span>Copied!</span>
                   </>
                 ) : (
                   <>
-                    <div style={{
-                      fontSize: '48px',
-                      marginBottom: '16px',
-                      animation: nfcStatus === 'writing' ? 'pulse 1.5s infinite' : 'none'
-                    }}>
-                      {nfcStatus === 'success' ? '(done)' : nfcStatus === 'error' ? '(!)' : 'NFC'}
-                    </div>
-                    <button
-                      onClick={handleNfcWrite}
-                      disabled={nfcStatus === 'writing'}
-                      style={{
-                        padding: '10px 24px',
-                        backgroundColor: nfcStatus === 'success' ? '#10b981' :
-                                        nfcStatus === 'error' ? '#ef4444' :
-                                        nfcStatus === 'writing' ? '#9ca3af' : '#3b82f6',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '6px',
-                        cursor: nfcStatus === 'writing' ? 'not-allowed' : 'pointer',
-                        fontSize: '14px',
-                        fontWeight: 500,
-                        marginBottom: '12px'
-                      }}
-                    >
-                      {nfcStatus === 'writing' ? 'Writing...' :
-                       nfcStatus === 'success' ? 'Written!' :
-                       'Write to NFC Tag'}
-                    </button>
-                    {nfcMessage && (
-                      <p style={{
-                        fontSize: '13px',
-                        color: nfcStatus === 'error' ? '#ef4444' :
-                               nfcStatus === 'success' ? '#10b981' : '#6b7280'
-                      }}>
-                        {nfcMessage}
-                      </p>
-                    )}
-                    {!nfcMessage && (
-                      <p style={{
-                        fontSize: '13px',
-                        color: '#6b7280'
-                      }}>
-                        Write the board URL to an NFC tag for instant access
-                      </p>
-                    )}
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    <span>Copy Link</span>
                   </>
                 )}
-              </div>
-            )}
-
-            {activeTab === 'audio' && (
-              <div style={{ width: '100%', textAlign: 'center' }}>
-                <div style={{
-                  fontSize: '48px',
-                  marginBottom: '16px',
-                  opacity: 0.6
-                }}>
-                  ((( )))
-                </div>
-                <p style={{
-                  fontSize: '14px',
-                  color: '#374151',
-                  fontWeight: 500,
-                  marginBottom: '8px'
-                }}>
-                  Audio Connect
-                </p>
-                <p style={{
-                  fontSize: '13px',
-                  color: '#6b7280',
-                  marginBottom: '16px'
-                }}>
-                  Share the board link via ultrasonic audio
-                </p>
-                <div style={{
-                  padding: '12px 16px',
-                  backgroundColor: '#fef3c7',
-                  borderRadius: '8px',
-                  border: '1px solid #fcd34d',
-                  fontSize: '12px',
-                  color: '#92400e'
-                }}>
-                  Coming soon! Audio-based sharing will allow nearby devices to join by listening for an ultrasonic signal.
-                </div>
-              </div>
-            )}
+              </button>
+            </div>
           </div>
+
+          {/* Advanced sharing options (collapsed) */}
+          <details style={{ marginTop: '4px' }}>
+            <summary style={{
+              fontSize: '12px',
+              color: '#6b7280',
+              cursor: 'pointer',
+              userSelect: 'none',
+              padding: '4px 0',
+            }}>
+              More sharing options (NFC, Audio)
+            </summary>
+            <div style={{
+              marginTop: '12px',
+              display: 'flex',
+              gap: '8px',
+            }}>
+              {/* NFC Button */}
+              <button
+                onClick={handleNfcWrite}
+                disabled={nfcStatus === 'unsupported' || nfcStatus === 'writing'}
+                style={{
+                  flex: 1,
+                  padding: '12px',
+                  backgroundColor: nfcStatus === 'unsupported' ? '#f3f4f6' :
+                                  nfcStatus === 'success' ? '#d1fae5' :
+                                  nfcStatus === 'error' ? '#fee2e2' :
+                                  nfcStatus === 'writing' ? '#e0e7ff' : 'white',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  cursor: nfcStatus === 'unsupported' || nfcStatus === 'writing' ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '6px',
+                  opacity: nfcStatus === 'unsupported' ? 0.5 : 1,
+                }}
+              >
+                <span style={{ fontSize: '20px' }}>
+                  {nfcStatus === 'success' ? '✓' : nfcStatus === 'error' ? '!' : '📡'}
+                </span>
+                <span style={{ fontSize: '11px', color: '#374151', fontWeight: 500 }}>
+                  {nfcStatus === 'writing' ? 'Writing...' :
+                   nfcStatus === 'success' ? 'Written!' :
+                   nfcStatus === 'unsupported' ? 'NFC Unavailable' :
+                   'Write to NFC'}
+                </span>
+              </button>
+
+              {/* Audio Button (coming soon) */}
+              <button
+                disabled
+                style={{
+                  flex: 1,
+                  padding: '12px',
+                  backgroundColor: '#f3f4f6',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '8px',
+                  cursor: 'not-allowed',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '6px',
+                  opacity: 0.5,
+                }}
+              >
+                <span style={{ fontSize: '20px' }}>🔊</span>
+                <span style={{ fontSize: '11px', color: '#374151', fontWeight: 500 }}>
+                  Audio (Soon)
+                </span>
+              </button>
+            </div>
+            {nfcMessage && (
+              <p style={{
+                marginTop: '8px',
+                fontSize: '11px',
+                color: nfcStatus === 'error' ? '#ef4444' :
+                       nfcStatus === 'success' ? '#10b981' : '#6b7280',
+                textAlign: 'center',
+              }}>
+                {nfcMessage}
+              </p>
+            )}
+          </details>
         </div>
       </TldrawUiDialogBody>
       <TldrawUiDialogFooter>

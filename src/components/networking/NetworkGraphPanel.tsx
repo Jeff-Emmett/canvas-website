@@ -30,6 +30,24 @@ export function NetworkGraphPanel({ onExpand }: NetworkGraphPanelProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [selectedEdge, setSelectedEdge] = useState<GraphEdge | null>(null);
 
+  // Detect dark mode
+  const [isDarkMode, setIsDarkMode] = useState(
+    typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+  );
+
+  // Listen for theme changes
+  React.useEffect(() => {
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'class') {
+          setIsDarkMode(document.documentElement.classList.contains('dark'));
+        }
+      });
+    });
+    observer.observe(document.documentElement, { attributes: true });
+    return () => observer.disconnect();
+  }, []);
+
   // Get collaborators from tldraw
   const collaborators = useValue(
     'collaborators',
@@ -78,9 +96,9 @@ export function NetworkGraphPanel({ onExpand }: NetworkGraphPanelProps) {
     useCache: true,
   });
 
-  // Handle connect with default trust level
-  const handleConnect = useCallback(async (userId: string) => {
-    await connect(userId);
+  // Handle connect with optional trust level
+  const handleConnect = useCallback(async (userId: string, trustLevel: TrustLevel = 'connected') => {
+    await connect(userId, trustLevel);
   }, [connect]);
 
   // Handle disconnect
@@ -142,6 +160,7 @@ export function NetworkGraphPanel({ onExpand }: NetworkGraphPanelProps) {
       onExpandClick={handleExpand}
       isCollapsed={isCollapsed}
       onToggleCollapse={() => setIsCollapsed(!isCollapsed)}
+      isDarkMode={isDarkMode}
     />
   );
 }

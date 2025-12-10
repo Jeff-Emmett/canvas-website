@@ -175,6 +175,150 @@ export class AutomergeDurableObject {
         },
       })
     })
+    // =============================================================================
+    // Version History API
+    // =============================================================================
+    .get("/room/:roomId/history", async (request) => {
+      // Initialize roomId if not already set
+      if (!this.roomId) {
+        await this.ctx.blockConcurrencyWhile(async () => {
+          await this.ctx.storage.put("roomId", request.params.roomId)
+          this.roomId = request.params.roomId
+        })
+      }
+
+      // Ensure sync manager is initialized
+      if (!this.syncManager) {
+        this.syncManager = new AutomergeSyncManager(this.r2, this.roomId!)
+        await this.syncManager.initialize()
+      }
+
+      const history = await this.syncManager.getHistory()
+
+      return new Response(JSON.stringify({ history }), {
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": request.headers.get("Origin") || "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        },
+      })
+    })
+    .get("/room/:roomId/snapshot/:hash", async (request) => {
+      // Initialize roomId if not already set
+      if (!this.roomId) {
+        await this.ctx.blockConcurrencyWhile(async () => {
+          await this.ctx.storage.put("roomId", request.params.roomId)
+          this.roomId = request.params.roomId
+        })
+      }
+
+      // Ensure sync manager is initialized
+      if (!this.syncManager) {
+        this.syncManager = new AutomergeSyncManager(this.r2, this.roomId!)
+        await this.syncManager.initialize()
+      }
+
+      const hash = request.params.hash
+      const snapshot = await this.syncManager.getSnapshotAtHash(hash)
+
+      if (!snapshot) {
+        return new Response(JSON.stringify({ error: "Snapshot not found" }), {
+          status: 404,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": request.headers.get("Origin") || "*",
+          },
+        })
+      }
+
+      return new Response(JSON.stringify({ snapshot }), {
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": request.headers.get("Origin") || "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        },
+      })
+    })
+    .post("/room/:roomId/diff", async (request) => {
+      // Initialize roomId if not already set
+      if (!this.roomId) {
+        await this.ctx.blockConcurrencyWhile(async () => {
+          await this.ctx.storage.put("roomId", request.params.roomId)
+          this.roomId = request.params.roomId
+        })
+      }
+
+      // Ensure sync manager is initialized
+      if (!this.syncManager) {
+        this.syncManager = new AutomergeSyncManager(this.r2, this.roomId!)
+        await this.syncManager.initialize()
+      }
+
+      const { fromHash, toHash } = (await request.json()) as { fromHash: string | null; toHash: string | null }
+      const diff = await this.syncManager.getDiff(fromHash, toHash)
+
+      if (!diff) {
+        return new Response(JSON.stringify({ error: "Could not compute diff" }), {
+          status: 500,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": request.headers.get("Origin") || "*",
+          },
+        })
+      }
+
+      return new Response(JSON.stringify({ diff }), {
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": request.headers.get("Origin") || "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        },
+      })
+    })
+    .post("/room/:roomId/revert", async (request) => {
+      // Initialize roomId if not already set
+      if (!this.roomId) {
+        await this.ctx.blockConcurrencyWhile(async () => {
+          await this.ctx.storage.put("roomId", request.params.roomId)
+          this.roomId = request.params.roomId
+        })
+      }
+
+      // Ensure sync manager is initialized
+      if (!this.syncManager) {
+        this.syncManager = new AutomergeSyncManager(this.r2, this.roomId!)
+        await this.syncManager.initialize()
+      }
+
+      const { hash } = (await request.json()) as { hash: string }
+      const success = await this.syncManager.revertToHash(hash)
+
+      if (!success) {
+        return new Response(JSON.stringify({ error: "Could not revert to version" }), {
+          status: 500,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": request.headers.get("Origin") || "*",
+          },
+        })
+      }
+
+      // Broadcast the revert to all connected clients
+      const snapshot = await this.syncManager.getDocumentJson()
+      this.broadcastToAll({ type: "full_sync", store: snapshot?.store || {} })
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": request.headers.get("Origin") || "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        },
+      })
+    })
 
   // `fetch` is the entry point for all requests to the Durable Object
   fetch(request: Request): Response | Promise<Response> {
@@ -590,6 +734,23 @@ export class AutomergeDurableObject {
     if (broadcastCount > 0) {
       console.log(`🔌 Worker: Broadcast message to ${broadcastCount} client(s)`)
     }
+  }
+
+  private broadcastToAll(message: any) {
+    // Broadcast JSON messages to ALL connected clients (for system events like revert)
+    let broadcastCount = 0
+    for (const [sessionId, client] of this.clients) {
+      if (client.readyState === WebSocket.OPEN) {
+        try {
+          console.log(`🔌 Worker: Broadcasting to ${sessionId}`)
+          client.send(JSON.stringify(message))
+          broadcastCount++
+        } catch (error) {
+          console.error(`❌ Worker: Error broadcasting to ${sessionId}:`, error)
+        }
+      }
+    }
+    console.log(`🔌 Worker: Broadcast message to ALL ${broadcastCount} client(s)`)
   }
 
   // Generate a fast hash of the document state for change detection

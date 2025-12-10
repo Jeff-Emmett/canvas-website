@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { Editor } from 'tldraw'
+import { Editor, TLShapeId } from 'tldraw'
 
 interface OriginalDimensions {
   x: number
@@ -12,7 +12,7 @@ interface UseMaximizeOptions {
   /** Editor instance */
   editor: Editor
   /** Shape ID to maximize */
-  shapeId: string
+  shapeId: TLShapeId
   /** Current width of the shape */
   currentW: number
   /** Current height of the shape */

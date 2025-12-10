@@ -10,7 +10,7 @@ export interface Environment {
 	DAILY_DOMAIN: string;
 	// CryptID auth bindings
 	CRYPTID_DB?: D1Database;
-	SENDGRID_API_KEY?: string;
+	RESEND_API_KEY?: string;
 	CRYPTID_EMAIL_FROM?: string;
 	APP_URL?: string;
 }
@@ -95,6 +95,25 @@ export interface PermissionCheckResult {
 	permission: PermissionLevel;
 	isOwner: boolean;
 	boardExists: boolean;
+	grantedByToken?: boolean;  // True if permission was granted via access token
+}
+
+/**
+ * Access token for sharing boards with specific permissions
+ * Stored in board_access_tokens table
+ */
+export interface BoardAccessToken {
+	id: string;
+	board_id: string;
+	token: string;            // Random token string
+	permission: PermissionLevel;
+	created_by: string;       // User ID who created the token
+	created_at: string;
+	expires_at: string | null;  // NULL = never expires
+	max_uses: number | null;  // NULL = unlimited
+	use_count: number;
+	is_active: number;        // SQLite boolean (0 or 1)
+	label: string | null;     // Optional label for the token
 }
 
 // =============================================================================

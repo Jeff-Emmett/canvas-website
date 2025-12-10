@@ -373,4 +373,209 @@ export class AutomergeSyncManager {
       }
     }
   }
+
+  // =============================================================================
+  // Version History Methods
+  // =============================================================================
+
+  /**
+   * Get the change history of the document
+   * Returns a list of changes with timestamps and summaries
+   */
+  async getHistory(): Promise<HistoryEntry[]> {
+    await this.initialize()
+
+    if (!this.doc) {
+      return []
+    }
+
+    try {
+      // Get all changes from the document
+      const changes = Automerge.getAllChanges(this.doc)
+      const history: HistoryEntry[] = []
+
+      for (const change of changes) {
+        try {
+          // Decode the change to get metadata
+          const decoded = Automerge.decodeChange(change)
+
+          history.push({
+            hash: decoded.hash,
+            timestamp: decoded.time ? new Date(decoded.time * 1000).toISOString() : null,
+            message: decoded.message || null,
+            actor: decoded.actor,
+          })
+        } catch (e) {
+          console.warn('Failed to decode change:', e)
+        }
+      }
+
+      // Sort by timestamp (newest first)
+      history.sort((a, b) => {
+        if (!a.timestamp && !b.timestamp) return 0
+        if (!a.timestamp) return 1
+        if (!b.timestamp) return -1
+        return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      })
+
+      return history
+    } catch (error) {
+      console.error('Error getting history:', error)
+      return []
+    }
+  }
+
+  /**
+   * Get a snapshot of the document at a specific point in history
+   * @param hash - The change hash to view from
+   */
+  async getSnapshotAtHash(hash: string): Promise<TLStoreSnapshot | null> {
+    await this.initialize()
+
+    if (!this.doc) {
+      return null
+    }
+
+    try {
+      // Get all changes and find the index of the target hash
+      const changes = Automerge.getAllChanges(this.doc)
+      let targetIndex = -1
+
+      for (let i = 0; i < changes.length; i++) {
+        const decoded = Automerge.decodeChange(changes[i])
+        if (decoded.hash === hash) {
+          targetIndex = i
+          break
+        }
+      }
+
+      if (targetIndex === -1) {
+        console.error('Change hash not found:', hash)
+        return null
+      }
+
+      // Rebuild the document up to that point
+      let historicalDoc = Automerge.init<TLStoreSnapshot>()
+      for (let i = 0; i <= targetIndex; i++) {
+        const [newDoc] = Automerge.applyChanges(historicalDoc, [changes[i]])
+        historicalDoc = newDoc
+      }
+
+      return JSON.parse(JSON.stringify(historicalDoc)) as TLStoreSnapshot
+    } catch (error) {
+      console.error('Error getting snapshot at hash:', error)
+      return null
+    }
+  }
+
+  /**
+   * Get the diff between two snapshots
+   * Returns added, removed, and modified records
+   */
+  async getDiff(fromHash: string | null, toHash: string | null): Promise<SnapshotDiff | null> {
+    await this.initialize()
+
+    if (!this.doc) {
+      return null
+    }
+
+    try {
+      // Get the "from" snapshot (or empty if null)
+      const fromSnapshot = fromHash
+        ? await this.getSnapshotAtHash(fromHash)
+        : { store: {} }
+
+      // Get the "to" snapshot (or current if null)
+      const toSnapshot = toHash
+        ? await this.getSnapshotAtHash(toHash)
+        : JSON.parse(JSON.stringify(this.doc)) as TLStoreSnapshot
+
+      if (!fromSnapshot || !toSnapshot) {
+        return null
+      }
+
+      const fromStore = fromSnapshot.store || {}
+      const toStore = toSnapshot.store || {}
+
+      const added: Record<string, any> = {}
+      const removed: Record<string, any> = {}
+      const modified: Record<string, { before: any; after: any }> = {}
+
+      // Find added and modified records
+      for (const [id, record] of Object.entries(toStore)) {
+        if (!(id in fromStore)) {
+          added[id] = record
+        } else if (JSON.stringify(fromStore[id]) !== JSON.stringify(record)) {
+          modified[id] = {
+            before: fromStore[id],
+            after: record,
+          }
+        }
+      }
+
+      // Find removed records
+      for (const [id, record] of Object.entries(fromStore)) {
+        if (!(id in toStore)) {
+          removed[id] = record
+        }
+      }
+
+      return { added, removed, modified }
+    } catch (error) {
+      console.error('Error getting diff:', error)
+      return null
+    }
+  }
+
+  /**
+   * Revert the document to a specific point in history
+   * This creates a new change that sets the document state to match the historical state
+   * @param hash - The change hash to revert to
+   */
+  async revertToHash(hash: string): Promise<boolean> {
+    await this.initialize()
+
+    if (!this.doc) {
+      return false
+    }
+
+    try {
+      const historicalSnapshot = await this.getSnapshotAtHash(hash)
+      if (!historicalSnapshot) {
+        console.error('Could not get historical snapshot for hash:', hash)
+        return false
+      }
+
+      // Apply the historical state as a new change
+      this.doc = Automerge.change(this.doc, `Revert to ${hash.slice(0, 8)}`, (doc) => {
+        doc.store = historicalSnapshot.store || {}
+      })
+
+      // Save to R2
+      await this.forceSave()
+
+      console.log(`✅ Reverted document to hash ${hash.slice(0, 8)}`)
+      return true
+    } catch (error) {
+      console.error('Error reverting to hash:', error)
+      return false
+    }
+  }
+}
+
+// =============================================================================
+// History Types
+// =============================================================================
+
+export interface HistoryEntry {
+  hash: string
+  timestamp: string | null
+  message: string | null
+  actor: string
+}
+
+export interface SnapshotDiff {
+  added: Record<string, any>
+  removed: Record<string, any>
+  modified: Record<string, { before: any; after: any }>
 }
