@@ -804,6 +804,8 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
                           }
                         }}
                         onPointerDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        onTouchEnd={(e) => e.stopPropagation()}
                         style={{
                           flex: 1,
                           padding: '6px 10px',
@@ -819,6 +821,8 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
                           justifyContent: 'center',
                           gap: '4px',
                           transition: 'background-color 0.15s',
+                          touchAction: 'manipulation',
+                          minHeight: '44px',
                         }}
                         onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f0f0f0')}
                         onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#fff')}
@@ -850,6 +854,8 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
                           console.log('✅ ImageGen: Image download initiated')
                         }}
                         onPointerDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        onTouchEnd={(e) => e.stopPropagation()}
                         style={{
                           flex: 1,
                           padding: '6px 10px',
@@ -865,6 +871,8 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
                           justifyContent: 'center',
                           gap: '4px',
                           transition: 'opacity 0.15s',
+                          touchAction: 'manipulation',
+                          minHeight: '44px',
                         }}
                         onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.9')}
                         onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
@@ -883,6 +891,8 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
                           })
                         }}
                         onPointerDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        onTouchEnd={(e) => e.stopPropagation()}
                         style={{
                           padding: '6px 10px',
                           backgroundColor: '#fff',
@@ -896,6 +906,9 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
                           alignItems: 'center',
                           justifyContent: 'center',
                           transition: 'background-color 0.15s, color 0.15s',
+                          touchAction: 'manipulation',
+                          minWidth: '44px',
+                          minHeight: '44px',
                         }}
                         onMouseEnter={(e) => {
                           e.currentTarget.style.backgroundColor = '#fee'
@@ -952,6 +965,8 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
                   borderRadius: "6px",
                   fontSize: 13,
                   padding: "0 10px",
+                  touchAction: "manipulation",
+                  minHeight: "44px",
                 }}
                 type="text"
                 placeholder="Enter image prompt..."
@@ -975,6 +990,9 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
                 onPointerDown={(e) => {
                   e.stopPropagation()
                 }}
+                onTouchStart={(e) => {
+                  e.stopPropagation()
+                }}
                 onClick={(e) => {
                   e.stopPropagation()
                 }}
@@ -993,8 +1011,21 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
                   fontWeight: "500",
                   fontSize: "13px",
                   opacity: shape.props.prompt.trim() && !shape.props.isLoading ? 1 : 0.6,
+                  touchAction: "manipulation",
+                  minWidth: "44px",
+                  minHeight: "44px",
                 }}
                 onPointerDown={(e) => {
+                  e.stopPropagation()
+                  e.preventDefault()
+                  if (shape.props.prompt.trim() && !shape.props.isLoading) {
+                    handleGenerate()
+                  }
+                }}
+                onTouchStart={(e) => {
+                  e.stopPropagation()
+                }}
+                onTouchEnd={(e) => {
                   e.stopPropagation()
                   e.preventDefault()
                   if (shape.props.prompt.trim() && !shape.props.isLoading) {
@@ -1045,6 +1076,8 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
                     })
                   }}
                   onPointerDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => e.stopPropagation()}
                   style={{
                     padding: "2px 6px",
                     backgroundColor: "#fcc",
@@ -1053,6 +1086,9 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
                     cursor: "pointer",
                     fontSize: "10px",
                     flexShrink: 0,
+                    touchAction: "manipulation",
+                    minWidth: "32px",
+                    minHeight: "32px",
                   }}
                 >
                   ✕

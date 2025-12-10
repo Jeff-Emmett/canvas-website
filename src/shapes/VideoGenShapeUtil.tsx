@@ -482,13 +482,15 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                           setImageBase64('')
                         }}
                         onPointerDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        onTouchEnd={(e) => e.stopPropagation()}
                         disabled={isGenerating}
                         style={{
                           position: 'absolute',
                           top: '4px',
                           right: '4px',
-                          width: '24px',
-                          height: '24px',
+                          width: '32px',
+                          height: '32px',
                           borderRadius: '50%',
                           border: 'none',
                           backgroundColor: 'rgba(0,0,0,0.6)',
@@ -497,7 +499,8 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                           fontSize: '14px',
                           display: 'flex',
                           alignItems: 'center',
-                          justifyContent: 'center'
+                          justifyContent: 'center',
+                          touchAction: 'manipulation',
                         }}
                       >
                         ×
@@ -509,6 +512,12 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                       <button
                         onClick={() => fileInputRef.current?.click()}
                         onPointerDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        onTouchEnd={(e) => {
+                          e.stopPropagation()
+                          e.preventDefault()
+                          fileInputRef.current?.click()
+                        }}
                         disabled={isGenerating}
                         style={{
                           flex: 1,
@@ -522,7 +531,9 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: '6px'
+                          gap: '6px',
+                          touchAction: 'manipulation',
+                          minHeight: '44px',
                         }}
                       >
                         📤 Upload Image
@@ -549,6 +560,7 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                       placeholder="Or paste image URL..."
                       disabled={isGenerating}
                       onPointerDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
                       onMouseDown={(e) => e.stopPropagation()}
                       style={{
                         width: '100%',
@@ -558,7 +570,9 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                         border: '1px solid #ddd',
                         borderRadius: '6px',
                         fontSize: '12px',
-                        boxSizing: 'border-box'
+                        boxSizing: 'border-box',
+                        touchAction: 'manipulation',
+                        minHeight: '44px',
                       }}
                     />
                   )}
@@ -578,6 +592,7 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                     }
                     disabled={isGenerating}
                     onPointerDown={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
                     onMouseDown={(e) => e.stopPropagation()}
                     style={{
                       width: '100%',
@@ -590,7 +605,8 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                       fontSize: '13px',
                       fontFamily: 'inherit',
                       resize: 'vertical',
-                      boxSizing: 'border-box'
+                      boxSizing: 'border-box',
+                      touchAction: 'manipulation',
                     }}
                   />
                 </div>
@@ -614,6 +630,7 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                       }}
                       disabled={isGenerating}
                       onPointerDown={(e) => e.stopPropagation()}
+                      onTouchStart={(e) => e.stopPropagation()}
                       onMouseDown={(e) => e.stopPropagation()}
                       style={{
                         width: '100%',
@@ -623,7 +640,9 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                         border: '1px solid #ddd',
                         borderRadius: '6px',
                         fontSize: '13px',
-                        boxSizing: 'border-box'
+                        boxSizing: 'border-box',
+                        touchAction: 'manipulation',
+                        minHeight: '44px',
                       }}
                     />
                   </div>
@@ -632,6 +651,14 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                     onClick={handleGenerate}
                     disabled={isGenerating || !prompt.trim()}
                     onPointerDown={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                    onTouchEnd={(e) => {
+                      e.stopPropagation()
+                      e.preventDefault()
+                      if (!isGenerating && prompt.trim()) {
+                        handleGenerate()
+                      }
+                    }}
                     onMouseDown={(e) => e.stopPropagation()}
                     style={{
                       padding: '8px 20px',
@@ -644,7 +671,9 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                       cursor: isGenerating ? 'not-allowed' : 'pointer',
                       transition: 'all 0.2s',
                       whiteSpace: 'nowrap',
-                      opacity: isGenerating || !prompt.trim() ? 0.6 : 1
+                      opacity: isGenerating || !prompt.trim() ? 0.6 : 1,
+                      touchAction: 'manipulation',
+                      minHeight: '44px',
                     }}
                   >
                     {isGenerating ? 'Generating...' : (mode === 'i2v' ? 'Animate Image' : 'Generate Video')}
@@ -697,14 +726,17 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                   controls
                   autoPlay
                   loop
+                  playsInline
                   onPointerDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
                   onLoadedData={() => console.log('🎬 VideoGen: Video loaded successfully')}
                   onError={(e) => console.error('🎬 VideoGen: Video load error:', e)}
                   style={{
                     width: '100%',
                     maxHeight: '280px',
                     borderRadius: '6px',
-                    backgroundColor: '#000'
+                    backgroundColor: '#000',
+                    touchAction: 'manipulation',
                   }}
                 />
 
@@ -733,6 +765,8 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                       })
                     }}
                     onPointerDown={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                    onTouchEnd={(e) => e.stopPropagation()}
                     onMouseDown={(e) => e.stopPropagation()}
                     style={{
                       flex: 1,
@@ -743,7 +777,9 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                       borderRadius: '6px',
                       fontSize: '12px',
                       fontWeight: '500',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      touchAction: 'manipulation',
+                      minHeight: '44px',
                     }}
                   >
                     New Video
@@ -753,6 +789,8 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                     href={videoUrl}
                     download="generated-video.mp4"
                     onPointerDown={(e) => e.stopPropagation()}
+                    onTouchStart={(e) => e.stopPropagation()}
+                    onTouchEnd={(e) => e.stopPropagation()}
                     onMouseDown={(e) => e.stopPropagation()}
                     style={{
                       flex: 1,
@@ -765,7 +803,12 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                       fontWeight: '600',
                       textAlign: 'center',
                       textDecoration: 'none',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      touchAction: 'manipulation',
+                      minHeight: '44px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                     }}
                   >
                     Download

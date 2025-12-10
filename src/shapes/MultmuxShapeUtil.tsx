@@ -569,8 +569,11 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
                     color: '#cdd6f4',
                     fontFamily: 'monospace',
                     fontSize: '14px',
+                    touchAction: 'manipulation',
+                    minHeight: '44px',
                   }}
                   onPointerDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
                   onMouseDown={(e) => e.stopPropagation()}
                 />
                 <button
@@ -586,8 +589,16 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
                     fontFamily: 'monospace',
                     fontSize: '16px',
                     transition: 'background-color 0.2s',
+                    touchAction: 'manipulation',
+                    minHeight: '44px',
                   }}
                   onPointerDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => {
+                    e.stopPropagation()
+                    e.preventDefault()
+                    handleCreateSession()
+                  }}
                   onMouseDown={(e) => e.stopPropagation()}
                 >
                   + Create New Session
@@ -614,8 +625,16 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
                     color: '#cdd6f4',
                     cursor: 'pointer',
                     fontFamily: 'monospace',
+                    touchAction: 'manipulation',
+                    minHeight: '44px',
                   }}
                   onPointerDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => {
+                    e.stopPropagation()
+                    e.preventDefault()
+                    if (!loadingSessions) fetchSessions()
+                  }}
                   onMouseDown={(e) => e.stopPropagation()}
                 >
                   {loadingSessions ? 'Loading...' : 'Refresh Sessions'}
@@ -648,8 +667,16 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
                           cursor: 'pointer',
                           textAlign: 'left',
                           fontFamily: 'monospace',
+                          touchAction: 'manipulation',
+                          minHeight: '44px',
                         }}
                         onPointerDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        onTouchEnd={(e) => {
+                          e.stopPropagation()
+                          e.preventDefault()
+                          handleJoinSession(session.id)
+                        }}
                         onMouseDown={(e) => e.stopPropagation()}
                       >
                         <div style={{ fontWeight: 'bold' }}>{session.name}</div>
@@ -674,8 +701,16 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
                     fontSize: '12px',
                     fontFamily: 'monospace',
                     padding: '4px 0',
+                    touchAction: 'manipulation',
+                    minHeight: '44px',
                   }}
                   onPointerDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => {
+                    e.stopPropagation()
+                    e.preventDefault()
+                    setShowAdvanced(!showAdvanced)
+                  }}
                   onMouseDown={(e) => e.stopPropagation()}
                 >
                   {showAdvanced ? '▼' : '▶'} Advanced Settings
@@ -704,8 +739,11 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
                           color: '#cdd6f4',
                           fontFamily: 'monospace',
                           fontSize: '12px',
+                          touchAction: 'manipulation',
+                          minHeight: '44px',
                         }}
                         onPointerDown={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => e.stopPropagation()}
                         onMouseDown={(e) => e.stopPropagation()}
                       />
                     </label>

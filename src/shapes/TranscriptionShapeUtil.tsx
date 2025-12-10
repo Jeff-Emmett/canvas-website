@@ -35,8 +35,9 @@ const AutoResizeTextarea: React.FC<{
   style: React.CSSProperties
   placeholder?: string
   onPointerDown?: (e: React.PointerEvent) => void
+  onTouchStart?: (e: React.TouchEvent) => void
   onWheel?: (e: React.WheelEvent) => void
-}> = ({ value, onChange, onBlur, onKeyDown, style, placeholder, onPointerDown, onWheel }) => {
+}> = ({ value, onChange, onBlur, onKeyDown, style, placeholder, onPointerDown, onTouchStart, onWheel }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
@@ -56,8 +57,12 @@ const AutoResizeTextarea: React.FC<{
       onBlur={onBlur}
       onKeyDown={onKeyDown}
       onPointerDown={onPointerDown}
+      onTouchStart={onTouchStart}
       onWheel={onWheel}
-      style={style}
+      style={{
+        ...style,
+        touchAction: 'manipulation',
+      }}
       placeholder={placeholder}
       autoFocus
     />
@@ -638,6 +643,9 @@ export class TranscriptionShape extends BaseBoxShapeUtil<ITranscription> {
       zIndex: 1000,
       position: 'relative',
       pointerEvents: 'auto', // Ensure button can receive clicks
+      touchAction: 'manipulation',
+      minWidth: '44px',
+      minHeight: '32px',
     }
 
     // Custom header content with status indicators and controls
@@ -665,6 +673,12 @@ export class TranscriptionShape extends BaseBoxShapeUtil<ITranscription> {
                 style={buttonStyle}
                 onClick={handleSaveEdit}
                 onPointerDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => {
+                  e.stopPropagation()
+                  e.preventDefault()
+                  handleSaveEdit()
+                }}
               >
                 Save
               </button>
@@ -672,6 +686,12 @@ export class TranscriptionShape extends BaseBoxShapeUtil<ITranscription> {
                 style={buttonStyle}
                 onClick={handleCancelEdit}
                 onPointerDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => {
+                  e.stopPropagation()
+                  e.preventDefault()
+                  handleCancelEdit()
+                }}
               >
                 Cancel
               </button>
@@ -723,6 +743,7 @@ export class TranscriptionShape extends BaseBoxShapeUtil<ITranscription> {
               style={textareaStyle}
               placeholder=""
               onPointerDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
               onWheel={handleWheel}
             />
           ) : (
@@ -753,13 +774,13 @@ export class TranscriptionShape extends BaseBoxShapeUtil<ITranscription> {
             <button
               style={{
                 ...buttonStyle,
-                background: isRecording 
+                background: isRecording
                   ? "#ff4444"  // Red when recording
                   : isPaused
                   ? "#ffa500"  // Orange when paused
                   : (useWebSpeech ? webSpeechSupported : modelLoaded) ? "#007bff" : "#6c757d",  // Blue when ready to start, gray when loading
                 color: "white",
-                border: isRecording 
+                border: isRecording
                   ? "1px solid #cc0000"  // Red border when recording
                   : isPaused
                   ? "1px solid #cc8500"  // Orange border when paused
@@ -775,6 +796,16 @@ export class TranscriptionShape extends BaseBoxShapeUtil<ITranscription> {
               onPointerDown={(e) => {
                 e.stopPropagation()
               }}
+              onTouchStart={(e) => {
+                e.stopPropagation()
+              }}
+              onTouchEnd={(e) => {
+                e.stopPropagation()
+                e.preventDefault()
+                if (useWebSpeech ? webSpeechSupported : modelLoaded) {
+                  handleTranscriptionToggle()
+                }
+              }}
               disabled={useWebSpeech ? !webSpeechSupported : !modelLoaded}
               title={useWebSpeech ? (!webSpeechSupported ? "Web Speech API not supported" : "") : (!modelLoaded ? "Whisper model is loading - Please wait..." : "")}
             >
@@ -782,8 +813,8 @@ export class TranscriptionShape extends BaseBoxShapeUtil<ITranscription> {
                 if (isPaused) {
                   return "Resume"
                 }
-                const buttonText = isRecording 
-                  ? "Stop" 
+                const buttonText = isRecording
+                  ? "Stop"
                   : "Start"
                 return buttonText
               })()}
@@ -803,6 +834,14 @@ export class TranscriptionShape extends BaseBoxShapeUtil<ITranscription> {
                 }}
                 onPointerDown={(e) => {
                   e.stopPropagation()
+                }}
+                onTouchStart={(e) => {
+                  e.stopPropagation()
+                }}
+                onTouchEnd={(e) => {
+                  e.stopPropagation()
+                  e.preventDefault()
+                  handlePauseToggle()
                 }}
                 title="Pause transcription"
               >
