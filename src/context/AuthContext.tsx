@@ -105,7 +105,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const result = await AuthService.login(username);
 
       if (result.success && result.session) {
-        setSessionState(result.session);
+        // IMPORTANT: Clear permission cache when auth state changes
+        // This forces a fresh permission fetch with the new credentials
+        setSessionState({
+          ...result.session,
+          boardPermissions: {},
+          currentBoardPermission: undefined,
+        });
+        console.log('🔐 Login successful - cleared permission cache');
 
         // Save session to localStorage if authenticated
         if (result.session.authed && result.session.username) {
@@ -141,7 +148,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const result = await AuthService.register(username);
 
       if (result.success && result.session) {
-        setSessionState(result.session);
+        // IMPORTANT: Clear permission cache when auth state changes
+        // This forces a fresh permission fetch with the new credentials
+        setSessionState({
+          ...result.session,
+          boardPermissions: {},
+          currentBoardPermission: undefined,
+        });
+        console.log('🔐 Registration successful - cleared permission cache');
 
         // Save session to localStorage if authenticated
         if (result.session.authed && result.session.username) {
@@ -178,7 +192,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       loading: false,
       backupCreated: null,
       obsidianVaultPath: undefined,
-      obsidianVaultName: undefined
+      obsidianVaultName: undefined,
+      // IMPORTANT: Clear permission cache on logout to force fresh fetch on next login
+      boardPermissions: {},
+      currentBoardPermission: undefined,
     });
   }, []);
 
@@ -215,6 +232,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const fetchBoardPermission = useCallback(async (boardId: string): Promise<PermissionLevel> => {
     // Check cache first (but only if no access token - token changes permissions)
     if (!accessToken && session.boardPermissions?.[boardId]) {
+      console.log('🔐 Using cached permission for board:', boardId, session.boardPermissions[boardId]);
       return session.boardPermissions[boardId];
     }
 
@@ -224,12 +242,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         'Content-Type': 'application/json',
       };
 
+      let publicKeyUsed: string | null = null;
       if (session.authed && session.username) {
         const publicKey = crypto.getPublicKey(session.username);
         if (publicKey) {
           headers['X-CryptID-PublicKey'] = publicKey;
+          publicKeyUsed = publicKey;
         }
       }
+
+      // Debug: Log what we're sending
+      console.log('🔐 fetchBoardPermission:', {
+        boardId,
+        sessionAuthed: session.authed,
+        sessionUsername: session.username,
+        publicKeyUsed: publicKeyUsed ? `${publicKeyUsed.substring(0, 20)}...` : null,
+        hasAccessToken: !!accessToken
+      });
 
       // Build URL with optional access token
       let url = `${WORKER_URL}/boards/${boardId}/permission`;
@@ -245,8 +274,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (!response.ok) {
         console.error('Failed to fetch board permission:', response.status);
-        // Default to 'view' for unauthenticated (secure by default)
-        return 'view';
+        // Default to 'edit' for authenticated users, 'view' for unauthenticated
+        const defaultPermission: PermissionLevel = session.authed ? 'edit' : 'view';
+        console.log('🔐 Using default permission (API failed):', defaultPermission);
+        return defaultPermission;
       }
 
       const data = await response.json() as {
@@ -254,27 +285,47 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isOwner: boolean;
         boardExists: boolean;
         grantedByToken?: boolean;
+        isExplicitPermission?: boolean; // Whether this permission was explicitly set
       };
+
+      // Debug: Log what we received
+      console.log('🔐 Permission response:', data);
 
       if (data.grantedByToken) {
         console.log('🔓 Permission granted via access token:', data.permission);
       }
 
+      // Determine effective permission
+      // If authenticated user and board doesn't have explicit permissions set,
+      // default to 'edit' instead of 'view'
+      let effectivePermission = data.permission;
+
+      if (session.authed && data.permission === 'view') {
+        // If board doesn't exist in permission system or permission isn't explicitly set,
+        // authenticated users should get edit access by default
+        if (!data.boardExists || data.isExplicitPermission === false) {
+          effectivePermission = 'edit';
+          console.log('🔓 Upgrading to edit: authenticated user with no explicit view restriction');
+        }
+      }
+
       // Cache the permission
       setSessionState(prev => ({
         ...prev,
-        currentBoardPermission: data.permission,
+        currentBoardPermission: effectivePermission,
         boardPermissions: {
           ...prev.boardPermissions,
-          [boardId]: data.permission,
+          [boardId]: effectivePermission,
         },
       }));
 
-      return data.permission;
+      return effectivePermission;
     } catch (error) {
       console.error('Error fetching board permission:', error);
-      // Default to 'view' (secure by default)
-      return 'view';
+      // Default to 'edit' for authenticated users, 'view' for unauthenticated
+      const defaultPermission: PermissionLevel = session.authed ? 'edit' : 'view';
+      console.log('🔐 Using default permission (error):', defaultPermission);
+      return defaultPermission;
     }
   }, [session.authed, session.username, session.boardPermissions, accessToken]);
 

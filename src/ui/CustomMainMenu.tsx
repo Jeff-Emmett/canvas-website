@@ -6,9 +6,12 @@ import {
     DefaultMainMenuContent,
     useEditor,
 } from "tldraw";
+import { useState } from "react";
+import { MiroImportDialog } from "@/components/MiroImportDialog";
 
 export function CustomMainMenu() {
     const editor = useEditor()
+    const [showMiroImport, setShowMiroImport] = useState(false)
 
     const importJSON = (editor: Editor) => {
         const input = document.createElement("input");
@@ -727,29 +730,42 @@ export function CustomMainMenu() {
     };
 
     return (
-        <DefaultMainMenu>
-            <DefaultMainMenuContent />
-            <TldrawUiMenuItem
-                id="export"
-                label="Export JSON"
-                icon="external-link"
-                readonlyOk
-                onSelect={() => exportJSON(editor)}
+        <>
+            <DefaultMainMenu>
+                <DefaultMainMenuContent />
+                <TldrawUiMenuItem
+                    id="export"
+                    label="Export JSON"
+                    icon="external-link"
+                    readonlyOk
+                    onSelect={() => exportJSON(editor)}
+                />
+                <TldrawUiMenuItem
+                    id="import"
+                    label="Import JSON"
+                    icon="external-link"
+                    readonlyOk
+                    onSelect={() => importJSON(editor)}
+                />
+                <TldrawUiMenuItem
+                    id="import-miro"
+                    label="Import from Miro"
+                    icon="external-link"
+                    readonlyOk
+                    onSelect={() => setShowMiroImport(true)}
+                />
+                <TldrawUiMenuItem
+                    id="fit-to-content"
+                    label="Fit to Content"
+                    icon="external-link"
+                    readonlyOk
+                    onSelect={() => fitToContent(editor)}
+                />
+            </DefaultMainMenu>
+            <MiroImportDialog
+                isOpen={showMiroImport}
+                onClose={() => setShowMiroImport(false)}
             />
-            <TldrawUiMenuItem
-                id="import"
-                label="Import JSON"
-                icon="external-link"
-                readonlyOk
-                onSelect={() => importJSON(editor)}
-            />
-            <TldrawUiMenuItem
-                id="fit-to-content"
-                label="Fit to Content"
-                icon="external-link"
-                readonlyOk
-                onSelect={() => fitToContent(editor)}
-            />
-        </DefaultMainMenu>
+        </>
     )
 }

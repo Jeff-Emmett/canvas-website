@@ -29,6 +29,9 @@ import {
 } from "./boardPermissions"
 import {
   handleSendBackupEmail,
+  handleSearchUsers,
+  handleListAllUsers,
+  handleCheckUsername,
 } from "./cryptidAuth"
 
 // make sure our sync durable objects are made available to cloudflare
@@ -128,6 +131,7 @@ const { preflight, corsify } = cors({
     "X-CryptID-PublicKey",  // CryptID authentication header
     "X-User-Id",            // User ID header for networking API
     "X-Api-Key",            // API key header for external services
+    "X-Admin-Secret",       // Admin secret header for protected endpoints
     "*"
   ],
   maxAge: 86400,
@@ -833,11 +837,69 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
   })
 
   // =============================================================================
+  // Miro Import API
+  // =============================================================================
+
+  // Proxy endpoint for fetching external images (needed for CORS-blocked Miro images)
+  .get("/proxy", async (req) => {
+    const url = new URL(req.url)
+    const targetUrl = url.searchParams.get('url')
+
+    if (!targetUrl) {
+      return new Response(JSON.stringify({ error: 'Missing url parameter' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      const response = await fetch(targetUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; TldrawImporter/1.0)',
+        }
+      })
+
+      if (!response.ok) {
+        return new Response(JSON.stringify({ error: `Failed to fetch: ${response.statusText}` }), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      // Get content type and pass through the image
+      const contentType = response.headers.get('content-type') || 'application/octet-stream'
+      const body = await response.arrayBuffer()
+
+      return new Response(body, {
+        headers: {
+          'Content-Type': contentType,
+          'Cache-Control': 'public, max-age=86400', // Cache for 1 day
+        }
+      })
+    } catch (error) {
+      console.error('Proxy fetch error:', error)
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
+  // =============================================================================
   // CryptID Auth API
   // =============================================================================
 
+  // Check if a username is available for registration
+  .get("/api/auth/check-username", handleCheckUsername)
+
   // Send backup email for multi-device setup
   .post("/api/auth/send-backup-email", handleSendBackupEmail)
+
+  // Search for CryptID users by username (for granting permissions)
+  .get("/api/auth/users/search", handleSearchUsers)
+
+  // List all CryptID users (admin only, requires X-Admin-Secret header)
+  .get("/admin/users", handleListAllUsers)
 
   // =============================================================================
   // User Networking / Social Graph API

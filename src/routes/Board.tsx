@@ -12,7 +12,7 @@ import { EmbedShape } from "@/shapes/EmbedShapeUtil"
 import { EmbedTool } from "@/tools/EmbedTool"
 import { MarkdownShape } from "@/shapes/MarkdownShapeUtil"
 import { MarkdownTool } from "@/tools/MarkdownTool"
-import { defaultShapeUtils, defaultBindingUtils } from "tldraw"
+import { defaultShapeUtils, defaultBindingUtils, defaultShapeTools } from "tldraw"
 import { components } from "@/ui/components"
 import { overrides } from "@/ui/overrides"
 import { unfurlBookmarkUrl } from "../utils/unfurlBookmarkUrl"
@@ -71,8 +71,8 @@ import { GraphLayoutCollection } from "@/graph/GraphLayoutCollection"
 import { GestureTool } from "@/GestureTool"
 import { CmdK } from "@/CmdK"
 import { setupMultiPasteHandler } from "@/utils/multiPasteHandler"
-import { ConnectionStatusIndicator } from "@/components/ConnectionStatusIndicator"
 import AnonymousViewerBanner from "@/components/auth/AnonymousViewerBanner"
+import { ConnectionProvider } from "@/context/ConnectionContext"
 import { PermissionLevel } from "@/lib/auth/types"
 import "@/css/anonymous-banner.css"
 
@@ -281,7 +281,28 @@ export function Board() {
   const [permissionLoading, setPermissionLoading] = useState(true)
   const [showEditPrompt, setShowEditPrompt] = useState(false)
 
-  // Fetch permission when board loads
+  // Track previous auth state to detect transitions (fixes React timing issue)
+  // Effects run AFTER render, but we need to know if auth JUST changed during this render
+  const prevAuthRef = useRef(session.authed)
+  const authJustChanged = prevAuthRef.current !== session.authed
+
+  // Counter to force Tldraw remount on every auth change
+  // This guarantees a fresh tldraw instance with correct read-only state
+  const [authChangeCount, setAuthChangeCount] = useState(0)
+
+  // Reset permission state when auth changes (ensures fresh fetch on login/logout)
+  useEffect(() => {
+    // Update the ref after render
+    prevAuthRef.current = session.authed
+    // Increment counter to force tldraw remount
+    setAuthChangeCount(c => c + 1)
+    // When auth state changes, reset permission to trigger fresh fetch
+    setPermission(null)
+    setPermissionLoading(true)
+    console.log('🔄 Auth changed, forcing tldraw remount. New auth state:', session.authed)
+  }, [session.authed])
+
+  // Fetch permission when board loads or auth changes
   useEffect(() => {
     let mounted = true
 
@@ -291,6 +312,7 @@ export function Board() {
         const perm = await fetchBoardPermission(roomId)
         if (mounted) {
           setPermission(perm)
+          console.log('🔐 Permission fetched:', perm)
         }
       } catch (error) {
         console.error('Failed to fetch permission:', error)
@@ -312,8 +334,46 @@ export function Board() {
     }
   }, [roomId, fetchBoardPermission, session.authed])
 
-  // Check if user can edit (either has edit/admin permission, or is authenticated with default edit access)
-  const isReadOnly = permission === 'view' || (!session.authed && !permission)
+  // Check if user can edit
+  // Authenticated users get edit access by default unless explicitly restricted to 'view'
+  // Unauthenticated users are always read-only
+  // Note: permission will be 'edit' for authenticated users by default (see AuthContext)
+  //
+  // CRITICAL: Don't restrict in these cases:
+  // 1. Auth is loading
+  // 2. Auth just changed (React effects haven't run yet, permission state is stale)
+  // 3. Permission is loading for authenticated users
+  // This prevents authenticated users from briefly seeing read-only mode which hides
+  // default tools (only tools with readonlyOk: true show in read-only mode)
+  const isReadOnly = (
+    session.loading ||
+    (session.authed && authJustChanged) ||  // Auth just changed, permission is stale
+    (session.authed && permissionLoading)
+  )
+    ? false  // Don't restrict while loading/transitioning - assume authenticated users can edit
+    : (!session.authed || permission === 'view')
+
+  // Debug logging for permission issues
+  console.log('🔐 Permission Debug:', {
+    permission,
+    permissionLoading,
+    sessionAuthed: session.authed,
+    sessionLoading: session.loading,
+    sessionUsername: session.username,
+    authJustChanged,
+    isReadOnly,
+    reason: session.loading
+      ? 'auth loading - allowing edit temporarily'
+      : (session.authed && authJustChanged)
+        ? 'auth just changed - allowing edit until effects run'
+        : (session.authed && permissionLoading)
+          ? 'permission loading for authenticated user - allowing edit temporarily'
+          : !session.authed
+            ? 'not authenticated - view only mode'
+            : permission === 'view'
+              ? 'explicitly restricted to view-only by board admin'
+              : 'authenticated with edit access'
+  })
 
   // Handler for when user tries to edit in read-only mode
   const handleEditAttempt = () => {
@@ -916,17 +976,39 @@ export function Board() {
 
     let lastContentHash = '';
     let timeoutId: NodeJS.Timeout;
+    let idleCallbackId: number | null = null;
 
     const captureScreenshot = async () => {
+      // Don't capture if user is actively drawing (pointer is down)
+      // This prevents interrupting continuous drawing operations
+      const inputs = editor.inputs;
+      if (inputs.isPointing || inputs.isDragging) {
+        // Reschedule for later when user stops drawing
+        timeoutId = setTimeout(captureScreenshot, 2000);
+        return;
+      }
+
       const currentShapes = editor.getCurrentPageShapes();
-      const currentContentHash = currentShapes.length > 0 
+      const currentContentHash = currentShapes.length > 0
         ? currentShapes.map(shape => `${shape.id}-${shape.type}`).sort().join('|')
         : '';
 
       // Only capture if content actually changed
       if (currentContentHash !== lastContentHash) {
         lastContentHash = currentContentHash;
-        await captureBoardScreenshot(editor, roomId);
+
+        // Use requestIdleCallback to run during browser idle time
+        // This prevents blocking the main thread during user interactions
+        const doCapture = () => {
+          captureBoardScreenshot(editor, roomId);
+        };
+
+        if ('requestIdleCallback' in window) {
+          idleCallbackId = requestIdleCallback(doCapture, { timeout: 5000 });
+        } else {
+          // Fallback for browsers without requestIdleCallback
+          setTimeout(doCapture, 100);
+        }
       }
     };
 
@@ -934,14 +1016,18 @@ export function Board() {
     const unsubscribe = store.store.listen(() => {
       // Clear existing timeout
       if (timeoutId) clearTimeout(timeoutId);
-      
-      // Set new timeout for debounced screenshot capture
-      timeoutId = setTimeout(captureScreenshot, 3000);
+
+      // Set new timeout for debounced screenshot capture (5 seconds instead of 3)
+      // Longer debounce gives users more time for continuous operations
+      timeoutId = setTimeout(captureScreenshot, 5000);
     }, { source: "user", scope: "document" });
 
     return () => {
       unsubscribe();
       if (timeoutId) clearTimeout(timeoutId);
+      if (idleCallbackId !== null && 'cancelIdleCallback' in window) {
+        cancelIdleCallback(idleCallbackId);
+      }
     };
   }, [editor, roomId, store.store]);
 
@@ -1071,143 +1157,149 @@ export function Board() {
 
   return (
     <AutomergeHandleProvider handle={automergeHandle}>
-      <div style={{ position: "fixed", inset: 0 }}>
-        <Tldraw
-        store={store.store}
-        user={user}
-        shapeUtils={[...defaultShapeUtils, ...customShapeUtils]}
-        tools={customTools}
-        components={components}
-        overrides={{
-          ...overrides,
-          actions: (editor, actions, helpers) => {
-            const customActions = overrides.actions?.(editor, actions, helpers) ?? {}
-            return {
-              ...actions,
-              ...customActions,
+      <ConnectionProvider connectionState={connectionState} isNetworkOnline={isNetworkOnline}>
+        <div style={{ position: "fixed", inset: 0 }}>
+          <Tldraw
+          key={`tldraw-${authChangeCount}-${session.authed ? 'authed' : 'anon'}-${session.username || 'guest'}`}
+          store={store.store}
+          user={user}
+          shapeUtils={[...defaultShapeUtils, ...customShapeUtils]}
+          tools={[...defaultShapeTools, ...customTools]}
+          components={components}
+          overrides={{
+            ...overrides,
+            actions: (editor, actions, helpers) => {
+              const customActions = overrides.actions?.(editor, actions, helpers) ?? {}
+              return {
+                ...actions,
+                ...customActions,
+              }
             }
-          }
-        }}
-        cameraOptions={{
-          zoomSteps: [
-            0.001, // Min zoom
-            0.0025,
-            0.005,
-            0.01,
-            0.025,
-            0.05,
-            0.1,
-            0.25,
-            0.5,
-            1,
-            2,
-            4,
-            8,
-            16,
-            32,
-            64, // Max zoom
-          ],
-        }}
- onMount={(editor) => {
-          setEditor(editor)
-          editor.registerExternalAssetHandler("url", unfurlBookmarkUrl)
-          editor.setCurrentTool("hand")
-          setInitialCameraFromUrl(editor)
-          handleInitialPageLoad(editor)
-          registerPropagators(editor, [
-            TickPropagator,
-            ChangePropagator,
-            ClickPropagator,
-          ])
+          }}
+          cameraOptions={{
+            zoomSteps: [
+              0.001, // Min zoom
+              0.0025,
+              0.005,
+              0.01,
+              0.025,
+              0.05,
+              0.1,
+              0.25,
+              0.5,
+              1,
+              2,
+              4,
+              8,
+              16,
+              32,
+              64, // Max zoom
+            ],
+          }}
+          onMount={(editor) => {
+            setEditor(editor)
+            editor.registerExternalAssetHandler("url", unfurlBookmarkUrl)
+            editor.setCurrentTool("hand")
+            setInitialCameraFromUrl(editor)
+            handleInitialPageLoad(editor)
+            registerPropagators(editor, [
+              TickPropagator,
+              ChangePropagator,
+              ClickPropagator,
+            ])
 
-          // Clean up corrupted shapes that cause "No nearest point found" errors
-          // This typically happens with draw/line shapes that have no points
-          try {
-            const allShapes = editor.getCurrentPageShapes()
-            const corruptedShapeIds: TLShapeId[] = []
+            // Clean up corrupted shapes that cause "No nearest point found" errors
+            // This typically happens with draw/line shapes that have no points
+            try {
+              const allShapes = editor.getCurrentPageShapes()
+              const corruptedShapeIds: TLShapeId[] = []
 
-            for (const shape of allShapes) {
-              // Check draw and line shapes for missing/empty segments
-              if (shape.type === 'draw' || shape.type === 'line') {
-                const props = shape.props as any
-                // Draw shapes need segments with points
-                if (shape.type === 'draw') {
-                  if (!props.segments || props.segments.length === 0) {
-                    corruptedShapeIds.push(shape.id)
-                    continue
+              for (const shape of allShapes) {
+                // Check draw and line shapes for missing/empty segments
+                if (shape.type === 'draw' || shape.type === 'line') {
+                  const props = shape.props as any
+                  // Draw shapes need segments with points
+                  if (shape.type === 'draw') {
+                    if (!props.segments || props.segments.length === 0) {
+                      corruptedShapeIds.push(shape.id)
+                      continue
+                    }
+                    // Check if all segments have no points
+                    const hasPoints = props.segments.some((seg: any) => seg.points && seg.points.length > 0)
+                    if (!hasPoints) {
+                      corruptedShapeIds.push(shape.id)
+                    }
                   }
-                  // Check if all segments have no points
-                  const hasPoints = props.segments.some((seg: any) => seg.points && seg.points.length > 0)
-                  if (!hasPoints) {
-                    corruptedShapeIds.push(shape.id)
-                  }
-                }
-                // Line shapes need points
-                if (shape.type === 'line') {
-                  if (!props.points || Object.keys(props.points).length === 0) {
-                    corruptedShapeIds.push(shape.id)
+                  // Line shapes need points
+                  if (shape.type === 'line') {
+                    if (!props.points || Object.keys(props.points).length === 0) {
+                      corruptedShapeIds.push(shape.id)
+                    }
                   }
                 }
               }
+
+              if (corruptedShapeIds.length > 0) {
+                console.warn(`🧹 Removing ${corruptedShapeIds.length} corrupted shapes (draw/line with no points)`)
+                editor.deleteShapes(corruptedShapeIds)
+              }
+            } catch (error) {
+              console.error('Error cleaning up corrupted shapes:', error)
             }
 
-            if (corruptedShapeIds.length > 0) {
-              console.warn(`🧹 Removing ${corruptedShapeIds.length} corrupted shapes (draw/line with no points)`)
-              editor.deleteShapes(corruptedShapeIds)
+            // Set user preferences immediately if user is authenticated
+            if (session.authed && session.username) {
+              try {
+                editor.user.updateUserPreferences({
+                  id: session.username,
+                  name: session.username,
+                });
+              } catch (error) {
+                console.error('Error setting initial TLDraw user preferences:', error);
+              }
+            } else {
+              // Set default user preferences when not authenticated
+              try {
+                editor.user.updateUserPreferences({
+                  id: 'user-1',
+                  name: 'User 1',
+                });
+              } catch (error) {
+                console.error('Error setting default TLDraw user preferences:', error);
+              }
             }
-          } catch (error) {
-            console.error('Error cleaning up corrupted shapes:', error)
-          }
-          
-          // Set user preferences immediately if user is authenticated
-          if (session.authed && session.username) {
-            try {
-              editor.user.updateUserPreferences({
-                id: session.username,
-                name: session.username,
-              });
-            } catch (error) {
-              console.error('Error setting initial TLDraw user preferences:', error);
-            }
-          } else {
-            // Set default user preferences when not authenticated
-            try {
-              editor.user.updateUserPreferences({
-                id: 'user-1',
-                name: 'User 1',
-              });
-            } catch (error) {
-              console.error('Error setting default TLDraw user preferences:', error);
-            }
-          }
-          initializeGlobalCollections(editor, collections)
-          // Note: User presence is configured through the useAutomergeSync hook above
-          // The authenticated username should appear in the people section
-          // MycelialIntelligence is now a permanent UI bar - no shape creation needed
+            initializeGlobalCollections(editor, collections)
+            // Note: User presence is configured through the useAutomergeSync hook above
+            // The authenticated username should appear in the people section
+            // MycelialIntelligence is now a permanent UI bar - no shape creation needed
 
-          // Set read-only mode based on permission
-          if (isReadOnly) {
-            editor.updateInstanceState({ isReadonly: true })
-            console.log('🔒 Board is in read-only mode for this user')
-          }
-        }}
-        >
-          <CmdK />
-          <PrivateWorkspaceManager />
-          <VisibilityChangeManager />
-        </Tldraw>
-        <ConnectionStatusIndicator
-          connectionState={connectionState}
-          isNetworkOnline={isNetworkOnline}
-        />
-        {/* Anonymous viewer banner - show for unauthenticated users or when edit was attempted */}
-        {(!session.authed || showEditPrompt) && (
-          <AnonymousViewerBanner
-            onAuthenticated={handleAuthenticated}
-            triggeredByEdit={showEditPrompt}
-          />
-        )}
-      </div>
+            // Set read-only mode based on auth state
+            // IMPORTANT: Use session.authed directly here, not the isReadOnly variable
+            // The isReadOnly variable might have stale values due to React's timing (effects run after render)
+            // For authenticated users, we assume editable until permission proves otherwise
+            // The effect that watches isReadOnly will update this if user only has 'view' permission
+            const initialReadOnly = !session.authed
+            editor.updateInstanceState({ isReadonly: initialReadOnly })
+            console.log('🔄 onMount: session.authed =', session.authed, ', setting isReadonly =', initialReadOnly)
+            console.log(initialReadOnly
+              ? '🔒 Board is in read-only mode (not authenticated)'
+              : '🔓 Board is editable (authenticated)')
+          }}
+          >
+            <CmdK />
+            <PrivateWorkspaceManager />
+            <VisibilityChangeManager />
+          </Tldraw>
+          {/* Anonymous viewer banner - show for unauthenticated users or when edit was attempted */}
+          {/* Wait for auth to finish loading to avoid flash, then show if not authed or edit triggered */}
+          {!session.loading && (!session.authed || showEditPrompt) && (
+            <AnonymousViewerBanner
+              onAuthenticated={handleAuthenticated}
+              triggeredByEdit={showEditPrompt}
+            />
+          )}
+        </div>
+      </ConnectionProvider>
     </AutomergeHandleProvider>
   )
 }

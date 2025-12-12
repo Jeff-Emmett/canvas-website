@@ -155,6 +155,45 @@ export function useNetworkGraph(options: UseNetworkGraphOptions = {}): UseNetwor
     try {
       setState(prev => ({ ...prev, isLoading: !prev.nodes.length }));
 
+      // Double-check authentication before making API calls
+      // This handles race conditions where session state might not be updated yet
+      const currentUserId = (() => {
+        try {
+          // Session is stored as 'canvas_auth_session' by sessionPersistence.ts
+          const sessionStr = localStorage.getItem('canvas_auth_session');
+          if (sessionStr) {
+            const s = JSON.parse(sessionStr);
+            if (s.authed && s.username) return s.username;
+          }
+        } catch { /* ignore */ }
+        return null;
+      })();
+
+      if (!currentUserId) {
+        // Not authenticated - use room participants only
+        const anonymousNodes: GraphNode[] = roomParticipants.map(participant => ({
+          id: participant.id,
+          username: participant.username,
+          displayName: participant.username,
+          avatarColor: participant.color,
+          isInRoom: true,
+          roomPresenceColor: participant.color,
+          isCurrentUser: participant.id === roomParticipants[0]?.id,
+          isAnonymous: true,
+          trustLevelTo: undefined,
+          trustLevelFrom: undefined,
+        }));
+
+        setState({
+          nodes: anonymousNodes,
+          edges: [],
+          myConnections: [],
+          isLoading: false,
+          error: null,
+        });
+        return;
+      }
+
       // Fetch graph, optionally scoped to room
       let graph: NetworkGraph;
       try {
@@ -165,7 +204,10 @@ export function useNetworkGraph(options: UseNetworkGraphOptions = {}): UseNetwor
         }
       } catch (apiError: any) {
         // If API call fails (e.g., 401 Unauthorized), fall back to showing room participants
-        console.warn('Network graph API failed, falling back to room participants:', apiError.message);
+        // Only log if it's not a 401 (which is expected for auth issues)
+        if (!apiError.message?.includes('401')) {
+          console.warn('Network graph API failed, falling back to room participants:', apiError.message);
+        }
         const fallbackNodes: GraphNode[] = roomParticipants.map(participant => ({
           id: participant.id,
           username: participant.username,

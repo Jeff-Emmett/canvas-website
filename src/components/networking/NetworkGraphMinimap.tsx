@@ -17,7 +17,7 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as d3 from 'd3';
-import { type GraphNode, type GraphEdge, type TrustLevel, TRUST_LEVEL_COLORS } from '../../lib/networking';
+import { type GraphNode, type GraphEdge, type TrustLevel } from '../../lib/networking';
 import { UserSearchModal } from './UserSearchModal';
 
 // =============================================================================
@@ -32,6 +32,9 @@ interface NetworkGraphMinimapProps {
   onConnect: (userId: string, trustLevel?: TrustLevel) => Promise<void>;
   onDisconnect?: (connectionId: string) => Promise<void>;
   onNodeClick?: (node: GraphNode) => void;
+  onGoToUser?: (node: GraphNode) => void;
+  onFollowUser?: (node: GraphNode) => void;
+  onOpenProfile?: (node: GraphNode) => void;
   onEdgeClick?: (edge: GraphEdge) => void;
   onExpandClick?: () => void;
   width?: number;
@@ -132,25 +135,6 @@ const getStyles = (isDarkMode: boolean) => ({
   collapsedIcon: {
     fontSize: '20px',
   },
-  stats: {
-    display: 'flex',
-    gap: '12px',
-    padding: '6px 12px',
-    borderTop: isDarkMode ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.08)',
-    fontSize: '11px',
-    color: isDarkMode ? '#888' : '#6b7280',
-    backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.02)',
-  },
-  stat: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '4px',
-  },
-  statDot: {
-    width: '8px',
-    height: '8px',
-    borderRadius: '50%',
-  },
 });
 
 // =============================================================================
@@ -165,6 +149,9 @@ export function NetworkGraphMinimap({
   onConnect,
   onDisconnect,
   onNodeClick,
+  onGoToUser,
+  onFollowUser,
+  onOpenProfile,
   onEdgeClick,
   onExpandClick,
   width = 240,
@@ -182,13 +169,6 @@ export function NetworkGraphMinimap({
 
   // Get theme-aware styles
   const styles = React.useMemo(() => getStyles(isDarkMode), [isDarkMode]);
-
-  // Count stats
-  const inRoomCount = nodes.filter(n => n.isInRoom).length;
-  const anonymousCount = nodes.filter(n => n.isAnonymous).length;
-  const trustedCount = nodes.filter(n => n.trustLevelTo === 'trusted').length;
-  const connectedCount = nodes.filter(n => n.trustLevelTo === 'connected').length;
-  const unconnectedCount = nodes.filter(n => !n.trustLevelTo && !n.isCurrentUser && !n.isAnonymous).length;
 
   // Initialize and update the D3 simulation
   useEffect(() => {
@@ -313,41 +293,18 @@ export function NetworkGraphMinimap({
         }
       });
 
-    // Helper to get node color based on trust level and room status
-    // Priority: current user (purple) > anonymous (grey) > trust level > unconnected (white)
+    // Helper to get node color - uses the user's profile/presence color
     const getNodeColor = (d: SimulationNode) => {
-      if (d.isCurrentUser) {
-        return '#4f46e5'; // Current user is always purple
+      // Use room presence color (user's profile color) if available
+      if (d.roomPresenceColor) {
+        return d.roomPresenceColor;
       }
-      // Anonymous users are grey
-      if (d.isAnonymous) {
-        return TRUST_LEVEL_COLORS.anonymous;
+      // Use avatar color as fallback
+      if (d.avatarColor) {
+        return d.avatarColor;
       }
-      // If in room and has presence color, use it for the stroke/ring instead
-      // (we still use trust level for fill to maintain visual consistency)
-      // Otherwise use trust level color
-      if (d.trustLevelTo) {
-        return TRUST_LEVEL_COLORS[d.trustLevelTo];
-      }
-      // Authenticated but unconnected = white
-      return TRUST_LEVEL_COLORS.unconnected;
-    };
-
-    // Helper to get node stroke color (for in-room presence indicator)
-    const getNodeStroke = (d: SimulationNode) => {
-      if (d.isCurrentUser) return '#fff';
-      // Show room presence color as a ring around the node
-      if (d.isInRoom && d.roomPresenceColor) return d.roomPresenceColor;
-      // White nodes need a subtle border to be visible
-      if (!d.isAnonymous && !d.trustLevelTo) return '#e5e7eb';
-      return 'none';
-    };
-
-    const getNodeStrokeWidth = (d: SimulationNode) => {
-      if (d.isCurrentUser) return 2;
-      if (d.isInRoom && d.roomPresenceColor) return 2;
-      if (!d.isAnonymous && !d.trustLevelTo) return 1;
-      return 0;
+      // Default grey for users without a color
+      return '#9ca3af';
     };
 
     // Create nodes
@@ -358,15 +315,13 @@ export function NetworkGraphMinimap({
       .join('circle')
       .attr('r', d => d.isCurrentUser ? 8 : 6)
       .attr('fill', d => getNodeColor(d))
-      .attr('stroke', d => getNodeStroke(d))
-      .attr('stroke-width', d => getNodeStrokeWidth(d))
       .style('cursor', 'pointer')
       .on('mouseenter', (event, d) => {
         const rect = svgRef.current!.getBoundingClientRect();
         setTooltip({
           x: event.clientX - rect.left,
           y: event.clientY - rect.top,
-          text: `${d.displayName || d.username}${d.isAnonymous ? ' (anonymous)' : ''}`,
+          text: d.displayName || d.username,
         });
       })
       .on('mouseleave', () => {
@@ -374,12 +329,12 @@ export function NetworkGraphMinimap({
       })
       .on('click', (event, d) => {
         event.stopPropagation();
-        // Don't show popup for current user or anonymous users
-        if (d.isCurrentUser || d.isAnonymous) {
+        // Don't show popup for current user
+        if (d.isCurrentUser) {
           if (onNodeClick) onNodeClick(d);
           return;
         }
-        // Show connection popup
+        // Show dropdown menu for all other users
         const rect = svgRef.current!.getBoundingClientRect();
         setSelectedNode({
           node: d,
@@ -502,187 +457,142 @@ export function NetworkGraphMinimap({
             </div>
           )}
 
-          {/* Connection popup when clicking a node */}
-          {selectedNode && !selectedNode.node.isCurrentUser && !selectedNode.node.isAnonymous && (
+          {/* User action dropdown menu when clicking a node */}
+          {selectedNode && !selectedNode.node.isCurrentUser && (
             <div
               style={{
                 position: 'absolute',
-                left: Math.min(selectedNode.x, width - 140),
-                top: Math.max(selectedNode.y - 80, 10),
-                backgroundColor: 'white',
+                left: Math.min(selectedNode.x, width - 160),
+                top: Math.max(selectedNode.y - 10, 10),
+                backgroundColor: isDarkMode ? '#1e1e2e' : 'white',
                 borderRadius: '8px',
-                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                padding: '8px',
+                boxShadow: isDarkMode ? '0 4px 12px rgba(0, 0, 0, 0.4)' : '0 4px 12px rgba(0, 0, 0, 0.15)',
+                padding: '6px',
                 zIndex: 1002,
-                minWidth: '130px',
+                minWidth: '150px',
+                border: isDarkMode ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.1)',
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div style={{ fontSize: '11px', fontWeight: 600, marginBottom: '6px', color: '#1a1a2e' }}>
-                {selectedNode.node.displayName || selectedNode.node.username}
-              </div>
-              <div style={{ fontSize: '10px', color: '#666', marginBottom: '8px' }}>
-                @{selectedNode.node.username}
-              </div>
-
-              {/* Connection actions */}
-              {selectedNode.node.trustLevelTo ? (
-                // Already connected - show trust level options
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <button
-                    onClick={async () => {
-                      // Toggle trust level
-                      const newLevel = selectedNode.node.trustLevelTo === 'trusted' ? 'connected' : 'trusted';
-                      setIsConnecting(true);
-                      // This would need updateTrustLevel function passed as prop
-                      // For now, just close the popup
-                      setSelectedNode(null);
-                      setIsConnecting(false);
-                    }}
-                    disabled={isConnecting}
-                    style={{
-                      padding: '6px 10px',
-                      fontSize: '10px',
-                      backgroundColor: selectedNode.node.trustLevelTo === 'trusted' ? '#fef3c7' : '#d1fae5',
-                      color: selectedNode.node.trustLevelTo === 'trusted' ? '#92400e' : '#065f46',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {selectedNode.node.trustLevelTo === 'trusted' ? 'Downgrade to Connected' : 'Upgrade to Trusted'}
-                  </button>
-                  <button
-                    onClick={async () => {
-                      setIsConnecting(true);
-                      try {
-                        // Find connection ID and disconnect
-                        const edge = edges.find(e =>
-                          (e.source === currentUserId && e.target === selectedNode.node.id) ||
-                          (e.target === currentUserId && e.source === selectedNode.node.id)
-                        );
-                        if (edge && onDisconnect) {
-                          await onDisconnect(edge.id);
-                        }
-                      } catch (err) {
-                        console.error('Failed to disconnect:', err);
-                      }
-                      setSelectedNode(null);
-                      setIsConnecting(false);
-                    }}
-                    disabled={isConnecting}
-                    style={{
-                      padding: '6px 10px',
-                      fontSize: '10px',
-                      backgroundColor: '#fee2e2',
-                      color: '#dc2626',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {isConnecting ? 'Removing...' : 'Remove Connection'}
-                  </button>
-                </div>
-              ) : (
-                // Not connected - show connect options
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <button
-                    onClick={async () => {
-                      setIsConnecting(true);
-                      try {
-                        // Use username for API call (CryptID username), not tldraw session id
-                        const userId = selectedNode.node.username || selectedNode.node.id;
-                        await onConnect(userId, 'connected');
-                      } catch (err) {
-                        console.error('Failed to connect:', err);
-                      }
-                      setSelectedNode(null);
-                      setIsConnecting(false);
-                    }}
-                    disabled={isConnecting}
-                    style={{
-                      padding: '6px 10px',
-                      fontSize: '10px',
-                      backgroundColor: '#fef3c7',
-                      color: '#92400e',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {isConnecting ? 'Connecting...' : 'Connect (View)'}
-                  </button>
-                  <button
-                    onClick={async () => {
-                      setIsConnecting(true);
-                      try {
-                        // Use username for API call (CryptID username), not tldraw session id
-                        // Connect with trusted level directly
-                        const userId = selectedNode.node.username || selectedNode.node.id;
-                        await onConnect(userId, 'trusted');
-                      } catch (err) {
-                        console.error('Failed to connect:', err);
-                      }
-                      setSelectedNode(null);
-                      setIsConnecting(false);
-                    }}
-                    disabled={isConnecting}
-                    style={{
-                      padding: '6px 10px',
-                      fontSize: '10px',
-                      backgroundColor: '#d1fae5',
-                      color: '#065f46',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {isConnecting ? 'Connecting...' : 'Trust (Edit)'}
-                  </button>
-                </div>
+              {/* Connect option - only for non-anonymous users */}
+              {!selectedNode.node.isAnonymous && (
+                <button
+                  onClick={async () => {
+                    setIsConnecting(true);
+                    try {
+                      const userId = selectedNode.node.username || selectedNode.node.id;
+                      await onConnect(userId, 'connected');
+                    } catch (err) {
+                      console.error('Failed to connect:', err);
+                    }
+                    setSelectedNode(null);
+                    setIsConnecting(false);
+                  }}
+                  disabled={isConnecting}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    fontSize: '11px',
+                    backgroundColor: 'transparent',
+                    color: isDarkMode ? '#fbbf24' : '#92400e',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <span>🔗</span> Connect with {selectedNode.node.displayName || selectedNode.node.username}
+                </button>
               )}
 
-              <button
-                onClick={() => setSelectedNode(null)}
-                style={{
-                  marginTop: '6px',
-                  width: '100%',
-                  padding: '4px',
-                  fontSize: '9px',
-                  backgroundColor: 'transparent',
-                  color: '#666',
-                  border: 'none',
-                  cursor: 'pointer',
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          )}
-        </div>
+              {/* Navigate option - only for in-room users */}
+              {selectedNode.node.isInRoom && onGoToUser && (
+                <button
+                  onClick={() => {
+                    onGoToUser(selectedNode.node);
+                    setSelectedNode(null);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    fontSize: '11px',
+                    backgroundColor: 'transparent',
+                    color: isDarkMode ? '#a0a0ff' : '#4f46e5',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <span>📍</span> Navigate to {selectedNode.node.displayName || selectedNode.node.username}
+                </button>
+              )}
 
-        <div style={styles.stats}>
-          <div style={styles.stat} title="Users in this room">
-            <div style={{ ...styles.statDot, backgroundColor: '#4f46e5' }} />
-            <span>{inRoomCount}</span>
-          </div>
-          <div style={styles.stat} title="Trusted (edit access)">
-            <div style={{ ...styles.statDot, backgroundColor: TRUST_LEVEL_COLORS.trusted }} />
-            <span>{trustedCount}</span>
-          </div>
-          <div style={styles.stat} title="Connected (view access)">
-            <div style={{ ...styles.statDot, backgroundColor: TRUST_LEVEL_COLORS.connected }} />
-            <span>{connectedCount}</span>
-          </div>
-          <div style={styles.stat} title="Unconnected">
-            <div style={{ ...styles.statDot, backgroundColor: TRUST_LEVEL_COLORS.unconnected, border: '1px solid #e5e7eb' }} />
-            <span>{unconnectedCount}</span>
-          </div>
-          {anonymousCount > 0 && (
-            <div style={styles.stat} title="Anonymous">
-              <div style={{ ...styles.statDot, backgroundColor: TRUST_LEVEL_COLORS.anonymous }} />
-              <span>{anonymousCount}</span>
+              {/* Screenfollow option - only for in-room users */}
+              {selectedNode.node.isInRoom && onFollowUser && (
+                <button
+                  onClick={() => {
+                    onFollowUser(selectedNode.node);
+                    setSelectedNode(null);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    fontSize: '11px',
+                    backgroundColor: 'transparent',
+                    color: isDarkMode ? '#60a5fa' : '#2563eb',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <span>👁️</span> Screenfollow {selectedNode.node.displayName || selectedNode.node.username}
+                </button>
+              )}
+
+              {/* Open profile option - only for non-anonymous users */}
+              {!selectedNode.node.isAnonymous && onOpenProfile && (
+                <button
+                  onClick={() => {
+                    onOpenProfile(selectedNode.node);
+                    setSelectedNode(null);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    fontSize: '11px',
+                    backgroundColor: 'transparent',
+                    color: isDarkMode ? '#e0e0e0' : '#374151',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <span>👤</span> Open {selectedNode.node.displayName || selectedNode.node.username}'s profile
+                </button>
+              )}
             </div>
           )}
         </div>

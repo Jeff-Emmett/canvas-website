@@ -203,6 +203,31 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
     console.log(`✅ Applied ${changedRecordCount} records and ${deletedRecordIds.length} deletions to Automerge document`)
   }, [])
 
+  // Presence update batching to prevent "Maximum update depth exceeded" errors
+  // We batch presence updates and apply them in a single mergeRemoteChanges call
+  const pendingPresenceUpdates = useRef<Map<string, any>>(new Map())
+  const presenceUpdateTimer = useRef<NodeJS.Timeout | null>(null)
+  const PRESENCE_BATCH_INTERVAL_MS = 16 // ~60fps, batch updates every frame
+
+  // Flush pending presence updates to the store
+  const flushPresenceUpdates = useCallback(() => {
+    const currentStore = storeRef.current
+    if (!currentStore || pendingPresenceUpdates.current.size === 0) {
+      return
+    }
+
+    const updates = Array.from(pendingPresenceUpdates.current.values())
+    pendingPresenceUpdates.current.clear()
+
+    try {
+      currentStore.mergeRemoteChanges(() => {
+        currentStore.put(updates)
+      })
+    } catch (error) {
+      console.error('❌ Error flushing presence updates:', error)
+    }
+  }, [])
+
   // Presence update callback - applies presence from other clients
   // Presence is ephemeral (cursors, selections) and goes directly to the store
   // Note: This callback is passed to the adapter but accesses storeRef which updates later
@@ -256,16 +281,21 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
         lastActivityTimestamp: Date.now()
       })
 
-      // Apply the instance_presence record using mergeRemoteChanges for atomic updates
-      currentStore.mergeRemoteChanges(() => {
-        currentStore.put([instancePresence])
-      })
+      // Queue the presence update for batched application
+      pendingPresenceUpdates.current.set(presenceId, instancePresence)
 
-      // Presence applied for remote user
+      // Schedule a flush if not already scheduled
+      if (!presenceUpdateTimer.current) {
+        presenceUpdateTimer.current = setTimeout(() => {
+          presenceUpdateTimer.current = null
+          flushPresenceUpdates()
+        }, PRESENCE_BATCH_INTERVAL_MS)
+      }
+
     } catch (error) {
       console.error('❌ Error applying presence:', error)
     }
-  }, [])
+  }, [flushPresenceUpdates])
   
   const { repo, adapter, storageAdapter } = useMemo(() => {
     const adapter = new CloudflareNetworkAdapter(
@@ -541,6 +571,11 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
 
     return () => {
       mounted = false
+      // Clear any pending presence update timer
+      if (presenceUpdateTimer.current) {
+        clearTimeout(presenceUpdateTimer.current)
+        presenceUpdateTimer.current = null
+      }
       // Disconnect adapter on unmount to clean up WebSocket connection
       if (adapter) {
         adapter.disconnect?.()

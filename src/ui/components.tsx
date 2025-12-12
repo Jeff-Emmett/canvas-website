@@ -1,16 +1,20 @@
 import React from "react"
+import { createPortal } from "react-dom"
+import { useParams } from "react-router-dom"
 import { CustomMainMenu } from "./CustomMainMenu"
 import { CustomToolbar } from "./CustomToolbar"
 import { CustomContextMenu } from "./CustomContextMenu"
 import { FocusLockIndicator } from "./FocusLockIndicator"
 import { MycelialIntelligenceBar } from "./MycelialIntelligenceBar"
 import { CommandPalette } from "./CommandPalette"
-import { UserSettingsModal } from "./UserSettingsModal"
 import { NetworkGraphPanel } from "../components/networking"
 import CryptIDDropdown from "../components/auth/CryptIDDropdown"
 import StarBoardButton from "../components/StarBoardButton"
 import ShareBoardButton from "../components/ShareBoardButton"
 import { SettingsDialog } from "./SettingsDialog"
+import { useAuth } from "../context/AuthContext"
+import { PermissionLevel } from "../lib/auth/types"
+import { WORKER_URL } from "../constants/workerUrl"
 import {
   DefaultKeyboardShortcutsDialog,
   DefaultKeyboardShortcutsDialogContent,
@@ -32,16 +36,103 @@ const AI_TOOLS = [
   { id: 'mycelial', name: 'Mycelial', icon: '🍄', model: 'llama3.1:70b', provider: 'Ollama', type: 'local' },
 ];
 
+// Permission labels and colors
+const PERMISSION_CONFIG: Record<PermissionLevel, { label: string; color: string; icon: string }> = {
+  view: { label: 'View Only', color: '#6b7280', icon: '👁️' },
+  edit: { label: 'Edit', color: '#3b82f6', icon: '✏️' },
+  admin: { label: 'Admin', color: '#10b981', icon: '👑' },
+}
+
 // Custom SharePanel with layout: CryptID -> Star -> Gear -> Question mark
 function CustomSharePanel() {
   const tools = useTools()
   const actions = useActions()
   const { addDialog, removeDialog } = useDialogs()
+  const { session } = useAuth()
+  const { slug } = useParams<{ slug: string }>()
+  const boardId = slug || 'mycofi33'
+
   const [showShortcuts, setShowShortcuts] = React.useState(false)
-  const [showSettings, setShowSettings] = React.useState(false)
   const [showSettingsDropdown, setShowSettingsDropdown] = React.useState(false)
   const [showAISection, setShowAISection] = React.useState(false)
   const [hasApiKey, setHasApiKey] = React.useState(false)
+  const [permissionRequestStatus, setPermissionRequestStatus] = React.useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [requestMessage, setRequestMessage] = React.useState('')
+
+  // Refs for dropdown positioning
+  const settingsButtonRef = React.useRef<HTMLButtonElement>(null)
+  const shortcutsButtonRef = React.useRef<HTMLButtonElement>(null)
+  const [settingsDropdownPos, setSettingsDropdownPos] = React.useState<{ top: number; right: number } | null>(null)
+  const [shortcutsDropdownPos, setShortcutsDropdownPos] = React.useState<{ top: number; right: number } | null>(null)
+
+  // Get current permission from session
+  // Authenticated users default to 'edit', unauthenticated to 'view'
+  const currentPermission: PermissionLevel = session.currentBoardPermission || (session.authed ? 'edit' : 'view')
+
+  // Request permission upgrade
+  const handleRequestPermission = async (requestedLevel: PermissionLevel) => {
+    if (!session.authed || !session.username) {
+      setRequestMessage('Please sign in to request permissions')
+      return
+    }
+
+    setPermissionRequestStatus('sending')
+    try {
+      const response = await fetch(`${WORKER_URL}/boards/${boardId}/permission-request`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: session.username,
+          email: session.email,
+          requestedPermission: requestedLevel,
+          currentPermission,
+          boardId,
+        }),
+      })
+
+      if (response.ok) {
+        setPermissionRequestStatus('sent')
+        setRequestMessage(`Request for ${PERMISSION_CONFIG[requestedLevel].label} access sent to board admins`)
+        setTimeout(() => {
+          setPermissionRequestStatus('idle')
+          setRequestMessage('')
+        }, 5000)
+      } else {
+        throw new Error('Failed to send request')
+      }
+    } catch (error) {
+      console.error('Permission request error:', error)
+      setPermissionRequestStatus('error')
+      setRequestMessage('Failed to send request. Please try again.')
+      setTimeout(() => {
+        setPermissionRequestStatus('idle')
+        setRequestMessage('')
+      }, 3000)
+    }
+  }
+
+  // Update dropdown positions when they open
+  React.useEffect(() => {
+    if (showSettingsDropdown && settingsButtonRef.current) {
+      const rect = settingsButtonRef.current.getBoundingClientRect()
+      setSettingsDropdownPos({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right,
+      })
+    }
+  }, [showSettingsDropdown])
+
+  React.useEffect(() => {
+    if (showShortcuts && shortcutsButtonRef.current) {
+      const rect = shortcutsButtonRef.current.getBoundingClientRect()
+      setShortcutsDropdownPos({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right,
+      })
+    }
+  }, [showShortcuts])
 
   // ESC key handler for closing dropdowns
   React.useEffect(() => {
@@ -236,8 +327,9 @@ function CustomSharePanel() {
         <Separator />
 
         {/* Settings gear button with dropdown */}
-        <div style={{ position: 'relative', padding: '0 2px' }}>
+        <div style={{ padding: '0 2px' }}>
           <button
+            ref={settingsButtonRef}
             onClick={() => setShowSettingsDropdown(!showSettingsDropdown)}
             className="share-panel-btn"
             style={{
@@ -272,8 +364,8 @@ function CustomSharePanel() {
             </svg>
           </button>
 
-          {/* Settings dropdown */}
-          {showSettingsDropdown && (
+          {/* Settings dropdown - rendered via portal to break out of parent container */}
+          {showSettingsDropdown && settingsDropdownPos && createPortal(
             <>
               {/* Backdrop - only uses onClick, not onPointerDown */}
               <div
@@ -288,9 +380,9 @@ function CustomSharePanel() {
               {/* Dropdown menu */}
               <div
                 style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 8px)',
-                  right: 0,
+                  position: 'fixed',
+                  top: settingsDropdownPos.top,
+                  right: settingsDropdownPos.right,
                   minWidth: '200px',
                   maxHeight: '60vh',
                   overflowY: 'auto',
@@ -306,6 +398,121 @@ function CustomSharePanel() {
                 onWheel={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
               >
+                {/* Board Permission Display */}
+                <div style={{ padding: '10px 16px' }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '8px',
+                  }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--color-text)' }}>
+                      <span style={{ fontSize: '16px' }}>🔐</span>
+                      <span>Board Permission</span>
+                    </span>
+                    <span style={{
+                      fontSize: '11px',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      background: `${PERMISSION_CONFIG[currentPermission].color}20`,
+                      color: PERMISSION_CONFIG[currentPermission].color,
+                      fontWeight: 600,
+                    }}>
+                      {PERMISSION_CONFIG[currentPermission].icon} {PERMISSION_CONFIG[currentPermission].label}
+                    </span>
+                  </div>
+
+                  {/* Permission levels with request buttons */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '8px' }}>
+                    {(['view', 'edit', 'admin'] as PermissionLevel[]).map((level) => {
+                      const config = PERMISSION_CONFIG[level]
+                      const isCurrent = currentPermission === level
+                      const canRequest = session.authed && !isCurrent && (
+                        (level === 'edit' && currentPermission === 'view') ||
+                        (level === 'admin' && currentPermission !== 'admin')
+                      )
+
+                      return (
+                        <div
+                          key={level}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '6px 8px',
+                            borderRadius: '6px',
+                            background: isCurrent ? `${config.color}15` : 'transparent',
+                            border: isCurrent ? `1px solid ${config.color}40` : '1px solid transparent',
+                          }}
+                        >
+                          <span style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            fontSize: '12px',
+                            color: isCurrent ? config.color : 'var(--color-text-3)',
+                            fontWeight: isCurrent ? 600 : 400,
+                          }}>
+                            <span>{config.icon}</span>
+                            <span>{config.label}</span>
+                            {isCurrent && <span style={{ fontSize: '10px', opacity: 0.7 }}>(current)</span>}
+                          </span>
+
+                          {canRequest && (
+                            <button
+                              onClick={() => handleRequestPermission(level)}
+                              disabled={permissionRequestStatus === 'sending'}
+                              style={{
+                                padding: '3px 8px',
+                                fontSize: '10px',
+                                fontWeight: 500,
+                                borderRadius: '4px',
+                                border: 'none',
+                                background: config.color,
+                                color: 'white',
+                                cursor: permissionRequestStatus === 'sending' ? 'wait' : 'pointer',
+                                opacity: permissionRequestStatus === 'sending' ? 0.6 : 1,
+                              }}
+                            >
+                              {permissionRequestStatus === 'sending' ? '...' : 'Request'}
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Request status message */}
+                  {requestMessage && (
+                    <p style={{
+                      margin: '8px 0 0',
+                      fontSize: '11px',
+                      padding: '6px 8px',
+                      borderRadius: '4px',
+                      background: permissionRequestStatus === 'sent' ? '#d1fae5' :
+                                 permissionRequestStatus === 'error' ? '#fee2e2' : 'var(--color-muted-2)',
+                      color: permissionRequestStatus === 'sent' ? '#065f46' :
+                             permissionRequestStatus === 'error' ? '#dc2626' : 'var(--color-text-3)',
+                      textAlign: 'center',
+                    }}>
+                      {requestMessage}
+                    </p>
+                  )}
+
+                  {!session.authed && (
+                    <p style={{
+                      margin: '8px 0 0',
+                      fontSize: '10px',
+                      color: 'var(--color-text-3)',
+                      textAlign: 'center',
+                    }}>
+                      Sign in to request higher permissions
+                    </p>
+                  )}
+                </div>
+
+                <div style={{ height: '1px', background: 'var(--color-panel-contrast)', margin: '4px 0' }} />
+
                 {/* Dark mode toggle */}
                 <button
                   onClick={() => {
@@ -444,42 +651,9 @@ function CustomSharePanel() {
                   )}
                 </div>
 
-                <div style={{ height: '1px', background: 'var(--color-panel-contrast)', margin: '4px 0' }} />
-
-                {/* All settings */}
-                <button
-                  onClick={() => {
-                    setShowSettingsDropdown(false)
-                    setShowSettings(true)
-                  }}
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
-                    padding: '10px 16px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: 'var(--color-text)',
-                    fontSize: '13px',
-                    textAlign: 'left',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--color-muted-2)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'none'
-                  }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="3"></circle>
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                  </svg>
-                  <span>All Settings...</span>
-                </button>
               </div>
-            </>
+            </>,
+            document.body
           )}
         </div>
 
@@ -488,6 +662,7 @@ function CustomSharePanel() {
         {/* Help/Keyboard shortcuts button - rightmost */}
         <div style={{ padding: '0 4px' }}>
           <button
+            ref={shortcutsButtonRef}
             onClick={() => setShowShortcuts(!showShortcuts)}
             className="share-panel-btn"
             style={{
@@ -525,8 +700,8 @@ function CustomSharePanel() {
         </div>
       </div>
 
-      {/* Keyboard shortcuts panel */}
-      {showShortcuts && (
+      {/* Keyboard shortcuts panel - rendered via portal to break out of parent container */}
+      {showShortcuts && shortcutsDropdownPos && createPortal(
         <>
           {/* Backdrop - only uses onClick, not onPointerDown */}
           <div
@@ -541,11 +716,11 @@ function CustomSharePanel() {
           {/* Shortcuts menu */}
           <div
             style={{
-              position: 'absolute',
-              top: 'calc(100% + 8px)',
-              right: 0,
+              position: 'fixed',
+              top: shortcutsDropdownPos.top,
+              right: shortcutsDropdownPos.right,
               width: '320px',
-              maxHeight: '60vh',
+              maxHeight: '50vh',
               overflowY: 'auto',
               overflowX: 'hidden',
               background: 'var(--color-panel)',
@@ -553,7 +728,7 @@ function CustomSharePanel() {
               borderRadius: '8px',
               boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
               zIndex: 99999,
-              padding: '12px 0',
+              padding: '10px 0',
               pointerEvents: 'auto',
             }}
             onWheel={(e) => e.stopPropagation()}
@@ -629,17 +804,10 @@ function CustomSharePanel() {
               </div>
             ))}
           </div>
-        </>
+        </>,
+        document.body
       )}
 
-      {/* Settings Modal */}
-      {showSettings && (
-        <UserSettingsModal
-          onClose={() => setShowSettings(false)}
-          isDarkMode={isDarkMode}
-          onToggleDarkMode={handleToggleDarkMode}
-        />
-      )}
     </div>
   )
 }

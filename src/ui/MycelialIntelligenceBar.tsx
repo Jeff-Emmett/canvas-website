@@ -5,6 +5,7 @@ import { useWebSpeechTranscription } from "@/hooks/useWebSpeechTranscription"
 import { ToolSchema } from "@/lib/toolSchema"
 import { spawnTools, spawnTool } from "@/utils/toolSpawner"
 import { TransformCommand } from "@/utils/selectionTransforms"
+import { useConnectionStatus } from "@/context/ConnectionContext"
 
 // Copy icon component
 const CopyIcon = () => (
@@ -803,9 +804,92 @@ interface ConversationMessage {
   executedTransform?: TransformCommand
 }
 
+// Connection status indicator component - unobtrusive inline display
+interface ConnectionStatusProps {
+  connectionState: 'disconnected' | 'connecting' | 'connected' | 'reconnecting'
+  isNetworkOnline: boolean
+  isDark: boolean
+}
+
+function ConnectionStatusBadge({ connectionState, isNetworkOnline, isDark }: ConnectionStatusProps) {
+  // Don't show anything when fully connected and online
+  if (connectionState === 'connected' && isNetworkOnline) {
+    return null
+  }
+
+  const getStatusConfig = () => {
+    if (!isNetworkOnline) {
+      return {
+        icon: '📴',
+        label: 'Offline',
+        color: isDark ? '#a78bfa' : '#8b5cf6',
+        pulse: false,
+      }
+    }
+
+    switch (connectionState) {
+      case 'connecting':
+        return {
+          icon: '🌱',
+          label: 'Connecting',
+          color: '#f59e0b',
+          pulse: true,
+        }
+      case 'reconnecting':
+        return {
+          icon: '🔄',
+          label: 'Reconnecting',
+          color: '#f59e0b',
+          pulse: true,
+        }
+      case 'disconnected':
+        return {
+          icon: '🍄',
+          label: 'Local',
+          color: isDark ? '#a78bfa' : '#8b5cf6',
+          pulse: false,
+        }
+      default:
+        return null
+    }
+  }
+
+  const config = getStatusConfig()
+  if (!config) return null
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px',
+        padding: '2px 8px',
+        borderRadius: '12px',
+        backgroundColor: isDark ? 'rgba(139, 92, 246, 0.15)' : 'rgba(139, 92, 246, 0.1)',
+        border: `1px solid ${isDark ? 'rgba(139, 92, 246, 0.3)' : 'rgba(139, 92, 246, 0.2)'}`,
+        fontSize: '10px',
+        fontWeight: 500,
+        color: config.color,
+        animation: config.pulse ? 'connectionPulse 2s infinite' : undefined,
+        flexShrink: 0,
+      }}
+      title={!isNetworkOnline
+        ? 'Working offline - changes saved locally and will sync when reconnected'
+        : connectionState === 'reconnecting'
+          ? 'Reconnecting to server - your changes are safe'
+          : 'Connecting to server...'
+      }
+    >
+      <span style={{ fontSize: '11px' }}>{config.icon}</span>
+      <span>{config.label}</span>
+    </div>
+  )
+}
+
 export function MycelialIntelligenceBar() {
   const editor = useEditor()
   const isDark = useDarkMode()
+  const { connectionState, isNetworkOnline } = useConnectionStatus()
   const inputRef = useRef<HTMLInputElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -838,8 +922,11 @@ export function MycelialIntelligenceBar() {
       const hasTldrawDialog = document.querySelector('[data-state="open"][role="dialog"]') !== null
       const hasAuthModal = document.querySelector('.auth-modal-overlay') !== null
       const hasPopup = document.querySelector('.profile-popup') !== null
+      const hasCryptIDModal = document.querySelector('.cryptid-modal-overlay') !== null
+      const hasMiroModal = document.querySelector('.miro-modal-overlay') !== null
+      const hasObsidianModal = document.querySelector('.obsidian-browser') !== null
 
-      setIsModalOpen(hasSettingsModal || hasTldrawDialog || hasAuthModal || hasPopup)
+      setIsModalOpen(hasSettingsModal || hasTldrawDialog || hasAuthModal || hasPopup || hasCryptIDModal || hasMiroModal || hasObsidianModal)
     }
 
     // Initial check
@@ -1351,8 +1438,9 @@ export function MycelialIntelligenceBar() {
   }, [])
 
   // Height: taller when showing suggestion chips (single tool or 2+ selected)
+  // Base height matches the top-right menu (~40px) for visual alignment
   const showSuggestions = selectedToolInfo || (selectionInfo && selectionInfo.count > 1)
-  const collapsedHeight = showSuggestions ? 76 : 48
+  const collapsedHeight = showSuggestions ? 68 : 40
   const maxExpandedHeight = isMobile ? 300 : 400
   // Responsive width: full width on mobile, percentage on narrow, fixed on desktop
   const barWidth = isMobile ? 'calc(100% - 20px)' : isNarrow ? 'calc(100% - 120px)' : 520
@@ -1414,8 +1502,8 @@ export function MycelialIntelligenceBar() {
           <div style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: '4px',
-            padding: '6px 10px 6px 14px',
+            gap: '2px',
+            padding: '4px 8px 4px 12px',
             height: '100%',
             justifyContent: 'center',
           }}>
@@ -1431,7 +1519,7 @@ export function MycelialIntelligenceBar() {
                 flexShrink: 0,
               }}>
                 <span style={{
-                  fontSize: '16px',
+                  fontSize: '14px',
                   opacity: 0.9,
                 }}>
                   🍄🧠
@@ -1487,12 +1575,19 @@ export function MycelialIntelligenceBar() {
                   flex: 1,
                   background: 'transparent',
                   border: 'none',
-                  padding: '8px 4px',
-                  fontSize: '14px',
+                  padding: '6px 4px',
+                  fontSize: '13px',
                   color: colors.inputText,
                   outline: 'none',
                 }}
               />
+
+            {/* Connection status indicator - unobtrusive */}
+            <ConnectionStatusBadge
+              connectionState={connectionState}
+              isNetworkOnline={isNetworkOnline}
+              isDark={isDark}
+            />
 
             {/* Indexing indicator */}
             {isIndexing && (
@@ -1515,8 +1610,8 @@ export function MycelialIntelligenceBar() {
                 }}
                 onPointerDown={(e) => e.stopPropagation()}
                 style={{
-                  width: '34px',
-                  height: '34px',
+                  width: '28px',
+                  height: '28px',
                   borderRadius: '50%',
                   border: 'none',
                   background: isRecording
@@ -1549,9 +1644,9 @@ export function MycelialIntelligenceBar() {
               onPointerDown={(e) => e.stopPropagation()}
               disabled={!prompt.trim() || isLoading}
               style={{
-                height: '34px',
-                padding: selectedToolInfo ? '0 12px' : '0 14px',
-                borderRadius: '17px',
+                height: '28px',
+                padding: selectedToolInfo ? '0 10px' : '0 12px',
+                borderRadius: '14px',
                 border: 'none',
                 background: prompt.trim() && !isLoading
                   ? selectedToolInfo ? '#6366f1' : ACCENT_COLOR
@@ -1589,8 +1684,8 @@ export function MycelialIntelligenceBar() {
                 }}
                 onPointerDown={(e) => e.stopPropagation()}
                 style={{
-                  width: '34px',
-                  height: '34px',
+                  width: '28px',
+                  height: '28px',
                   borderRadius: '50%',
                   border: 'none',
                   background: 'transparent',
@@ -1687,6 +1782,12 @@ export function MycelialIntelligenceBar() {
                 }}>
                   <span style={{ fontStyle: 'italic', opacity: 0.85 }}>ask your mycelial intelligence anything about this workspace</span>
                 </span>
+                {/* Connection status in expanded header */}
+                <ConnectionStatusBadge
+                  connectionState={connectionState}
+                  isNetworkOnline={isNetworkOnline}
+                  isDark={isDark}
+                />
                 {isIndexing && (
                   <span style={{
                     color: colors.textMuted,
@@ -2086,6 +2187,10 @@ export function MycelialIntelligenceBar() {
         @keyframes bounce {
           0%, 80%, 100% { transform: scale(0); }
           40% { transform: scale(1); }
+        }
+        @keyframes connectionPulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
         }
       `}</style>
     </div>

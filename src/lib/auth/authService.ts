@@ -5,6 +5,10 @@ import { loadSession, saveSession, clearStoredSession } from './sessionPersisten
 export class AuthService {
   /**
    * Initialize the authentication state
+   *
+   * IMPORTANT: Having crypto keys stored on device does NOT mean the user is logged in.
+   * Keys persist after logout for potential re-authentication. Only the session's
+   * `authed` flag determines if a user is currently authenticated.
    */
   static async initialize(): Promise<{
     session: Session;
@@ -13,8 +17,12 @@ export class AuthService {
     const storedSession = loadSession();
     let session: Session;
 
-    if (storedSession && storedSession.authed && storedSession.username) {
-      // Restore existing session
+    // Only restore session if ALL conditions are met:
+    // 1. Session exists in storage
+    // 2. Session has authed=true
+    // 3. Session has a username
+    if (storedSession && storedSession.authed === true && storedSession.username) {
+      // Restore existing authenticated session
       session = {
         username: storedSession.username,
         authed: true,
@@ -23,14 +31,18 @@ export class AuthService {
         obsidianVaultPath: storedSession.obsidianVaultPath,
         obsidianVaultName: storedSession.obsidianVaultName
       };
+      console.log('🔐 Restored authenticated session for:', storedSession.username);
     } else {
-      // No stored session
+      // No valid session - user is anonymous
+      // Note: User may still have crypto keys stored from previous sessions,
+      // but that doesn't mean they're logged in
       session = {
         username: '',
         authed: false,
         loading: false,
         backupCreated: null
       };
+      console.log('🔐 No valid session found - user is anonymous');
     }
 
     return { session };

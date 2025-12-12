@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNotifications } from '../../context/NotificationContext';
 import { checkBrowserSupport, isSecureContext } from '../../lib/utils/browser';
 import { WORKER_URL } from '../../constants/workerUrl';
+import '../../css/crypto-auth.css'; // For spin animation
 
 interface CryptIDProps {
   onSuccess?: () => void;
@@ -26,6 +27,8 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
   const [existingUsers, setExistingUsers] = useState<string[]>([]);
   const [suggestedUsername, setSuggestedUsername] = useState<string>('');
   const [emailSent, setEmailSent] = useState(false);
+  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
+  const [checkingUsername, setCheckingUsername] = useState(false);
   const [browserSupport, setBrowserSupport] = useState<{
     supported: boolean;
     secure: boolean;
@@ -97,6 +100,45 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
     checkExistingUsers();
   }, [addNotification]);
 
+  // Check username availability with debounce
+  useEffect(() => {
+    // Only check when registering and on username step
+    if (!isRegistering || registrationStep !== 'username') {
+      return;
+    }
+
+    // Reset availability when username changes
+    setUsernameAvailable(null);
+    setError(null);
+
+    // Don't check if username is too short
+    if (username.length < 3) {
+      return;
+    }
+
+    // Debounce the check
+    const timeoutId = setTimeout(async () => {
+      setCheckingUsername(true);
+      try {
+        const response = await fetch(`${WORKER_URL}/api/auth/check-username?username=${encodeURIComponent(username)}`);
+        const data = await response.json() as { available: boolean; error?: string };
+
+        setUsernameAvailable(data.available);
+        if (!data.available && data.error) {
+          setError(data.error);
+        }
+      } catch (err) {
+        console.error('Error checking username:', err);
+        // On network error, allow proceeding (server will validate on registration)
+        setUsernameAvailable(null);
+      } finally {
+        setCheckingUsername(false);
+      }
+    }, 500); // Wait 500ms after user stops typing
+
+    return () => clearTimeout(timeoutId);
+  }, [username, isRegistering, registrationStep]);
+
   /**
    * Send backup email with magic link
    */
@@ -160,8 +202,7 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
   /**
    * Handle login
    */
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = async () => {
     setError(null);
     setIsLoading(true);
 
@@ -240,20 +281,34 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
                 <div style={styles.explainerItem}>
                   <span style={styles.explainerIcon}>🔑</span>
                   <div>
-                    <strong>Cryptographic Keys</strong>
+                    <strong>No Password Needed</strong>
                     <p style={styles.explainerText}>
-                      When you create an account, your browser generates a unique cryptographic key pair.
-                      The private key never leaves your device.
+                      Encrypted keys are created directly on your device using the{' '}
+                      <a href="https://w3c.github.io/webcrypto/" target="_blank" rel="noopener noreferrer" style={{ color: '#8b5cf6' }}>
+                        W3C Web Cryptography API
+                      </a>{' '}
+                      standard. Your identity and data are secured locally - no passwords to remember or leak.
                     </p>
                   </div>
                 </div>
                 <div style={styles.explainerItem}>
                   <span style={styles.explainerIcon}>💾</span>
                   <div>
-                    <strong>Secure Storage</strong>
+                    <strong>Secure Browser Storage</strong>
                     <p style={styles.explainerText}>
-                      Your keys are stored securely in your browser using WebCryptoAPI -
-                      the same technology used by banks and governments.
+                      Your cryptographic keys encrypt your data locally using local-first architecture.
+                      This means you control what you share - your data sovereignty is protected by default
+                      for individuals and groups alike.
+                    </p>
+                  </div>
+                </div>
+                <div style={styles.explainerItem}>
+                  <span style={styles.explainerIcon}>📧</span>
+                  <div>
+                    <strong>Link Your Email</strong>
+                    <p style={styles.explainerText}>
+                      Add an email address to connect to your account from other devices.
+                      We'll send you a secure link to establish trust between devices.
                     </p>
                   </div>
                 </div>
@@ -262,8 +317,7 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
                   <div>
                     <strong>Multi-Device Access</strong>
                     <p style={styles.explainerText}>
-                      Add your email to receive a backup link. Open it on another device
-                      (like your phone) to sync your account securely.
+                      Add a mobile device or tablet and link keys for one streamlined identity across all your devices.
                     </p>
                   </div>
                 </div>
@@ -272,13 +326,13 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
 
             <div style={styles.featureList}>
               <div style={styles.featureItem}>
-                <span style={{ color: '#22c55e' }}>✓</span> No password to remember or lose
+                <span style={{ color: '#22c55e' }}>✓</span> Built on W3C cryptography standards
+              </div>
+              <div style={styles.featureItem}>
+                <span style={{ color: '#22c55e' }}>✓</span> Local-first data sovereignty
               </div>
               <div style={styles.featureItem}>
                 <span style={{ color: '#22c55e' }}>✓</span> Phishing-resistant authentication
-              </div>
-              <div style={styles.featureItem}>
-                <span style={{ color: '#22c55e' }}>✓</span> Your data stays encrypted
               </div>
             </div>
 
@@ -296,7 +350,7 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
                   setUsername(existingUsers[0]);
                 }
               }}
-              style={styles.linkButton}
+              style={{ ...styles.linkButton, marginTop: '20px' }}
             >
               Already have an account? Sign in
             </button>
@@ -310,24 +364,82 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
             <h2 style={styles.title}>Choose Your Username</h2>
             <p style={styles.subtitle}>This is your unique identity on the platform</p>
 
-            <form onSubmit={(e) => { e.preventDefault(); setRegistrationStep('email'); }}>
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (usernameAvailable !== false && !checkingUsername) {
+                setRegistrationStep('email');
+              }
+            }}>
               <div style={styles.inputGroup}>
                 <label style={styles.label}>Username</label>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
-                  placeholder="e.g., alex_smith"
-                  style={styles.input}
-                  required
-                  minLength={3}
-                  maxLength={20}
-                  autoFocus
-                />
-                <p style={styles.hint}>3-20 characters, lowercase letters, numbers, _ and -</p>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+                    placeholder="e.g., alex_smith"
+                    style={{
+                      ...styles.input,
+                      paddingRight: '40px',
+                      borderColor: username.length >= 3
+                        ? (usernameAvailable === true ? '#22c55e'
+                          : usernameAvailable === false ? '#ef4444'
+                          : undefined)
+                        : undefined,
+                    }}
+                    required
+                    minLength={3}
+                    maxLength={20}
+                    autoFocus
+                  />
+                  {/* Availability indicator */}
+                  {username.length >= 3 && (
+                    <div style={{
+                      position: 'absolute',
+                      right: '12px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      {checkingUsername ? (
+                        <div style={{
+                          width: '18px',
+                          height: '18px',
+                          border: '2px solid #a0a0b0',
+                          borderTopColor: 'transparent',
+                          borderRadius: '50%',
+                          animation: 'spin 0.8s linear infinite',
+                        }} />
+                      ) : usernameAvailable === true ? (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="3">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      ) : usernameAvailable === false ? (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="3">
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+                <p style={{
+                  ...styles.hint,
+                  color: usernameAvailable === true ? '#22c55e'
+                    : usernameAvailable === false ? '#ef4444'
+                    : undefined,
+                }}>
+                  {usernameAvailable === true
+                    ? 'Username is available!'
+                    : usernameAvailable === false
+                    ? 'Username is already taken'
+                    : '3-20 characters, lowercase letters, numbers, _ and -'}
+                </p>
               </div>
 
-              {error && <div style={styles.error}>{error}</div>}
+              {error && !usernameAvailable && <div style={styles.error}>{error}</div>}
 
               <div style={styles.buttonGroup}>
                 <button
@@ -339,14 +451,14 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
                 </button>
                 <button
                   type="submit"
-                  disabled={username.length < 3}
+                  disabled={username.length < 3 || usernameAvailable === false || checkingUsername}
                   style={{
                     ...styles.primaryButton,
-                    opacity: username.length < 3 ? 0.5 : 1,
-                    cursor: username.length < 3 ? 'not-allowed' : 'pointer',
+                    opacity: (username.length < 3 || usernameAvailable === false || checkingUsername) ? 0.5 : 1,
+                    cursor: (username.length < 3 || usernameAvailable === false || checkingUsername) ? 'not-allowed' : 'pointer',
                   }}
                 >
-                  Continue
+                  {checkingUsername ? 'Checking...' : 'Continue'}
                 </button>
               </div>
             </form>
@@ -457,11 +569,6 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
           </div>
         )}
 
-        {onCancel && registrationStep !== 'success' && (
-          <button onClick={onCancel} style={styles.cancelButton}>
-            Cancel
-          </button>
-        )}
       </div>
     );
   }
@@ -473,58 +580,54 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
         <div style={styles.iconLarge}>🔐</div>
         <h2 style={styles.title}>Sign In with CryptID</h2>
 
-        {existingUsers.length > 0 && (
-          <div style={styles.existingUsers}>
-            <p style={styles.existingUsersLabel}>Your accounts on this device:</p>
-            <div style={styles.userList}>
-              {existingUsers.map((user) => (
-                <button
-                  key={user}
-                  onClick={() => setUsername(user)}
-                  style={{
-                    ...styles.userButton,
-                    borderColor: username === user ? '#8b5cf6' : '#e5e7eb',
-                    backgroundColor: username === user ? 'rgba(139, 92, 246, 0.1)' : 'transparent',
-                  }}
-                  disabled={isLoading}
-                >
-                  <span style={styles.userIcon}>🔑</span>
-                  <span style={styles.userName}>{user}</span>
-                  {username === user && <span style={styles.selectedBadge}>Selected</span>}
-                </button>
-              ))}
+        {existingUsers.length > 0 ? (
+          <>
+            <div style={styles.existingUsers}>
+              <p style={styles.existingUsersLabel}>Select your account:</p>
+              <div style={styles.userList}>
+                {existingUsers.map((user) => (
+                  <button
+                    key={user}
+                    onClick={() => setUsername(user)}
+                    style={{
+                      ...styles.userButton,
+                      borderColor: username === user ? '#8b5cf6' : '#e5e7eb',
+                      backgroundColor: username === user ? 'rgba(139, 92, 246, 0.1)' : 'transparent',
+                    }}
+                    disabled={isLoading}
+                  >
+                    <span style={styles.userIcon}>🔑</span>
+                    <span style={styles.userName}>{user}</span>
+                    {username === user && <span style={styles.selectedBadge}>Selected</span>}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {error && <div style={styles.error}>{error}</div>}
+
+            <button
+              onClick={handleLogin}
+              disabled={isLoading || !username.trim()}
+              style={{
+                ...styles.primaryButton,
+                opacity: (isLoading || !username.trim()) ? 0.5 : 1,
+                cursor: (isLoading || !username.trim()) ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {isLoading ? 'Signing In...' : 'Sign In'}
+            </button>
+          </>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <p style={{ ...styles.subtitle, marginBottom: '16px' }}>
+              No accounts found on this device.
+            </p>
+            <p style={{ ...styles.hint, marginBottom: '20px' }}>
+              Create a new CryptID or use a backup link from another device to sign in here.
+            </p>
           </div>
         )}
-
-        <form onSubmit={handleLogin}>
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Username</label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter your username"
-              style={styles.input}
-              required
-              disabled={isLoading}
-            />
-          </div>
-
-          {error && <div style={styles.error}>{error}</div>}
-
-          <button
-            type="submit"
-            disabled={isLoading || !username.trim()}
-            style={{
-              ...styles.primaryButton,
-              opacity: (isLoading || !username.trim()) ? 0.5 : 1,
-              cursor: (isLoading || !username.trim()) ? 'not-allowed' : 'pointer',
-            }}
-          >
-            {isLoading ? 'Signing In...' : 'Sign In'}
-          </button>
-        </form>
 
         <button
           onClick={() => {
@@ -533,189 +636,182 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
             setUsername('');
             setError(null);
           }}
-          style={styles.linkButton}
+          style={existingUsers.length > 0 ? { ...styles.linkButton, marginTop: '20px' } : styles.primaryButton}
           disabled={isLoading}
         >
-          Need an account? Create one
+          {existingUsers.length > 0 ? 'Need an account? Create one' : 'Create a CryptID'}
         </button>
-
-        {onCancel && (
-          <button onClick={onCancel} style={styles.cancelButton}>
-            Cancel
-          </button>
-        )}
       </div>
     </div>
   );
 };
 
-// Styles
+// Styles - compact layout to fit on one screen (updated 2025-12-12)
 const styles: Record<string, React.CSSProperties> = {
   container: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    padding: '20px',
-    maxWidth: '440px',
+    padding: '16px',
+    maxWidth: '540px',
     margin: '0 auto',
   },
   card: {
     width: '100%',
     backgroundColor: 'var(--color-panel, #fff)',
     borderRadius: '16px',
-    padding: '32px',
-    boxShadow: '0 4px 24px rgba(0, 0, 0, 0.1)',
+    padding: '20px',
     textAlign: 'center',
   },
   errorCard: {
     width: '100%',
     backgroundColor: '#fef2f2',
     borderRadius: '16px',
-    padding: '32px',
+    padding: '20px',
     textAlign: 'center',
   },
   stepIndicator: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: '24px',
+    marginBottom: '16px',
     gap: '0',
   },
   stepDot: {
-    width: '28px',
-    height: '28px',
+    width: '24px',
+    height: '24px',
     borderRadius: '50%',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '12px',
+    fontSize: '11px',
     fontWeight: 600,
     color: 'white',
   },
   stepLine: {
-    width: '40px',
+    width: '32px',
     height: '2px',
     backgroundColor: '#e5e7eb',
   },
   iconLarge: {
-    fontSize: '48px',
-    marginBottom: '16px',
+    fontSize: '36px',
+    marginBottom: '12px',
   },
   errorIcon: {
-    fontSize: '48px',
-    marginBottom: '16px',
+    fontSize: '36px',
+    marginBottom: '12px',
   },
   successIcon: {
-    width: '64px',
-    height: '64px',
+    width: '48px',
+    height: '48px',
     borderRadius: '50%',
     backgroundColor: '#22c55e',
     color: 'white',
-    fontSize: '32px',
+    fontSize: '24px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    margin: '0 auto 16px',
+    margin: '0 auto 12px',
   },
   title: {
-    fontSize: '24px',
+    fontSize: '20px',
     fontWeight: 700,
     color: 'var(--color-text, #1f2937)',
-    marginBottom: '8px',
-    margin: '0 0 8px 0',
+    marginBottom: '4px',
+    margin: '0 0 4px 0',
   },
   subtitle: {
-    fontSize: '14px',
+    fontSize: '13px',
     color: 'var(--color-text-3, #6b7280)',
-    marginBottom: '24px',
-    margin: '0 0 24px 0',
+    marginBottom: '16px',
+    margin: '0 0 16px 0',
   },
   description: {
-    fontSize: '14px',
+    fontSize: '13px',
     color: '#6b7280',
-    lineHeight: 1.6,
-    marginBottom: '24px',
+    lineHeight: 1.5,
+    marginBottom: '16px',
   },
   explainerBox: {
     backgroundColor: 'var(--color-muted-2, #f9fafb)',
-    borderRadius: '12px',
-    padding: '20px',
-    marginBottom: '24px',
+    borderRadius: '10px',
+    padding: '14px',
+    marginBottom: '16px',
     textAlign: 'left',
   },
   explainerTitle: {
-    fontSize: '14px',
+    fontSize: '13px',
     fontWeight: 600,
     color: 'var(--color-text, #1f2937)',
-    marginBottom: '16px',
-    margin: '0 0 16px 0',
+    marginBottom: '12px',
+    margin: '0 0 12px 0',
   },
   explainerContent: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '16px',
+    gap: '10px',
   },
   explainerItem: {
     display: 'flex',
-    gap: '12px',
+    gap: '10px',
     alignItems: 'flex-start',
   },
   explainerIcon: {
-    fontSize: '20px',
+    fontSize: '16px',
     flexShrink: 0,
   },
   explainerText: {
-    fontSize: '12px',
+    fontSize: '11px',
     color: 'var(--color-text-3, #6b7280)',
-    margin: '4px 0 0 0',
-    lineHeight: 1.5,
+    margin: '2px 0 0 0',
+    lineHeight: 1.4,
   },
   featureList: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '8px',
-    marginBottom: '24px',
+    gap: '6px',
+    marginBottom: '16px',
   },
   featureItem: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
-    fontSize: '13px',
+    gap: '6px',
+    fontSize: '12px',
     color: 'var(--color-text, #374151)',
   },
   infoBox: {
     display: 'flex',
-    gap: '12px',
-    padding: '16px',
+    gap: '10px',
+    padding: '12px',
     backgroundColor: 'rgba(139, 92, 246, 0.1)',
-    borderRadius: '10px',
-    marginBottom: '20px',
+    borderRadius: '8px',
+    marginBottom: '14px',
     textAlign: 'left',
   },
   infoIcon: {
-    fontSize: '20px',
+    fontSize: '16px',
     flexShrink: 0,
   },
   infoText: {
-    fontSize: '13px',
+    fontSize: '12px',
     color: 'var(--color-text, #374151)',
     margin: 0,
-    lineHeight: 1.5,
+    lineHeight: 1.4,
   },
   successBox: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '12px',
-    padding: '16px',
+    gap: '8px',
+    padding: '12px',
     backgroundColor: 'rgba(34, 197, 94, 0.1)',
-    borderRadius: '10px',
-    marginBottom: '20px',
+    borderRadius: '8px',
+    marginBottom: '14px',
   },
   successItem: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
-    fontSize: '14px',
+    gap: '8px',
+    fontSize: '12px',
     color: 'var(--color-text, #374151)',
   },
   successCheck: {
@@ -723,22 +819,22 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
   },
   inputGroup: {
-    marginBottom: '20px',
+    marginBottom: '14px',
     textAlign: 'left',
   },
   label: {
     display: 'block',
-    fontSize: '13px',
+    fontSize: '12px',
     fontWeight: 500,
     color: 'var(--color-text, #374151)',
-    marginBottom: '6px',
+    marginBottom: '4px',
   },
   input: {
     width: '100%',
-    padding: '12px 14px',
-    fontSize: '15px',
+    padding: '10px 12px',
+    fontSize: '14px',
     border: '2px solid var(--color-panel-contrast, #e5e7eb)',
-    borderRadius: '10px',
+    borderRadius: '8px',
     backgroundColor: 'var(--color-panel, #fff)',
     color: 'var(--color-text, #1f2937)',
     outline: 'none',
@@ -746,88 +842,79 @@ const styles: Record<string, React.CSSProperties> = {
     boxSizing: 'border-box',
   },
   hint: {
-    fontSize: '11px',
+    fontSize: '10px',
     color: 'var(--color-text-3, #9ca3af)',
-    marginTop: '6px',
+    marginTop: '4px',
     margin: '6px 0 0 0',
   },
   error: {
-    padding: '12px',
+    padding: '10px',
     backgroundColor: '#fef2f2',
     color: '#dc2626',
-    borderRadius: '8px',
-    fontSize: '13px',
-    marginBottom: '16px',
+    borderRadius: '6px',
+    fontSize: '12px',
+    marginBottom: '12px',
   },
   buttonGroup: {
     display: 'flex',
-    gap: '12px',
+    gap: '10px',
   },
   primaryButton: {
     flex: 1,
-    padding: '14px 24px',
-    fontSize: '15px',
+    padding: '10px 18px',
+    fontSize: '14px',
     fontWeight: 600,
     color: 'white',
     background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
     border: 'none',
-    borderRadius: '10px',
+    borderRadius: '8px',
     cursor: 'pointer',
     transition: 'transform 0.15s, box-shadow 0.15s',
     boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)',
   },
   secondaryButton: {
     flex: 1,
-    padding: '14px 24px',
-    fontSize: '15px',
+    padding: '10px 18px',
+    fontSize: '14px',
     fontWeight: 500,
     color: 'var(--color-text, #374151)',
     backgroundColor: 'var(--color-muted-2, #f3f4f6)',
     border: 'none',
-    borderRadius: '10px',
+    borderRadius: '8px',
     cursor: 'pointer',
   },
   linkButton: {
-    marginTop: '16px',
-    padding: '8px',
-    fontSize: '13px',
+    marginTop: '12px',
+    padding: '6px',
+    fontSize: '12px',
     color: '#8b5cf6',
     backgroundColor: 'transparent',
     border: 'none',
     cursor: 'pointer',
     textDecoration: 'underline',
   },
-  cancelButton: {
-    marginTop: '16px',
-    padding: '8px 16px',
-    fontSize: '13px',
-    color: 'var(--color-text-3, #6b7280)',
-    backgroundColor: 'transparent',
-    border: 'none',
-    cursor: 'pointer',
-  },
   existingUsers: {
-    marginBottom: '20px',
+    marginBottom: '14px',
     textAlign: 'left',
   },
   existingUsersLabel: {
-    fontSize: '13px',
+    fontSize: '12px',
     color: 'var(--color-text-3, #6b7280)',
-    marginBottom: '10px',
-    margin: '0 0 10px 0',
+    marginBottom: '8px',
+    margin: '0 0 8px 0',
   },
   userList: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '8px',
+    gap: '6px',
   },
   userButton: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
-    padding: '12px 14px',
+    gap: '8px',
+    padding: '10px 12px',
     border: '2px solid #e5e7eb',
-    borderRadius: '10px',
+    borderRadius: '8px',
     backgroundColor: 'transparent',
     cursor: 'pointer',
     transition: 'all 0.15s',
@@ -835,20 +922,20 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: 'left',
   },
   userIcon: {
-    fontSize: '18px',
+    fontSize: '16px',
   },
   userName: {
     flex: 1,
-    fontSize: '14px',
+    fontSize: '13px',
     fontWeight: 500,
     color: 'var(--color-text, #374151)',
   },
   selectedBadge: {
-    fontSize: '11px',
-    padding: '2px 8px',
+    fontSize: '10px',
+    padding: '2px 6px',
     backgroundColor: '#8b5cf6',
     color: 'white',
-    borderRadius: '10px',
+    borderRadius: '8px',
     fontWeight: 500,
   },
 };

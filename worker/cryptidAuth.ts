@@ -847,3 +847,231 @@ export async function handleRevokeDevice(
     });
   }
 }
+
+/**
+ * Check if a username is available
+ * GET /auth/check-username?username=<username>
+ *
+ * Returns whether a username is available for registration.
+ * Used during the CryptID registration flow.
+ */
+export async function handleCheckUsername(
+  request: Request,
+  env: Environment
+): Promise<Response> {
+  try {
+    const url = new URL(request.url);
+    const username = url.searchParams.get('username');
+
+    if (!username) {
+      return new Response(JSON.stringify({ error: 'Username is required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Normalize username (lowercase, no special chars)
+    const normalizedUsername = username.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+
+    if (normalizedUsername.length < 3) {
+      return new Response(JSON.stringify({
+        available: false,
+        error: 'Username must be at least 3 characters'
+      }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (normalizedUsername.length > 20) {
+      return new Response(JSON.stringify({
+        available: false,
+        error: 'Username must be 20 characters or less'
+      }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const db = env.CRYPTID_DB;
+    if (!db) {
+      // If no database, assume username is available (graceful degradation)
+      return new Response(JSON.stringify({ available: true }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Check if username exists in database
+    const existingUser = await db.prepare(
+      'SELECT id FROM users WHERE cryptid_username = ?'
+    ).bind(normalizedUsername).first<{ id: string }>();
+
+    return new Response(JSON.stringify({
+      available: !existingUser,
+      username: normalizedUsername,
+      error: existingUser ? 'Username is already taken' : null
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('Check username error:', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+/**
+ * Search for CryptID users by username
+ * GET /auth/users/search?q=<query>
+ *
+ * This endpoint allows searching for users by CryptID username.
+ * Used for granting permissions to users by username.
+ */
+export async function handleSearchUsers(
+  request: Request,
+  env: Environment
+): Promise<Response> {
+  try {
+    const url = new URL(request.url);
+    const query = url.searchParams.get('q');
+
+    if (!query || query.length < 2) {
+      return new Response(JSON.stringify({ error: 'Query must be at least 2 characters' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const db = env.CRYPTID_DB;
+    if (!db) {
+      return new Response(JSON.stringify({ error: 'Database not configured' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Search users by username (case-insensitive)
+    const users = await db.prepare(`
+      SELECT id, cryptid_username, email, email_verified, created_at
+      FROM users
+      WHERE cryptid_username LIKE ?
+      ORDER BY cryptid_username
+      LIMIT 20
+    `).bind(`%${query}%`).all<{
+      id: string;
+      cryptid_username: string;
+      email: string;
+      email_verified: number;
+      created_at: string;
+    }>();
+
+    return new Response(JSON.stringify({
+      users: (users.results || []).map(u => ({
+        id: u.id,
+        username: u.cryptid_username,
+        emailVerified: u.email_verified === 1,
+        createdAt: u.created_at
+      }))
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('Search users error:', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+/**
+ * List all CryptID users (admin endpoint)
+ * GET /admin/users
+ * Query params: ?limit=<number>&offset=<number>
+ *
+ * This endpoint requires admin authentication.
+ * For now, we'll require a simple admin secret header.
+ */
+export async function handleListAllUsers(
+  request: Request,
+  env: Environment
+): Promise<Response> {
+  try {
+    // Check for admin secret (simple auth for now)
+    const adminSecret = request.headers.get('X-Admin-Secret');
+    if (!adminSecret || adminSecret !== env.ADMIN_SECRET) {
+      return new Response(JSON.stringify({ error: 'Unauthorized - admin access required' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const db = env.CRYPTID_DB;
+    if (!db) {
+      return new Response(JSON.stringify({ error: 'Database not configured' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const url = new URL(request.url);
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '100'), 1000);
+    const offset = parseInt(url.searchParams.get('offset') || '0');
+
+    // Get total count
+    const countResult = await db.prepare('SELECT COUNT(*) as count FROM users').first<{ count: number }>();
+    const totalCount = countResult?.count || 0;
+
+    // Get users with device count
+    const users = await db.prepare(`
+      SELECT
+        u.id,
+        u.cryptid_username,
+        u.email,
+        u.email_verified,
+        u.created_at,
+        u.updated_at,
+        (SELECT COUNT(*) FROM device_keys dk WHERE dk.user_id = u.id) as device_count
+      FROM users u
+      ORDER BY u.created_at DESC
+      LIMIT ? OFFSET ?
+    `).bind(limit, offset).all<{
+      id: string;
+      cryptid_username: string;
+      email: string;
+      email_verified: number;
+      created_at: string;
+      updated_at: string;
+      device_count: number;
+    }>();
+
+    return new Response(JSON.stringify({
+      users: (users.results || []).map(u => ({
+        id: u.id,
+        username: u.cryptid_username,
+        email: u.email,
+        emailVerified: u.email_verified === 1,
+        deviceCount: u.device_count,
+        createdAt: u.created_at,
+        updatedAt: u.updated_at
+      })),
+      pagination: {
+        total: totalCount,
+        limit,
+        offset,
+        hasMore: offset + limit < totalCount
+      }
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('List all users error:', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}

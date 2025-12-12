@@ -42,18 +42,25 @@ export const saveSession = (session: Session): boolean => {
  */
 export const loadSession = (): StoredSession | null => {
   if (typeof window === 'undefined') return null;
-  
+
   try {
     const stored = localStorage.getItem(SESSION_STORAGE_KEY);
     if (!stored) {
+      console.log('🔐 loadSession: No stored session found');
       return null;
     }
-    
+
     const parsed = JSON.parse(stored) as StoredSession;
-    
+    console.log('🔐 loadSession: Found stored session:', {
+      username: parsed.username,
+      authed: parsed.authed,
+      timestamp: new Date(parsed.timestamp).toISOString()
+    });
+
     // Check if session is not too old (7 days)
     const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
     if (Date.now() - parsed.timestamp > maxAge) {
+      console.log('🔐 loadSession: Session expired, removing');
       localStorage.removeItem(SESSION_STORAGE_KEY);
       return null;
     }

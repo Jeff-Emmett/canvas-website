@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   email_verified INTEGER DEFAULT 0,
-  cryptid_username TEXT NOT NULL,
+  cryptid_username TEXT UNIQUE NOT NULL,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -89,12 +89,13 @@ CREATE INDEX IF NOT EXISTS idx_board_perms_user ON board_permissions(user_id);
 CREATE INDEX IF NOT EXISTS idx_board_perms_board_user ON board_permissions(board_id, user_id);
 
 -- Access tokens for shareable links with specific permission levels
--- Anonymous users can use these tokens to get edit/admin access without authentication
+-- Anonymous users can use these tokens to get view/edit access without authentication
+-- Note: Admin permission cannot be shared via token - must be granted directly by username/email
 CREATE TABLE IF NOT EXISTS board_access_tokens (
   id TEXT PRIMARY KEY,
   board_id TEXT NOT NULL,
   token TEXT NOT NULL UNIQUE,                -- Random hex token (64 chars)
-  permission TEXT NOT NULL CHECK (permission IN ('view', 'edit', 'admin')),
+  permission TEXT NOT NULL CHECK (permission IN ('view', 'edit')),
   created_by TEXT NOT NULL,                  -- User ID who created the token
   created_at TEXT DEFAULT (datetime('now')),
   expires_at TEXT,                           -- NULL = never expires

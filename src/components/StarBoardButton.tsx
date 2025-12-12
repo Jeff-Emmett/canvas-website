@@ -41,7 +41,7 @@ const StarBoardButton: React.FC<StarBoardButtonProps> = ({ className = '' }) => 
 
   const handleStarToggle = async () => {
     if (!session.authed || !session.username || !slug) {
-      addNotification('Please log in to star boards', 'warning');
+      showPopupMessage('Please log in to star boards', 'error');
       return;
     }
 

@@ -642,150 +642,156 @@ export function CustomToolbar() {
 
   if (!isReady) return null
 
+  // Only show custom tools for authenticated users
+  const isAuthenticated = session.authed
+
   return (
     <>
       <DefaultToolbar>
         <DefaultToolbarContent />
-        {tools["VideoChat"] && (
-          <TldrawUiMenuItem
-            {...tools["VideoChat"]}
-            icon="video"
-            label="Video Chat"
-            isSelected={tools["VideoChat"].id === editor.getCurrentToolId()}
-          />
+        {/* Custom tools - only shown when authenticated */}
+        {isAuthenticated && (
+          <>
+            {tools["VideoChat"] && (
+              <TldrawUiMenuItem
+                {...tools["VideoChat"]}
+                icon="video"
+                label="Video Chat"
+                isSelected={tools["VideoChat"].id === editor.getCurrentToolId()}
+              />
+            )}
+            {tools["ChatBox"] && (
+              <TldrawUiMenuItem
+                {...tools["ChatBox"]}
+                icon="chat"
+                label="Chat"
+                isSelected={tools["ChatBox"].id === editor.getCurrentToolId()}
+              />
+            )}
+            {tools["Embed"] && (
+              <TldrawUiMenuItem
+                {...tools["Embed"]}
+                icon="embed"
+                label="Embed"
+                isSelected={tools["Embed"].id === editor.getCurrentToolId()}
+              />
+            )}
+            {tools["SlideShape"] && (
+              <TldrawUiMenuItem
+                {...tools["SlideShape"]}
+                icon="slides"
+                label="Slide"
+                isSelected={tools["SlideShape"].id === editor.getCurrentToolId()}
+              />
+            )}
+            {tools["Markdown"] && (
+              <TldrawUiMenuItem
+                {...tools["Markdown"]}
+                icon="markdown"
+                label="Markdown"
+                isSelected={tools["Markdown"].id === editor.getCurrentToolId()}
+              />
+            )}
+            {tools["MycrozineTemplate"] && (
+              <TldrawUiMenuItem
+                {...tools["MycrozineTemplate"]}
+                icon="mycrozinetemplate"
+                label="MycrozineTemplate"
+                isSelected={
+                  tools["MycrozineTemplate"].id === editor.getCurrentToolId()
+                }
+              />
+            )}
+            {tools["Prompt"] && (
+              <TldrawUiMenuItem
+                {...tools["Prompt"]}
+                icon="prompt"
+                label="LLM Prompt"
+                isSelected={tools["Prompt"].id === editor.getCurrentToolId()}
+              />
+            )}
+            {tools["ObsidianNote"] && (
+              <TldrawUiMenuItem
+                {...tools["ObsidianNote"]}
+                icon="file-text"
+                label="Obsidian Note"
+                isSelected={tools["ObsidianNote"].id === editor.getCurrentToolId()}
+              />
+            )}
+            {tools["Transcription"] && (
+              <TldrawUiMenuItem
+                {...tools["Transcription"]}
+                icon="microphone"
+                label="Transcription"
+                isSelected={tools["Transcription"].id === editor.getCurrentToolId()}
+              />
+            )}
+            {tools["Holon"] && (
+              <TldrawUiMenuItem
+                {...tools["Holon"]}
+                icon="globe"
+                label="Holon"
+                isSelected={tools["Holon"].id === editor.getCurrentToolId()}
+              />
+            )}
+            {tools["FathomMeetings"] && (
+              <TldrawUiMenuItem
+                {...tools["FathomMeetings"]}
+                icon="calendar"
+                label="Fathom Meetings"
+                isSelected={tools["FathomMeetings"].id === editor.getCurrentToolId()}
+              />
+            )}
+            {tools["ImageGen"] && (
+              <TldrawUiMenuItem
+                {...tools["ImageGen"]}
+                icon="image"
+                label="Image Generation"
+                isSelected={tools["ImageGen"].id === editor.getCurrentToolId()}
+              />
+            )}
+            {tools["VideoGen"] && (
+              <TldrawUiMenuItem
+                {...tools["VideoGen"]}
+                icon="video"
+                label="Video Generation"
+                isSelected={tools["VideoGen"].id === editor.getCurrentToolId()}
+              />
+            )}
+            {tools["Multmux"] && (
+              <TldrawUiMenuItem
+                {...tools["Multmux"]}
+                icon="terminal"
+                label="Terminal"
+                isSelected={tools["Multmux"].id === editor.getCurrentToolId()}
+              />
+            )}
+            {tools["Map"] && (
+              <TldrawUiMenuItem
+                {...tools["Map"]}
+                icon="geo-globe"
+                label="Map"
+                isSelected={tools["Map"].id === editor.getCurrentToolId()}
+              />
+            )}
+            {/* Refresh All ObsNotes Button */}
+            {(() => {
+              const allShapes = editor.getCurrentPageShapes()
+              const obsNoteShapes = allShapes.filter(shape => shape.type === 'ObsNote')
+              return obsNoteShapes.length > 0 && (
+                <TldrawUiMenuItem
+                  id="refresh-all-obsnotes"
+                  icon="refresh-cw"
+                  label="Refresh All Notes"
+                  onSelect={() => {
+                    const event = new CustomEvent('refresh-all-obsnotes')
+                    window.dispatchEvent(event)
+                  }}
+                />
+              )
+            })()}
+          </>
         )}
-        {tools["ChatBox"] && (
-          <TldrawUiMenuItem
-            {...tools["ChatBox"]}
-            icon="chat"
-            label="Chat"
-            isSelected={tools["ChatBox"].id === editor.getCurrentToolId()}
-          />
-        )}
-        {tools["Embed"] && (
-          <TldrawUiMenuItem
-            {...tools["Embed"]}
-            icon="embed"
-            label="Embed"
-            isSelected={tools["Embed"].id === editor.getCurrentToolId()}
-          />
-        )}
-        {tools["SlideShape"] && (
-          <TldrawUiMenuItem
-            {...tools["SlideShape"]}
-            icon="slides"
-            label="Slide"
-            isSelected={tools["SlideShape"].id === editor.getCurrentToolId()}
-          />
-        )}
-        {tools["Markdown"] && (
-          <TldrawUiMenuItem
-            {...tools["Markdown"]}
-            icon="markdown"
-            label="Markdown"
-            isSelected={tools["Markdown"].id === editor.getCurrentToolId()}
-          />
-        )}
-        {tools["MycrozineTemplate"] && (
-          <TldrawUiMenuItem
-            {...tools["MycrozineTemplate"]}
-            icon="mycrozinetemplate"
-            label="MycrozineTemplate"
-            isSelected={
-              tools["MycrozineTemplate"].id === editor.getCurrentToolId()
-            }
-          />
-        )}
-        {tools["Prompt"] && (
-          <TldrawUiMenuItem
-            {...tools["Prompt"]}
-            icon="prompt"
-            label="LLM Prompt"
-            isSelected={tools["Prompt"].id === editor.getCurrentToolId()}
-          />
-        )}
-        {tools["ObsidianNote"] && (
-          <TldrawUiMenuItem
-            {...tools["ObsidianNote"]}
-            icon="file-text"
-            label="Obsidian Note"
-            isSelected={tools["ObsidianNote"].id === editor.getCurrentToolId()}
-          />
-        )}
-        {tools["Transcription"] && (
-          <TldrawUiMenuItem
-            {...tools["Transcription"]}
-            icon="microphone"
-            label="Transcription"
-            isSelected={tools["Transcription"].id === editor.getCurrentToolId()}
-          />
-        )}
-        {tools["Holon"] && (
-          <TldrawUiMenuItem
-            {...tools["Holon"]}
-            icon="globe"
-            label="Holon"
-            isSelected={tools["Holon"].id === editor.getCurrentToolId()}
-          />
-        )}
-        {tools["FathomMeetings"] && (
-          <TldrawUiMenuItem
-            {...tools["FathomMeetings"]}
-            icon="calendar"
-            label="Fathom Meetings"
-            isSelected={tools["FathomMeetings"].id === editor.getCurrentToolId()}
-          />
-        )}
-        {tools["ImageGen"] && (
-          <TldrawUiMenuItem
-            {...tools["ImageGen"]}
-            icon="image"
-            label="Image Generation"
-            isSelected={tools["ImageGen"].id === editor.getCurrentToolId()}
-          />
-        )}
-        {tools["VideoGen"] && (
-          <TldrawUiMenuItem
-            {...tools["VideoGen"]}
-            icon="video"
-            label="Video Generation"
-            isSelected={tools["VideoGen"].id === editor.getCurrentToolId()}
-          />
-        )}
-        {tools["Multmux"] && (
-          <TldrawUiMenuItem
-            {...tools["Multmux"]}
-            icon="terminal"
-            label="Terminal"
-            isSelected={tools["Multmux"].id === editor.getCurrentToolId()}
-          />
-        )}
-        {tools["Map"] && (
-          <TldrawUiMenuItem
-            {...tools["Map"]}
-            icon="geo-globe"
-            label="Map"
-            isSelected={tools["Map"].id === editor.getCurrentToolId()}
-          />
-        )}
-        {/* MycelialIntelligence moved to permanent floating bar */}
-        {/* Share Location tool removed for now */}
-        {/* Refresh All ObsNotes Button */}
-        {(() => {
-          const allShapes = editor.getCurrentPageShapes()
-          const obsNoteShapes = allShapes.filter(shape => shape.type === 'ObsNote')
-          return obsNoteShapes.length > 0 && (
-            <TldrawUiMenuItem
-              id="refresh-all-obsnotes"
-              icon="refresh-cw"
-              label="Refresh All Notes"
-              onSelect={() => {
-                const event = new CustomEvent('refresh-all-obsnotes')
-                window.dispatchEvent(event)
-              }}
-            />
-          )
-        })()}
       </DefaultToolbar>
 
       {/* Fathom Meetings Panel */}

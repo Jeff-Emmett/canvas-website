@@ -13,6 +13,8 @@ export interface Environment {
 	RESEND_API_KEY?: string;
 	CRYPTID_EMAIL_FROM?: string;
 	APP_URL?: string;
+	// Admin secret for protected endpoints
+	ADMIN_SECRET?: string;
 }
 
 // CryptID types for auth

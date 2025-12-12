@@ -69,10 +69,10 @@ export function NetworkGraphPanel({ onExpand }: NetworkGraphPanelProps) {
       },
     ];
 
-    // Add collaborators
+    // Add collaborators - TLInstancePresence has userId and userName
     collaborators.forEach((c: any) => {
       participants.push({
-        id: c.id || c.userId || c.instanceId,
+        id: c.userId || c.id,
         username: c.userName || 'Anonymous',
         color: c.color,
       });
@@ -110,6 +110,58 @@ export function NetworkGraphPanel({ onExpand }: NetworkGraphPanelProps) {
   const handleNodeClick = useCallback((node: any) => {
     // Could open a profile modal or navigate to user
     console.log('Node clicked:', node);
+  }, []);
+
+  // Handle going to a user's cursor on canvas (navigate/pan to their location)
+  const handleGoToUser = useCallback((node: any) => {
+    if (!editor) return;
+
+    // Find the collaborator's cursor position
+    // TLInstancePresence has userId and userName properties
+    const targetCollaborator = collaborators.find((c: any) =>
+      c.id === node.id ||
+      c.userId === node.id ||
+      c.userName === node.username
+    );
+
+    if (targetCollaborator && targetCollaborator.cursor) {
+      // Pan to the user's cursor position
+      const { x, y } = targetCollaborator.cursor;
+      editor.centerOnPoint({ x, y });
+    } else {
+      // If no cursor position, try to find any presence data
+      console.log('Could not find cursor position for user:', node.username);
+    }
+  }, [editor, collaborators]);
+
+  // Handle screen following a user (camera follows their view)
+  const handleFollowUser = useCallback((node: any) => {
+    if (!editor) return;
+
+    // Find the collaborator to follow
+    // TLInstancePresence has userId and userName properties
+    const targetCollaborator = collaborators.find((c: any) =>
+      c.id === node.id ||
+      c.userId === node.id ||
+      c.userName === node.username
+    );
+
+    if (targetCollaborator) {
+      // Use tldraw's built-in follow functionality - needs userId
+      const userId = targetCollaborator.userId || targetCollaborator.id;
+      editor.startFollowingUser(userId);
+      console.log('Now following user:', node.username);
+    } else {
+      console.log('Could not find user to follow:', node.username);
+    }
+  }, [editor, collaborators]);
+
+  // Handle opening a user's profile
+  const handleOpenProfile = useCallback((node: any) => {
+    // Open user profile in a new tab or modal
+    const username = node.username || node.id;
+    // Navigate to user profile page
+    window.open(`/profile/${username}`, '_blank');
   }, []);
 
   // Handle edge click
@@ -156,6 +208,9 @@ export function NetworkGraphPanel({ onExpand }: NetworkGraphPanelProps) {
       onConnect={handleConnect}
       onDisconnect={handleDisconnect}
       onNodeClick={handleNodeClick}
+      onGoToUser={handleGoToUser}
+      onFollowUser={handleFollowUser}
+      onOpenProfile={handleOpenProfile}
       onEdgeClick={handleEdgeClick}
       onExpandClick={handleExpand}
       isCollapsed={isCollapsed}

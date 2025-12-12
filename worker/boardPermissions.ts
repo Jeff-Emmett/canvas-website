@@ -154,6 +154,7 @@ export async function handleGetPermission(
     const db = env.CRYPTID_DB;
     if (!db) {
       // No database - default to view for anonymous (secure by default)
+      console.log('🔐 Permission check: No database configured');
       return new Response(JSON.stringify({
         permission: 'view',
         isOwner: false,
@@ -168,6 +169,10 @@ export async function handleGetPermission(
     let userId: string | null = null;
     const publicKey = request.headers.get('X-CryptID-PublicKey');
 
+    console.log('🔐 Permission check for board:', boardId, {
+      publicKeyReceived: publicKey ? `${publicKey.substring(0, 20)}...` : null
+    });
+
     if (publicKey) {
       const deviceKey = await db.prepare(
         'SELECT user_id FROM device_keys WHERE public_key = ?'
@@ -175,6 +180,9 @@ export async function handleGetPermission(
 
       if (deviceKey) {
         userId = deviceKey.user_id;
+        console.log('🔐 Found user ID for public key:', userId);
+      } else {
+        console.log('🔐 No user found for public key');
       }
     }
 
@@ -183,6 +191,7 @@ export async function handleGetPermission(
     const accessToken = url.searchParams.get('token');
 
     const result = await getEffectivePermission(db, boardId, userId, accessToken);
+    console.log('🔐 Permission result:', result);
 
     return new Response(JSON.stringify(result), {
       headers: { 'Content-Type': 'application/json' },
@@ -293,6 +302,10 @@ export async function handleListPermissions(
  * POST /boards/:boardId/permissions
  * Grant permission to a user (admin only)
  * Body: { userId, permission, username? }
+ *
+ * Note: This endpoint allows granting 'admin' permission because it requires
+ * specifying a user by ID or CryptID username. This is the ONLY way to grant
+ * admin access - share links (access tokens) can only grant 'view' or 'edit'.
  */
 export async function handleGrantPermission(
   boardId: string,
@@ -709,8 +722,12 @@ export async function handleCreateAccessToken(
       maxUses?: number;
     };
 
-    if (!body.permission || !['view', 'edit', 'admin'].includes(body.permission)) {
-      return new Response(JSON.stringify({ error: 'Invalid permission level' }), {
+    // Only allow 'view' and 'edit' permissions for access tokens
+    // Admin permission must be granted directly by username/email through handleGrantPermission
+    if (!body.permission || !['view', 'edit'].includes(body.permission)) {
+      return new Response(JSON.stringify({
+        error: 'Invalid permission level. Share links can only grant view or edit access. Use direct permission grants for admin access.'
+      }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });

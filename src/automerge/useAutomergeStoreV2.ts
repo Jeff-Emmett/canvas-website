@@ -274,12 +274,7 @@ export function useAutomergeStoreV2({
         return
       }
 
-      // Broadcasting changes via JSON sync
-      const shapeRecords = addedOrUpdatedRecords.filter(r => r?.typeName === 'shape')
-      const deletedShapes = deletedRecordIds.filter(id => id.startsWith('shape:'))
-      if (shapeRecords.length > 0 || deletedShapes.length > 0) {
-        console.log(`📤 Broadcasting ${shapeRecords.length} shape changes and ${deletedShapes.length} deletions via JSON sync`)
-      }
+      // Broadcasting changes via JSON sync (logging disabled for performance)
 
       if (adapter && typeof (adapter as any).send === 'function') {
         // Send changes to other clients via the network adapter
@@ -303,50 +298,23 @@ export function useAutomergeStoreV2({
     // Listen for changes from Automerge and apply them to TLDraw
     const automergeChangeHandler = (payload: DocHandleChangePayload<any>) => {
       const patchCount = payload.patches?.length || 0
-      const shapePatches = payload.patches?.filter((p: any) => {
-        const id = p.path?.[1]
-        return id && typeof id === 'string' && id.startsWith('shape:')
-      }) || []
-
-      // Debug logging for sync issues
-      console.log(`🔄 automergeChangeHandler: ${patchCount} patches (${shapePatches.length} shapes), pendingLocalChanges=${pendingLocalChanges}`)
 
       // Skip echoes of our own local changes using a counter.
       // Each local handle.change() increments the counter, and each echo decrements it.
       // Only process changes when counter is 0 (those are remote changes from other clients).
       if (pendingLocalChanges > 0) {
-        console.log(`⏭️ Skipping echo (pendingLocalChanges was ${pendingLocalChanges}, now ${pendingLocalChanges - 1})`)
         pendingLocalChanges--
         return
       }
 
-      console.log(`✅ Processing ${patchCount} patches as REMOTE changes (${shapePatches.length} shape patches)`)
-
       try {
         // Apply patches from Automerge to TLDraw store
         if (payload.patches && payload.patches.length > 0) {
-          // Debug: Check if patches contain shapes
-          if (shapePatches.length > 0) {
-            console.log(`📥 Applying ${shapePatches.length} shape patches from remote`)
-          }
-          
           try {
-            const recordsBefore = store.allRecords()
-            const shapesBefore = recordsBefore.filter((r: any) => r.typeName === 'shape')
-            
             // CRITICAL: Pass Automerge document to patch handler so it can read full records
             // This prevents coordinates from defaulting to 0,0 when patches create new records
             const automergeDoc = handle.doc()
             applyAutomergePatchesToTLStore(payload.patches, store, automergeDoc)
-            
-            const recordsAfter = store.allRecords()
-            const shapesAfter = recordsAfter.filter((r: any) => r.typeName === 'shape')
-            
-            if (shapesAfter.length !== shapesBefore.length) {
-              // Patches applied
-            }
-            
-            // Patches processed successfully
           } catch (patchError) {
             console.error("Error applying patches batch, attempting individual patch application:", patchError)
             // Try applying patches one by one to identify problematic ones
@@ -580,78 +548,91 @@ export function useAutomergeStoreV2({
     // Track recent eraser activity to detect active eraser drags
     let lastEraserActivity = 0
     let eraserToolSelected = false
+    let lastEraserCheckTime = 0
+    let cachedEraserActive = false
     const ERASER_ACTIVITY_THRESHOLD = 2000 // Increased to 2 seconds to handle longer eraser drags
+    const ERASER_CHECK_CACHE_MS = 100 // Only refresh eraser state every 100ms to avoid expensive checks
     let eraserChangeQueue: RecordsDiff<TLRecord> | null = null
     let eraserCheckInterval: NodeJS.Timeout | null = null
-    
+
     // Helper to check if eraser tool is actively erasing (to prevent saves during eraser drag)
+    // OPTIMIZED: Uses cached state and only refreshes periodically to avoid expensive store.allRecords() calls
     const isEraserActive = (): boolean => {
+      const now = Date.now()
+
+      // Use cached result if checked recently
+      if (now - lastEraserCheckTime < ERASER_CHECK_CACHE_MS) {
+        return cachedEraserActive
+      }
+      lastEraserCheckTime = now
+
+      // If eraser was selected and recent activity, assume still active
+      if (eraserToolSelected && now - lastEraserActivity < ERASER_ACTIVITY_THRESHOLD) {
+        cachedEraserActive = true
+        return true
+      }
+
+      // If no recent eraser activity and not marked as selected, quickly return false
+      if (!eraserToolSelected && now - lastEraserActivity > ERASER_ACTIVITY_THRESHOLD) {
+        cachedEraserActive = false
+        return false
+      }
+
+      // Only do expensive check if eraser might be transitioning
       try {
-        const allRecords = store.allRecords()
-        
+        // Use store.get() for specific records instead of allRecords() for better performance
+        const instancePageState = store.get('instance_page_state:page:page' as any)
+
         // Check instance_page_state for erasingShapeIds (most reliable indicator)
-        const instancePageState = allRecords.find((r: any) => 
-          r.typeName === 'instance_page_state' && 
-          (r as any).erasingShapeIds && 
-          Array.isArray((r as any).erasingShapeIds) && 
-          (r as any).erasingShapeIds.length > 0
-        )
-        
-        if (instancePageState) {
-          lastEraserActivity = Date.now()
+        if (instancePageState &&
+            (instancePageState as any).erasingShapeIds &&
+            Array.isArray((instancePageState as any).erasingShapeIds) &&
+            (instancePageState as any).erasingShapeIds.length > 0) {
+          lastEraserActivity = now
           eraserToolSelected = true
+          cachedEraserActive = true
           return true // Eraser is actively erasing shapes
         }
-        
+
         // Check if eraser tool is selected
-        const instance = allRecords.find((r: any) => r.typeName === 'instance')
+        const instance = store.get('instance:instance' as any)
         const currentToolId = instance ? (instance as any).currentToolId : null
-        
+
         if (currentToolId === 'eraser') {
           eraserToolSelected = true
-          const now = Date.now()
-          // If eraser tool is selected, keep it active for longer to handle drags
-          // Also check if there was recent activity
-          if (now - lastEraserActivity < ERASER_ACTIVITY_THRESHOLD) {
-            return true
-          }
-          // If tool is selected but no recent activity, still consider it active
-          // (user might be mid-drag)
+          lastEraserActivity = now
+          cachedEraserActive = true
           return true
         } else {
-          // Tool switched away - only consider active if very recent activity
           eraserToolSelected = false
-          const now = Date.now()
-          if (now - lastEraserActivity < 300) {
-            return true // Very recent activity, might still be processing
-          }
         }
-        
+
+        cachedEraserActive = false
         return false
       } catch (e) {
         // If we can't check, use last known state with timeout
-        const now = Date.now()
         if (eraserToolSelected && now - lastEraserActivity < ERASER_ACTIVITY_THRESHOLD) {
+          cachedEraserActive = true
           return true
         }
+        cachedEraserActive = false
         return false
       }
     }
     
     // Track eraser activity from shape deletions
+    // OPTIMIZED: Only check for eraser tool when shapes are removed, and use cached tool state
     const checkForEraserActivity = (changes: RecordsDiff<TLRecord>) => {
       // If shapes are being removed and eraser tool might be active, mark activity
       if (changes.removed) {
-        const removedShapes = Object.values(changes.removed).filter((r: any) => 
-          r && r.typeName === 'shape'
-        )
-        if (removedShapes.length > 0) {
-          // Check if eraser tool is currently selected
-          const allRecords = store.allRecords()
-          const instance = allRecords.find((r: any) => r.typeName === 'instance')
-          if (instance && (instance as any).currentToolId === 'eraser') {
-            lastEraserActivity = Date.now()
-            eraserToolSelected = true
+        const removedKeys = Object.keys(changes.removed)
+        // Quick check: if no shape keys, skip
+        const hasRemovedShapes = removedKeys.some(key => key.startsWith('shape:'))
+        if (hasRemovedShapes) {
+          // Use cached eraserToolSelected state if recent, avoid expensive allRecords() call
+          const now = Date.now()
+          if (eraserToolSelected || now - lastEraserActivity < ERASER_ACTIVITY_THRESHOLD) {
+            lastEraserActivity = now
           }
         }
       }
@@ -688,17 +669,6 @@ export function useAutomergeStoreV2({
             id.startsWith('pointer:')
           )
           
-          // DEBUG: Log why records are being filtered or not
-          const shouldFilter = (typeName && ephemeralTypes.includes(typeName)) || idMatchesEphemeral
-          if (shouldFilter) {
-            console.log(`🚫 Filtering out ephemeral record:`, {
-              id,
-              typeName,
-              idMatchesEphemeral,
-              typeNameMatches: typeName && ephemeralTypes.includes(typeName)
-            })
-          }
-          
           // Filter out if typeName matches OR if ID pattern matches ephemeral types
           if (typeName && ephemeralTypes.includes(typeName)) {
             // Skip - this is an ephemeral record
@@ -721,183 +691,9 @@ export function useAutomergeStoreV2({
         removed: filterEphemeral(changes.removed),
       }
       
-      // DEBUG: Log all changes to see what's being detected
-      const totalChanges = Object.keys(changes.added || {}).length + Object.keys(changes.updated || {}).length + Object.keys(changes.removed || {}).length
+      // Calculate change counts (minimal, needed for early return)
       const filteredTotalChanges = Object.keys(filteredChanges.added || {}).length + Object.keys(filteredChanges.updated || {}).length + Object.keys(filteredChanges.removed || {}).length
-      
-      // DEBUG: Log ALL changes (before filtering) to see what's actually being updated
-      if (totalChanges > 0) {
-        const allChangedRecords: Array<{id: string, typeName: string, changeType: string}> = []
-        if (changes.added) {
-          Object.entries(changes.added).forEach(([id, record]: [string, any]) => {
-            const recordObj = Array.isArray(record) ? record[1] : record
-            allChangedRecords.push({ id, typeName: recordObj?.typeName || 'unknown', changeType: 'added' })
-          })
-        }
-        if (changes.updated) {
-          Object.entries(changes.updated).forEach(([id, [_, record]]: [string, [any, any]]) => {
-            allChangedRecords.push({ id, typeName: record?.typeName || 'unknown', changeType: 'updated' })
-          })
-        }
-        if (changes.removed) {
-          Object.entries(changes.removed).forEach(([id, record]: [string, any]) => {
-            const recordObj = Array.isArray(record) ? record[1] : record
-            allChangedRecords.push({ id, typeName: recordObj?.typeName || 'unknown', changeType: 'removed' })
-          })
-        }
-        console.log(`🔍 ALL changes detected (before filtering):`, {
-          total: totalChanges,
-          records: allChangedRecords,
-          // Also log the actual record objects to see their structure
-          recordDetails: allChangedRecords.map(r => {
-            let record: any = null
-            if (r.changeType === 'added' && changes.added) {
-              const rec = (changes.added as any)[r.id]
-              record = Array.isArray(rec) ? rec[1] : rec
-            } else if (r.changeType === 'updated' && changes.updated) {
-              const rec = (changes.updated as any)[r.id]
-              record = Array.isArray(rec) ? rec[1] : rec
-            } else if (r.changeType === 'removed' && changes.removed) {
-              const rec = (changes.removed as any)[r.id]
-              record = Array.isArray(rec) ? rec[1] : rec
-            }
-            return {
-              id: r.id,
-              typeName: r.typeName,
-              changeType: r.changeType,
-              hasTypeName: !!record?.typeName,
-              actualTypeName: record?.typeName,
-              recordKeys: record ? Object.keys(record).slice(0, 10) : []
-            }
-          })
-        })
-      }
-      
-      // Log if we filtered out any ephemeral changes
-      if (totalChanges > 0 && filteredTotalChanges < totalChanges) {
-        const filteredCount = totalChanges - filteredTotalChanges
-        const filteredTypes = new Set<string>()
-        const filteredIds: string[] = []
-        if (changes.added) {
-          Object.entries(changes.added).forEach(([id, record]: [string, any]) => {
-            const recordObj = Array.isArray(record) ? record[1] : record
-            if (recordObj && ephemeralTypes.includes(recordObj.typeName)) {
-              filteredTypes.add(recordObj.typeName)
-              filteredIds.push(id)
-            }
-          })
-        }
-        if (changes.updated) {
-          Object.entries(changes.updated).forEach(([id, [_, record]]: [string, [any, any]]) => {
-            if (ephemeralTypes.includes(record.typeName)) {
-              filteredTypes.add(record.typeName)
-              filteredIds.push(id)
-            }
-          })
-        }
-        if (changes.removed) {
-          Object.entries(changes.removed).forEach(([id, record]: [string, any]) => {
-            const recordObj = Array.isArray(record) ? record[1] : record
-            if (recordObj && ephemeralTypes.includes(recordObj.typeName)) {
-              filteredTypes.add(recordObj.typeName)
-              filteredIds.push(id)
-            }
-          })
-        }
-        console.log(`🚫 Filtered out ${filteredCount} ephemeral change(s) (${Array.from(filteredTypes).join(', ')}) - not persisting`, {
-          filteredIds: filteredIds.slice(0, 5), // Show first 5 IDs
-          totalFiltered: filteredIds.length
-        })
-      }
-      
-      if (filteredTotalChanges > 0) {
-        // Log what records are passing through the filter (shouldn't happen for ephemeral records)
-        const passingRecords: Array<{id: string, typeName: string, changeType: string}> = []
-        if (filteredChanges.added) {
-          Object.entries(filteredChanges.added).forEach(([id, record]: [string, any]) => {
-            const recordObj = Array.isArray(record) ? record[1] : record
-            passingRecords.push({ id, typeName: recordObj?.typeName || 'unknown', changeType: 'added' })
-          })
-        }
-        if (filteredChanges.updated) {
-          Object.entries(filteredChanges.updated).forEach(([id, recordTuple]: [string, any]) => {
-            const record = Array.isArray(recordTuple) && recordTuple.length === 2 ? recordTuple[1] : recordTuple
-            passingRecords.push({ id, typeName: (record as any)?.typeName || 'unknown', changeType: 'updated' })
-          })
-        }
-        if (filteredChanges.removed) {
-          Object.entries(filteredChanges.removed).forEach(([id, record]: [string, any]) => {
-            const recordObj = Array.isArray(record) ? record[1] : record
-            passingRecords.push({ id, typeName: recordObj?.typeName || 'unknown', changeType: 'removed' })
-          })
-        }
-        
-        console.log(`🔍 TLDraw store changes detected (source: ${source}):`, {
-          added: Object.keys(filteredChanges.added || {}).length,
-          updated: Object.keys(filteredChanges.updated || {}).length,
-          removed: Object.keys(filteredChanges.removed || {}).length,
-          source: source,
-          passingRecords: passingRecords // Show what's actually passing through
-        })
-        
-        // DEBUG: Check for richText/text changes in updated records
-        if (filteredChanges.updated) {
-          Object.values(filteredChanges.updated).forEach((recordTuple: any) => {
-            const record = Array.isArray(recordTuple) && recordTuple.length === 2 ? recordTuple[1] : recordTuple
-            if ((record as any)?.typeName === 'shape') {
-              const rec = record as any
-              if (rec.type === 'geo' && rec.props?.richText) {
-                console.log(`🔍 Geo shape ${rec.id} richText change detected:`, {
-                  hasRichText: !!rec.props.richText,
-                  richTextType: typeof rec.props.richText,
-                  source: source
-                })
-              }
-              if (rec.type === 'note' && rec.props?.richText) {
-                console.log(`🔍 Note shape ${rec.id} richText change detected:`, {
-                  hasRichText: !!rec.props.richText,
-                  richTextType: typeof rec.props.richText,
-                  richTextContentLength: Array.isArray(rec.props.richText?.content) 
-                    ? rec.props.richText.content.length 
-                    : 'not array',
-                  source: source
-                })
-              }
-              if (rec.type === 'arrow' && rec.props?.text !== undefined) {
-                console.log(`🔍 Arrow shape ${rec.id} text change detected:`, {
-                  hasText: !!rec.props.text,
-                  textValue: rec.props.text,
-                  source: source
-                })
-              }
-              if (rec.type === 'text' && rec.props?.richText) {
-                console.log(`🔍 Text shape ${rec.id} richText change detected:`, {
-                  hasRichText: !!rec.props.richText,
-                  richTextType: typeof rec.props.richText,
-                  source: source
-                })
-              }
-            }
-          })
-        }
-        
-        // DEBUG: Log added shapes to track what's being created
-        if (filteredChanges.added) {
-          Object.values(filteredChanges.added).forEach((record: any) => {
-            const rec = Array.isArray(record) ? record[1] : record
-            if (rec?.typeName === 'shape') {
-              console.log(`🔍 Shape added: ${rec.type} (${rec.id})`, {
-                type: rec.type,
-                id: rec.id,
-                hasRichText: !!rec.props?.richText,
-                hasText: !!rec.props?.text,
-                source: source
-              })
-            }
-          })
-        }
-      }
-      
+
       // Skip if no meaningful changes after filtering ephemeral records
       if (filteredTotalChanges === 0) {
         return
@@ -906,7 +702,6 @@ export function useAutomergeStoreV2({
       // CRITICAL: Skip broadcasting changes that came from remote sources to prevent feedback loops
       // Only broadcast changes that originated from user interactions (source === 'user')
       if (source === 'remote') {
-        console.log('🔄 Skipping broadcast for remote change to prevent feedback loop')
         return
       }
 
@@ -1043,38 +838,6 @@ export function useAutomergeStoreV2({
       
       // Check if this is a position-only update that should be throttled
       const isPositionOnly = isPositionOnlyUpdate(finalFilteredChanges)
-
-      // Log what type of change this is for debugging
-      const changeType = Object.keys(finalFilteredChanges.added || {}).length > 0 ? 'added' :
-                         Object.keys(finalFilteredChanges.removed || {}).length > 0 ? 'removed' :
-                         isPositionOnly ? 'position-only' : 'property-change'
-
-      // DEBUG: Log dimension changes for shapes
-      if (finalFilteredChanges.updated) {
-        Object.entries(finalFilteredChanges.updated).forEach(([id, recordTuple]: [string, any]) => {
-          const isTuple = Array.isArray(recordTuple) && recordTuple.length === 2
-          const oldRecord = isTuple ? recordTuple[0] : null
-          const newRecord = isTuple ? recordTuple[1] : recordTuple
-          if (newRecord?.typeName === 'shape') {
-            const oldProps = oldRecord?.props || {}
-            const newProps = newRecord?.props || {}
-            if (oldProps.w !== newProps.w || oldProps.h !== newProps.h) {
-              console.log(`🔍 Shape dimension change detected for ${newRecord.type} ${id}:`, {
-                oldDims: { w: oldProps.w, h: oldProps.h },
-                newDims: { w: newProps.w, h: newProps.h },
-                source
-              })
-            }
-          }
-        })
-      }
-
-      console.log(`🔍 Change detected: ${changeType}, will ${isPositionOnly ? 'throttle' : 'broadcast immediately'}`, {
-        added: Object.keys(finalFilteredChanges.added || {}).length,
-        updated: Object.keys(finalFilteredChanges.updated || {}).length,
-        removed: Object.keys(finalFilteredChanges.removed || {}).length,
-        source
-      })
 
       if (isPositionOnly && positionUpdateQueue === null) {
         // Start a new queue for position updates
@@ -1258,12 +1021,7 @@ export function useAutomergeStoreV2({
             broadcastJsonSync(addedOrUpdatedRecords, deletedRecordIds)
           }
           
-          // Only log if there are many changes or if debugging is needed
-          if (filteredTotalChanges > 3) {
-            console.log(`✅ Applied ${filteredTotalChanges} TLDraw changes to Automerge document`)
-          } else if (filteredTotalChanges > 0) {
-            console.log(`✅ Applied ${filteredTotalChanges} TLDraw change(s) to Automerge document`)
-          }
+          // Logging disabled for performance during continuous drawing
           
           // Check if the document actually changed
           const docAfter = handle.doc()

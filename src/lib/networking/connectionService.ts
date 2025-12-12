@@ -35,7 +35,8 @@ const API_BASE = '/api/networking';
  */
 function getCurrentUserId(): string | null {
   try {
-    const sessionStr = localStorage.getItem('cryptid_session');
+    // Session is stored as 'canvas_auth_session' by sessionPersistence.ts
+    const sessionStr = localStorage.getItem('canvas_auth_session');
     if (sessionStr) {
       const session = JSON.parse(sessionStr);
       if (session.authed && session.username) {
