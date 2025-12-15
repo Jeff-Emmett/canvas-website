@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react"
 import { useEditor } from "tldraw"
 
-// Command Palette that shows when holding Ctrl+Shift
+// Command Palette that shows when holding Ctrl+Shift or via global event
 // Displays available keyboard shortcuts for custom tools and actions
 
 interface ShortcutItem {
@@ -13,9 +13,15 @@ interface ShortcutItem {
   category: 'tool' | 'action'
 }
 
+// Global function to open the command palette
+export function openCommandPalette() {
+  window.dispatchEvent(new CustomEvent('open-command-palette'))
+}
+
 export function CommandPalette() {
   const editor = useEditor()
   const [isVisible, setIsVisible] = useState(false)
+  const [isManuallyOpened, setIsManuallyOpened] = useState(false)
   const holdTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const keysHeldRef = useRef({ ctrl: false, shift: false })
 
@@ -52,6 +58,7 @@ export function CommandPalette() {
   // Handle clicking on a tool/action
   const handleItemClick = useCallback((item: ShortcutItem) => {
     setIsVisible(false)
+    setIsManuallyOpened(false)
 
     if (item.category === 'tool') {
       // Set the current tool
@@ -70,6 +77,44 @@ export function CommandPalette() {
       window.dispatchEvent(event)
     }
   }, [editor])
+
+  // Handle manual open via custom event
+  useEffect(() => {
+    const handleOpenEvent = () => {
+      setIsManuallyOpened(true)
+      setIsVisible(true)
+    }
+
+    window.addEventListener('open-command-palette', handleOpenEvent)
+    return () => window.removeEventListener('open-command-palette', handleOpenEvent)
+  }, [])
+
+  // Handle Escape key and click outside to close when manually opened
+  useEffect(() => {
+    if (!isManuallyOpened) return
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsVisible(false)
+        setIsManuallyOpened(false)
+      }
+    }
+
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (target.closest('.command-palette')) return
+      setIsVisible(false)
+      setIsManuallyOpened(false)
+    }
+
+    window.addEventListener('keydown', handleEscape)
+    window.addEventListener('mousedown', handleClickOutside)
+
+    return () => {
+      window.removeEventListener('keydown', handleEscape)
+      window.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [isManuallyOpened])
 
   // Handle Ctrl+Shift key press/release
   useEffect(() => {
@@ -93,8 +138,8 @@ export function CommandPalette() {
       } else if (e.key === 'Shift') {
         keysHeldRef.current.shift = true
         checkAndShowPalette()
-      } else if (isVisible) {
-        // Hide on any other key press (they're using a shortcut)
+      } else if (isVisible && !isManuallyOpened) {
+        // Hide on any other key press (they're using a shortcut) - only if not manually opened
         setIsVisible(false)
       }
     }
@@ -106,8 +151,8 @@ export function CommandPalette() {
         keysHeldRef.current.shift = false
       }
 
-      // Hide palette if either key is released
-      if (!keysHeldRef.current.ctrl || !keysHeldRef.current.shift) {
+      // Hide palette if either key is released - only if not manually opened
+      if (!isManuallyOpened && (!keysHeldRef.current.ctrl || !keysHeldRef.current.shift)) {
         if (holdTimeoutRef.current) {
           clearTimeout(holdTimeoutRef.current)
           holdTimeoutRef.current = null
@@ -126,7 +171,7 @@ export function CommandPalette() {
         clearTimeout(holdTimeoutRef.current)
       }
     }
-  }, [isVisible])
+  }, [isVisible, isManuallyOpened])
 
   if (!isVisible) return null
 
@@ -146,7 +191,7 @@ export function CommandPalette() {
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 999999,
-        pointerEvents: 'none',
+        pointerEvents: isManuallyOpened ? 'auto' : 'none',
         animation: 'fadeIn 0.15s ease-out',
       }}
     >

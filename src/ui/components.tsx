@@ -6,7 +6,7 @@ import { CustomToolbar } from "./CustomToolbar"
 import { CustomContextMenu } from "./CustomContextMenu"
 import { FocusLockIndicator } from "./FocusLockIndicator"
 import { MycelialIntelligenceBar } from "./MycelialIntelligenceBar"
-import { CommandPalette } from "./CommandPalette"
+import { CommandPalette, openCommandPalette } from "./CommandPalette"
 import { NetworkGraphPanel } from "../components/networking"
 import CryptIDDropdown from "../components/auth/CryptIDDropdown"
 import StarBoardButton from "../components/StarBoardButton"
@@ -47,14 +47,11 @@ const PERMISSION_CONFIG: Record<PermissionLevel, { label: string; color: string;
 
 // Custom SharePanel with layout: CryptID -> Star -> Gear -> Question mark
 function CustomSharePanel() {
-  const tools = useTools()
-  const actions = useActions()
   const { addDialog, removeDialog } = useDialogs()
   const { session } = useAuth()
   const { slug } = useParams<{ slug: string }>()
   const boardId = slug || 'mycofi33'
 
-  const [showShortcuts, setShowShortcuts] = React.useState(false)
   const [showSettingsDropdown, setShowSettingsDropdown] = React.useState(false)
   // const [showVersionHistory, setShowVersionHistory] = React.useState(false) // TODO: Re-enable when version reversion is ready
   const [showAISection, setShowAISection] = React.useState(false)
@@ -73,9 +70,7 @@ function CustomSharePanel() {
 
   // Refs for dropdown positioning
   const settingsButtonRef = React.useRef<HTMLButtonElement>(null)
-  const shortcutsButtonRef = React.useRef<HTMLButtonElement>(null)
   const [settingsDropdownPos, setSettingsDropdownPos] = React.useState<{ top: number; right: number } | null>(null)
-  const [shortcutsDropdownPos, setShortcutsDropdownPos] = React.useState<{ top: number; right: number } | null>(null)
 
   // Get current permission from session
   // Authenticated users default to 'edit', unauthenticated to 'view'
@@ -136,16 +131,6 @@ function CustomSharePanel() {
     }
   }, [showSettingsDropdown])
 
-  React.useEffect(() => {
-    if (showShortcuts && shortcutsButtonRef.current) {
-      const rect = shortcutsButtonRef.current.getBoundingClientRect()
-      setShortcutsDropdownPos({
-        top: rect.bottom + 8,
-        right: window.innerWidth - rect.right,
-      })
-    }
-  }, [showShortcuts])
-
   // ESC key handler for closing dropdowns
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -153,15 +138,14 @@ function CustomSharePanel() {
         e.preventDefault()
         e.stopPropagation()
         if (showSettingsDropdown) setShowSettingsDropdown(false)
-        if (showShortcuts) setShowShortcuts(false)
       }
     }
-    if (showSettingsDropdown || showShortcuts) {
+    if (showSettingsDropdown) {
       // Use capture phase to intercept before tldraw
       document.addEventListener('keydown', handleKeyDown, true)
     }
     return () => document.removeEventListener('keydown', handleKeyDown, true)
-  }, [showSettingsDropdown, showShortcuts])
+  }, [showSettingsDropdown])
 
   // Detect dark mode - use state to trigger re-render on change
   const [isDarkMode, setIsDarkMode] = React.useState(
@@ -358,84 +342,6 @@ function CustomSharePanel() {
       console.error('Failed to remove editor:', error)
     }
   }
-
-  // Helper to extract label string from tldraw label (can be string or {default, menu} object)
-  const getLabelString = (label: any, fallback: string): string => {
-    if (typeof label === 'string') return label
-    if (label && typeof label === 'object' && 'default' in label) return label.default
-    return fallback
-  }
-
-  // Collect all tools and actions with keyboard shortcuts
-  const allShortcuts = React.useMemo(() => {
-    const shortcuts: { name: string; kbd: string; category: string }[] = []
-
-    // Built-in tools
-    const builtInTools = ['select', 'hand', 'draw', 'eraser', 'arrow', 'text', 'note', 'frame', 'geo', 'line', 'highlight', 'laser']
-    builtInTools.forEach(toolId => {
-      const tool = tools[toolId]
-      if (tool?.kbd) {
-        shortcuts.push({
-          name: getLabelString(tool.label, toolId),
-          kbd: tool.kbd,
-          category: 'Tools'
-        })
-      }
-    })
-
-    // Custom tools (VideoGen and Map temporarily hidden)
-    const customToolIds = ['VideoChat', 'ChatBox', 'Embed', 'Slide', 'Markdown', 'MycrozineTemplate', 'Prompt', 'ObsidianNote', 'Transcription', 'Holon', 'FathomMeetings', 'ImageGen', 'Multmux']
-    customToolIds.forEach(toolId => {
-      const tool = tools[toolId]
-      if (tool?.kbd) {
-        shortcuts.push({
-          name: getLabelString(tool.label, toolId),
-          kbd: tool.kbd,
-          category: 'Custom Tools'
-        })
-      }
-    })
-
-    // Built-in actions
-    const builtInActionIds = ['undo', 'redo', 'cut', 'copy', 'paste', 'delete', 'select-all', 'duplicate', 'group', 'ungroup', 'bring-to-front', 'send-to-back', 'zoom-in', 'zoom-out', 'zoom-to-fit', 'zoom-to-100', 'toggle-grid']
-    builtInActionIds.forEach(actionId => {
-      const action = actions[actionId]
-      if (action?.kbd) {
-        shortcuts.push({
-          name: getLabelString(action.label, actionId),
-          kbd: action.kbd,
-          category: 'Actions'
-        })
-      }
-    })
-
-    // Custom actions
-    const customActionIds = ['copy-link-to-current-view', 'copy-focus-link', 'unlock-camera-focus', 'revert-camera', 'lock-element', 'save-to-pdf', 'search-shapes', 'llm', 'open-obsidian-browser']
-    customActionIds.forEach(actionId => {
-      const action = actions[actionId]
-      if (action?.kbd) {
-        shortcuts.push({
-          name: getLabelString(action.label, actionId),
-          kbd: action.kbd,
-          category: 'Custom Actions'
-        })
-      }
-    })
-
-    return shortcuts
-  }, [tools, actions])
-
-  // Group shortcuts by category
-  const groupedShortcuts = React.useMemo(() => {
-    const groups: Record<string, typeof allShortcuts> = {}
-    allShortcuts.forEach(shortcut => {
-      if (!groups[shortcut.category]) {
-        groups[shortcut.category] = []
-      }
-      groups[shortcut.category].push(shortcut)
-    })
-    return groups
-  }, [allShortcuts])
 
   // Separator component for unified menu
   const Separator = () => (
@@ -1157,14 +1063,13 @@ function CustomSharePanel() {
 
         <Separator />
 
-        {/* Help/Keyboard shortcuts button - rightmost */}
+        {/* Help/Keyboard shortcuts button - rightmost - opens Command Palette */}
         <div style={{ padding: '0 4px' }}>
           <button
-            ref={shortcutsButtonRef}
-            onClick={() => setShowShortcuts(!showShortcuts)}
+            onClick={() => openCommandPalette()}
             className="share-panel-btn"
             style={{
-              background: showShortcuts ? 'var(--color-muted-2)' : 'none',
+              background: 'none',
               border: 'none',
               padding: '6px',
               cursor: 'pointer',
@@ -1173,7 +1078,7 @@ function CustomSharePanel() {
               alignItems: 'center',
               justifyContent: 'center',
               color: 'var(--color-text-1)',
-              opacity: showShortcuts ? 1 : 0.7,
+              opacity: 0.7,
               transition: 'opacity 0.15s, background 0.15s',
               pointerEvents: 'all',
             }}
@@ -1182,10 +1087,8 @@ function CustomSharePanel() {
               e.currentTarget.style.background = 'var(--color-muted-2)'
             }}
             onMouseLeave={(e) => {
-              if (!showShortcuts) {
-                e.currentTarget.style.opacity = '0.7'
-                e.currentTarget.style.background = 'none'
-              }
+              e.currentTarget.style.opacity = '0.7'
+              e.currentTarget.style.background = 'none'
             }}
             title="Keyboard shortcuts (?)"
           >
@@ -1197,117 +1100,6 @@ function CustomSharePanel() {
           </button>
         </div>
       </div>
-
-      {/* Keyboard shortcuts panel - rendered via portal to break out of parent container */}
-      {showShortcuts && shortcutsDropdownPos && createPortal(
-        <>
-          {/* Backdrop - only uses onClick, not onPointerDown */}
-          <div
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 99998,
-              background: 'transparent',
-            }}
-            onClick={() => setShowShortcuts(false)}
-          />
-          {/* Shortcuts menu */}
-          <div
-            style={{
-              position: 'fixed',
-              top: shortcutsDropdownPos.top,
-              right: shortcutsDropdownPos.right,
-              width: '320px',
-              maxHeight: '50vh',
-              overflowY: 'auto',
-              overflowX: 'hidden',
-              background: 'var(--color-panel, #ffffff)',
-              backgroundColor: 'var(--color-panel, #ffffff)',
-              border: '1px solid var(--color-panel-contrast)',
-              borderRadius: '8px',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
-              zIndex: 99999,
-              padding: '10px 0',
-              pointerEvents: 'auto',
-              backdropFilter: 'none',
-              opacity: 1,
-            }}
-            onWheel={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{
-              padding: '8px 16px 12px',
-              fontSize: '14px',
-              fontWeight: 600,
-              color: 'var(--color-text)',
-              borderBottom: '1px solid var(--color-panel-contrast)',
-              marginBottom: '8px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}>
-              <span>Keyboard Shortcuts</span>
-              <button
-                onClick={() => setShowShortcuts(false)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  color: 'var(--color-text-3)',
-                  fontSize: '16px',
-                  lineHeight: 1,
-                }}
-              >
-                ×
-              </button>
-            </div>
-
-            {Object.entries(groupedShortcuts).map(([category, shortcuts]) => (
-              <div key={category} style={{ marginBottom: '12px' }}>
-                <div style={{
-                  padding: '4px 16px',
-                  fontSize: '10px',
-                  fontWeight: 600,
-                  color: 'var(--color-text-3)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                }}>
-                  {category}
-                </div>
-                {shortcuts.map((shortcut, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '6px 16px',
-                      fontSize: '13px',
-                    }}
-                  >
-                    <span style={{ color: 'var(--color-text)' }}>
-                      {shortcut.name.replace('tool.', '').replace('action.', '')}
-                    </span>
-                    <kbd style={{
-                      background: 'var(--color-muted-2)',
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      fontSize: '11px',
-                      fontFamily: 'inherit',
-                      color: 'var(--color-text-1)',
-                      border: '1px solid var(--color-panel-contrast)',
-                    }}>
-                      {shortcut.kbd.toUpperCase()}
-                    </kbd>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        </>,
-        document.body
-      )}
 
       {/* Version Reversion Panel - Coming Soon */}
       {/* TODO: Re-enable when version history backend is fully tested
