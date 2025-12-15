@@ -248,9 +248,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           {/* Terminal (Multmux) - temporarily hidden until in better working state
           <TldrawUiMenuItem {...tools.Multmux} />
           */}
-          {/* Map - temporarily hidden until in better working state
           <TldrawUiMenuItem {...tools.Map} />
-          */}
           <TldrawUiMenuItem {...tools.SlideShape} />
           <TldrawUiMenuItem {...tools.VideoChat} />
           <TldrawUiMenuItem {...tools.FathomMeetings} />

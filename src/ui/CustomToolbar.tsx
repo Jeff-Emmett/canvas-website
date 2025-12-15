@@ -772,7 +772,6 @@ export function CustomToolbar() {
               />
             )}
             */}
-            {/* Map - temporarily hidden until in better working state
             {tools["Map"] && (
               <TldrawUiMenuItem
                 {...tools["Map"]}
@@ -781,7 +780,6 @@ export function CustomToolbar() {
                 isSelected={tools["Map"].id === editor.getCurrentToolId()}
               />
             )}
-            */}
             {/* Refresh All ObsNotes Button */}
             {(() => {
               const allShapes = editor.getCurrentPageShapes()

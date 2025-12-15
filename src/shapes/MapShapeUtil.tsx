@@ -428,6 +428,12 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
   const [isFetchingNearby, setIsFetchingNearby] = useState(false);
   const [observingUser, setObservingUser] = useState<string | null>(null);
 
+  // GPS Location Sharing State
+  const [isSharingLocation, setIsSharingLocation] = useState(false);
+  const [myLocation, setMyLocation] = useState<Coordinate | null>(null);
+  const watchIdRef = useRef<number | null>(null);
+  const collaboratorMarkersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
+
   const styleKey = (shape.props.styleKey || 'voyager') as StyleKey;
   const currentStyle = MAP_STYLES[styleKey] || MAP_STYLES.voyager;
 
@@ -448,6 +454,22 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+
+      // Cleanup GPS watch on unmount
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+
+      // Cleanup collaborator markers
+      collaboratorMarkersRef.current.forEach((marker) => {
+        try {
+          marker.remove();
+        } catch (err) {
+          // Marker may already be removed
+        }
+      });
+      collaboratorMarkersRef.current.clear();
     };
   }, []);
 
@@ -618,6 +640,188 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
     }, 0);
     return () => clearTimeout(resizeTimeout);
   }, [shape.props.w, shape.props.h, isLoaded, shape.props.showSidebar]);
+
+  // ==========================================================================
+  // Collaborator GPS Markers (renders ALL users sharing location on the map)
+  // ==========================================================================
+
+  useEffect(() => {
+    if (!mapRef.current || !isLoaded || !isMountedRef.current) return;
+
+    const map = mapRef.current;
+    const myUserId = editor.user.getId();
+
+    // Get ALL collaborators with locations (including self)
+    const allCollaborators = shape.props.collaborators || [];
+    const collaboratorsWithLocation = allCollaborators.filter(
+      (c: CollaboratorPresence) => c.location
+    );
+    const currentCollaboratorIds = new Set(collaboratorsWithLocation.map((c: CollaboratorPresence) => c.id));
+
+    // Debug logging
+    if (collaboratorsWithLocation.length > 0) {
+      console.log('📍 GPS Markers Update:', {
+        total: allCollaborators.length,
+        withLocation: collaboratorsWithLocation.length,
+        users: collaboratorsWithLocation.map(c => ({ id: c.id.slice(0, 8), name: c.name, loc: c.location })),
+      });
+    }
+
+    // Remove old collaborator markers that are no longer sharing
+    collaboratorMarkersRef.current.forEach((marker, id) => {
+      if (!currentCollaboratorIds.has(id)) {
+        try {
+          marker.remove();
+        } catch (err) {
+          // Marker may already be removed
+        }
+        collaboratorMarkersRef.current.delete(id);
+      }
+    });
+
+    // Add/update markers for ALL collaborators sharing location
+    collaboratorsWithLocation.forEach((collab: CollaboratorPresence) => {
+      if (!isMountedRef.current || !mapRef.current || !collab.location) return;
+
+      const isMe = collab.id === myUserId;
+      let marker = collaboratorMarkersRef.current.get(collab.id);
+      const displayName = isMe ? 'You' : collab.name;
+      const markerColor = isMe ? '#3b82f6' : collab.color;
+
+      if (!marker) {
+        // Create pin-style marker with name bubble and pointer
+        const container = document.createElement('div');
+        container.className = `gps-location-pin ${isMe ? 'is-me' : ''}`;
+        container.style.cssText = `
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          cursor: pointer;
+          filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+          z-index: ${isMe ? 1000 : 100};
+        `;
+        container.title = isMe ? 'You are here' : `${collab.name} is here`;
+
+        // Name bubble (pill shape with name)
+        const bubble = document.createElement('div');
+        bubble.style.cssText = `
+          background: ${markerColor};
+          color: white;
+          padding: 6px 12px;
+          border-radius: 20px;
+          font-size: 13px;
+          font-weight: 600;
+          white-space: nowrap;
+          border: 3px solid white;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          animation: gps-pin-pulse 2s ease-in-out infinite;
+        `;
+
+        // Add pulsing dot indicator
+        const dot = document.createElement('div');
+        dot.style.cssText = `
+          width: 8px;
+          height: 8px;
+          background: ${isMe ? '#22c55e' : 'white'};
+          border-radius: 50%;
+          animation: gps-dot-pulse 1.5s ease-in-out infinite;
+        `;
+
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = displayName;
+
+        bubble.appendChild(dot);
+        bubble.appendChild(nameSpan);
+
+        // Pointer/arrow pointing down to exact location
+        const pointer = document.createElement('div');
+        pointer.style.cssText = `
+          width: 0;
+          height: 0;
+          border-left: 10px solid transparent;
+          border-right: 10px solid transparent;
+          border-top: 14px solid ${markerColor};
+          margin-top: -2px;
+          filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2));
+        `;
+
+        // Small dot at the exact location point
+        const locationDot = document.createElement('div');
+        locationDot.style.cssText = `
+          width: 12px;
+          height: 12px;
+          background: ${markerColor};
+          border: 2px solid white;
+          border-radius: 50%;
+          margin-top: -3px;
+          box-shadow: 0 0 0 4px ${markerColor}40, 0 2px 4px rgba(0,0,0,0.3);
+          animation: gps-location-ring 2s ease-out infinite;
+        `;
+
+        container.appendChild(bubble);
+        container.appendChild(pointer);
+        container.appendChild(locationDot);
+
+        // Anchor at bottom so the pin points to exact location
+        marker = new maplibregl.Marker({ element: container, anchor: 'bottom' })
+          .setLngLat([collab.location.lng, collab.location.lat])
+          .addTo(map);
+
+        collaboratorMarkersRef.current.set(collab.id, marker);
+
+        // If this is me and I just started sharing, fly to my location
+        if (isMe) {
+          map.flyTo({
+            center: [collab.location.lng, collab.location.lat],
+            zoom: Math.max(map.getZoom(), 14),
+            duration: 1500,
+          });
+        }
+      } else {
+        // Update existing marker position
+        marker.setLngLat([collab.location.lng, collab.location.lat]);
+      }
+    });
+
+    // Inject pulse animation CSS if not already present
+    if (!document.getElementById('collaborator-gps-styles')) {
+      const style = document.createElement('style');
+      style.id = 'collaborator-gps-styles';
+      style.textContent = `
+        @keyframes gps-pin-pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.03); }
+        }
+        @keyframes gps-dot-pulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.6; transform: scale(0.8); }
+        }
+        @keyframes gps-location-ring {
+          0% { box-shadow: 0 0 0 0 currentColor, 0 2px 4px rgba(0,0,0,0.3); }
+          70% { box-shadow: 0 0 0 12px transparent, 0 2px 4px rgba(0,0,0,0.3); }
+          100% { box-shadow: 0 0 0 0 transparent, 0 2px 4px rgba(0,0,0,0.3); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
+        }
+        .gps-location-pin {
+          transition: transform 0.2s ease;
+        }
+        .gps-location-pin:hover {
+          transform: scale(1.1);
+          z-index: 2000 !important;
+        }
+        .gps-location-pin.is-me {
+          z-index: 1000;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  }, [shape.props.collaborators, isLoaded, editor]);
 
   // ==========================================================================
   // Annotations
@@ -1170,6 +1374,115 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
   }, [shape.props.collaborators]);
 
   // ==========================================================================
+  // GPS Location Sharing
+  // ==========================================================================
+
+  const startSharingLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      console.error('Geolocation not supported');
+      return;
+    }
+
+    const userId = editor.user.getId();
+    const userName = editor.user.getName() || 'Anonymous';
+    const userColor = editor.user.getColor();
+
+    setIsSharingLocation(true);
+    console.log('📍 Starting location sharing for user:', userName);
+
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (position) => {
+        const newLocation: Coordinate = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+        setMyLocation(newLocation);
+
+        // IMPORTANT: Get the CURRENT shape from editor to avoid stale closure!
+        // This ensures we don't overwrite other users' locations
+        const currentShape = editor.getShape<IMapShape>(shape.id);
+        if (!currentShape) {
+          console.error('📍 Shape not found, cannot update location');
+          return;
+        }
+
+        // Filter out our old entry and keep all other collaborators
+        const existingCollaborators = (currentShape.props.collaborators || []).filter(
+          (c: CollaboratorPresence) => c.id !== userId
+        );
+
+        const myPresence: CollaboratorPresence = {
+          id: userId,
+          name: userName,
+          color: userColor,
+          location: newLocation,
+          lastSeen: Date.now(),
+        };
+
+        console.log('📍 Broadcasting location:', newLocation, 'Total collaborators:', existingCollaborators.length + 1);
+
+        editor.updateShape<IMapShape>({
+          id: shape.id,
+          type: 'Map',
+          props: {
+            collaborators: [...existingCollaborators, myPresence],
+          },
+        });
+      },
+      (error) => {
+        console.error('Geolocation error:', error.message);
+        setIsSharingLocation(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 5000,
+      }
+    );
+  }, [editor, shape.id]); // Note: No shape.props.collaborators - we get current data from editor
+
+  const stopSharingLocation = useCallback(() => {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+
+    setIsSharingLocation(false);
+    setMyLocation(null);
+
+    // Get current shape to avoid stale closure
+    const currentShape = editor.getShape<IMapShape>(shape.id);
+    if (!currentShape) {
+      console.log('📍 Shape not found, skipping collaborator removal');
+      return;
+    }
+
+    // Remove self from collaborators
+    const userId = editor.user.getId();
+    const filteredCollaborators = (currentShape.props.collaborators || []).filter(
+      (c: CollaboratorPresence) => c.id !== userId
+    );
+
+    console.log('📍 Stopping location sharing, remaining collaborators:', filteredCollaborators.length);
+
+    editor.updateShape<IMapShape>({
+      id: shape.id,
+      type: 'Map',
+      props: {
+        collaborators: filteredCollaborators,
+      },
+    });
+  }, [editor, shape.id]); // Note: No shape.props.collaborators - we get current data from editor
+
+  const toggleLocationSharing = useCallback(() => {
+    if (isSharingLocation) {
+      stopSharingLocation();
+    } else {
+      startSharingLocation();
+    }
+  }, [isSharingLocation, startSharingLocation, stopSharingLocation]);
+
+  // ==========================================================================
   // Title/Description
   // ==========================================================================
 
@@ -1665,6 +1978,29 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
                 title="My location"
               >
                 ⊙
+              </button>
+              <button
+                onClick={toggleLocationSharing}
+                onPointerDown={stopPropagation}
+                className="mapus-btn"
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
+                  background: isSharingLocation ? '#22c55e' : '#fff',
+                  border: isSharingLocation ? '2px solid #16a34a' : 'none',
+                  boxShadow: isSharingLocation
+                    ? '0 0 12px rgba(34, 197, 94, 0.5)'
+                    : '0 2px 8px rgba(0,0,0,0.15)',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  marginTop: 4,
+                  transition: 'all 0.2s ease',
+                  animation: isSharingLocation ? 'pulse 2s infinite' : 'none',
+                }}
+                title={isSharingLocation ? 'Stop sharing location' : 'Share my location'}
+              >
+                {isSharingLocation ? '📡' : '📍'}
               </button>
             </div>
 
