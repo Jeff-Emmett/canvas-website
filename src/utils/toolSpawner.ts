@@ -14,6 +14,7 @@ const TOOL_DIMENSIONS: Record<string, { w: number; h: number }> = {
   Prompt: { w: 300, h: 500 },
   ImageGen: { w: 400, h: 450 },
   VideoGen: { w: 400, h: 350 },
+  Drawfast: { w: 512, h: 512 },
   ChatBox: { w: 400, h: 500 },
   Markdown: { w: 400, h: 400 },
   ObsNote: { w: 280, h: 200 },

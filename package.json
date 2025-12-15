@@ -37,6 +37,7 @@
 		"@chengsokdara/use-whisper": "^0.2.0",
 		"@daily-co/daily-js": "^0.60.0",
 		"@daily-co/daily-react": "^0.20.0",
+		"@fal-ai/client": "^1.7.2",
 		"@mdxeditor/editor": "^3.51.0",
 		"@tldraw/assets": "^3.15.4",
 		"@tldraw/tldraw": "^3.15.4",

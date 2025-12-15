@@ -30,11 +30,11 @@ export function CommandPalette() {
     { id: 'Prompt', label: 'LLM Prompt', kbd: '⌃⇧L', key: 'L', icon: '🤖', category: 'tool' },
     { id: 'ObsidianNote', label: 'Obsidian Note', kbd: '⌃⇧O', key: 'O', icon: '📓', category: 'tool' },
     { id: 'Transcription', label: 'Transcription', kbd: '⌃⇧T', key: 'T', icon: '🎤', category: 'tool' },
-    { id: 'Holon', label: 'Holon', kbd: '⌃⇧H', key: 'H', icon: '⭕', category: 'tool' },
+    // { id: 'Holon', label: 'Holon', kbd: '⌃⇧H', key: 'H', icon: '⭕', category: 'tool' }, // Temporarily hidden
     { id: 'FathomMeetings', label: 'Fathom Meetings', kbd: '⌃⇧F', key: 'F', icon: '📅', category: 'tool' },
     { id: 'ImageGen', label: 'Image Gen', kbd: '⌃⇧I', key: 'I', icon: '🖼️', category: 'tool' },
-    { id: 'VideoGen', label: 'Video Gen', kbd: '⌃⇧G', key: 'G', icon: '🎬', category: 'tool' },
-    { id: 'Multmux', label: 'Terminal', kbd: '⌃⇧K', key: 'K', icon: '💻', category: 'tool' },
+    // { id: 'VideoGen', label: 'Video Gen', kbd: '⌃⇧G', key: 'G', icon: '🎬', category: 'tool' }, // Temporarily hidden
+    // { id: 'Multmux', label: 'Terminal', kbd: '⌃⇧K', key: 'K', icon: '💻', category: 'tool' }, // Temporarily hidden
   ]
 
   // Custom actions with shortcuts (matching overrides.tsx)

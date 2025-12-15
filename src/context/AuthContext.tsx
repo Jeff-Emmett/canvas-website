@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode, useRef } from 'react';
 import { Session, SessionError, PermissionLevel } from '../lib/auth/types';
 import { AuthService } from '../lib/auth/authService';
 import { saveSession, clearStoredSession } from '../lib/auth/sessionPersistence';
@@ -40,6 +40,10 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [session, setSessionState] = useState<Session>(initialSession);
   const [accessToken, setAccessTokenState] = useState<string | null>(null);
+
+  // Track when auth state changes to bypass cache for a short period
+  // This prevents stale callbacks from using old cached permissions
+  const authChangedAtRef = useRef<number>(0);
 
   // Extract access token from URL on mount
   useEffect(() => {
@@ -105,6 +109,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const result = await AuthService.login(username);
 
       if (result.success && result.session) {
+        // IMPORTANT: Mark auth as just changed - prevents stale callbacks from using cache
+        authChangedAtRef.current = Date.now();
+
         // IMPORTANT: Clear permission cache when auth state changes
         // This forces a fresh permission fetch with the new credentials
         setSessionState({
@@ -112,7 +119,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           boardPermissions: {},
           currentBoardPermission: undefined,
         });
-        console.log('🔐 Login successful - cleared permission cache');
+        console.log('🔐 Login successful - cleared permission cache, authChangedAt:', authChangedAtRef.current);
 
         // Save session to localStorage if authenticated
         if (result.session.authed && result.session.username) {
@@ -148,6 +155,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const result = await AuthService.register(username);
 
       if (result.success && result.session) {
+        // IMPORTANT: Mark auth as just changed - prevents stale callbacks from using cache
+        authChangedAtRef.current = Date.now();
+
         // IMPORTANT: Clear permission cache when auth state changes
         // This forces a fresh permission fetch with the new credentials
         setSessionState({
@@ -155,7 +165,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           boardPermissions: {},
           currentBoardPermission: undefined,
         });
-        console.log('🔐 Registration successful - cleared permission cache');
+        console.log('🔐 Registration successful - cleared permission cache, authChangedAt:', authChangedAtRef.current);
 
         // Save session to localStorage if authenticated
         if (result.session.authed && result.session.username) {
@@ -185,6 +195,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
    * Clear the current session
    */
   const clearSession = useCallback((): void => {
+    // IMPORTANT: Mark auth as just changed - prevents stale callbacks from using cache
+    authChangedAtRef.current = Date.now();
+
     clearStoredSession();
     setSessionState({
       username: '',
@@ -197,6 +210,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       boardPermissions: {},
       currentBoardPermission: undefined,
     });
+    console.log('🔐 Session cleared - marked auth as changed, authChangedAt:', authChangedAtRef.current);
   }, []);
 
   /**
@@ -230,8 +244,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
    * Includes access token if available (from share link)
    */
   const fetchBoardPermission = useCallback(async (boardId: string): Promise<PermissionLevel> => {
-    // Check cache first (but only if no access token - token changes permissions)
-    if (!accessToken && session.boardPermissions?.[boardId]) {
+    // IMPORTANT: Check if auth state changed recently (within last 5 seconds)
+    // If so, bypass cache entirely to prevent stale callbacks from returning old cached values
+    const authChangedRecently = Date.now() - authChangedAtRef.current < 5000;
+    if (authChangedRecently) {
+      console.log('🔐 Auth changed recently, bypassing permission cache');
+    }
+
+    // Check cache first (but only if no access token and auth didn't just change)
+    if (!accessToken && !authChangedRecently && session.boardPermissions?.[boardId]) {
       console.log('🔐 Using cached permission for board:', boardId, session.boardPermissions[boardId]);
       return session.boardPermissions[boardId];
     }

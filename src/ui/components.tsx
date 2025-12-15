@@ -12,6 +12,7 @@ import CryptIDDropdown from "../components/auth/CryptIDDropdown"
 import StarBoardButton from "../components/StarBoardButton"
 import ShareBoardButton from "../components/ShareBoardButton"
 import { SettingsDialog } from "./SettingsDialog"
+// import { VersionHistoryPanel } from "../components/history" // TODO: Re-enable when version reversion is ready
 import { useAuth } from "../context/AuthContext"
 import { PermissionLevel } from "../lib/auth/types"
 import { WORKER_URL } from "../constants/workerUrl"
@@ -54,6 +55,7 @@ function CustomSharePanel() {
 
   const [showShortcuts, setShowShortcuts] = React.useState(false)
   const [showSettingsDropdown, setShowSettingsDropdown] = React.useState(false)
+  // const [showVersionHistory, setShowVersionHistory] = React.useState(false) // TODO: Re-enable when version reversion is ready
   const [showAISection, setShowAISection] = React.useState(false)
   const [hasApiKey, setHasApiKey] = React.useState(false)
   const [permissionRequestStatus, setPermissionRequestStatus] = React.useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
@@ -228,8 +230,8 @@ function CustomSharePanel() {
       }
     })
 
-    // Custom tools
-    const customToolIds = ['VideoChat', 'ChatBox', 'Embed', 'Slide', 'Markdown', 'MycrozineTemplate', 'Prompt', 'ObsidianNote', 'Transcription', 'Holon', 'FathomMeetings', 'ImageGen', 'VideoGen', 'Multmux']
+    // Custom tools (VideoGen and Map temporarily hidden)
+    const customToolIds = ['VideoChat', 'ChatBox', 'Embed', 'Slide', 'Markdown', 'MycrozineTemplate', 'Prompt', 'ObsidianNote', 'Transcription', 'Holon', 'FathomMeetings', 'ImageGen', 'Multmux']
     customToolIds.forEach(toolId => {
       const tool = tools[toolId]
       if (tool?.kbd) {
@@ -299,9 +301,12 @@ function CustomSharePanel() {
         display: 'flex',
         alignItems: 'center',
         gap: '0',
-        background: 'var(--color-muted-1)',
+        background: isDarkMode ? '#2d2d2d' : '#f3f4f6',
+        backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
+        backdropFilter: 'none',
+        opacity: 1,
         borderRadius: '20px',
-        border: '1px solid var(--color-panel-contrast)',
+        border: `1px solid ${isDarkMode ? '#404040' : '#e5e7eb'}`,
         padding: '4px 6px',
         boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
       }}>
@@ -383,47 +388,67 @@ function CustomSharePanel() {
                   position: 'fixed',
                   top: settingsDropdownPos.top,
                   right: settingsDropdownPos.right,
-                  minWidth: '200px',
+                  minWidth: '220px',
                   maxHeight: '60vh',
                   overflowY: 'auto',
                   overflowX: 'hidden',
                   background: 'var(--color-panel)',
+                  backgroundColor: 'var(--color-panel)',
                   border: '1px solid var(--color-panel-contrast)',
                   borderRadius: '8px',
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+                  boxShadow: isDarkMode ? '0 4px 20px rgba(0,0,0,0.5)' : '0 4px 20px rgba(0,0,0,0.25)',
                   zIndex: 99999,
                   padding: '8px 0',
                   pointerEvents: 'auto',
+                  backdropFilter: 'none',
+                  opacity: 1,
+                  fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
                 }}
                 onWheel={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* Board Permission Display */}
-                <div style={{ padding: '10px 16px' }}>
+                {/* Board Permission Section */}
+                <div style={{ padding: '12px 16px 16px' }}>
+                  {/* Section Header */}
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: '8px',
+                    gap: '8px',
+                    marginBottom: '12px',
+                    paddingBottom: '8px',
+                    borderBottom: '1px solid var(--color-panel-contrast)',
                   }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--color-text)' }}>
-                      <span style={{ fontSize: '16px' }}>🔐</span>
-                      <span>Board Permission</span>
-                    </span>
+                    <span style={{ fontSize: '14px' }}>🔐</span>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>Board Permission</span>
                     <span style={{
-                      fontSize: '11px',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
+                      marginLeft: 'auto',
+                      fontSize: '10px',
+                      padding: '3px 8px',
+                      borderRadius: '12px',
                       background: `${PERMISSION_CONFIG[currentPermission].color}20`,
                       color: PERMISSION_CONFIG[currentPermission].color,
                       fontWeight: 600,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.3px',
                     }}>
-                      {PERMISSION_CONFIG[currentPermission].icon} {PERMISSION_CONFIG[currentPermission].label}
+                      {PERMISSION_CONFIG[currentPermission].label}
                     </span>
                   </div>
 
-                  {/* Permission levels with request buttons */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '8px' }}>
+                  {/* Permission levels - indented to show hierarchy */}
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    marginLeft: '4px',
+                    padding: '8px 12px',
+                    background: 'var(--color-muted-2)',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-panel-contrast)',
+                  }}>
+                    <span style={{ fontSize: '10px', color: 'var(--color-text-3)', marginBottom: '4px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                      Access Levels
+                    </span>
                     {(['view', 'edit', 'admin'] as PermissionLevel[]).map((level) => {
                       const config = PERMISSION_CONFIG[level]
                       const isCurrent = currentPermission === level
@@ -439,23 +464,35 @@ function CustomSharePanel() {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            padding: '6px 8px',
+                            padding: '8px 10px',
                             borderRadius: '6px',
-                            background: isCurrent ? `${config.color}15` : 'transparent',
-                            border: isCurrent ? `1px solid ${config.color}40` : '1px solid transparent',
+                            background: isCurrent ? `${config.color}15` : 'var(--color-panel)',
+                            border: isCurrent ? `2px solid ${config.color}` : '1px solid var(--color-panel-contrast)',
+                            transition: 'all 0.15s ease',
                           }}
                         >
                           <span style={{
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '6px',
+                            gap: '8px',
                             fontSize: '12px',
-                            color: isCurrent ? config.color : 'var(--color-text-3)',
+                            color: isCurrent ? config.color : 'var(--color-text)',
                             fontWeight: isCurrent ? 600 : 400,
                           }}>
-                            <span>{config.icon}</span>
+                            <span style={{ fontSize: '14px' }}>{config.icon}</span>
                             <span>{config.label}</span>
-                            {isCurrent && <span style={{ fontSize: '10px', opacity: 0.7 }}>(current)</span>}
+                            {isCurrent && (
+                              <span style={{
+                                fontSize: '9px',
+                                padding: '2px 6px',
+                                borderRadius: '10px',
+                                background: config.color,
+                                color: 'white',
+                                fontWeight: 500,
+                              }}>
+                                Current
+                              </span>
+                            )}
                           </span>
 
                           {canRequest && (
@@ -463,15 +500,24 @@ function CustomSharePanel() {
                               onClick={() => handleRequestPermission(level)}
                               disabled={permissionRequestStatus === 'sending'}
                               style={{
-                                padding: '3px 8px',
+                                padding: '4px 10px',
                                 fontSize: '10px',
-                                fontWeight: 500,
+                                fontWeight: 600,
                                 borderRadius: '4px',
-                                border: 'none',
-                                background: config.color,
-                                color: 'white',
+                                border: `1px solid ${config.color}`,
+                                background: 'transparent',
+                                color: config.color,
                                 cursor: permissionRequestStatus === 'sending' ? 'wait' : 'pointer',
                                 opacity: permissionRequestStatus === 'sending' ? 0.6 : 1,
+                                transition: 'all 0.15s ease',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = config.color
+                                e.currentTarget.style.color = 'white'
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'transparent'
+                                e.currentTarget.style.color = config.color
                               }}
                             >
                               {permissionRequestStatus === 'sending' ? '...' : 'Request'}
@@ -485,10 +531,10 @@ function CustomSharePanel() {
                   {/* Request status message */}
                   {requestMessage && (
                     <p style={{
-                      margin: '8px 0 0',
+                      margin: '10px 0 0',
                       fontSize: '11px',
-                      padding: '6px 8px',
-                      borderRadius: '4px',
+                      padding: '8px 12px',
+                      borderRadius: '6px',
                       background: permissionRequestStatus === 'sent' ? '#d1fae5' :
                                  permissionRequestStatus === 'error' ? '#fee2e2' : 'var(--color-muted-2)',
                       color: permissionRequestStatus === 'sent' ? '#065f46' :
@@ -501,62 +547,83 @@ function CustomSharePanel() {
 
                   {!session.authed && (
                     <p style={{
-                      margin: '8px 0 0',
+                      margin: '10px 0 0',
                       fontSize: '10px',
                       color: 'var(--color-text-3)',
                       textAlign: 'center',
+                      fontStyle: 'italic',
                     }}>
                       Sign in to request higher permissions
                     </p>
                   )}
                 </div>
 
-                <div style={{ height: '1px', background: 'var(--color-panel-contrast)', margin: '4px 0' }} />
+                <div style={{ height: '1px', background: 'var(--color-panel-contrast)', margin: '0' }} />
 
-                {/* Dark mode toggle */}
-                <button
-                  onClick={() => {
-                    handleToggleDarkMode()
-                  }}
-                  style={{
-                    width: '100%',
+                {/* Appearance Toggle */}
+                <div style={{ padding: '12px 16px' }}>
+                  <div style={{
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    gap: '12px',
-                    padding: '10px 16px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: 'var(--color-text)',
-                    fontSize: '13px',
-                    textAlign: 'left',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--color-muted-2)'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'none'
-                  }}
-                >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontSize: '16px' }}>{isDarkMode ? '🌙' : '☀️'}</span>
-                    <span>Appearance</span>
-                  </span>
-                  <span style={{
-                    fontSize: '11px',
-                    padding: '2px 8px',
-                    borderRadius: '4px',
-                    background: 'var(--color-muted-2)',
-                    color: 'var(--color-text-3)',
                   }}>
-                    {isDarkMode ? 'Dark' : 'Light'}
-                  </span>
-                </button>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>
+                      <span style={{ fontSize: '14px' }}>🎨</span>
+                      <span>Appearance</span>
+                    </span>
 
-                <div style={{ height: '1px', background: 'var(--color-panel-contrast)', margin: '4px 0' }} />
+                    {/* Toggle Switch */}
+                    <button
+                      onClick={handleToggleDarkMode}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0',
+                        padding: '3px',
+                        background: isDarkMode ? '#374151' : '#e5e7eb',
+                        border: 'none',
+                        borderRadius: '20px',
+                        cursor: 'pointer',
+                        transition: 'background 0.2s ease',
+                      }}
+                    >
+                      {/* Sun icon */}
+                      <span style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        background: !isDarkMode ? '#ffffff' : 'transparent',
+                        boxShadow: !isDarkMode ? '0 1px 3px rgba(0,0,0,0.2)' : 'none',
+                        transition: 'all 0.2s ease',
+                        fontSize: '14px',
+                      }}>
+                        ☀️
+                      </span>
+                      {/* Moon icon */}
+                      <span style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        background: isDarkMode ? '#1f2937' : 'transparent',
+                        boxShadow: isDarkMode ? '0 1px 3px rgba(0,0,0,0.3)' : 'none',
+                        transition: 'all 0.2s ease',
+                        fontSize: '14px',
+                      }}>
+                        🌙
+                      </span>
+                    </button>
+                  </div>
+                </div>
 
-                {/* AI Models expandable section */}
+                <div style={{ height: '1px', background: 'var(--color-panel-contrast)', margin: '0' }} />
+
+                {/* AI Models Accordion */}
                 <div>
                   <button
                     onClick={() => setShowAISection(!showAISection)}
@@ -565,90 +632,184 @@ function CustomSharePanel() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      gap: '12px',
-                      padding: '10px 16px',
-                      background: 'none',
+                      padding: '12px 16px',
+                      background: showAISection ? 'var(--color-muted-2)' : 'none',
                       border: 'none',
                       cursor: 'pointer',
                       color: 'var(--color-text)',
                       fontSize: '13px',
+                      fontWeight: 600,
                       textAlign: 'left',
+                      transition: 'background 0.15s ease',
+                      fontFamily: 'inherit',
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'var(--color-muted-2)'
+                      if (!showAISection) e.currentTarget.style.background = 'var(--color-muted-2)'
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'none'
+                      if (!showAISection) e.currentTarget.style.background = 'none'
                     }}
                   >
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <span style={{ fontSize: '16px' }}>🤖</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '14px' }}>🤖</span>
                       <span>AI Models</span>
+                      <span style={{
+                        fontSize: '9px',
+                        padding: '2px 6px',
+                        borderRadius: '10px',
+                        background: 'var(--color-muted-2)',
+                        color: 'var(--color-text-3)',
+                      }}>
+                        {AI_TOOLS.length}
+                      </span>
                     </span>
-                    <svg
-                      width="12"
-                      height="12"
-                      viewBox="0 0 16 16"
-                      fill="currentColor"
-                      style={{ transform: showAISection ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
-                    >
-                      <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
-                    </svg>
+                    <span style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '20px',
+                      height: '20px',
+                      borderRadius: '4px',
+                      background: showAISection ? 'var(--color-panel)' : 'var(--color-muted-2)',
+                      transition: 'all 0.2s ease',
+                    }}>
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 16 16"
+                        fill="currentColor"
+                        style={{
+                          transform: showAISection ? 'rotate(180deg)' : 'rotate(0deg)',
+                          transition: 'transform 0.2s ease',
+                          color: 'var(--color-text-3)',
+                        }}
+                      >
+                        <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+                      </svg>
+                    </span>
                   </button>
 
                   {showAISection && (
-                    <div style={{ padding: '8px 16px', backgroundColor: 'var(--color-muted-2)' }}>
-                      <p style={{ fontSize: '10px', color: 'var(--color-text-3)', marginBottom: '8px' }}>
-                        Local models are free. Cloud models require API keys.
+                    <div style={{
+                      padding: '12px 16px',
+                      background: 'var(--color-muted-2)',
+                      borderTop: '1px solid var(--color-panel-contrast)',
+                    }}>
+                      <p style={{
+                        fontSize: '11px',
+                        color: 'var(--color-text-3)',
+                        marginBottom: '12px',
+                        padding: '8px 10px',
+                        background: 'var(--color-panel)',
+                        borderRadius: '6px',
+                        border: '1px solid var(--color-panel-contrast)',
+                      }}>
+                        💡 <strong>Local models</strong> are free. <strong>Cloud models</strong> require API keys.
                       </p>
-                      {AI_TOOLS.map((tool) => (
-                        <div
-                          key={tool.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '6px 0',
-                            borderBottom: '1px solid var(--color-panel-contrast)',
-                          }}
-                        >
-                          <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--color-text)' }}>
-                            <span>{tool.icon}</span>
-                            <span>{tool.name}</span>
-                          </span>
-                          <span
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {AI_TOOLS.map((tool) => (
+                          <div
+                            key={tool.id}
                             style={{
-                              fontSize: '9px',
-                              padding: '2px 6px',
-                              borderRadius: '10px',
-                              backgroundColor: tool.type === 'local' ? '#d1fae5' : tool.type === 'gpu' ? '#e0e7ff' : '#fef3c7',
-                              color: tool.type === 'local' ? '#065f46' : tool.type === 'gpu' ? '#3730a3' : '#92400e',
-                              fontWeight: 500,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              padding: '8px 10px',
+                              background: 'var(--color-panel)',
+                              borderRadius: '6px',
+                              border: '1px solid var(--color-panel-contrast)',
                             }}
                           >
-                            {tool.model}
-                          </span>
-                        </div>
-                      ))}
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: 'var(--color-text)' }}>
+                              <span style={{ fontSize: '14px' }}>{tool.icon}</span>
+                              <span style={{ fontWeight: 500 }}>{tool.name}</span>
+                            </span>
+                            <span
+                              style={{
+                                fontSize: '9px',
+                                padding: '3px 8px',
+                                borderRadius: '12px',
+                                backgroundColor: tool.type === 'local' ? '#d1fae5' : tool.type === 'gpu' ? '#e0e7ff' : '#fef3c7',
+                                color: tool.type === 'local' ? '#065f46' : tool.type === 'gpu' ? '#3730a3' : '#92400e',
+                                fontWeight: 600,
+                              }}
+                            >
+                              {tool.model}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                       <button
                         onClick={handleManageApiKeys}
                         style={{
                           width: '100%',
-                          marginTop: '8px',
-                          padding: '6px 10px',
+                          marginTop: '12px',
+                          padding: '8px 12px',
                           fontSize: '11px',
                           fontWeight: 500,
+                          fontFamily: 'inherit',
                           backgroundColor: 'var(--color-primary, #3b82f6)',
                           color: 'white',
                           border: 'none',
-                          borderRadius: '4px',
+                          borderRadius: '6px',
                           cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          transition: 'background 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#2563eb'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'var(--color-primary, #3b82f6)'
                         }}
                       >
+                        <span>🔑</span>
                         {hasApiKey ? 'Manage API Keys' : 'Add API Keys'}
                       </button>
                     </div>
                   )}
+                </div>
+
+                <div style={{ height: '1px', background: 'var(--color-panel-contrast)', margin: '0' }} />
+
+                {/* Version Reversion - Coming Soon */}
+                <div style={{ padding: '12px 16px' }}>
+                  {/* Section Header - matches other headers */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    marginBottom: '10px',
+                  }}>
+                    <span style={{ fontSize: '14px' }}>🕐</span>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>Version Reversion</span>
+                  </div>
+
+                  {/* Coming Soon Button */}
+                  <button
+                    disabled
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      padding: '8px 12px',
+                      background: 'var(--color-muted-2)',
+                      border: '1px solid var(--color-panel-contrast)',
+                      borderRadius: '6px',
+                      cursor: 'not-allowed',
+                      color: 'var(--color-text-3)',
+                      fontSize: '11px',
+                      fontWeight: 500,
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    Coming soon
+                  </button>
                 </div>
 
               </div>
@@ -723,13 +884,16 @@ function CustomSharePanel() {
               maxHeight: '50vh',
               overflowY: 'auto',
               overflowX: 'hidden',
-              background: 'var(--color-panel)',
+              background: 'var(--color-panel, #ffffff)',
+              backgroundColor: 'var(--color-panel, #ffffff)',
               border: '1px solid var(--color-panel-contrast)',
               borderRadius: '8px',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
               zIndex: 99999,
               padding: '10px 0',
               pointerEvents: 'auto',
+              backdropFilter: 'none',
+              opacity: 1,
             }}
             onWheel={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
@@ -808,6 +972,22 @@ function CustomSharePanel() {
         document.body
       )}
 
+      {/* Version Reversion Panel - Coming Soon */}
+      {/* TODO: Re-enable when version history backend is fully tested
+      {showVersionHistory && createPortal(
+        <VersionHistoryPanel
+          roomId={boardId}
+          onClose={() => setShowVersionHistory(false)}
+          onRevert={(hash) => {
+            console.log('Reverted to version:', hash)
+            window.location.reload()
+          }}
+          isDarkMode={isDarkMode}
+        />,
+        document.body
+      )}
+      */}
+
     </div>
   )
 }
@@ -849,7 +1029,7 @@ export const components: TLComponents = {
       tools["Holon"],
       tools["FathomMeetings"],
       tools["ImageGen"],
-      tools["VideoGen"],
+      // tools["VideoGen"], // Temporarily hidden
       tools["Multmux"],
       // MycelialIntelligence moved to permanent floating bar
     ].filter(tool => tool && tool.kbd)

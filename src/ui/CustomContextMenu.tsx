@@ -232,14 +232,25 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           <TldrawUiMenuItem {...tools.Prompt} />
           <TldrawUiMenuItem {...tools.ChatBox} />
           <TldrawUiMenuItem {...tools.ImageGen} />
+          {/* VideoGen - temporarily hidden until in better working state
           <TldrawUiMenuItem {...tools.VideoGen} />
+          */}
+          {/* Drawfast - temporarily hidden until in better working state
+          <TldrawUiMenuItem {...tools.Drawfast} />
+          */}
           <TldrawUiMenuItem {...tools.Markdown} />
           <TldrawUiMenuItem {...tools.ObsidianNote} />
           <TldrawUiMenuItem {...tools.Transcription} />
           <TldrawUiMenuItem {...tools.Embed} />
+          {/* Holon - temporarily hidden until in better working state
           <TldrawUiMenuItem {...tools.Holon} />
+          */}
+          {/* Terminal (Multmux) - temporarily hidden until in better working state
           <TldrawUiMenuItem {...tools.Multmux} />
+          */}
+          {/* Map - temporarily hidden until in better working state
           <TldrawUiMenuItem {...tools.Map} />
+          */}
           <TldrawUiMenuItem {...tools.SlideShape} />
           <TldrawUiMenuItem {...tools.VideoChat} />
           <TldrawUiMenuItem {...tools.FathomMeetings} />

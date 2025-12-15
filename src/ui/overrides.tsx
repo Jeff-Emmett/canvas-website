@@ -222,6 +222,14 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("VideoGen"),
       },
+      Drawfast: {
+        id: "Drawfast",
+        icon: "tool-pencil",
+        label: "Drawfast (AI Sketch)",
+        kbd: "ctrl+shift+d",
+        readonlyOk: true,
+        onSelect: () => editor.setCurrentTool("Drawfast"),
+      },
       Multmux: {
         id: "Multmux",
         icon: "terminal",

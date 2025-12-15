@@ -473,19 +473,18 @@ type FollowUpContext =
   | { type: 'selection'; count: number; shapeTypes: Record<string, number> }
 
 // Follow-up suggestions after transform commands
+// NOTE: Arrow/connection drawing is not yet implemented, so those suggestions are removed
 const TRANSFORM_FOLLOWUPS: Record<string, FollowUpSuggestion[]> = {
   // After arranging in a row
   'arrange-row': [
     { label: 'make same size', prompt: 'make these the same size', icon: '📐', category: 'refine' },
     { label: 'add labels', prompt: 'add a label above each shape', icon: '🏷️', category: 'expand' },
-    { label: 'connect with arrows', prompt: 'draw arrows connecting these in sequence', icon: '→', category: 'connect' },
     { label: 'group these', prompt: 'create a frame around these shapes', icon: '📦', category: 'organize' },
   ],
   // After arranging in a column
   'arrange-column': [
     { label: 'make same width', prompt: 'make these the same width', icon: '↔️', category: 'refine' },
     { label: 'number them', prompt: 'add numbers before each item', icon: '🔢', category: 'expand' },
-    { label: 'connect vertically', prompt: 'draw arrows connecting these from top to bottom', icon: '↓', category: 'connect' },
     { label: 'add header', prompt: 'create a title above this column', icon: '📝', category: 'expand' },
   ],
   // After arranging in a grid
@@ -498,7 +497,6 @@ const TRANSFORM_FOLLOWUPS: Record<string, FollowUpSuggestion[]> = {
   // After arranging in a circle
   'arrange-circle': [
     { label: 'add center node', prompt: 'add a central connecting node', icon: '⭕', category: 'expand' },
-    { label: 'connect to center', prompt: 'draw lines from each to the center', icon: '🕸️', category: 'connect' },
     { label: 'label the cycle', prompt: 'add a title for this cycle diagram', icon: '📝', category: 'expand' },
   ],
   // After aligning
@@ -522,7 +520,6 @@ const TRANSFORM_FOLLOWUPS: Record<string, FollowUpSuggestion[]> = {
   'distribute-horizontal': [
     { label: 'align tops', prompt: 'align these to the top', icon: '⬆️', category: 'refine' },
     { label: 'make same size', prompt: 'make these the same size', icon: '📐', category: 'refine' },
-    { label: 'connect in sequence', prompt: 'draw arrows between these', icon: '→', category: 'connect' },
   ],
   'distribute-vertical': [
     { label: 'align left', prompt: 'align these to the left', icon: '⬅️', category: 'refine' },
@@ -548,8 +545,8 @@ const TRANSFORM_FOLLOWUPS: Record<string, FollowUpSuggestion[]> = {
   // After semantic clustering
   'cluster-semantic': [
     { label: 'label clusters', prompt: 'add a label to each cluster', icon: '🏷️', category: 'expand' },
-    { label: 'connect related', prompt: 'draw connections between related clusters', icon: '🔗', category: 'connect' },
     { label: 'create overview', prompt: 'create a summary of all clusters', icon: '📊', category: 'expand' },
+    { label: 'color by group', prompt: 'color code each cluster differently', icon: '🎨', category: 'refine' },
   ],
 }
 
@@ -580,6 +577,7 @@ const TOOL_SPAWN_FOLLOWUPS: Record<string, FollowUpSuggestion[]> = {
 }
 
 // Generic follow-ups based on canvas state
+// NOTE: Connection/arrow drawing is not yet implemented, so we use different suggestions
 const CANVAS_STATE_FOLLOWUPS = {
   manyShapes: [
     { label: 'organize all', prompt: 'help me organize everything on this canvas', icon: '🗂️', category: 'organize' as const },
@@ -588,7 +586,7 @@ const CANVAS_STATE_FOLLOWUPS = {
   ],
   hasText: [
     { label: 'summarize all', prompt: 'create a summary of all text content', icon: '📝', category: 'organize' as const },
-    { label: 'find connections', prompt: 'what connections exist between my notes?', icon: '🔗', category: 'connect' as const },
+    { label: 'find themes', prompt: 'what themes exist across my notes?', icon: '🎯', category: 'expand' as const },
   ],
   hasImages: [
     { label: 'describe images', prompt: 'what themes are in my images?', icon: '🖼️', category: 'expand' as const },
@@ -1426,7 +1424,7 @@ export function MycelialIntelligenceBar() {
     }
   }, [editor, suggestedTools, spawnedToolIds])
 
-  // Responsive layout - detect window width
+  // Responsive layout - detect window width and calculate available space
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024)
   const isMobile = windowWidth < 640
   const isNarrow = windowWidth < 768
@@ -1437,13 +1435,23 @@ export function MycelialIntelligenceBar() {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
+  // Calculate available width between left and right menus
+  // Left menu (hamburger, page menu): ~140px
+  // Right menu (share, CryptID, settings): ~280px
+  // Add padding: 20px on each side
+  const leftMenuWidth = 140
+  const rightMenuWidth = 280
+  const menuPadding = 40 // 20px padding on each side
+  const availableWidth = windowWidth - leftMenuWidth - rightMenuWidth - menuPadding
+  const maxBarWidth = Math.max(200, Math.min(520, availableWidth)) // Clamp between 200-520px
+
   // Height: taller when showing suggestion chips (single tool or 2+ selected)
   // Base height matches the top-right menu (~40px) for visual alignment
   const showSuggestions = selectedToolInfo || (selectionInfo && selectionInfo.count > 1)
   const collapsedHeight = showSuggestions ? 68 : 40
   const maxExpandedHeight = isMobile ? 300 : 400
-  // Responsive width: full width on mobile, percentage on narrow, fixed on desktop
-  const barWidth = isMobile ? 'calc(100% - 20px)' : isNarrow ? 'calc(100% - 120px)' : 520
+  // Responsive width: dynamically sized to fit between left and right menus
+  const barWidth = isMobile ? 'calc(100% - 20px)' : maxBarWidth
 
   // Calculate dynamic height when expanded based on content
   // Header: ~45px, Input area: ~56px, padding: ~24px = ~125px fixed
@@ -1466,7 +1474,7 @@ export function MycelialIntelligenceBar() {
         left: '50%',
         transform: 'translateX(-50%)',
         width: barWidth,
-        maxWidth: isMobile ? 'none' : '520px',
+        maxWidth: isMobile ? 'none' : `${maxBarWidth}px`,
         height: isExpanded ? 'auto' : collapsedHeight,
         minHeight: isExpanded ? minExpandedHeight : collapsedHeight,
         maxHeight: isExpanded ? maxExpandedHeight : collapsedHeight,

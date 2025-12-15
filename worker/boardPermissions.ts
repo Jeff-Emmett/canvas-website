@@ -64,12 +64,13 @@ export async function getEffectivePermission(
     };
   }
 
-  // Check for explicit permission
+  // Check for explicit user-specific permission
   const explicitPerm = await db.prepare(
     'SELECT * FROM board_permissions WHERE board_id = ? AND user_id = ?'
   ).bind(boardId, userId).first<BoardPermission>();
 
   if (explicitPerm) {
+    // User has a specific permission set - use it (could be view, edit, or admin)
     return {
       permission: explicitPerm.permission,
       isOwner: false,
@@ -77,14 +78,11 @@ export async function getEffectivePermission(
     };
   }
 
-  // Fall back to default permission, but authenticated users get at least 'edit'
-  // (unless board explicitly restricts to view-only)
-  const defaultPerm = board.default_permission as PermissionLevel;
-
-  // For most boards, authenticated users can edit
-  // Board owners can set default_permission to 'view' to restrict this
+  // No explicit permission for this user
+  // Authenticated users get 'edit' by default
+  // (Board's default_permission only affects anonymous users with access tokens)
   return {
-    permission: defaultPerm === 'view' ? 'view' : 'edit',
+    permission: 'edit',
     isOwner: false,
     boardExists: true
   };

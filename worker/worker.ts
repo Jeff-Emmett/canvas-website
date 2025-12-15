@@ -269,6 +269,45 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     })
   })
 
+  // Version History API - forward to Durable Object
+  .get("/room/:roomId/history", async (request, env) => {
+    const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
+    const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
+    return room.fetch(request.url, {
+      headers: request.headers,
+      method: "GET",
+    })
+  })
+
+  .get("/room/:roomId/snapshot/:hash", async (request, env) => {
+    const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
+    const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
+    return room.fetch(request.url, {
+      headers: request.headers,
+      method: "GET",
+    })
+  })
+
+  .post("/room/:roomId/diff", async (request, env) => {
+    const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
+    const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
+    return room.fetch(request.url, {
+      method: "POST",
+      body: request.body,
+      headers: request.headers,
+    })
+  })
+
+  .post("/room/:roomId/revert", async (request, env) => {
+    const id = env.AUTOMERGE_DURABLE_OBJECT.idFromName(request.params.roomId)
+    const room = env.AUTOMERGE_DURABLE_OBJECT.get(id)
+    return room.fetch(request.url, {
+      method: "POST",
+      body: request.body,
+      headers: request.headers,
+    })
+  })
+
   .post("/daily/rooms", async (req) => {
     const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
     

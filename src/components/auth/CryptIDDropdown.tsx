@@ -350,15 +350,18 @@ const CryptIDDropdown: React.FC<CryptIDDropdownProps> = ({ isDarkMode = false })
             right: dropdownPosition.right,
             minWidth: '260px',
             maxHeight: 'calc(100vh - 100px)',
-            background: 'var(--color-background)',
+            background: 'var(--color-background, #ffffff)',
+            backgroundColor: 'var(--color-background, #ffffff)',
             border: '1px solid var(--color-grid)',
             borderRadius: '8px',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.05)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.08)',
             zIndex: 100000,
             overflowY: 'auto',
             overflowX: 'hidden',
             pointerEvents: 'all',
             fontFamily: 'var(--tl-font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif)',
+            backdropFilter: 'none',
+            opacity: 1,
           }}
           onWheel={(e) => {
             // Stop wheel events from propagating to canvas when over menu
@@ -408,36 +411,44 @@ const CryptIDDropdown: React.FC<CryptIDDropdownProps> = ({ isDarkMode = false })
               </div>
 
               {/* Quick actions */}
-              <div style={{ padding: '4px', borderBottom: '1px solid var(--color-grid)' }}>
+              <div style={{ padding: '8px', borderBottom: '1px solid var(--color-grid)' }}>
                 <a
                   href="/dashboard/"
                   onPointerDown={(e) => e.stopPropagation()}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
+                    justifyContent: 'center',
                     gap: '8px',
-                    padding: '8px 10px',
+                    padding: '10px 16px',
                     fontSize: '13px',
-                    fontWeight: 500,
-                    color: 'var(--color-text)',
+                    fontWeight: 600,
+                    color: 'white',
                     textDecoration: 'none',
-                    transition: 'background 0.1s',
-                    borderRadius: '4px',
+                    transition: 'all 0.15s',
+                    borderRadius: '6px',
                     pointerEvents: 'all',
+                    background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                    boxShadow: '0 2px 4px rgba(99, 102, 241, 0.3)',
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--color-muted-2)';
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)';
+                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(99, 102, 241, 0.4)';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)';
+                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(99, 102, 241, 0.3)';
+                    e.currentTarget.style.transform = 'translateY(0)';
                   }}
                 >
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="var(--color-text-2)" stroke="none">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none">
                     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                   </svg>
                   My Saved Boards
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-2)" strokeWidth="2" style={{ marginLeft: 'auto' }}>
-                    <polyline points="9 18 15 12 9 6"/>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="7" y1="17" x2="17" y2="7"/>
+                    <polyline points="7 7 17 7 17 17"/>
                   </svg>
                 </a>
               </div>
@@ -455,8 +466,8 @@ const CryptIDDropdown: React.FC<CryptIDDropdownProps> = ({ isDarkMode = false })
                   Integrations
                 </div>
 
-                {/* Google Workspace */}
-                <div style={{ padding: '6px 10px' }}>
+                {/* Google Workspace - Coming Soon */}
+                <div style={{ padding: '6px 10px', opacity: 0.6 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                     <div style={{
                       width: '24px',
@@ -477,113 +488,28 @@ const CryptIDDropdown: React.FC<CryptIDDropdownProps> = ({ isDarkMode = false })
                         Google Workspace
                       </div>
                       <div style={{ fontSize: '11px', color: 'var(--color-text-2)' }}>
-                        {googleConnected ? `${totalGoogleItems} items imported` : 'Not connected'}
+                        Coming soon
                       </div>
                     </div>
-                    {googleConnected && (
-                      <span style={{
-                        width: '6px',
-                        height: '6px',
-                        borderRadius: '50%',
-                        backgroundColor: '#22c55e',
-                      }} />
-                    )}
                   </div>
 
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    {googleConnected ? (
-                      <>
-                        <button
-                          onClick={() => {
-                            setShowGoogleBrowser(true);
-                            setShowDropdown(false);
-                          }}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          style={{
-                            flex: 1,
-                            padding: '6px 12px',
-                            fontSize: '12px',
-                            fontWeight: 600,
-                            borderRadius: '4px',
-                            border: 'none',
-                            background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
-                            color: 'white',
-                            cursor: 'pointer',
-                            pointerEvents: 'all',
-                            transition: 'all 0.15s',
-                            boxShadow: '0 2px 4px rgba(139, 92, 246, 0.3)',
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)';
-                            e.currentTarget.style.boxShadow = '0 4px 8px rgba(139, 92, 246, 0.4)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)';
-                            e.currentTarget.style.boxShadow = '0 2px 4px rgba(139, 92, 246, 0.3)';
-                          }}
-                        >
-                          Browse Data
-                        </button>
-                        <button
-                          onClick={handleGoogleDisconnect}
-                          onPointerDown={(e) => e.stopPropagation()}
-                          style={{
-                            padding: '6px 12px',
-                            fontSize: '12px',
-                            fontWeight: 500,
-                            borderRadius: '4px',
-                            border: 'none',
-                            background: '#6b7280',
-                            color: 'white',
-                            cursor: 'pointer',
-                            pointerEvents: 'all',
-                            transition: 'all 0.15s',
-                          }}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.background = '#4b5563';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.background = '#6b7280';
-                          }}
-                        >
-                          Disconnect
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={handleGoogleConnect}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        disabled={googleLoading}
-                        style={{
-                          flex: 1,
-                          padding: '6px 12px',
-                          fontSize: '12px',
-                          fontWeight: 600,
-                          borderRadius: '4px',
-                          border: 'none',
-                          background: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
-                          color: 'white',
-                          cursor: googleLoading ? 'wait' : 'pointer',
-                          opacity: googleLoading ? 0.7 : 1,
-                          transition: 'all 0.15s',
-                          pointerEvents: 'all',
-                          boxShadow: '0 2px 4px rgba(139, 92, 246, 0.3)',
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!googleLoading) {
-                            e.currentTarget.style.background = 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)';
-                            e.currentTarget.style.boxShadow = '0 4px 8px rgba(139, 92, 246, 0.4)';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.background = 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)';
-                          e.currentTarget.style.boxShadow = '0 2px 4px rgba(139, 92, 246, 0.3)';
-                        }}
-                      >
-                        {googleLoading ? 'Connecting...' : 'Connect Google'}
-                      </button>
-                    )}
-                  </div>
+                  <button
+                    disabled
+                    style={{
+                      width: '100%',
+                      padding: '6px 12px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      borderRadius: '4px',
+                      border: 'none',
+                      background: '#9ca3af',
+                      color: 'white',
+                      cursor: 'not-allowed',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    Coming Soon
+                  </button>
                 </div>
 
                 {/* Obsidian Vault */}
@@ -861,8 +787,8 @@ const CryptIDDropdown: React.FC<CryptIDDropdownProps> = ({ isDarkMode = false })
                   )}
                 </div>
 
-                {/* Miro Board Import */}
-                <div style={{ padding: '6px 10px', borderTop: '1px solid var(--color-grid)' }}>
+                {/* Miro Board Import - Coming Soon */}
+                <div style={{ padding: '6px 10px', borderTop: '1px solid var(--color-grid)', opacity: 0.6 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                     <div style={{
                       width: '24px',
@@ -884,24 +810,12 @@ const CryptIDDropdown: React.FC<CryptIDDropdownProps> = ({ isDarkMode = false })
                         Miro Boards
                       </div>
                       <div style={{ fontSize: '11px', color: 'var(--color-text-2)' }}>
-                        {isMiroApiKeyConfigured(session.username) ? 'API connected' : 'Import via JSON'}
+                        Coming soon
                       </div>
                     </div>
-                    {isMiroApiKeyConfigured(session.username) && (
-                      <span style={{
-                        width: '6px',
-                        height: '6px',
-                        borderRadius: '50%',
-                        backgroundColor: '#22c55e',
-                      }} />
-                    )}
                   </div>
                   <button
-                    onClick={() => {
-                      setShowMiroModal(true);
-                      setShowDropdown(false);
-                    }}
-                    onPointerDown={(e) => e.stopPropagation()}
+                    disabled
                     style={{
                       width: '100%',
                       padding: '6px 12px',
@@ -909,35 +823,13 @@ const CryptIDDropdown: React.FC<CryptIDDropdownProps> = ({ isDarkMode = false })
                       fontWeight: 600,
                       borderRadius: '4px',
                       border: 'none',
-                      background: isMiroApiKeyConfigured(session.username)
-                        ? '#6b7280'
-                        : 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+                      background: '#9ca3af',
                       color: 'white',
-                      cursor: 'pointer',
-                      pointerEvents: 'all',
-                      transition: 'all 0.15s',
-                      boxShadow: isMiroApiKeyConfigured(session.username)
-                        ? 'none'
-                        : '0 2px 4px rgba(139, 92, 246, 0.3)',
-                    }}
-                    onMouseEnter={(e) => {
-                      if (isMiroApiKeyConfigured(session.username)) {
-                        e.currentTarget.style.background = '#4b5563';
-                      } else {
-                        e.currentTarget.style.background = 'linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%)';
-                        e.currentTarget.style.boxShadow = '0 4px 8px rgba(139, 92, 246, 0.4)';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (isMiroApiKeyConfigured(session.username)) {
-                        e.currentTarget.style.background = '#6b7280';
-                      } else {
-                        e.currentTarget.style.background = 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)';
-                        e.currentTarget.style.boxShadow = '0 2px 4px rgba(139, 92, 246, 0.3)';
-                      }
+                      cursor: 'not-allowed',
+                      pointerEvents: 'none',
                     }}
                   >
-                    Import Miro Board
+                    Coming Soon
                   </button>
                 </div>
               </div>

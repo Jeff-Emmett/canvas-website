@@ -1951,3 +1951,4 @@ html.dark button:not([class*="primary"]):not([style*="background"]) {
 html.dark button:not([class*="primary"]):not([style*="background"]):hover {
   background-color: var(--hover-bg);
 }
+

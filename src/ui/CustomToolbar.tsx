@@ -726,6 +726,7 @@ export function CustomToolbar() {
                 isSelected={tools["Transcription"].id === editor.getCurrentToolId()}
               />
             )}
+            {/* Holon - temporarily hidden until in better working state
             {tools["Holon"] && (
               <TldrawUiMenuItem
                 {...tools["Holon"]}
@@ -734,6 +735,7 @@ export function CustomToolbar() {
                 isSelected={tools["Holon"].id === editor.getCurrentToolId()}
               />
             )}
+            */}
             {tools["FathomMeetings"] && (
               <TldrawUiMenuItem
                 {...tools["FathomMeetings"]}
@@ -750,6 +752,7 @@ export function CustomToolbar() {
                 isSelected={tools["ImageGen"].id === editor.getCurrentToolId()}
               />
             )}
+            {/* VideoGen - temporarily hidden until in better working state
             {tools["VideoGen"] && (
               <TldrawUiMenuItem
                 {...tools["VideoGen"]}
@@ -758,6 +761,8 @@ export function CustomToolbar() {
                 isSelected={tools["VideoGen"].id === editor.getCurrentToolId()}
               />
             )}
+            */}
+            {/* Terminal (Multmux) - temporarily hidden until in better working state
             {tools["Multmux"] && (
               <TldrawUiMenuItem
                 {...tools["Multmux"]}
@@ -766,6 +771,8 @@ export function CustomToolbar() {
                 isSelected={tools["Multmux"].id === editor.getCurrentToolId()}
               />
             )}
+            */}
+            {/* Map - temporarily hidden until in better working state
             {tools["Map"] && (
               <TldrawUiMenuItem
                 {...tools["Map"]}
@@ -774,6 +781,7 @@ export function CustomToolbar() {
                 isSelected={tools["Map"].id === editor.getCurrentToolId()}
               />
             )}
+            */}
             {/* Refresh All ObsNotes Button */}
             {(() => {
               const allShapes = editor.getCurrentPageShapes()

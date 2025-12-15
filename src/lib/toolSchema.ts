@@ -118,6 +118,32 @@ export const TOOL_SCHEMAS: Record<string, ToolSchema> = {
     externalServices: ['RunPod GPU (Wan2.1)'],
   },
 
+  Drawfast: {
+    id: 'Drawfast',
+    displayName: 'Drawfast',
+    primaryColor: '#06b6d4',
+    icon: '✏️',
+    purpose: 'Real-time AI-assisted sketching and drawing',
+    description: 'An AI drawing frame where you sketch using tldraw tools and AI enhances your drawings in real-time. Uses Fal.ai LCM for fast sketch-to-image generation. Draw inside the frame, then click Generate or enable real-time mode.',
+    capabilities: [
+      { name: 'Real-time AI Enhancement', description: 'AI interprets and enhances sketches as you draw' },
+      { name: 'Sketch-to-Image', description: 'Transform rough sketches into polished visuals via Fal.ai' },
+      { name: 'Native tldraw Integration', description: 'Draw using pencil, pen, and other tldraw tools' },
+      { name: 'Strength Control', description: 'Adjust how much AI transforms your sketch (10-90%)' },
+      { name: 'Overlay/Side-by-side', description: 'View AI result overlaid on sketch or side-by-side' },
+    ],
+    useCases: [
+      'Rapid concept sketching with AI assistance',
+      'Visual brainstorming and ideation',
+      'Transforming rough ideas into visuals',
+      'Creating quick mockups and wireframes',
+      'Exploring creative directions with AI',
+    ],
+    tags: ['ai', 'sketch', 'drawing', 'creative', 'real-time', 'interactive'],
+    requiresExternalServices: true,
+    externalServices: ['Fal.ai (LCM model)'],
+  },
+
   // === Content & Notes Tools ===
 
   ChatBox: {
@@ -472,6 +498,11 @@ export function suggestToolsForIntent(intent: string): ToolSchema[] {
     suggestions.push(TOOL_SCHEMAS.VideoGen)
   }
 
+  // Drawfast / AI Sketching intents
+  if (intentLower.match(/\b(drawfast|sketch|doodle|freehand|whiteboard|draw.*ai|ai.*draw|quick.*draw|rapid.*sketch|scribble|hand.*draw)\b/)) {
+    suggestions.push(TOOL_SCHEMAS.Drawfast)
+  }
+
   // Chat/Conversation intents
   if (intentLower.match(/\b(chat|conversation|discuss|dialogue|talk|multi-turn|back.?and.?forth|iterative|deep.?dive|explore.?topic|q.?&.?a)\b/)) {
     suggestions.push(TOOL_SCHEMAS.ChatBox)
@@ -530,7 +561,7 @@ export function suggestToolsForIntent(intent: string): ToolSchema[] {
 
   // Creative work
   if (intentLower.match(/\b(creative|artistic|design|mood.?board|inspiration|concept|prototype|mockup)\b/)) {
-    suggestions.push(TOOL_SCHEMAS.ImageGen, TOOL_SCHEMAS.Prompt, TOOL_SCHEMAS.Markdown)
+    suggestions.push(TOOL_SCHEMAS.ImageGen, TOOL_SCHEMAS.Drawfast, TOOL_SCHEMAS.Prompt, TOOL_SCHEMAS.Markdown)
   }
 
   // Meeting / Collaboration

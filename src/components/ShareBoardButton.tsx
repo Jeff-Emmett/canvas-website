@@ -23,7 +23,10 @@ const ShareBoardButton: React.FC<ShareBoardButtonProps> = ({ className = '' }) =
   const [nfcStatus, setNfcStatus] = useState<'idle' | 'writing' | 'success' | 'error' | 'unsupported'>('idle');
   const [nfcMessage, setNfcMessage] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [inviteInput, setInviteInput] = useState('');
+  const [inviteStatus, setInviteStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownMenuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; right: number } | null>(null);
 
@@ -58,7 +61,11 @@ const ShareBoardButton: React.FC<ShareBoardButtonProps> = ({ className = '' }) =
   // Close dropdown when clicking outside or pressing ESC
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      // Check if click is inside trigger OR the portal dropdown menu
+      const isInsideTrigger = dropdownRef.current && dropdownRef.current.contains(target);
+      const isInsideMenu = dropdownMenuRef.current && dropdownMenuRef.current.contains(target);
+      if (!isInsideTrigger && !isInsideMenu) {
         setShowDropdown(false);
       }
     };
@@ -86,6 +93,24 @@ const ShareBoardButton: React.FC<ShareBoardButtonProps> = ({ className = '' }) =
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy URL:', err);
+    }
+  };
+
+  const handleInvite = async () => {
+    if (!inviteInput.trim()) return;
+
+    setInviteStatus('sending');
+    try {
+      // TODO: Implement actual invite API call
+      // For now, simulate sending invite
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setInviteStatus('sent');
+      setInviteInput('');
+      setTimeout(() => setInviteStatus('idle'), 3000);
+    } catch (err) {
+      console.error('Failed to send invite:', err);
+      setInviteStatus('error');
+      setTimeout(() => setInviteStatus('idle'), 3000);
     }
   };
 
@@ -177,150 +202,243 @@ const ShareBoardButton: React.FC<ShareBoardButtonProps> = ({ className = '' }) =
         {/* Dropdown - rendered via portal to break out of parent container */}
         {showDropdown && dropdownPosition && createPortal(
           <div
+            ref={dropdownMenuRef}
             style={{
               position: 'fixed',
               top: dropdownPosition.top,
               right: dropdownPosition.right,
-              width: '320px',
+              width: '340px',
               background: 'var(--color-panel)',
+              backgroundColor: 'var(--color-panel)',
+              backdropFilter: 'none',
+              opacity: 1,
               border: '1px solid var(--color-panel-contrast)',
               borderRadius: '12px',
               boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
               zIndex: 100000,
               overflow: 'hidden',
               pointerEvents: 'all',
+              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
             }}
             onWheel={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
+            {/* Compact Header */}
             <div style={{
-              padding: '12px 16px',
+              padding: '12px 14px',
               borderBottom: '1px solid var(--color-panel-contrast)',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
             }}>
-              <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)' }}>
-                Invite to Board
+              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '14px' }}>👥</span> Share Board
               </span>
               <button
                 onClick={() => setShowDropdown(false)}
+                onPointerDown={(e) => e.stopPropagation()}
                 style={{
-                  background: 'none',
+                  background: 'var(--color-muted-2)',
                   border: 'none',
                   cursor: 'pointer',
-                  padding: '4px',
+                  padding: '4px 8px',
                   color: 'var(--color-text-3)',
-                  fontSize: '18px',
+                  fontSize: '11px',
+                  fontFamily: 'inherit',
                   lineHeight: 1,
+                  borderRadius: '4px',
                 }}
               >
-                x
+                ✕
               </button>
             </div>
 
-            <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {/* Board name */}
-              <div style={{
-                textAlign: 'center',
-                padding: '6px 10px',
-                backgroundColor: 'var(--color-muted-2)',
-                borderRadius: '6px',
-              }}>
-                <span style={{ fontSize: '11px', color: 'var(--color-text-3)' }}>Board: </span>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>{boardSlug}</span>
-              </div>
-
-              {/* Permission selector */}
+            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {/* Invite by username/email */}
               <div>
-                <span style={{ fontSize: '11px', color: 'var(--color-text-3)', fontWeight: 500, marginBottom: '6px', display: 'block' }}>Access Level</span>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  {(['view', 'edit', 'admin'] as PermissionType[]).map((perm) => {
-                    const isActive = permission === perm;
-                    const { label, color } = PERMISSION_LABELS[perm];
-                    return (
-                      <button
-                        key={perm}
-                        onClick={() => setPermission(perm)}
-                        style={{
-                          flex: 1,
-                          padding: '8px 6px',
-                          border: isActive ? `2px solid ${color}` : '2px solid var(--color-panel-contrast)',
-                          background: isActive ? `${color}15` : 'var(--color-panel)',
-                          borderRadius: '6px',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                          fontWeight: isActive ? 600 : 500,
-                          color: isActive ? color : 'var(--color-text)',
-                          transition: 'all 0.15s ease',
-                        }}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
+                <div style={{
+                  display: 'flex',
+                  gap: '8px',
+                }}>
+                  <input
+                    type="text"
+                    placeholder="Username or email..."
+                    value={inviteInput}
+                    onChange={(e) => setInviteInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                      if (e.key === 'Enter') handleInvite();
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onFocus={(e) => e.stopPropagation()}
+                    style={{
+                      flex: 1,
+                      padding: '8px 12px',
+                      fontSize: '12px',
+                      fontFamily: 'inherit',
+                      border: '1px solid var(--color-panel-contrast)',
+                      borderRadius: '6px',
+                      background: 'var(--color-panel)',
+                      color: 'var(--color-text)',
+                      outline: 'none',
+                    }}
+                  />
+                  <button
+                    onClick={handleInvite}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    disabled={!inviteInput.trim() || inviteStatus === 'sending'}
+                    style={{
+                      padding: '8px 14px',
+                      backgroundColor: inviteStatus === 'sent' ? '#10b981' : '#3b82f6',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: !inviteInput.trim() || inviteStatus === 'sending' ? 'not-allowed' : 'pointer',
+                      fontSize: '11px',
+                      fontWeight: 500,
+                      fontFamily: 'inherit',
+                      opacity: !inviteInput.trim() ? 0.5 : 1,
+                      transition: 'all 0.15s ease',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {inviteStatus === 'sending' ? '...' : inviteStatus === 'sent' ? '✓ Sent' : 'Invite'}
+                  </button>
                 </div>
+                {inviteStatus === 'error' && (
+                  <p style={{ fontSize: '11px', color: '#ef4444', marginTop: '4px' }}>
+                    Failed to send invite. Please try again.
+                  </p>
+                )}
               </div>
 
-              {/* QR Code and URL */}
+              {/* Divider with "or share link" */}
               <div style={{
                 display: 'flex',
-                gap: '12px',
-                padding: '12px',
-                backgroundColor: 'var(--color-muted-2)',
-                borderRadius: '8px',
+                alignItems: 'center',
+                gap: '10px',
               }}>
-                {/* QR Code */}
+                <div style={{ flex: 1, height: '1px', background: 'var(--color-panel-contrast)' }} />
+                <span style={{ fontSize: '11px', color: 'var(--color-text-3)', fontWeight: 500 }}>or share link</span>
+                <div style={{ flex: 1, height: '1px', background: 'var(--color-panel-contrast)' }} />
+              </div>
+
+              {/* Permission selector - pill style */}
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {(['view', 'edit', 'admin'] as PermissionType[]).map((perm) => {
+                  const isActive = permission === perm;
+                  const { label, description } = PERMISSION_LABELS[perm];
+                  return (
+                    <button
+                      key={perm}
+                      onClick={() => setPermission(perm)}
+                      onPointerDown={(e) => e.stopPropagation()}
+                      title={description}
+                      style={{
+                        flex: 1,
+                        padding: '8px 6px',
+                        border: 'none',
+                        background: isActive ? '#3b82f6' : 'var(--color-muted-2)',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '11px',
+                        fontWeight: 500,
+                        fontFamily: 'inherit',
+                        color: isActive ? 'white' : 'var(--color-text)',
+                        transition: 'all 0.15s ease',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '2px',
+                      }}
+                    >
+                      <span>{label}</span>
+                      <span style={{
+                        fontSize: '9px',
+                        fontWeight: 400,
+                        opacity: 0.8,
+                        color: isActive ? 'rgba(255,255,255,0.9)' : 'var(--color-text-3)',
+                      }}>
+                        {perm === 'view' ? 'Read only' : perm === 'edit' ? 'Can edit' : 'Full access'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* QR Code and URL - larger and side by side */}
+              <div style={{
+                display: 'flex',
+                gap: '14px',
+                padding: '14px',
+                backgroundColor: 'var(--color-muted-2)',
+                borderRadius: '10px',
+              }}>
+                {/* QR Code - larger */}
                 <div style={{
-                  padding: '8px',
+                  padding: '10px',
                   backgroundColor: 'white',
-                  borderRadius: '6px',
+                  borderRadius: '8px',
                   flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                 }}>
                   <QRCodeSVG
                     value={getShareUrl()}
-                    size={80}
+                    size={100}
                     level="M"
                     includeMargin={false}
                   />
                 </div>
 
-                {/* URL and Copy */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '8px' }}>
+                {/* URL and Copy - stacked */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '10px' }}>
                   <div style={{
-                    padding: '8px',
+                    padding: '10px 12px',
                     backgroundColor: 'var(--color-panel)',
-                    borderRadius: '4px',
+                    borderRadius: '6px',
                     border: '1px solid var(--color-panel-contrast)',
                     wordBreak: 'break-all',
-                    fontSize: '10px',
+                    fontSize: '11px',
                     fontFamily: 'monospace',
                     color: 'var(--color-text)',
-                    maxHeight: '40px',
-                    overflowY: 'auto',
+                    lineHeight: 1.4,
                   }}>
                     {getShareUrl()}
                   </div>
                   <button
                     onClick={handleCopyUrl}
+                    onPointerDown={(e) => e.stopPropagation()}
                     style={{
-                      padding: '6px 12px',
+                      padding: '8px 12px',
                       backgroundColor: copied ? '#10b981' : '#3b82f6',
                       color: 'white',
                       border: 'none',
-                      borderRadius: '4px',
+                      borderRadius: '6px',
                       cursor: 'pointer',
-                      fontSize: '12px',
+                      fontSize: '11px',
                       fontWeight: 500,
+                      fontFamily: 'inherit',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: '4px',
-                      transition: 'background 0.15s',
+                      gap: '6px',
+                      transition: 'all 0.15s ease',
                     }}
                   >
-                    {copied ? 'Copied!' : 'Copy Link'}
+                    {copied ? (
+                      <>✓ Copied!</>
+                    ) : (
+                      <>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                        Copy Link
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -329,28 +447,42 @@ const ShareBoardButton: React.FC<ShareBoardButtonProps> = ({ className = '' }) =
               <div>
                 <button
                   onClick={() => setShowAdvanced(!showAdvanced)}
+                  onPointerDown={(e) => e.stopPropagation()}
                   style={{
+                    width: '100%',
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
                     fontSize: '11px',
+                    fontFamily: 'inherit',
                     color: 'var(--color-text-3)',
-                    padding: '4px 0',
+                    padding: '6px 0',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '4px',
+                    justifyContent: 'center',
+                    gap: '6px',
                   }}
                 >
-                  <svg
-                    width="10"
-                    height="10"
-                    viewBox="0 0 16 16"
-                    fill="currentColor"
-                    style={{ transform: showAdvanced ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
-                  >
-                    <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
-                  </svg>
-                  More options (NFC, Audio)
+                  <span style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '16px',
+                    height: '16px',
+                    borderRadius: '4px',
+                    background: 'var(--color-muted-2)',
+                  }}>
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 16 16"
+                      fill="currentColor"
+                      style={{ transform: showAdvanced ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
+                    >
+                      <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+                    </svg>
+                  </span>
+                  More options
                 </button>
 
                 {showAdvanced && (
@@ -358,10 +490,12 @@ const ShareBoardButton: React.FC<ShareBoardButtonProps> = ({ className = '' }) =
                     {/* NFC Button */}
                     <button
                       onClick={handleNfcWrite}
+                      onPointerDown={(e) => e.stopPropagation()}
                       disabled={nfcStatus === 'unsupported' || nfcStatus === 'writing'}
                       style={{
                         flex: 1,
                         padding: '10px',
+                        fontFamily: 'inherit',
                         backgroundColor: nfcStatus === 'unsupported' ? 'var(--color-muted-2)' :
                                         nfcStatus === 'success' ? '#d1fae5' :
                                         nfcStatus === 'error' ? '#fee2e2' :
@@ -390,9 +524,11 @@ const ShareBoardButton: React.FC<ShareBoardButtonProps> = ({ className = '' }) =
                     {/* Audio Button (coming soon) */}
                     <button
                       disabled
+                      onPointerDown={(e) => e.stopPropagation()}
                       style={{
                         flex: 1,
                         padding: '10px',
+                        fontFamily: 'inherit',
                         backgroundColor: 'var(--color-muted-2)',
                         border: '1px solid var(--color-panel-contrast)',
                         borderRadius: '6px',
