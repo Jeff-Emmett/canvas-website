@@ -11,6 +11,7 @@ import { NetworkGraphPanel } from "../components/networking"
 import CryptIDDropdown from "../components/auth/CryptIDDropdown"
 import StarBoardButton from "../components/StarBoardButton"
 import ShareBoardButton from "../components/ShareBoardButton"
+import BoardSettingsDropdown from "../components/BoardSettingsDropdown"
 import { SettingsDialog } from "./SettingsDialog"
 // import { VersionHistoryPanel } from "../components/history" // TODO: Re-enable when version reversion is ready
 import { useAuth } from "../context/AuthContext"
@@ -320,6 +321,13 @@ function CustomSharePanel() {
         {/* Share board button */}
         <div style={{ padding: '0 2px' }}>
           <ShareBoardButton className="share-panel-btn" />
+        </div>
+
+        <Separator />
+
+        {/* Board settings (protection toggle, editor management) */}
+        <div style={{ padding: '0 2px' }}>
+          <BoardSettingsDropdown className="share-panel-btn" />
         </div>
 
         <Separator />
