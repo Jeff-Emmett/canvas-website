@@ -73,8 +73,7 @@ export default defineConfig(({ mode }) => {
             // Markdown editors
             'markdown': ['@uiw/react-md-editor', 'cherry-markdown', 'marked', 'react-markdown'],
 
-            // Large P2P utilities
-            'large-utils': ['gun', 'webnative', 'holosphere'],
+            // Note: gun, webnative, holosphere removed - stubbed for future Nostr integration
           },
         },
       },
