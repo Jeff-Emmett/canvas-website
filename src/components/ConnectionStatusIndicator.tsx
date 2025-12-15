@@ -40,8 +40,8 @@ export function ConnectionStatusIndicator({
         color: '#8b5cf6', // Purple - calm, not alarming
         icon: '🍄',
         pulse: false,
-        description: 'Your data is safe and encrypted locally',
-        detailedMessage: `Your canvas is stored securely in your browser using encrypted local storage. All changes are preserved with your personal encryption key. When you reconnect, your work will automatically sync with the shared canvas — no data will be lost.`,
+        description: 'Viewing locally saved canvas',
+        detailedMessage: `You're viewing your locally cached canvas. All your previous work is safely stored in your browser. Any changes you make will be saved locally and automatically synced when you reconnect — no data will be lost.`,
       }
     }
 

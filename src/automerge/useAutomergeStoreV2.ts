@@ -136,10 +136,12 @@ export function useAutomergeStoreV2({
   handle,
   userId: _userId,
   adapter,
+  isNetworkOnline = true,
 }: {
   handle: DocHandle<any>
   userId: string
   adapter?: any
+  isNetworkOnline?: boolean
 }): TLStoreWithStatus {
   // useAutomergeStoreV2 initializing
   
@@ -1074,58 +1076,122 @@ export function useAutomergeStoreV2({
       try {
         await handle.whenReady()
         const doc = handle.doc()
-        
+
         // Check if store is already populated from patches
         const existingStoreRecords = store.allRecords()
         const existingStoreShapes = existingStoreRecords.filter((r: any) => r.typeName === 'shape')
-        
+
+        // Determine connection status based on network state
+        const connectionStatus = isNetworkOnline ? "online" : "offline"
+
         if (doc.store) {
           const storeKeys = Object.keys(doc.store)
           const docShapes = Object.values(doc.store).filter((r: any) => r?.typeName === 'shape').length
-          console.log(`📊 Patch-based initialization: doc has ${storeKeys.length} records (${docShapes} shapes), store has ${existingStoreRecords.length} records (${existingStoreShapes.length} shapes)`)
-          
+          console.log(`📊 Patch-based initialization: doc has ${storeKeys.length} records (${docShapes} shapes), store has ${existingStoreRecords.length} records (${existingStoreShapes.length} shapes), network: ${connectionStatus}`)
+
           // If store already has shapes, patches have been applied (dev mode behavior)
           if (existingStoreShapes.length > 0) {
             console.log(`✅ Store already populated from patches (${existingStoreShapes.length} shapes) - using patch-based loading like dev`)
-            
+
             // REMOVED: Aggressive shape refresh that was causing coordinate loss
             // Shapes should be visible through normal patch application
             // If shapes aren't visible, it's likely a different issue that refresh won't fix
-            
+
             setStoreWithStatus({
               store,
               status: "synced-remote",
-              connectionStatus: "online",
+              connectionStatus,
             })
             return
           }
-          
+
+          // OFFLINE FAST PATH: When offline with local data, load immediately
+          // Don't wait for patches that will never come from the network
+          if (!isNetworkOnline && docShapes > 0) {
+            console.log(`📴 Offline mode with ${docShapes} shapes in local storage - loading immediately`)
+
+            // Manually load data from Automerge doc since patches won't come through
+            try {
+              const allRecords: TLRecord[] = []
+              Object.entries(doc.store).forEach(([id, record]: [string, any]) => {
+                if (!record || !record.typeName || !record.id) return
+                if (record.typeName === 'obsidian_vault' || (typeof record.id === 'string' && record.id.startsWith('obsidian_vault:'))) return
+
+                try {
+                  let cleanRecord: any
+                  try {
+                    cleanRecord = JSON.parse(JSON.stringify(record))
+                  } catch {
+                    cleanRecord = safeExtractPlainObject(record)
+                  }
+
+                  if (cleanRecord && typeof cleanRecord === 'object') {
+                    const sanitized = sanitizeRecord(cleanRecord)
+                    const plainSanitized = JSON.parse(JSON.stringify(sanitized))
+                    allRecords.push(plainSanitized)
+                  }
+                } catch (e) {
+                  console.warn(`⚠️ Could not process record ${id}:`, e)
+                }
+              })
+
+              // Filter out SharedPiano shapes since they're no longer supported
+              const filteredRecords = allRecords.filter((record: any) => {
+                if (record.typeName === 'shape' && record.type === 'SharedPiano') {
+                  return false
+                }
+                return true
+              })
+
+              if (filteredRecords.length > 0) {
+                console.log(`📴 Loading ${filteredRecords.length} records from offline storage`)
+                store.mergeRemoteChanges(() => {
+                  const pageRecords = filteredRecords.filter(r => r.typeName === 'page')
+                  const shapeRecords = filteredRecords.filter(r => r.typeName === 'shape')
+                  const otherRecords = filteredRecords.filter(r => r.typeName !== 'page' && r.typeName !== 'shape')
+                  const recordsToAdd = [...pageRecords, ...otherRecords, ...shapeRecords]
+                  store.put(recordsToAdd)
+                })
+                console.log(`✅ Offline data loaded: ${filteredRecords.filter(r => r.typeName === 'shape').length} shapes`)
+              }
+            } catch (error) {
+              console.error(`❌ Error loading offline data:`, error)
+            }
+
+            setStoreWithStatus({
+              store,
+              status: "synced-remote", // Use synced-remote so Board renders
+              connectionStatus: "offline",
+            })
+            return
+          }
+
           // If doc has data but store doesn't, patches should have been generated when data was written
           // The automergeChangeHandler (set up above) should process them automatically
           // Just wait a bit for patches to be processed, then set status
           if (docShapes > 0 && existingStoreShapes.length === 0) {
             console.log(`📊 Doc has ${docShapes} shapes but store is empty. Waiting for patches to be processed by handler...`)
-            
+
             // Wait briefly for patches to be processed by automergeChangeHandler
             // The handler is already set up, so it should catch patches from the initial data load
             let attempts = 0
             const maxAttempts = 10 // Wait up to 2 seconds (10 * 200ms)
-            
+
             await new Promise<void>(resolve => {
               const checkForPatches = () => {
                 attempts++
                 const currentShapes = store.allRecords().filter((r: any) => r.typeName === 'shape')
-                
+
                 if (currentShapes.length > 0) {
                   console.log(`✅ Patches applied successfully: ${currentShapes.length} shapes loaded via patches`)
-                  
+
                   // REMOVED: Aggressive shape refresh that was causing coordinate loss
                   // Shapes loaded via patches should be visible without forced refresh
-                  
+
                   setStoreWithStatus({
                     store,
                     status: "synced-remote",
-                    connectionStatus: "online",
+                    connectionStatus,
                   })
                   resolve()
                 } else if (attempts < maxAttempts) {
@@ -1136,35 +1202,35 @@ export function useAutomergeStoreV2({
                   console.warn(`⚠️ No patches received after ${maxAttempts} attempts for room initialization.`)
                   console.warn(`⚠️ This may happen if Automerge doc was initialized with server data before handler was ready.`)
                   console.warn(`⚠️ Store will remain empty - patches should handle data loading in normal operation.`)
-                  
+
                   // Simplified fallback: Just log and continue with empty store
                   // Patches should handle data loading, so if they don't come through,
                   // it's likely the document is actually empty or there's a timing issue
                   // that will resolve on next sync
-                  
+
                   setStoreWithStatus({
                     store,
                     status: "synced-remote",
-                    connectionStatus: "online",
+                    connectionStatus,
                   })
                   resolve()
                 }
               }
-              
+
               // Start checking immediately since handler is already set up
               setTimeout(checkForPatches, 100)
             })
-            
+
             return
           }
-          
+
           // If doc is empty, just set status
           if (docShapes === 0) {
             console.log(`📊 Empty document - starting fresh (patch-based loading)`)
             setStoreWithStatus({
               store,
               status: "synced-remote",
-              connectionStatus: "online",
+              connectionStatus,
             })
             return
           }
@@ -1174,7 +1240,7 @@ export function useAutomergeStoreV2({
           setStoreWithStatus({
             store,
             status: "synced-remote",
-            connectionStatus: "online",
+            connectionStatus: isNetworkOnline ? "online" : "offline",
           })
           return
         }
@@ -1183,17 +1249,17 @@ export function useAutomergeStoreV2({
         setStoreWithStatus({
           store,
           status: "synced-remote",
-          connectionStatus: "online",
+          connectionStatus: isNetworkOnline ? "online" : "offline",
         })
       }
     }
     
     initializeStore()
-      
+
       return () => {
         unsubs.forEach((unsub) => unsub())
       }
-    }, [handle, store])
+    }, [handle, store, isNetworkOnline])
     
     /* -------------------- Presence -------------------- */
     // Create a safe handle that won't cause null errors

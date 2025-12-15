@@ -296,13 +296,40 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
       console.error('❌ Error applying presence:', error)
     }
   }, [flushPresenceUpdates])
-  
+
+  // Handle presence leave - remove the user's presence record from the store
+  const handlePresenceLeave = useCallback((sessionId: string) => {
+    const currentStore = storeRef.current
+    if (!currentStore) return
+
+    try {
+      // Find and remove the presence record for this session
+      // Presence IDs are formatted as "instance_presence:{sessionId}"
+      const presenceId = `instance_presence:${sessionId}`
+
+      // Check if this record exists before trying to remove it
+      const allRecords = currentStore.allRecords()
+      const presenceRecord = allRecords.find((r: any) =>
+        r.id === presenceId ||
+        r.id?.includes(sessionId)
+      )
+
+      if (presenceRecord) {
+        console.log('👋 Removing presence record for session:', sessionId, presenceRecord.id)
+        currentStore.remove([presenceRecord.id])
+      }
+    } catch (error) {
+      console.error('Error removing presence on leave:', error)
+    }
+  }, [])
+
   const { repo, adapter, storageAdapter } = useMemo(() => {
     const adapter = new CloudflareNetworkAdapter(
       workerUrl,
       roomId,
       applyJsonSyncData,
-      applyPresenceUpdate
+      applyPresenceUpdate,
+      handlePresenceLeave
     )
 
     // Store adapter ref for use in callbacks
@@ -325,7 +352,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
     })
 
     return { repo, adapter, storageAdapter }
-  }, [workerUrl, roomId, applyJsonSyncData, applyPresenceUpdate])
+  }, [workerUrl, roomId, applyJsonSyncData, applyPresenceUpdate, handlePresenceLeave])
 
   // Subscribe to connection state changes
   useEffect(() => {
@@ -653,20 +680,26 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
   }
 
   // Get user metadata for presence
+  // Color is generated from the username (name) for consistency across sessions,
+  // not from the unique session ID (userId) which changes per tab/session
   const userMetadata: { userId: string; name: string; color: string } = (() => {
     if (user && 'userId' in user) {
       const uid = (user as { userId: string; name: string; color?: string }).userId
+      const name = (user as { userId: string; name: string; color?: string }).name
       return {
         userId: uid,
-        name: (user as { userId: string; name: string; color?: string }).name,
-        color: (user as { userId: string; name: string; color?: string }).color || generateUserColor(uid)
+        name: name,
+        // Use name for color (consistent across sessions), fall back to uid if no name
+        color: (user as { userId: string; name: string; color?: string }).color || generateUserColor(name || uid)
       }
     }
     const uid = user?.id || 'anonymous'
+    const name = user?.name || 'Anonymous'
     return {
       userId: uid,
-      name: user?.name || 'Anonymous',
-      color: generateUserColor(uid)
+      name: name,
+      // Use name for color (consistent across sessions), fall back to uid if no name
+      color: generateUserColor(name !== 'Anonymous' ? name : uid)
     }
   })()
   
@@ -674,7 +707,8 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
   const storeWithStatus = useAutomergeStoreV2({
     handle: handle || null as any,
     userId: userMetadata.userId,
-    adapter: adapter // Pass adapter for JSON sync broadcasting
+    adapter: adapter, // Pass adapter for JSON sync broadcasting
+    isNetworkOnline // Pass network state for offline support
   })
   
   // Update store ref when store is available

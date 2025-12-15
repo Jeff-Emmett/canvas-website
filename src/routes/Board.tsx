@@ -45,6 +45,9 @@ import { ImageGenShape } from "@/shapes/ImageGenShapeUtil"
 import { ImageGenTool } from "@/tools/ImageGenTool"
 import { VideoGenShape } from "@/shapes/VideoGenShapeUtil"
 import { VideoGenTool } from "@/tools/VideoGenTool"
+import { DrawfastShape } from "@/shapes/DrawfastShapeUtil"
+import { DrawfastTool } from "@/tools/DrawfastTool"
+import { LiveImageProvider } from "@/hooks/useLiveImage"
 import { MultmuxTool } from "@/tools/MultmuxTool"
 import { MultmuxShape } from "@/shapes/MultmuxShapeUtil"
 // MycelialIntelligence moved to permanent UI bar - shape kept for backwards compatibility
@@ -152,6 +155,7 @@ const customShapeUtils = [
   FathomNoteShape, // Individual Fathom meeting notes created from FathomMeetingsBrowser
   ImageGenShape,
   VideoGenShape,
+  DrawfastShape,
   MultmuxShape,
   MycelialIntelligenceShape, // Deprecated - kept for backwards compatibility
   PrivateWorkspaceShape, // Private zone for Google Export data sovereignty
@@ -173,6 +177,7 @@ const customTools = [
   FathomMeetingsTool,
   ImageGenTool,
   VideoGenTool,
+  DrawfastTool,
   MultmuxTool,
   PrivateWorkspaceTool,
   GoogleItemTool,
@@ -383,12 +388,16 @@ export function Board() {
   }
 
   // Handler for successful authentication from banner
+  // NOTE: We don't call fetchBoardPermission here because:
+  // 1. This callback captures the OLD fetchBoardPermission from before re-render
+  // 2. The useEffect watching session.authed already handles re-fetching
+  // 3. That useEffect will run AFTER React re-renders with the new (cache-cleared) callback
   const handleAuthenticated = () => {
     setShowEditPrompt(false)
-    // Re-fetch permission after authentication
-    fetchBoardPermission(roomId).then(perm => {
-      setPermission(perm)
-    })
+    // Force permission state reset - the useEffect will fetch fresh permissions
+    setPermission(null)
+    setPermissionLoading(true)
+    console.log('🔐 handleAuthenticated: Cleared permission state, useEffect will fetch fresh')
   }
 
   // Store roomId in localStorage for VideoChatShapeUtil to access
@@ -444,10 +453,13 @@ export function Board() {
   }
 
   // Set up user preferences for TLDraw collaboration
+  // Color is based on session.username (CryptID) for consistency across sessions
+  // uniqueUserId is used for tldraw's presence system (allows multiple tabs)
   const [userPreferences, setUserPreferences] = useState<TLUserPreferences>(() => ({
     id: uniqueUserId || 'anonymous',
     name: session.username || 'Anonymous',
-    color: uniqueUserId ? generateUserColor(uniqueUserId) : '#000000',
+    // Use session.username for color (not uniqueUserId) so color is consistent across all browser sessions
+    color: session.username ? generateUserColor(session.username) : (uniqueUserId ? generateUserColor(uniqueUserId) : '#000000'),
     colorScheme: getColorScheme(),
   }))
 
@@ -457,7 +469,8 @@ export function Board() {
       setUserPreferences({
         id: uniqueUserId,
         name: session.username || 'Anonymous',
-        color: generateUserColor(uniqueUserId),
+        // Use session.username for color consistency across sessions
+        color: session.username ? generateUserColor(session.username) : generateUserColor(uniqueUserId),
         colorScheme: getColorScheme(),
       })
     }
@@ -484,6 +497,7 @@ export function Board() {
 
     return () => observer.disconnect()
   }, [])
+
 
   // Create the user object for TLDraw
   const user = useTldrawUser({ userPreferences, setUserPreferences })
@@ -918,12 +932,43 @@ export function Board() {
     }
   }, [editor, store.store, store.status])
 
-  // Update presence when session changes
+  // Update presence when session changes and clean up stale presences
   useEffect(() => {
-    if (!editor || !session.authed || !session.username) return
-    
-    // The presence should automatically update through the useAutomergeSync configuration
-    // when the session changes, but we can also try to force an update
+    if (!editor) return
+
+    const cleanupStalePresences = () => {
+      try {
+        const allRecords = editor.store.allRecords()
+        const presenceRecords = allRecords.filter((r: any) =>
+          r.typeName === 'instance_presence' ||
+          r.id?.startsWith('instance_presence:')
+        )
+
+        if (presenceRecords.length > 0) {
+          // Filter out stale presences (older than 30 seconds)
+          const now = Date.now()
+          const staleThreshold = 30 * 1000 // 30 seconds
+          const stalePresences = presenceRecords.filter((r: any) =>
+            r.lastActivityTimestamp && (now - r.lastActivityTimestamp > staleThreshold)
+          )
+
+          if (stalePresences.length > 0) {
+            console.log(`🧹 Cleaning up ${stalePresences.length} stale presence record(s)`)
+            editor.store.remove(stalePresences.map((r: any) => r.id))
+          }
+        }
+      } catch (error) {
+        console.error('Error cleaning up stale presences:', error)
+      }
+    }
+
+    // Clean up immediately on auth change
+    cleanupStalePresences()
+
+    // Also run periodic cleanup every 15 seconds
+    const cleanupInterval = setInterval(cleanupStalePresences, 15000)
+
+    return () => clearInterval(cleanupInterval)
   }, [editor, session.authed, session.username])
 
   // Update TLDraw user preferences when editor is available and user is authenticated
@@ -1140,16 +1185,20 @@ export function Board() {
   // Tldraw will automatically render shapes as they're added via patches (like in dev)
   const hasStore = !!store.store
   const isSynced = store.status === 'synced-remote'
-  
-  // Render as soon as store is synced - shapes will load via patches
+
+  // OFFLINE SUPPORT: Also render when we have local data but no network
+  // This allows users to view their board even when offline
+  const isOfflineWithLocalData = !isNetworkOnline && hasStore && store.status !== 'error'
+
+  // Render as soon as store is synced OR we're offline with local data
   // This matches dev behavior where Tldraw mounts first, then shapes load
-  const shouldRender = hasStore && isSynced
-  
+  const shouldRender = hasStore && (isSynced || isOfflineWithLocalData)
+
   if (!shouldRender) {
     return (
       <AutomergeHandleProvider handle={automergeHandle}>
         <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div>Loading canvas...</div>
+          <div>{!isNetworkOnline ? 'Loading offline data...' : 'Loading canvas...'}</div>
         </div>
       </AutomergeHandleProvider>
     )
@@ -1158,6 +1207,7 @@ export function Board() {
   return (
     <AutomergeHandleProvider handle={automergeHandle}>
       <ConnectionProvider connectionState={connectionState} isNetworkOnline={isNetworkOnline}>
+        <LiveImageProvider>
         <div style={{ position: "fixed", inset: 0 }}>
           <Tldraw
           key={`tldraw-${authChangeCount}-${session.authed ? 'authed' : 'anon'}-${session.username || 'guest'}`}
@@ -1299,6 +1349,7 @@ export function Board() {
             />
           )}
         </div>
+        </LiveImageProvider>
       </ConnectionProvider>
     </AutomergeHandleProvider>
   )
