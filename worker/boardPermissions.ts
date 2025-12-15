@@ -1100,7 +1100,7 @@ export async function handleRequestAdminAccess(
 
     // Send email to global admin (jeffemmett@gmail.com)
     if (env.RESEND_API_KEY) {
-      const emailFrom = env.CRYPTID_EMAIL_FROM || 'noreply@canvas.jeffemmett.com';
+      const emailFrom = env.CRYPTID_EMAIL_FROM || 'Canvas <noreply@jeffemmett.com>';
 
       const emailResponse = await fetch('https://api.resend.com/emails', {
         method: 'POST',
