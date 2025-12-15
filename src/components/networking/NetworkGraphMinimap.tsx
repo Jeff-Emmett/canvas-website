@@ -318,10 +318,11 @@ export function NetworkGraphMinimap({
       .style('cursor', 'pointer')
       .on('mouseenter', (event, d) => {
         const rect = svgRef.current!.getBoundingClientRect();
+        const name = d.displayName || d.username;
         setTooltip({
           x: event.clientX - rect.left,
           y: event.clientY - rect.top,
-          text: d.displayName || d.username,
+          text: d.isCurrentUser ? `${name} (you)` : name,
         });
       })
       .on('mouseleave', () => {

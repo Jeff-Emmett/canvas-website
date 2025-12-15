@@ -242,6 +242,27 @@ export function useNetworkGraph(options: UseNetworkGraphOptions = {}): UseNetwor
         isAnonymous: false, // Nodes from the graph are authenticated
       }));
 
+      // Always ensure the current user is in the graph, even if they have no connections
+      const currentUserInGraph = enrichedNodes.some(n => n.isCurrentUser);
+      if (!currentUserInGraph) {
+        // Find current user in room participants
+        const currentUserParticipant = roomParticipants.find(p => p.id === session.username);
+        if (currentUserParticipant) {
+          enrichedNodes.push({
+            id: currentUserParticipant.id,
+            username: currentUserParticipant.username,
+            displayName: currentUserParticipant.username,
+            avatarColor: currentUserParticipant.color,
+            isInRoom: true,
+            roomPresenceColor: currentUserParticipant.color,
+            isCurrentUser: true,
+            isAnonymous: false,
+            trustLevelTo: undefined,
+            trustLevelFrom: undefined,
+          });
+        }
+      }
+
       // Add room participants who are not in the network graph as anonymous nodes
       roomParticipants.forEach(participant => {
         if (!graphNodeIds.has(participant.id) && participant.id !== session.username) {
@@ -297,17 +318,52 @@ export function useNetworkGraph(options: UseNetworkGraphOptions = {}): UseNetwor
     }
   }, [refreshInterval, fetchGraph]);
 
-  // Update room status when participants change
+  // Update room status when participants change AND add new participants immediately
   useEffect(() => {
-    setState(prev => ({
-      ...prev,
-      nodes: prev.nodes.map(node => ({
+    setState(prev => {
+      const existingNodeIds = new Set(prev.nodes.map(n => n.id));
+
+      // Update existing nodes with room status
+      const updatedNodes = prev.nodes.map(node => ({
         ...node,
         isInRoom: participantIds.includes(node.id),
         roomPresenceColor: participantColorMap.get(node.id),
-      })),
-    }));
-  }, [participantIds, participantColorMap]);
+      }));
+
+      // Add any new room participants that aren't in the graph yet
+      roomParticipants.forEach(participant => {
+        if (!existingNodeIds.has(participant.id)) {
+          // Check if this is the current user
+          const isCurrentUser = participant.id === session.username;
+
+          // Check if this looks like an anonymous/guest ID
+          const isAnonymous = !isCurrentUser && (
+            participant.username.startsWith('Guest') ||
+            participant.username === 'Anonymous' ||
+            !participant.id.match(/^[a-zA-Z0-9_-]+$/)
+          );
+
+          updatedNodes.push({
+            id: participant.id,
+            username: participant.username,
+            displayName: participant.username,
+            avatarColor: participant.color,
+            isInRoom: true,
+            roomPresenceColor: participant.color,
+            isCurrentUser,
+            isAnonymous,
+            trustLevelTo: undefined,
+            trustLevelFrom: undefined,
+          });
+        }
+      });
+
+      return {
+        ...prev,
+        nodes: updatedNodes,
+      };
+    });
+  }, [participantIds, participantColorMap, roomParticipants, session.username]);
 
   // Connect to a user
   const connect = useCallback(async (userId: string, trustLevel: TrustLevel = 'connected') => {

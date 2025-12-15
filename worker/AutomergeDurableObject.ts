@@ -427,6 +427,13 @@ export class AutomergeDurableObject {
       serverWebSocket.addEventListener("close", (event) => {
         console.log(`🔌 AutomergeDurableObject: Client disconnected: ${sessionId}, code: ${event.code}, reason: ${event.reason}`)
         this.clients.delete(sessionId)
+
+        // Broadcast leave message to all other clients so they can remove presence
+        this.broadcastToOthers(sessionId, {
+          type: 'leave',
+          sessionId: sessionId
+        })
+
         // Clean up sync manager state for this peer and flush pending saves
         if (this.syncManager) {
           this.syncManager.handlePeerDisconnect(sessionId).catch((error) => {
@@ -609,6 +616,15 @@ export class AutomergeDurableObject {
           senderId: sessionId
         }
         this.broadcastToOthers(sessionId, presenceMessage)
+        break
+      case "leave":
+        // Handle explicit leave message (client is about to disconnect)
+        // Broadcast to all other clients so they can remove presence
+        console.log(`👋 Received leave message from ${sessionId}`)
+        this.broadcastToOthers(sessionId, {
+          type: 'leave',
+          sessionId: message.sessionId || sessionId
+        })
         break
       default:
         console.log("Unknown message type:", message.type)

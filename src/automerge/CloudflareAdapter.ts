@@ -182,6 +182,7 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
   private isConnecting: boolean = false
   private onJsonSyncData?: (data: any) => void
   private onPresenceUpdate?: (userId: string, data: any, senderId?: string, userName?: string, userColor?: string) => void
+  private onPresenceLeave?: (sessionId: string) => void
 
   // Binary sync mode - when true, uses native Automerge sync protocol
   private useBinarySync: boolean = true
@@ -221,13 +222,15 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
     workerUrl: string,
     roomId?: string,
     onJsonSyncData?: (data: any) => void,
-    onPresenceUpdate?: (userId: string, data: any, senderId?: string, userName?: string, userColor?: string) => void
+    onPresenceUpdate?: (userId: string, data: any, senderId?: string, userName?: string, userColor?: string) => void,
+    onPresenceLeave?: (sessionId: string) => void
   ) {
     super()
     this.workerUrl = workerUrl
     this.roomId = roomId || 'default-room'
     this.onJsonSyncData = onJsonSyncData
     this.onPresenceUpdate = onPresenceUpdate
+    this.onPresenceLeave = onPresenceLeave
     this.readyPromise = new Promise((resolve) => {
       this.readyResolve = resolve
     })
@@ -432,6 +435,15 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
                 // Pass senderId, userName, and userColor so we can create proper instance_presence records
                 if (this.onPresenceUpdate && message.userId && message.data) {
                   this.onPresenceUpdate(message.userId, message.data, message.senderId, message.userName, message.userColor)
+                }
+                return
+              }
+
+              // Handle leave messages (user disconnected)
+              if (message.type === 'leave') {
+                console.log('👋 CloudflareAdapter: User left:', message.sessionId)
+                if (this.onPresenceLeave && message.sessionId) {
+                  this.onPresenceLeave(message.sessionId)
                 }
                 return
               }
@@ -648,8 +660,20 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
   private cleanup(): void {
     this.stopKeepAlive()
     this.clearReconnectTimeout()
-    
+
     if (this.websocket) {
+      // Send leave message before closing to notify other clients
+      if (this.websocket.readyState === WebSocket.OPEN && this.sessionId) {
+        try {
+          this.websocket.send(JSON.stringify({
+            type: 'leave',
+            sessionId: this.sessionId
+          }))
+          console.log('👋 CloudflareAdapter: Sent leave message for session:', this.sessionId)
+        } catch (e) {
+          // Ignore errors when sending leave message
+        }
+      }
       this.websocket.close(1000, 'Client disconnecting')
       this.websocket = null
     }
