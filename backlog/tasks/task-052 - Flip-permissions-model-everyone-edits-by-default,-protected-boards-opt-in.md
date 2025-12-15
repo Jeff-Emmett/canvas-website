@@ -4,7 +4,7 @@ title: 'Flip permissions model: everyone edits by default, protected boards opt-
 status: Done
 assignee: []
 created_date: '2025-12-15 17:23'
-updated_date: '2025-12-15 18:32'
+updated_date: '2025-12-15 19:26'
 labels: []
 dependencies: []
 priority: high
@@ -31,7 +31,7 @@ Key changes:
 - [x] #3 Global admin (jeffemmett@gmail.com) has admin on all boards
 - [x] #4 Settings dropdown shows view-only toggle for admins
 - [x] #5 Can add/remove editors on protected boards
-- [ ] #6 Admin request button sends email
+- [x] #6 Admin request button sends email
 <!-- AC:END -->
 
 ## Implementation Notes
@@ -68,4 +68,12 @@ INSERT OR IGNORE INTO global_admins (email) VALUES ('jeffemmett@gmail.com');
 
 ### Remaining
 - [ ] AC #6: Admin request email flow (Resend integration needed)
+
+### Resend Email Integration (commit a46ce44)
+- Added `RESEND_API_KEY` secret to Cloudflare Worker
+- Fixed from email to use verified domain: `Canvas <noreply@jeffemmett.com>`
+- Admin request emails will be sent to jeffemmett@gmail.com
+- Test email sent successfully: ID 7113526b-ce1e-43e7-b18d-42b3d54823d1
+
+**All acceptance criteria now complete!**
 <!-- SECTION:NOTES:END -->
