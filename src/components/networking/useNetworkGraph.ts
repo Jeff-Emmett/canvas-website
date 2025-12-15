@@ -310,6 +310,24 @@ export function useNetworkGraph(options: UseNetworkGraphOptions = {}): UseNetwor
     fetchGraph();
   }, [fetchGraph]);
 
+  // Listen for session-cleared event to immediately clear graph state
+  useEffect(() => {
+    const handleSessionCleared = () => {
+      console.log('🔐 useNetworkGraph: Session cleared - resetting graph state');
+      clearGraphCache();
+      setState({
+        nodes: [],
+        edges: [],
+        myConnections: [],
+        isLoading: false,
+        error: null,
+      });
+    };
+
+    window.addEventListener('session-cleared', handleSessionCleared);
+    return () => window.removeEventListener('session-cleared', handleSessionCleared);
+  }, []);
+
   // Refresh interval
   useEffect(() => {
     if (refreshInterval > 0) {

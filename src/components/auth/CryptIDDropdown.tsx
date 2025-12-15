@@ -110,22 +110,45 @@ const CryptIDDropdown: React.FC<CryptIDDropdownProps> = ({ isDarkMode = false })
     }
   }, [session.authed, session.username]);
 
-  // Load connections when authenticated
+  // Load connections when authenticated, clear when logged out
   useEffect(() => {
     const loadConnections = async () => {
-      if (!session.authed || !session.username) return;
+      if (!session.authed || !session.username) {
+        // Clear connections state when user logs out
+        setConnections([]);
+        setConnectionsLoading(false);
+        return;
+      }
       setConnectionsLoading(true);
       try {
         const myConnections = await getMyConnections();
         setConnections(myConnections as UserConnectionWithProfile[]);
       } catch (error) {
         console.error('Failed to load connections:', error);
+        setConnections([]); // Clear on error too
       } finally {
         setConnectionsLoading(false);
       }
     };
     loadConnections();
   }, [session.authed, session.username]);
+
+  // Listen for session-cleared event to immediately clear connections state
+  useEffect(() => {
+    const handleSessionCleared = () => {
+      console.log('🔐 CryptIDDropdown: Session cleared - resetting connections state');
+      setConnections([]);
+      setConnectionsLoading(false);
+      setShowDropdown(false);
+      setShowCryptIDModal(false);
+      setExpandedSection('none');
+      setEditingConnectionId(null);
+      setEditingMetadata({});
+    };
+
+    window.addEventListener('session-cleared', handleSessionCleared);
+    return () => window.removeEventListener('session-cleared', handleSessionCleared);
+  }, []);
 
   // Connection handlers
   const handleConnect = async (userId: string, trustLevel: TrustLevel) => {
