@@ -1,9 +1,10 @@
 ---
 id: task-052
 title: 'Flip permissions model: everyone edits by default, protected boards opt-in'
-status: In Progress
+status: Done
 assignee: []
 created_date: '2025-12-15 17:23'
+updated_date: '2025-12-15 17:45'
 labels: []
 dependencies: []
 priority: high
@@ -32,3 +33,17 @@ Key changes:
 - [ ] #5 Can add/remove editors on protected boards
 - [ ] #6 Admin request button sends email
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Pushed to dev branch (commit 2fe96fa)
+
+Backend: schema.sql, boardPermissions.ts, types.ts, worker.ts updated
+
+Frontend: BoardSettingsDropdown.tsx created, AuthContext.tsx and Board.tsx updated
+
+Migration script created at worker/migrations/001_add_protected_boards.sql
+
+NEXT STEPS: Run D1 migration on Cloudflare, add BoardSettingsDropdown to UI, test
+<!-- SECTION:NOTES:END -->
