@@ -68,21 +68,21 @@ const BoardSettingsDropdown: React.FC<BoardSettingsDropdownProps> = ({ className
 
       // Fetch board info
       const infoRes = await fetch(`${WORKER_URL}/boards/${boardId}/info`, { headers });
-      const infoData = await infoRes.json();
+      const infoData = await infoRes.json() as { board?: BoardInfo };
       if (infoData.board) {
         setBoardInfo(infoData.board);
       }
 
       // Fetch permission to check if admin
       const permRes = await fetch(`${WORKER_URL}/boards/${boardId}/permission`, { headers });
-      const permData = await permRes.json();
+      const permData = await permRes.json() as { permission?: string; isGlobalAdmin?: boolean };
       setIsAdmin(permData.permission === 'admin');
       setIsGlobalAdmin(permData.isGlobalAdmin || false);
 
       // If admin, fetch editors list
       if (permData.permission === 'admin') {
         const editorsRes = await fetch(`${WORKER_URL}/boards/${boardId}/editors`, { headers });
-        const editorsData = await editorsRes.json();
+        const editorsData = await editorsRes.json() as { editors?: Editor[] };
         setEditors(editorsData.editors || []);
       }
     } catch (error) {

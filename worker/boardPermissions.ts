@@ -1151,7 +1151,7 @@ export async function handleRequestAdminAccess(
  */
 export async function handleGetBoardInfo(
   boardId: string,
-  request: Request,
+  _request: Request,
   env: Environment
 ): Promise<Response> {
   try {

@@ -11,8 +11,8 @@ import { NetworkGraphPanel } from "../components/networking"
 import CryptIDDropdown from "../components/auth/CryptIDDropdown"
 import StarBoardButton from "../components/StarBoardButton"
 import ShareBoardButton from "../components/ShareBoardButton"
-import BoardSettingsDropdown from "../components/BoardSettingsDropdown"
 import { SettingsDialog } from "./SettingsDialog"
+import * as crypto from "../lib/auth/crypto"
 // import { VersionHistoryPanel } from "../components/history" // TODO: Re-enable when version reversion is ready
 import { useAuth } from "../context/AuthContext"
 import { PermissionLevel } from "../lib/auth/types"
@@ -61,6 +61,15 @@ function CustomSharePanel() {
   const [hasApiKey, setHasApiKey] = React.useState(false)
   const [permissionRequestStatus, setPermissionRequestStatus] = React.useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const [requestMessage, setRequestMessage] = React.useState('')
+
+  // Board protection state
+  const [boardProtected, setBoardProtected] = React.useState(false)
+  const [protectionLoading, setProtectionLoading] = React.useState(false)
+  const [isGlobalAdmin, setIsGlobalAdmin] = React.useState(false)
+  const [isBoardAdmin, setIsBoardAdmin] = React.useState(false)
+  const [editors, setEditors] = React.useState<Array<{ userId: string; username: string; permission: string }>>([])
+  const [inviteInput, setInviteInput] = React.useState('')
+  const [inviteStatus, setInviteStatus] = React.useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
 
   // Refs for dropdown positioning
   const settingsButtonRef = React.useRef<HTMLButtonElement>(null)
@@ -207,6 +216,149 @@ function CustomSharePanel() {
     })
   }
 
+  // Get auth headers for API calls
+  const getAuthHeaders = React.useCallback((): Record<string, string> => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+    if (session.authed && session.username) {
+      const publicKey = crypto.getPublicKey(session.username)
+      if (publicKey) {
+        headers['X-CryptID-PublicKey'] = publicKey
+      }
+    }
+    return headers
+  }, [session.authed, session.username])
+
+  // Fetch board info when settings dropdown opens
+  const fetchBoardInfo = React.useCallback(async () => {
+    if (!showSettingsDropdown) return
+
+    setProtectionLoading(true)
+    try {
+      const headers = getAuthHeaders()
+
+      // Fetch board info
+      const infoRes = await fetch(`${WORKER_URL}/boards/${boardId}/info`, { headers })
+      if (infoRes.ok) {
+        const infoData = await infoRes.json() as { board?: { isProtected?: boolean } }
+        if (infoData.board) {
+          setBoardProtected(infoData.board.isProtected || false)
+        }
+      }
+
+      // Fetch permission to check if admin
+      const permRes = await fetch(`${WORKER_URL}/boards/${boardId}/permission`, { headers })
+      if (permRes.ok) {
+        const permData = await permRes.json() as { permission?: string; isGlobalAdmin?: boolean }
+        setIsBoardAdmin(permData.permission === 'admin')
+        setIsGlobalAdmin(permData.isGlobalAdmin || false)
+
+        // If admin, fetch editors list
+        if (permData.permission === 'admin') {
+          const editorsRes = await fetch(`${WORKER_URL}/boards/${boardId}/editors`, { headers })
+          if (editorsRes.ok) {
+            const editorsData = await editorsRes.json() as { editors?: Array<{ userId: string; username: string; permission: string }> }
+            setEditors(editorsData.editors || [])
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch board data:', error)
+    } finally {
+      setProtectionLoading(false)
+    }
+  }, [showSettingsDropdown, boardId, getAuthHeaders])
+
+  // Fetch board info when dropdown opens
+  React.useEffect(() => {
+    if (showSettingsDropdown) {
+      fetchBoardInfo()
+    }
+  }, [showSettingsDropdown, fetchBoardInfo])
+
+  // Toggle board protection
+  const handleToggleProtection = async () => {
+    if (protectionLoading) return
+
+    setProtectionLoading(true)
+    try {
+      const headers = getAuthHeaders()
+      const res = await fetch(`${WORKER_URL}/boards/${boardId}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ isProtected: !boardProtected }),
+      })
+
+      if (res.ok) {
+        setBoardProtected(!boardProtected)
+        // Refresh editors list if now protected
+        if (!boardProtected) {
+          const editorsRes = await fetch(`${WORKER_URL}/boards/${boardId}/editors`, { headers })
+          if (editorsRes.ok) {
+            const editorsData = await editorsRes.json() as { editors?: Array<{ userId: string; username: string; permission: string }> }
+            setEditors(editorsData.editors || [])
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to toggle protection:', error)
+    } finally {
+      setProtectionLoading(false)
+    }
+  }
+
+  // Invite user as editor
+  const handleInviteEditor = async () => {
+    if (!inviteInput.trim() || inviteStatus === 'sending') return
+
+    setInviteStatus('sending')
+    try {
+      const headers = getAuthHeaders()
+      const res = await fetch(`${WORKER_URL}/boards/${boardId}/permissions`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          usernameOrEmail: inviteInput.trim(),
+          permission: 'edit',
+        }),
+      })
+
+      if (res.ok) {
+        setInviteStatus('sent')
+        setInviteInput('')
+        // Refresh editors list
+        const editorsRes = await fetch(`${WORKER_URL}/boards/${boardId}/editors`, { headers })
+        if (editorsRes.ok) {
+          const editorsData = await editorsRes.json() as { editors?: Array<{ userId: string; username: string; permission: string }> }
+          setEditors(editorsData.editors || [])
+        }
+        setTimeout(() => setInviteStatus('idle'), 2000)
+      } else {
+        setInviteStatus('error')
+        setTimeout(() => setInviteStatus('idle'), 3000)
+      }
+    } catch (error) {
+      console.error('Failed to invite editor:', error)
+      setInviteStatus('error')
+      setTimeout(() => setInviteStatus('idle'), 3000)
+    }
+  }
+
+  // Remove editor
+  const handleRemoveEditor = async (userId: string) => {
+    try {
+      const headers = getAuthHeaders()
+      await fetch(`${WORKER_URL}/boards/${boardId}/permissions/${userId}`, {
+        method: 'DELETE',
+        headers,
+      })
+      setEditors(prev => prev.filter(e => e.userId !== userId))
+    } catch (error) {
+      console.error('Failed to remove editor:', error)
+    }
+  }
+
   // Helper to extract label string from tldraw label (can be string or {default, menu} object)
   const getLabelString = (label: any, fallback: string): string => {
     if (typeof label === 'string') return label
@@ -321,13 +473,6 @@ function CustomSharePanel() {
         {/* Share board button */}
         <div style={{ padding: '0 2px' }}>
           <ShareBoardButton className="share-panel-btn" />
-        </div>
-
-        <Separator />
-
-        {/* Board settings (protection toggle, editor management) */}
-        <div style={{ padding: '0 2px' }}>
-          <BoardSettingsDropdown className="share-panel-btn" />
         </div>
 
         <Separator />
@@ -567,6 +712,190 @@ function CustomSharePanel() {
                 </div>
 
                 <div style={{ height: '1px', background: 'var(--color-panel-contrast)', margin: '0' }} />
+
+                {/* Board Protection Section - only for admins */}
+                {isBoardAdmin && (
+                  <div style={{ padding: '12px 16px' }}>
+                    {/* Section Header */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      marginBottom: '12px',
+                    }}>
+                      <span style={{ fontSize: '14px' }}>🛡️</span>
+                      <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>Board Protection</span>
+                      {isGlobalAdmin && (
+                        <span style={{
+                          fontSize: '9px',
+                          padding: '2px 6px',
+                          borderRadius: '10px',
+                          background: '#3b82f620',
+                          color: '#3b82f6',
+                          fontWeight: 600,
+                        }}>
+                          Global Admin
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Protection Toggle */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 12px',
+                      background: 'var(--color-muted-2)',
+                      borderRadius: '8px',
+                      border: '1px solid var(--color-panel-contrast)',
+                      marginBottom: boardProtected ? '12px' : '0',
+                    }}>
+                      <div>
+                        <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text)' }}>
+                          View-only Mode
+                        </div>
+                        <div style={{ fontSize: '10px', color: 'var(--color-text-3)' }}>
+                          {boardProtected ? 'Only listed editors can make changes' : 'Anyone can edit this board'}
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleToggleProtection}
+                        disabled={protectionLoading}
+                        style={{
+                          width: '44px',
+                          height: '24px',
+                          borderRadius: '12px',
+                          border: 'none',
+                          cursor: protectionLoading ? 'not-allowed' : 'pointer',
+                          background: boardProtected ? '#3b82f6' : '#d1d5db',
+                          position: 'relative',
+                          transition: 'background 0.2s',
+                          opacity: protectionLoading ? 0.5 : 1,
+                        }}
+                      >
+                        <div style={{
+                          width: '20px',
+                          height: '20px',
+                          borderRadius: '10px',
+                          background: 'white',
+                          position: 'absolute',
+                          top: '2px',
+                          left: boardProtected ? '22px' : '2px',
+                          transition: 'left 0.2s',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                        }} />
+                      </button>
+                    </div>
+
+                    {/* Editor Management - only when protected */}
+                    {boardProtected && (
+                      <div style={{
+                        padding: '10px 12px',
+                        background: 'var(--color-muted-2)',
+                        borderRadius: '8px',
+                        border: '1px solid var(--color-panel-contrast)',
+                      }}>
+                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-3)', marginBottom: '8px', textTransform: 'uppercase' }}>
+                          Editors ({editors.length})
+                        </div>
+
+                        {/* Add Editor Input */}
+                        <div style={{ display: 'flex', gap: '8px', marginBottom: editors.length > 0 ? '10px' : '0' }}>
+                          <input
+                            type="text"
+                            placeholder="Username or email..."
+                            value={inviteInput}
+                            onChange={(e) => setInviteInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              e.stopPropagation()
+                              if (e.key === 'Enter') handleInviteEditor()
+                            }}
+                            style={{
+                              flex: 1,
+                              padding: '8px 12px',
+                              fontSize: '12px',
+                              fontFamily: 'inherit',
+                              border: '1px solid var(--color-panel-contrast)',
+                              borderRadius: '6px',
+                              background: 'var(--color-panel)',
+                              color: 'var(--color-text)',
+                              outline: 'none',
+                            }}
+                          />
+                          <button
+                            onClick={handleInviteEditor}
+                            disabled={!inviteInput.trim() || inviteStatus === 'sending'}
+                            style={{
+                              padding: '8px 14px',
+                              backgroundColor: inviteStatus === 'sent' ? '#10b981' : '#3b82f6',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '6px',
+                              cursor: !inviteInput.trim() || inviteStatus === 'sending' ? 'not-allowed' : 'pointer',
+                              fontSize: '11px',
+                              fontWeight: 500,
+                              fontFamily: 'inherit',
+                              opacity: !inviteInput.trim() ? 0.5 : 1,
+                            }}
+                          >
+                            {inviteStatus === 'sending' ? '...' : inviteStatus === 'sent' ? 'Added' : 'Add'}
+                          </button>
+                        </div>
+
+                        {/* Editor List */}
+                        {editors.length > 0 && (
+                          <div style={{ maxHeight: '120px', overflowY: 'auto' }}>
+                            {editors.map((editor) => (
+                              <div
+                                key={editor.userId}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  padding: '6px 8px',
+                                  borderRadius: '6px',
+                                  marginBottom: '4px',
+                                  background: 'var(--color-panel)',
+                                }}
+                              >
+                                <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text)' }}>
+                                  @{editor.username}
+                                </span>
+                                <button
+                                  onClick={() => handleRemoveEditor(editor.userId)}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    color: '#ef4444',
+                                    fontSize: '12px',
+                                    padding: '2px 6px',
+                                    opacity: 0.7,
+                                  }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.opacity = '1' }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.7' }}
+                                  title="Remove editor"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {editors.length === 0 && (
+                          <div style={{ fontSize: '10px', color: 'var(--color-text-3)', textAlign: 'center', padding: '4px' }}>
+                            No editors added yet
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {isBoardAdmin && (
+                  <div style={{ height: '1px', background: 'var(--color-panel-contrast)', margin: '0' }} />
+                )}
 
                 {/* Appearance Toggle */}
                 <div style={{ padding: '12px 16px' }}>
