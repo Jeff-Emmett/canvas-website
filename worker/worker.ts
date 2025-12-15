@@ -26,6 +26,10 @@ import {
   handleCreateAccessToken,
   handleListAccessTokens,
   handleRevokeAccessToken,
+  handleGetGlobalAdminStatus,
+  handleRequestAdminAccess,
+  handleGetBoardInfo,
+  handleListEditors,
 } from "./boardPermissions"
 import {
   handleSendBackupEmail,
@@ -1003,6 +1007,26 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
   // Revoke an access token (admin only)
   .delete("/boards/:boardId/access-tokens/:tokenId", (req, env) =>
     handleRevokeAccessToken(req.params.boardId, req.params.tokenId, req, env))
+
+  // =============================================================================
+  // Global Admin & Protected Boards API
+  // =============================================================================
+
+  // Check if current user is a global admin
+  .get("/auth/global-admin-status", (req, env) =>
+    handleGetGlobalAdminStatus(req, env))
+
+  // Request global admin access (sends email)
+  .post("/admin/request", (req, env) =>
+    handleRequestAdminAccess(req, env))
+
+  // Get board info including protection status
+  .get("/boards/:boardId/info", (req, env) =>
+    handleGetBoardInfo(req.params.boardId, req, env))
+
+  // List editors on a protected board (admin only)
+  .get("/boards/:boardId/editors", (req, env) =>
+    handleListEditors(req.params.boardId, req, env))
 
 async function backupAllBoards(env: Environment) {
   try {

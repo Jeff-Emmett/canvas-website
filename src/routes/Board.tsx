@@ -321,9 +321,9 @@ export function Board() {
         }
       } catch (error) {
         console.error('Failed to fetch permission:', error)
-        // Default to view for unauthenticated, edit for authenticated
+        // NEW: Default to 'edit' for everyone (open by default)
         if (mounted) {
-          setPermission(session.authed ? 'edit' : 'view')
+          setPermission('edit')
         }
       } finally {
         if (mounted) {
@@ -340,23 +340,23 @@ export function Board() {
   }, [roomId, fetchBoardPermission, session.authed])
 
   // Check if user can edit
-  // Authenticated users get edit access by default unless explicitly restricted to 'view'
-  // Unauthenticated users are always read-only
-  // Note: permission will be 'edit' for authenticated users by default (see AuthContext)
+  // NEW PERMISSION MODEL (Dec 2024):
+  // - Everyone (including anonymous) can EDIT by default
+  // - Only protected boards restrict editing to listed editors
+  // - Permission 'view' means the board is protected and user is not an editor
   //
   // CRITICAL: Don't restrict in these cases:
-  // 1. Auth is loading
+  // 1. Auth/permission is loading
   // 2. Auth just changed (React effects haven't run yet, permission state is stale)
-  // 3. Permission is loading for authenticated users
-  // This prevents authenticated users from briefly seeing read-only mode which hides
+  // This prevents users from briefly seeing read-only mode which hides
   // default tools (only tools with readonlyOk: true show in read-only mode)
   const isReadOnly = (
     session.loading ||
-    (session.authed && authJustChanged) ||  // Auth just changed, permission is stale
-    (session.authed && permissionLoading)
+    authJustChanged ||  // Auth just changed, permission is stale
+    permissionLoading
   )
-    ? false  // Don't restrict while loading/transitioning - assume authenticated users can edit
-    : (!session.authed || permission === 'view')
+    ? false  // Don't restrict while loading/transitioning - assume can edit
+    : permission === 'view'  // Only restrict if explicitly view (protected board)
 
   // Debug logging for permission issues
   console.log('🔐 Permission Debug:', {
@@ -369,15 +369,13 @@ export function Board() {
     isReadOnly,
     reason: session.loading
       ? 'auth loading - allowing edit temporarily'
-      : (session.authed && authJustChanged)
+      : authJustChanged
         ? 'auth just changed - allowing edit until effects run'
-        : (session.authed && permissionLoading)
-          ? 'permission loading for authenticated user - allowing edit temporarily'
-          : !session.authed
-            ? 'not authenticated - view only mode'
-            : permission === 'view'
-              ? 'explicitly restricted to view-only by board admin'
-              : 'authenticated with edit access'
+        : permissionLoading
+          ? 'permission loading - allowing edit temporarily'
+          : permission === 'view'
+            ? 'protected board - user not an editor (view-only)'
+            : 'open board or user is editor (can edit)'
   })
 
   // Handler for when user tries to edit in read-only mode
@@ -463,18 +461,29 @@ export function Board() {
     colorScheme: getColorScheme(),
   }))
 
-  // Update user preferences when session changes
+  // Update user preferences when session changes (handles both login and logout)
   useEffect(() => {
-    if (uniqueUserId) {
+    if (session.authed && uniqueUserId) {
+      // Authenticated user - use their unique ID and username
       setUserPreferences({
         id: uniqueUserId,
         name: session.username || 'Anonymous',
-        // Use session.username for color consistency across sessions
         color: session.username ? generateUserColor(session.username) : generateUserColor(uniqueUserId),
         colorScheme: getColorScheme(),
       })
+      console.log('🔐 User preferences set for authenticated user:', session.username)
+    } else {
+      // Not authenticated - reset to anonymous with fresh ID
+      const anonymousId = `anonymous-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      setUserPreferences({
+        id: anonymousId,
+        name: 'Anonymous',
+        color: '#6b7280', // Gray for anonymous
+        colorScheme: getColorScheme(),
+      })
+      console.log('🔐 User preferences reset to anonymous')
     }
-  }, [uniqueUserId, session.username])
+  }, [uniqueUserId, session.username, session.authed])
 
   // Listen for dark mode changes and update tldraw color scheme
   useEffect(() => {
@@ -539,6 +548,28 @@ export function Board() {
       console.log('🔓 Permission changed: Board is now editable')
     }
   }, [editor, isReadOnly])
+
+  // Listen for session-logged-in event to immediately enable editing
+  // This handles the case where the React state update might be delayed
+  useEffect(() => {
+    if (!editor) return
+
+    const handleSessionLoggedIn = (event: Event) => {
+      const customEvent = event as CustomEvent<{ username: string }>;
+      console.log('🔐 Board: session-logged-in event received for:', customEvent.detail.username);
+
+      // Immediately enable editing - user just logged in
+      editor.updateInstanceState({ isReadonly: false });
+
+      // Switch to select tool to ensure tools are available
+      editor.setCurrentTool('select');
+
+      console.log('🔓 Board: Enabled editing mode after login');
+    };
+
+    window.addEventListener('session-logged-in', handleSessionLoggedIn);
+    return () => window.removeEventListener('session-logged-in', handleSessionLoggedIn);
+  }, [editor])
 
   useEffect(() => {
     const value = localStorage.getItem("makereal_settings_2")
@@ -936,7 +967,7 @@ export function Board() {
   useEffect(() => {
     if (!editor) return
 
-    const cleanupStalePresences = () => {
+    const cleanupStalePresences = (forceCleanAll = false) => {
       try {
         const allRecords = editor.store.allRecords()
         const presenceRecords = allRecords.filter((r: any) =>
@@ -945,16 +976,32 @@ export function Board() {
         )
 
         if (presenceRecords.length > 0) {
-          // Filter out stale presences (older than 30 seconds)
-          const now = Date.now()
-          const staleThreshold = 30 * 1000 // 30 seconds
-          const stalePresences = presenceRecords.filter((r: any) =>
-            r.lastActivityTimestamp && (now - r.lastActivityTimestamp > staleThreshold)
-          )
+          if (forceCleanAll) {
+            // On logout/auth change, remove ALL presence records except our current one
+            // This prevents double-registration issues
+            const currentUserId = uniqueUserId || userPreferences.id
+            const presencesToRemove = presenceRecords.filter((r: any) => {
+              // Remove presences that don't match our current identity
+              const presenceUserId = r.userId || r.id?.split(':')[1]
+              return presenceUserId !== currentUserId
+            })
 
-          if (stalePresences.length > 0) {
-            console.log(`🧹 Cleaning up ${stalePresences.length} stale presence record(s)`)
-            editor.store.remove(stalePresences.map((r: any) => r.id))
+            if (presencesToRemove.length > 0) {
+              console.log(`🧹 Force cleaning ${presencesToRemove.length} non-current presence record(s) on auth change`)
+              editor.store.remove(presencesToRemove.map((r: any) => r.id))
+            }
+          } else {
+            // Filter out stale presences (older than 30 seconds)
+            const now = Date.now()
+            const staleThreshold = 30 * 1000 // 30 seconds
+            const stalePresences = presenceRecords.filter((r: any) =>
+              r.lastActivityTimestamp && (now - r.lastActivityTimestamp > staleThreshold)
+            )
+
+            if (stalePresences.length > 0) {
+              console.log(`🧹 Cleaning up ${stalePresences.length} stale presence record(s)`)
+              editor.store.remove(stalePresences.map((r: any) => r.id))
+            }
           }
         }
       } catch (error) {
@@ -962,14 +1009,63 @@ export function Board() {
       }
     }
 
-    // Clean up immediately on auth change
-    cleanupStalePresences()
+    // Clean up ALL non-current presences on auth change to prevent double-registration
+    cleanupStalePresences(true)
 
-    // Also run periodic cleanup every 15 seconds
-    const cleanupInterval = setInterval(cleanupStalePresences, 15000)
+    // Also run periodic cleanup every 15 seconds (only stale ones)
+    const cleanupInterval = setInterval(() => cleanupStalePresences(false), 15000)
 
-    return () => clearInterval(cleanupInterval)
-  }, [editor, session.authed, session.username])
+    // Listen for session-cleared event to clean up ONLY the current user's presence
+    // We keep the same tldraw user ID across login/logout, so we only need to remove
+    // this user's presence when they log out (they'll get a fresh one on login)
+    const handleSessionCleared = (event: Event) => {
+      const customEvent = event as CustomEvent<{ previousUsername: string }>;
+      const previousUsername = customEvent.detail?.previousUsername;
+      console.log('🧹 Session cleared event received for user:', previousUsername)
+
+      if (!previousUsername) {
+        console.log('🧹 No previous username, skipping presence cleanup')
+        return
+      }
+
+      try {
+        // Get the tldraw user ID for the user who just logged out
+        const storageKey = `tldraw-user-id-${previousUsername}`;
+        const previousUserId = localStorage.getItem(storageKey);
+
+        if (!previousUserId) {
+          console.log('🧹 No tldraw user ID found for', previousUsername)
+          return
+        }
+
+        const allRecords = editor.store.allRecords()
+        const presenceRecords = allRecords.filter((r: any) =>
+          r.typeName === 'instance_presence' ||
+          r.id?.startsWith('instance_presence:')
+        )
+
+        // Only remove presence records that belong to the user who just logged out
+        const userPresences = presenceRecords.filter((r: any) => {
+          const presenceUserId = r.userId || r.id?.split(':')[1]
+          return presenceUserId === previousUserId || r.userName === previousUsername
+        })
+
+        if (userPresences.length > 0) {
+          console.log(`🧹 Removing ${userPresences.length} presence record(s) for logged-out user: ${previousUsername}`)
+          editor.store.remove(userPresences.map((r: any) => r.id))
+        }
+      } catch (error) {
+        console.error('Error cleaning presences on session clear:', error)
+      }
+    }
+
+    window.addEventListener('session-cleared', handleSessionCleared)
+
+    return () => {
+      clearInterval(cleanupInterval)
+      window.removeEventListener('session-cleared', handleSessionCleared)
+    }
+  }, [editor, session.authed, session.username, uniqueUserId, userPreferences.id])
 
   // Update TLDraw user preferences when editor is available and user is authenticated
   useEffect(() => {
@@ -1324,16 +1420,35 @@ export function Board() {
             // MycelialIntelligence is now a permanent UI bar - no shape creation needed
 
             // Set read-only mode based on auth state
-            // IMPORTANT: Use session.authed directly here, not the isReadOnly variable
-            // The isReadOnly variable might have stale values due to React's timing (effects run after render)
-            // For authenticated users, we assume editable until permission proves otherwise
-            // The effect that watches isReadOnly will update this if user only has 'view' permission
-            const initialReadOnly = !session.authed
+            // IMPORTANT: Check localStorage directly to avoid stale closure issues
+            // The React state (session.authed) might be stale in this callback due to
+            // the complex timing of remounts triggered by auth changes
+            const checkAuthFromStorage = (): boolean => {
+              try {
+                const stored = localStorage.getItem('canvas_auth_session');
+                if (stored) {
+                  const parsed = JSON.parse(stored);
+                  return parsed.authed === true && !!parsed.username;
+                }
+              } catch {
+                // Ignore parse errors
+              }
+              return false;
+            };
+
+            const isAuthenticated = checkAuthFromStorage();
+            const initialReadOnly = !isAuthenticated;
             editor.updateInstanceState({ isReadonly: initialReadOnly })
-            console.log('🔄 onMount: session.authed =', session.authed, ', setting isReadonly =', initialReadOnly)
+            console.log('🔄 onMount: isAuthenticated (from storage) =', isAuthenticated, ', setting isReadonly =', initialReadOnly)
             console.log(initialReadOnly
               ? '🔒 Board is in read-only mode (not authenticated)'
               : '🔓 Board is editable (authenticated)')
+
+            // Also ensure the current tool is appropriate for the mode
+            if (!initialReadOnly) {
+              // If editable, make sure we can use tools - set to select tool which is always available
+              editor.setCurrentTool('select')
+            }
           }}
           >
             <CmdK />

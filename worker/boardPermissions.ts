@@ -1,4 +1,4 @@
-import { Environment, Board, BoardPermission, PermissionLevel, PermissionCheckResult, User, BoardAccessToken } from './types';
+import { Environment, Board, BoardPermission, PermissionLevel, PermissionCheckResult, User, BoardAccessToken, GlobalAdmin } from './types';
 
 // Generate a UUID v4
 function generateUUID(): string {
@@ -6,8 +6,52 @@ function generateUUID(): string {
 }
 
 /**
+ * Check if a user is a global admin by their email
+ * Global admins have admin access to ALL boards
+ */
+export async function isGlobalAdmin(db: D1Database, userId: string): Promise<boolean> {
+  // Get user's email
+  const user = await db.prepare(
+    'SELECT email FROM users WHERE id = ?'
+  ).bind(userId).first<{ email: string }>();
+
+  if (!user?.email) {
+    return false;
+  }
+
+  // Check if email is in global_admins table
+  const admin = await db.prepare(
+    'SELECT email FROM global_admins WHERE email = ?'
+  ).bind(user.email).first<GlobalAdmin>();
+
+  return !!admin;
+}
+
+/**
+ * Check if an email is a global admin (direct check without user lookup)
+ */
+export async function isEmailGlobalAdmin(db: D1Database, email: string): Promise<boolean> {
+  const admin = await db.prepare(
+    'SELECT email FROM global_admins WHERE email = ?'
+  ).bind(email).first<GlobalAdmin>();
+
+  return !!admin;
+}
+
+/**
  * Get a user's effective permission for a board
- * Priority: access token > explicit permission > board owner (admin) > default permission
+ *
+ * NEW PERMISSION MODEL (Dec 2024):
+ * - Everyone (including anonymous) can EDIT by default
+ * - Boards can be marked as "protected" - only listed editors can edit protected boards
+ * - Global admins have admin access to ALL boards
+ *
+ * Priority:
+ * 1. Access token from share link (overrides all)
+ * 2. Global admin status (returns 'admin')
+ * 3. Board owner (returns 'admin')
+ * 4. If board is NOT protected → everyone gets 'edit'
+ * 5. If board IS protected → check explicit permissions, default to 'view'
  *
  * @param accessToken - Optional access token from share link (grants specific permission)
  */
@@ -22,7 +66,7 @@ export async function getEffectivePermission(
     'SELECT * FROM boards WHERE id = ?'
   ).bind(boardId).first<Board>();
 
-  // If an access token is provided, validate it and use its permission level
+  // 1. If an access token is provided, validate it and use its permission level
   if (accessToken) {
     const tokenPermission = await validateAccessToken(db, boardId, accessToken);
     if (tokenPermission) {
@@ -35,28 +79,32 @@ export async function getEffectivePermission(
     }
   }
 
+  // 2. Check if user is a global admin (admin on ALL boards)
+  if (userId) {
+    const globalAdmin = await isGlobalAdmin(db, userId);
+    if (globalAdmin) {
+      console.log('🔐 User is global admin, granting admin access');
+      return {
+        permission: 'admin',
+        isOwner: false,
+        boardExists: !!board,
+        isGlobalAdmin: true
+      };
+    }
+  }
+
   // Board doesn't exist in permissions DB
-  // Anonymous users get VIEW by default, authenticated users can edit
+  // NEW: Everyone can edit by default (board will be created on first edit)
   if (!board) {
     return {
-      permission: userId ? 'edit' : 'view',
+      permission: 'edit',
       isOwner: false,
       boardExists: false
     };
   }
 
-  // If user is not authenticated, return VIEW (secure by default)
-  // To grant edit access to anonymous users, they must use a share link with access token
-  if (!userId) {
-    return {
-      permission: 'view',
-      isOwner: false,
-      boardExists: true
-    };
-  }
-
-  // Check if user is the board owner (always admin)
-  if (board.owner_id === userId) {
+  // 3. Check if user is the board owner (always admin)
+  if (userId && board.owner_id === userId) {
     return {
       permission: 'admin',
       isOwner: true,
@@ -64,27 +112,40 @@ export async function getEffectivePermission(
     };
   }
 
-  // Check for explicit user-specific permission
-  const explicitPerm = await db.prepare(
-    'SELECT * FROM board_permissions WHERE board_id = ? AND user_id = ?'
-  ).bind(boardId, userId).first<BoardPermission>();
-
-  if (explicitPerm) {
-    // User has a specific permission set - use it (could be view, edit, or admin)
+  // 4. If board is NOT protected, everyone can edit (NEW DEFAULT)
+  if (!board.is_protected) {
     return {
-      permission: explicitPerm.permission,
+      permission: 'edit',
       isOwner: false,
-      boardExists: true
+      boardExists: true,
+      isProtected: false
     };
   }
 
-  // No explicit permission for this user
-  // Authenticated users get 'edit' by default
-  // (Board's default_permission only affects anonymous users with access tokens)
+  // 5. Board IS protected - check for explicit permission
+  if (userId) {
+    const explicitPerm = await db.prepare(
+      'SELECT * FROM board_permissions WHERE board_id = ? AND user_id = ?'
+    ).bind(boardId, userId).first<BoardPermission>();
+
+    if (explicitPerm) {
+      // User has been granted specific permission on this protected board
+      return {
+        permission: explicitPerm.permission,
+        isOwner: false,
+        boardExists: true,
+        isProtected: true,
+        isExplicitPermission: true
+      };
+    }
+  }
+
+  // 6. Protected board, no explicit permission → view only
   return {
-    permission: 'edit',
+    permission: 'view',
     isOwner: false,
-    boardExists: true
+    boardExists: true,
+    isProtected: true
   };
 }
 
@@ -499,7 +560,7 @@ export async function handleRevokePermission(
 /**
  * PATCH /boards/:boardId
  * Update board settings (admin only)
- * Body: { name?, defaultPermission?, isPublic? }
+ * Body: { name?, defaultPermission?, isPublic?, isProtected? }
  */
 export async function handleUpdateBoard(
   boardId: string,
@@ -548,6 +609,7 @@ export async function handleUpdateBoard(
       name?: string;
       defaultPermission?: 'view' | 'edit';
       isPublic?: boolean;
+      isProtected?: boolean;
     };
 
     const updates: string[] = [];
@@ -570,6 +632,11 @@ export async function handleUpdateBoard(
     if (body.isPublic !== undefined) {
       updates.push('is_public = ?');
       values.push(body.isPublic ? 1 : 0);
+    }
+    if (body.isProtected !== undefined) {
+      updates.push('is_protected = ?');
+      values.push(body.isProtected ? 1 : 0);
+      console.log(`🔒 Board ${boardId} protection set to: ${body.isProtected}`);
     }
 
     if (updates.length === 0) {
@@ -597,6 +664,7 @@ export async function handleUpdateBoard(
         name: updatedBoard.name,
         defaultPermission: updatedBoard.default_permission,
         isPublic: updatedBoard.is_public === 1,
+        isProtected: updatedBoard.is_protected === 1,
         updatedAt: updatedBoard.updated_at
       } : null
     }), {
@@ -910,6 +978,311 @@ export async function handleRevokeAccessToken(
 
   } catch (error) {
     console.error('Revoke access token error:', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+// =============================================================================
+// Global Admin & Protected Board Functions
+// =============================================================================
+
+/**
+ * GET /auth/global-admin-status
+ * Check if the current user is a global admin
+ */
+export async function handleGetGlobalAdminStatus(
+  request: Request,
+  env: Environment
+): Promise<Response> {
+  try {
+    const db = env.CRYPTID_DB;
+    if (!db) {
+      return new Response(JSON.stringify({ isGlobalAdmin: false }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const publicKey = request.headers.get('X-CryptID-PublicKey');
+    if (!publicKey) {
+      return new Response(JSON.stringify({ isGlobalAdmin: false }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const deviceKey = await db.prepare(
+      'SELECT user_id FROM device_keys WHERE public_key = ?'
+    ).bind(publicKey).first<{ user_id: string }>();
+
+    if (!deviceKey) {
+      return new Response(JSON.stringify({ isGlobalAdmin: false }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const isAdmin = await isGlobalAdmin(db, deviceKey.user_id);
+
+    return new Response(JSON.stringify({ isGlobalAdmin: isAdmin }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('Global admin status check error:', error);
+    return new Response(JSON.stringify({ isGlobalAdmin: false }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+/**
+ * POST /admin/request
+ * Request global admin access (sends email to existing global admin)
+ * Body: { reason?: string }
+ */
+export async function handleRequestAdminAccess(
+  request: Request,
+  env: Environment
+): Promise<Response> {
+  try {
+    const db = env.CRYPTID_DB;
+    if (!db) {
+      return new Response(JSON.stringify({ error: 'Database not configured' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Must be authenticated
+    const publicKey = request.headers.get('X-CryptID-PublicKey');
+    if (!publicKey) {
+      return new Response(JSON.stringify({ error: 'Authentication required' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const deviceKey = await db.prepare(
+      'SELECT user_id FROM device_keys WHERE public_key = ?'
+    ).bind(publicKey).first<{ user_id: string }>();
+
+    if (!deviceKey) {
+      return new Response(JSON.stringify({ error: 'Invalid credentials' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Get user info
+    const user = await db.prepare(
+      'SELECT cryptid_username, email FROM users WHERE id = ?'
+    ).bind(deviceKey.user_id).first<{ cryptid_username: string; email: string }>();
+
+    if (!user) {
+      return new Response(JSON.stringify({ error: 'User not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Check if already a global admin
+    if (await isGlobalAdmin(db, deviceKey.user_id)) {
+      return new Response(JSON.stringify({
+        success: false,
+        message: 'You are already a global admin'
+      }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const body = await request.json().catch(() => ({})) as { reason?: string };
+
+    // Send email to global admin (jeffemmett@gmail.com)
+    if (env.RESEND_API_KEY) {
+      const emailFrom = env.CRYPTID_EMAIL_FROM || 'noreply@canvas.jeffemmett.com';
+
+      const emailResponse = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: emailFrom,
+          to: 'jeffemmett@gmail.com',
+          subject: `Canvas Admin Request from ${user.cryptid_username}`,
+          html: `
+            <h2>Admin Access Request</h2>
+            <p><strong>User:</strong> ${user.cryptid_username}</p>
+            <p><strong>Email:</strong> ${user.email || 'Not provided'}</p>
+            <p><strong>User ID:</strong> ${deviceKey.user_id}</p>
+            ${body.reason ? `<p><strong>Reason:</strong> ${body.reason}</p>` : ''}
+            <hr>
+            <p>To grant admin access, add their email to the global_admins table in D1.</p>
+          `,
+        }),
+      });
+
+      if (!emailResponse.ok) {
+        console.error('Failed to send admin request email:', await emailResponse.text());
+      }
+    }
+
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'Admin access request sent. You will be notified when approved.'
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('Request admin access error:', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+/**
+ * GET /boards/:boardId/info
+ * Get board info including protection status (public endpoint)
+ */
+export async function handleGetBoardInfo(
+  boardId: string,
+  request: Request,
+  env: Environment
+): Promise<Response> {
+  try {
+    const db = env.CRYPTID_DB;
+    if (!db) {
+      return new Response(JSON.stringify({
+        board: null,
+        isProtected: false
+      }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const board = await db.prepare(
+      'SELECT id, name, is_protected, owner_id FROM boards WHERE id = ?'
+    ).bind(boardId).first<{ id: string; name: string | null; is_protected: number; owner_id: string | null }>();
+
+    if (!board) {
+      return new Response(JSON.stringify({
+        board: null,
+        isProtected: false
+      }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Get owner username if exists
+    let ownerUsername: string | null = null;
+    if (board.owner_id) {
+      const owner = await db.prepare(
+        'SELECT cryptid_username FROM users WHERE id = ?'
+      ).bind(board.owner_id).first<{ cryptid_username: string }>();
+      ownerUsername = owner?.cryptid_username || null;
+    }
+
+    return new Response(JSON.stringify({
+      board: {
+        id: board.id,
+        name: board.name,
+        isProtected: board.is_protected === 1,
+        ownerUsername,
+      }
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('Get board info error:', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+/**
+ * GET /boards/:boardId/editors
+ * List users with edit access on a protected board (admin only)
+ */
+export async function handleListEditors(
+  boardId: string,
+  request: Request,
+  env: Environment
+): Promise<Response> {
+  try {
+    const db = env.CRYPTID_DB;
+    if (!db) {
+      return new Response(JSON.stringify({ error: 'Database not configured' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Authenticate user
+    const publicKey = request.headers.get('X-CryptID-PublicKey');
+    if (!publicKey) {
+      return new Response(JSON.stringify({ error: 'Authentication required' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const deviceKey = await db.prepare(
+      'SELECT user_id FROM device_keys WHERE public_key = ?'
+    ).bind(publicKey).first<{ user_id: string }>();
+
+    if (!deviceKey) {
+      return new Response(JSON.stringify({ error: 'Invalid credentials' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Check if user is admin
+    const permCheck = await getEffectivePermission(db, boardId, deviceKey.user_id);
+    if (permCheck.permission !== 'admin') {
+      return new Response(JSON.stringify({ error: 'Admin access required' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Get all users with edit or admin permission
+    const editors = await db.prepare(`
+      SELECT bp.user_id, bp.permission, bp.granted_at, u.cryptid_username, u.email
+      FROM board_permissions bp
+      JOIN users u ON bp.user_id = u.id
+      WHERE bp.board_id = ? AND bp.permission IN ('edit', 'admin')
+      ORDER BY bp.granted_at DESC
+    `).bind(boardId).all<{
+      user_id: string;
+      permission: string;
+      granted_at: string;
+      cryptid_username: string;
+      email: string;
+    }>();
+
+    return new Response(JSON.stringify({
+      editors: (editors.results || []).map(e => ({
+        userId: e.user_id,
+        username: e.cryptid_username,
+        email: e.email,
+        permission: e.permission,
+        grantedAt: e.granted_at,
+      }))
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  } catch (error) {
+    console.error('List editors error:', error);
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

@@ -76,6 +76,16 @@ export interface Board {
 	name: string | null;
 	description: string | null;
 	is_public: number;             // SQLite boolean (0 or 1)
+	is_protected: number;          // SQLite boolean (0 or 1) - when 1, only listed editors can edit
+}
+
+/**
+ * Global admin record - admins have admin access to ALL boards
+ */
+export interface GlobalAdmin {
+	email: string;
+	added_at: string;
+	added_by: string | null;
 }
 
 /**
@@ -97,7 +107,10 @@ export interface PermissionCheckResult {
 	permission: PermissionLevel;
 	isOwner: boolean;
 	boardExists: boolean;
-	grantedByToken?: boolean;  // True if permission was granted via access token
+	grantedByToken?: boolean;     // True if permission was granted via access token
+	isGlobalAdmin?: boolean;      // True if user is a global admin
+	isProtected?: boolean;        // True if board is in protected mode
+	isExplicitPermission?: boolean; // True if permission was explicitly granted (not default)
 }
 
 /**

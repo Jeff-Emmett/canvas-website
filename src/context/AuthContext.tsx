@@ -295,10 +295,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (!response.ok) {
         console.error('Failed to fetch board permission:', response.status);
-        // Default to 'edit' for authenticated users, 'view' for unauthenticated
-        const defaultPermission: PermissionLevel = session.authed ? 'edit' : 'view';
-        console.log('🔐 Using default permission (API failed):', defaultPermission);
-        return defaultPermission;
+        // NEW: Default to 'edit' for everyone (open by default)
+        console.log('🔐 Using default permission (API failed): edit');
+        return 'edit';
       }
 
       const data = await response.json() as {
@@ -307,6 +306,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         boardExists: boolean;
         grantedByToken?: boolean;
         isExplicitPermission?: boolean; // Whether this permission was explicitly set
+        isProtected?: boolean; // Whether board is in protected mode
+        isGlobalAdmin?: boolean; // Whether user is global admin
       };
 
       // Debug: Log what we received
@@ -315,19 +316,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (data.grantedByToken) {
         console.log('🔓 Permission granted via access token:', data.permission);
       }
+      if (data.isGlobalAdmin) {
+        console.log('🔓 User is global admin');
+      }
 
-      // Determine effective permission
-      // If authenticated user and board doesn't have explicit permissions set,
-      // default to 'edit' instead of 'view'
+      // NEW PERMISSION MODEL (Dec 2024):
+      // - Everyone (including anonymous) can EDIT by default
+      // - Only protected boards restrict editing to listed editors
+      // The backend now returns the correct permission, so we just use it directly
       let effectivePermission = data.permission;
 
-      if (session.authed && data.permission === 'view') {
-        // If board doesn't exist in permission system or permission isn't explicitly set,
-        // authenticated users should get edit access by default
-        if (!data.boardExists || data.isExplicitPermission === false) {
-          effectivePermission = 'edit';
-          console.log('🔓 Upgrading to edit: authenticated user with no explicit view restriction');
-        }
+      // Log why view permission was given (for debugging protected boards)
+      if (data.permission === 'view' && data.isProtected) {
+        console.log('🔒 View-only: board is protected and user is not an editor');
       }
 
       // Cache the permission
@@ -343,24 +344,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return effectivePermission;
     } catch (error) {
       console.error('Error fetching board permission:', error);
-      // Default to 'edit' for authenticated users, 'view' for unauthenticated
-      const defaultPermission: PermissionLevel = session.authed ? 'edit' : 'view';
-      console.log('🔐 Using default permission (error):', defaultPermission);
-      return defaultPermission;
+      // NEW: Default to 'edit' for everyone (open by default)
+      console.log('🔐 Using default permission (error): edit');
+      return 'edit';
     }
   }, [session.authed, session.username, session.boardPermissions, accessToken]);
 
   /**
    * Check if user can edit the current board
+   * NEW: Returns true by default (open permission model)
    */
   const canEdit = useCallback((): boolean => {
     const permission = session.currentBoardPermission;
     if (!permission) {
-      // If no permission set, default based on auth status
-      return session.authed;
+      // NEW: If no permission set, default to edit (open by default)
+      return true;
     }
     return permission === 'edit' || permission === 'admin';
-  }, [session.currentBoardPermission, session.authed]);
+  }, [session.currentBoardPermission]);
 
   /**
    * Check if user is admin for the current board

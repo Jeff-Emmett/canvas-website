@@ -58,11 +58,13 @@ CREATE TABLE IF NOT EXISTS boards (
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now')),
   -- Default permission for unauthenticated users: 'view' (read-only) or 'edit' (open)
-  default_permission TEXT DEFAULT 'view' CHECK (default_permission IN ('view', 'edit')),
+  default_permission TEXT DEFAULT 'edit' CHECK (default_permission IN ('view', 'edit')),
   -- Board metadata
   name TEXT,                              -- Optional display name
   description TEXT,                       -- Optional description
   is_public INTEGER DEFAULT 1,            -- 1 = anyone with link can view, 0 = invite only
+  -- Protected mode: when 1, only listed editors can edit; when 0, everyone can edit
+  is_protected INTEGER DEFAULT 0,
   FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
@@ -167,3 +169,27 @@ CREATE INDEX IF NOT EXISTS idx_connections_to ON user_connections(to_user_id);
 CREATE INDEX IF NOT EXISTS idx_connections_both ON user_connections(from_user_id, to_user_id);
 CREATE INDEX IF NOT EXISTS idx_conn_meta_connection ON connection_metadata(connection_id);
 CREATE INDEX IF NOT EXISTS idx_conn_meta_user ON connection_metadata(user_id);
+
+-- =============================================================================
+-- Global Admin & Protected Boards System
+-- =============================================================================
+
+-- Global admins have admin access to ALL boards
+-- Used for platform-wide moderation and support
+CREATE TABLE IF NOT EXISTS global_admins (
+  email TEXT PRIMARY KEY,                   -- Email of the global admin
+  added_at TEXT DEFAULT (datetime('now')),
+  added_by TEXT                             -- Email of admin who added them (NULL for initial)
+);
+
+-- Seed initial global admin
+INSERT OR IGNORE INTO global_admins (email) VALUES ('jeffemmett@gmail.com');
+
+-- Migration: Add is_protected column to boards table
+-- When is_protected = 1, only explicitly listed editors can edit
+-- When is_protected = 0 (default), everyone can edit
+-- Note: Run this ALTER TABLE separately if boards table already exists
+-- ALTER TABLE boards ADD COLUMN is_protected INTEGER DEFAULT 0;
+
+-- Index for protected boards lookup
+CREATE INDEX IF NOT EXISTS idx_boards_protected ON boards(is_protected);
