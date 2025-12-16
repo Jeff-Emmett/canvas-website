@@ -19,6 +19,8 @@ import { unfurlBookmarkUrl } from "../utils/unfurlBookmarkUrl"
 import { handleInitialPageLoad } from "@/utils/handleInitialPageLoad"
 import { MycrozineTemplateTool } from "@/tools/MycrozineTemplateTool"
 import { MycrozineTemplateShape } from "@/shapes/MycrozineTemplateShapeUtil"
+import { MycroZineGeneratorTool } from "@/tools/MycroZineGeneratorTool"
+import { MycroZineGeneratorShape } from "@/shapes/MycroZineGeneratorShapeUtil"
 import {
   registerPropagators,
   ChangePropagator,
@@ -144,6 +146,7 @@ const customShapeUtils = [
   EmbedShape,
   SlideShape,
   MycrozineTemplateShape,
+  MycroZineGeneratorShape,
   MarkdownShape,
   PromptShape,
   ObsNoteShape,
@@ -168,6 +171,7 @@ const customTools = [
   EmbedTool,
   SlideShapeTool,
   MycrozineTemplateTool,
+  MycroZineGeneratorTool,
   MarkdownTool,
   PromptShapeTool,
   GestureTool,
