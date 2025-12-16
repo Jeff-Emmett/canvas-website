@@ -122,6 +122,58 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
   
   return (
     <DefaultContextMenu {...props}>
+      {/* Creation Tools Group - Top priority */}
+      <TldrawUiMenuGroup id="creation-tools">
+        <TldrawUiMenuSubmenu id="tools-dropdown" label="Create Tool">
+          <TldrawUiMenuItem {...tools.Prompt} />
+          <TldrawUiMenuItem {...tools.ChatBox} />
+          <TldrawUiMenuItem {...tools.ImageGen} />
+          {/* VideoGen - temporarily hidden until in better working state
+          <TldrawUiMenuItem {...tools.VideoGen} />
+          */}
+          {/* Drawfast - temporarily hidden until in better working state
+          <TldrawUiMenuItem {...tools.Drawfast} />
+          */}
+          <TldrawUiMenuItem {...tools.Markdown} />
+          <TldrawUiMenuItem {...tools.ObsidianNote} />
+          <TldrawUiMenuItem {...tools.Transcription} />
+          <TldrawUiMenuItem {...tools.Embed} />
+          {/* Holon - temporarily hidden until in better working state
+          <TldrawUiMenuItem {...tools.Holon} />
+          */}
+          {/* Terminal (Multmux) - temporarily hidden until in better working state
+          <TldrawUiMenuItem {...tools.Multmux} />
+          */}
+          <TldrawUiMenuItem {...tools.Map} />
+          <TldrawUiMenuItem {...tools.SlideShape} />
+          <TldrawUiMenuItem {...tools.VideoChat} />
+          <TldrawUiMenuItem {...tools.FathomMeetings} />
+          <TldrawUiMenuItem {...tools.MycroZineGenerator} />
+        </TldrawUiMenuSubmenu>
+      </TldrawUiMenuGroup>
+
+      {/* Frames List - Second priority */}
+      <TldrawUiMenuGroup id="frames-list">
+        <TldrawUiMenuSubmenu id="frames-dropdown" label="Shortcut to Frames">
+          {getAllFrames(editor).map((frame) => (
+            <TldrawUiMenuItem
+              key={frame.id}
+              id={`frame-${frame.id}`}
+              label={frame.title}
+              onSelect={() => {
+                const shape = editor.getShape(frame.id)
+                if (shape) {
+                  editor.zoomToBounds(editor.getShapePageBounds(shape)!, {
+                    animation: { duration: 400, easing: (t) => t * (2 - t) },
+                  })
+                  editor.select(frame.id)
+                }
+              }}
+            />
+          ))}
+        </TldrawUiMenuSubmenu>
+      </TldrawUiMenuGroup>
+
       {/* Essential non-edit commands from default context menu */}
       <TldrawUiMenuGroup id="default-actions">
         <TldrawUiMenuItem
@@ -145,28 +197,6 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           kbd="ctrl+y"
           onSelect={() => actions.redo.onSelect("context-menu")}
         />
-      </TldrawUiMenuGroup>
-      
-      {/* Frames List - Moved to top */}
-      <TldrawUiMenuGroup id="frames-list">
-        <TldrawUiMenuSubmenu id="frames-dropdown" label="Shortcut to Frames">
-          {getAllFrames(editor).map((frame) => (
-            <TldrawUiMenuItem
-              key={frame.id}
-              id={`frame-${frame.id}`}
-              label={frame.title}
-              onSelect={() => {
-                const shape = editor.getShape(frame.id)
-                if (shape) {
-                  editor.zoomToBounds(editor.getShapePageBounds(shape)!, {
-                    animation: { duration: 400, easing: (t) => t * (2 - t) },
-                  })
-                  editor.select(frame.id)
-                }
-              }}
-            />
-          ))}
-        </TldrawUiMenuSubmenu>
       </TldrawUiMenuGroup>
 
       {/* Camera Controls Group */}
@@ -226,66 +256,6 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
         </TldrawUiMenuSubmenu>
       </TldrawUiMenuGroup>
 
-      {/* Creation Tools Group - Always available regardless of selection */}
-      <TldrawUiMenuGroup id="creation-tools">
-        <TldrawUiMenuSubmenu id="tools-dropdown" label="Create Tool">
-          <TldrawUiMenuItem {...tools.Prompt} />
-          <TldrawUiMenuItem {...tools.ChatBox} />
-          <TldrawUiMenuItem {...tools.ImageGen} />
-          {/* VideoGen - temporarily hidden until in better working state
-          <TldrawUiMenuItem {...tools.VideoGen} />
-          */}
-          {/* Drawfast - temporarily hidden until in better working state
-          <TldrawUiMenuItem {...tools.Drawfast} />
-          */}
-          <TldrawUiMenuItem {...tools.Markdown} />
-          <TldrawUiMenuItem {...tools.ObsidianNote} />
-          <TldrawUiMenuItem {...tools.Transcription} />
-          <TldrawUiMenuItem {...tools.Embed} />
-          {/* Holon - temporarily hidden until in better working state
-          <TldrawUiMenuItem {...tools.Holon} />
-          */}
-          {/* Terminal (Multmux) - temporarily hidden until in better working state
-          <TldrawUiMenuItem {...tools.Multmux} />
-          */}
-          <TldrawUiMenuItem {...tools.Map} />
-          <TldrawUiMenuItem {...tools.SlideShape} />
-          <TldrawUiMenuItem {...tools.VideoChat} />
-          <TldrawUiMenuItem {...tools.FathomMeetings} />
-          <TldrawUiMenuItem {...tools.MycroZineGenerator} />
-        </TldrawUiMenuSubmenu>
-      </TldrawUiMenuGroup>
-
-      {/* Collections Group */}
-      <TldrawUiMenuGroup id="collections">
-        <TldrawUiMenuSubmenu id="collections-dropdown" label="Collections">
-          <TldrawUiMenuItem
-            id="add-to-collection"
-            label="Add to Collection"
-            icon="plus"
-            kbd="alt+shift+c"
-            disabled={!hasSelection || !collection}
-            onSelect={handleAddToCollection}
-          />
-          <TldrawUiMenuItem
-            id="remove-from-collection"
-            label="Remove from Collection"
-            icon="minus"
-            disabled={!hasSelection || !collection}
-            onSelect={handleRemoveFromCollection}
-          />
-          <TldrawUiMenuItem
-            id="highlight-collection"
-            label="Highlight Collection"
-            icon="lightbulb"
-            disabled={!collection}
-            onSelect={handleHighlightCollection}
-          />
-
-        </TldrawUiMenuSubmenu>
-      </TldrawUiMenuGroup>
-
-      
       {/* TODO: FIX & IMPLEMENT BROADCASTING*/}
       {/* <TldrawUiMenuGroup id="broadcast-controls">
         <TldrawUiMenuItem
