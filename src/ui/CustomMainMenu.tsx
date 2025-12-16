@@ -32,7 +32,7 @@ export function CustomMainMenu() {
                     const validateAndNormalizeShapeType = (shape: any): string => {
                         if (!shape || !shape.type) return 'text'
                         
-                        const validCustomShapes = ['ObsNote', 'VideoChat', 'Transcription', 'Prompt', 'ChatBox', 'Embed', 'Markdown', 'MycrozineTemplate', 'Slide', 'Holon', 'ObsidianBrowser', 'HolonBrowser', 'FathomMeetingsBrowser', 'ImageGen', 'VideoGen', 'Multmux']
+                        const validCustomShapes = ['ObsNote', 'VideoChat', 'Transcription', 'Prompt', 'ChatBox', 'Embed', 'Markdown', 'MycrozineTemplate', 'Slide', 'Holon', 'ObsidianBrowser', 'HolonBrowser', 'FathomMeetingsBrowser', 'ImageGen', 'VideoGen', 'Multmux', 'FathomNote', 'GoogleItem', 'Map', 'PrivateWorkspace', 'SharedPiano', 'Drawfast', 'MycelialIntelligence']
                         const validDefaultShapes = ['arrow', 'bookmark', 'draw', 'embed', 'frame', 'geo', 'group', 'highlight', 'image', 'line', 'note', 'text', 'video']
                         const allValidShapes = [...validCustomShapes, ...validDefaultShapes]
                         
@@ -66,85 +66,151 @@ export function CustomMainMenu() {
                     // Helper function to validate shape geometry data
                     const validateShapeGeometry = (shape: any): boolean => {
                         if (!shape || !shape.id) return false
-                        
+
                         // Validate basic numeric properties
                         shape.x = validateNumericValue(shape.x, 0, 'x')
                         shape.y = validateNumericValue(shape.y, 0, 'y')
                         shape.rotation = validateNumericValue(shape.rotation, 0, 'rotation')
                         shape.opacity = validateNumericValue(shape.opacity, 1, 'opacity')
-                        
+
+                        // Helper to validate and fix segments (used by draw and highlight)
+                        const validateSegments = (segments: any[], shapeType: string): any[] | null => {
+                            if (!Array.isArray(segments)) return null
+
+                            const validSegments = segments.filter((segment: any) => {
+                                if (!segment || typeof segment !== 'object') return false
+                                if (!segment.points || !Array.isArray(segment.points)) return false
+
+                                // Filter and fix points in the segment
+                                segment.points = segment.points.filter((point: any) => {
+                                    if (!point || typeof point !== 'object') return false
+                                    // Check for NaN/Infinity
+                                    if (typeof point.x !== 'number' || isNaN(point.x) || !isFinite(point.x)) return false
+                                    if (typeof point.y !== 'number' || isNaN(point.y) || !isFinite(point.y)) return false
+                                    return true
+                                }).map((point: any) => ({
+                                    x: validateNumericValue(point.x, 0, 'segment.point.x'),
+                                    y: validateNumericValue(point.y, 0, 'segment.point.y'),
+                                    z: point.z !== undefined ? validateNumericValue(point.z, 0.5, 'segment.point.z') : 0.5
+                                }))
+
+                                // Segment must have at least 1 point for path building
+                                return segment.points.length >= 1
+                            })
+
+                            // Must have at least 1 valid segment with at least 1 point
+                            if (validSegments.length === 0) {
+                                console.warn(`⚠️ ${shapeType} shape has no valid segments`)
+                                return null
+                            }
+
+                            // Check if we have enough points total for a valid path
+                            const totalPoints = validSegments.reduce((sum: number, seg: any) => sum + (seg.points?.length || 0), 0)
+                            if (totalPoints < 1) {
+                                console.warn(`⚠️ ${shapeType} shape has no valid points`)
+                                return null
+                            }
+
+                            return validSegments
+                        }
+
                         // Validate shape-specific geometry based on type
-                        if (shape.type === 'line' && shape.props?.points) {
-                            // Validate line points
-                            if (Array.isArray(shape.props.points)) {
-                                shape.props.points = shape.props.points.filter((point: any) => {
-                                    if (!point || typeof point !== 'object') return false
-                                    const x = validateNumericValue(point.x, 0, 'point.x')
-                                    const y = validateNumericValue(point.y, 0, 'point.y')
-                                    return true
-                                }).map((point: any) => ({
-                                    x: validateNumericValue(point.x, 0, 'point.x'),
-                                    y: validateNumericValue(point.y, 0, 'point.y'),
-                                    z: point.z !== undefined ? validateNumericValue(point.z, 0.5, 'point.z') : 0.5
-                                }))
-                                
-                                // Line must have at least 2 points
-                                if (shape.props.points.length < 2) {
-                                    console.warn(`⚠️ Line shape has insufficient points (${shape.props.points.length}), skipping shape:`, shape.id)
+                        if (shape.type === 'line') {
+                            // Line shapes use props.points (array of {id, index, x, y})
+                            if (!shape.props?.points || typeof shape.props.points !== 'object') {
+                                console.warn(`⚠️ Line shape missing points, skipping shape:`, shape.id)
+                                return false
+                            }
+
+                            // Convert points object to validated format
+                            const pointKeys = Object.keys(shape.props.points)
+                            if (pointKeys.length < 2) {
+                                console.warn(`⚠️ Line shape has insufficient points (${pointKeys.length}), skipping shape:`, shape.id)
+                                return false
+                            }
+
+                            // Validate each point
+                            for (const key of pointKeys) {
+                                const point = shape.props.points[key]
+                                if (!point || typeof point !== 'object') {
+                                    console.warn(`⚠️ Line shape has invalid point at ${key}, skipping shape:`, shape.id)
+                                    return false
+                                }
+                                if (typeof point.x !== 'number' || isNaN(point.x) || !isFinite(point.x)) {
+                                    console.warn(`⚠️ Line shape has invalid x coordinate at ${key}, skipping shape:`, shape.id)
+                                    return false
+                                }
+                                if (typeof point.y !== 'number' || isNaN(point.y) || !isFinite(point.y)) {
+                                    console.warn(`⚠️ Line shape has invalid y coordinate at ${key}, skipping shape:`, shape.id)
                                     return false
                                 }
                             }
                         }
-                        
-                        if (shape.type === 'draw' && shape.props?.segments) {
-                            // Validate draw segments
-                            if (Array.isArray(shape.props.segments)) {
-                                shape.props.segments = shape.props.segments.filter((segment: any) => {
-                                    if (!segment || typeof segment !== 'object') return false
-                                    if (segment.points && Array.isArray(segment.points)) {
-                                        segment.points = segment.points.filter((point: any) => {
-                                            if (!point || typeof point !== 'object') return false
-                                            const x = validateNumericValue(point.x, 0, 'segment.point.x')
-                                            const y = validateNumericValue(point.y, 0, 'segment.point.y')
-                                            return true
-                                        }).map((point: any) => ({
-                                            x: validateNumericValue(point.x, 0, 'segment.point.x'),
-                                            y: validateNumericValue(point.y, 0, 'segment.point.y')
-                                        }))
-                                        return segment.points.length > 0
-                                    }
-                                    return false
-                                })
-                                
-                                // Draw must have at least 1 segment with points
-                                if (shape.props.segments.length === 0 || 
-                                    !shape.props.segments.some((s: any) => s.points && s.points.length > 0)) {
-                                    console.warn(`⚠️ Draw shape has no valid segments, skipping shape:`, shape.id)
-                                    return false
+
+                        // Validate draw shapes (freehand drawing)
+                        if (shape.type === 'draw') {
+                            if (!shape.props) shape.props = {}
+
+                            // Initialize segments if missing
+                            if (!shape.props.segments) {
+                                console.warn(`⚠️ Draw shape missing segments, skipping shape:`, shape.id)
+                                return false
+                            }
+
+                            const validatedSegments = validateSegments(shape.props.segments, 'Draw')
+                            if (!validatedSegments) {
+                                console.warn(`⚠️ Draw shape has invalid segments, skipping shape:`, shape.id)
+                                return false
+                            }
+                            shape.props.segments = validatedSegments
+                        }
+
+                        // Validate highlight shapes (same structure as draw)
+                        if (shape.type === 'highlight') {
+                            if (!shape.props) shape.props = {}
+
+                            if (!shape.props.segments) {
+                                console.warn(`⚠️ Highlight shape missing segments, skipping shape:`, shape.id)
+                                return false
+                            }
+
+                            const validatedSegments = validateSegments(shape.props.segments, 'Highlight')
+                            if (!validatedSegments) {
+                                console.warn(`⚠️ Highlight shape has invalid segments, skipping shape:`, shape.id)
+                                return false
+                            }
+                            shape.props.segments = validatedSegments
+                        }
+
+                        // Validate arrow shapes
+                        if (shape.type === 'arrow') {
+                            if (!shape.props) shape.props = {}
+
+                            // Arrow shapes need start and end bindings or points
+                            // Validate start/end if they exist
+                            if (shape.props.start) {
+                                if (typeof shape.props.start.x === 'number') {
+                                    shape.props.start.x = validateNumericValue(shape.props.start.x, 0, 'arrow.start.x')
+                                }
+                                if (typeof shape.props.start.y === 'number') {
+                                    shape.props.start.y = validateNumericValue(shape.props.start.y, 0, 'arrow.start.y')
                                 }
                             }
-                        }
-                        
-                        if (shape.type === 'arrow' && shape.props?.points) {
-                            // Validate arrow points
-                            if (Array.isArray(shape.props.points)) {
-                                shape.props.points = shape.props.points.filter((point: any) => {
-                                    if (!point || typeof point !== 'object') return false
-                                    return true
-                                }).map((point: any) => ({
-                                    x: validateNumericValue(point.x, 0, 'arrow.point.x'),
-                                    y: validateNumericValue(point.y, 0, 'arrow.point.y'),
-                                    z: point.z !== undefined ? validateNumericValue(point.z, 0.5, 'arrow.point.z') : 0.5
-                                }))
-                                
-                                // Arrow must have at least 2 points
-                                if (shape.props.points.length < 2) {
-                                    console.warn(`⚠️ Arrow shape has insufficient points (${shape.props.points.length}), skipping shape:`, shape.id)
-                                    return false
+                            if (shape.props.end) {
+                                if (typeof shape.props.end.x === 'number') {
+                                    shape.props.end.x = validateNumericValue(shape.props.end.x, 100, 'arrow.end.x')
+                                }
+                                if (typeof shape.props.end.y === 'number') {
+                                    shape.props.end.y = validateNumericValue(shape.props.end.y, 0, 'arrow.end.y')
                                 }
                             }
+
+                            // Validate bend
+                            if ('bend' in shape.props) {
+                                shape.props.bend = validateNumericValue(shape.props.bend, 0, 'arrow.bend')
+                            }
                         }
-                        
+
                         // Validate props numeric values
                         if (shape.props) {
                             if ('w' in shape.props) {
@@ -157,7 +223,7 @@ export function CustomMainMenu() {
                                 shape.props.scale = validateNumericValue(shape.props.scale, 1, 'props.scale')
                             }
                         }
-                        
+
                         return true
                     }
                     
