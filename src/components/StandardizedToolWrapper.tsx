@@ -64,6 +64,8 @@ export interface StandardizedToolWrapperProps {
   onTagsChange?: (tags: string[]) => void
   /** Whether tags can be edited */
   tagsEditable?: boolean
+  /** Zoom level when the shape was pinned (for constant visual size) */
+  pinnedAtZoom?: number
 }
 
 /**
@@ -90,12 +92,66 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
   tags = [],
   onTagsChange,
   tagsEditable = true,
+  pinnedAtZoom,
 }) => {
   const [isHoveringHeader, setIsHoveringHeader] = useState(false)
   const [isEditingTags, setIsEditingTags] = useState(false)
   const [editingTagInput, setEditingTagInput] = useState('')
+  const [zoomScale, setZoomScale] = useState(1)
   const tagInputRef = useRef<HTMLInputElement>(null)
   const isDarkMode = useIsDarkMode()
+
+  // Calculate zoom compensation scale when pinned
+  useEffect(() => {
+    if (!isPinnedToView || !editor) {
+      setZoomScale(1)
+      return
+    }
+
+    // Get pinnedAtZoom from shape meta if not passed as prop
+    let originalZoom = pinnedAtZoom
+    if (!originalZoom && shapeId) {
+      const shape = editor.getShape(shapeId)
+      originalZoom = (shape?.meta as any)?.pinnedAtZoom
+    }
+
+    if (!originalZoom) {
+      setZoomScale(1)
+      return
+    }
+
+    const updateScale = () => {
+      const currentZoom = editor.getCamera().z
+      // Scale inversely to zoom to maintain constant visual size
+      const scale = originalZoom / currentZoom
+      setZoomScale(scale)
+    }
+
+    // Initial scale calculation
+    updateScale()
+
+    // Listen for camera changes
+    const handleChange = () => {
+      updateScale()
+    }
+
+    // Use requestAnimationFrame for smooth updates
+    let rafId: number | null = null
+    const throttledUpdate = () => {
+      if (rafId) return
+      rafId = requestAnimationFrame(() => {
+        updateScale()
+        rafId = null
+      })
+    }
+
+    editor.on('change' as any, throttledUpdate)
+
+    return () => {
+      editor.off('change' as any, throttledUpdate)
+      if (rafId) cancelAnimationFrame(rafId)
+    }
+  }, [isPinnedToView, editor, shapeId, pinnedAtZoom])
 
   // Handle Esc key to exit maximize mode
   useEffect(() => {
@@ -173,6 +229,11 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
     ? `${primaryColor}15` // 15% opacity
     : `${primaryColor}10` // 10% opacity
 
+  // Calculate transform for pinned shapes
+  const pinnedTransform = isPinnedToView && zoomScale !== 1
+    ? `scale(${zoomScale})`
+    : undefined
+
   const wrapperStyle: React.CSSProperties = {
     width: typeof width === 'number' ? `${width}px` : width,
     height: isMinimized ? 40 : (typeof height === 'number' ? `${height}px` : height), // Minimized height is just the header
@@ -188,8 +249,11 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
     fontFamily: "Inter, sans-serif",
     position: 'relative',
     pointerEvents: 'auto',
-    transition: 'height 0.2s ease, box-shadow 0.2s ease',
+    transition: isPinnedToView ? 'box-shadow 0.2s ease' : 'height 0.2s ease, box-shadow 0.2s ease',
     boxSizing: 'border-box',
+    // Apply zoom compensation transform for pinned shapes
+    transform: pinnedTransform,
+    transformOrigin: 'top left',
   }
 
   const headerStyle: React.CSSProperties = {
