@@ -175,17 +175,14 @@ export function usePinnedToView(
             } else {
               // Animation complete - clear pinned meta data
               try {
+                // Create new meta without pinned properties (don't use undefined)
+                const { pinnedAtZoom, originalX, originalY, ...cleanMeta } = (currentShape.meta || {}) as any
                 editor.updateShape({
                   id: shapeId as TLShapeId,
                   type: currentShape.type,
                   x: targetX,
                   y: targetY,
-                  meta: {
-                    ...currentShape.meta,
-                    pinnedAtZoom: undefined,
-                    originalX: undefined,
-                    originalY: undefined,
-                  },
+                  meta: cleanMeta,
                 })
               } catch (error) {
                 console.error('Error setting final position:', error)
@@ -198,17 +195,14 @@ export function usePinnedToView(
         } else {
           // Distance is too small, just set directly and clear meta
           try {
+            // Create new meta without pinned properties (don't use undefined)
+            const { pinnedAtZoom, originalX, originalY, ...cleanMeta } = (currentShape.meta || {}) as any
             editor.updateShape({
               id: shapeId as TLShapeId,
               type: currentShape.type,
               x: targetX,
               y: targetY,
-              meta: {
-                ...currentShape.meta,
-                pinnedAtZoom: undefined,
-                originalX: undefined,
-                originalY: undefined,
-              },
+              meta: cleanMeta,
             })
           } catch (error) {
             console.error('Error restoring original coordinates:', error)
