@@ -692,13 +692,13 @@ export function CustomToolbar() {
                 isSelected={tools["Markdown"].id === editor.getCurrentToolId()}
               />
             )}
-            {tools["MycrozineTemplate"] && (
+            {tools["MycroZineGenerator"] && (
               <TldrawUiMenuItem
-                {...tools["MycrozineTemplate"]}
-                icon="mycrozinetemplate"
-                label="MycrozineTemplate"
+                {...tools["MycroZineGenerator"]}
+                icon="zine"
+                label="MycroZine Generator"
                 isSelected={
-                  tools["MycrozineTemplate"].id === editor.getCurrentToolId()
+                  tools["MycroZineGenerator"].id === editor.getCurrentToolId()
                 }
               />
             )}

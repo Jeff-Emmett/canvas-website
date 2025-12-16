@@ -142,14 +142,14 @@ export const overrides: TLUiOverrides = {
         type: "Markdown",
         onSelect: () => editor.setCurrentTool("Markdown"),
       },
-      MycrozineTemplate: {
-        id: "MycrozineTemplate",
-        icon: "rectangle",
-        label: "Mycrozine Template",
-        type: "MycrozineTemplate",
+      MycroZineGenerator: {
+        id: "MycroZineGenerator",
+        icon: "zine",
+        label: "MycroZine Generator",
+        type: "MycroZineGenerator",
         kbd: "ctrl+shift+z",
         readonlyOk: true,
-        onSelect: () => editor.setCurrentTool("MycrozineTemplate"),
+        onSelect: () => editor.setCurrentTool("MycroZineGenerator"),
       },
       Prompt: {
         id: "Prompt",
