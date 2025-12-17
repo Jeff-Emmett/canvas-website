@@ -19,11 +19,11 @@ export interface PinnedViewOptions {
 
 /**
  * Hook to manage shapes pinned to the viewport.
- * When a shape is pinned, it stays in the same screen position AND visual size
- * as the camera moves and zooms. Content inside the shape remains unchanged.
+ * When a shape is pinned, it stays in the same screen position as the camera
+ * moves and zooms. The shape scales normally with zoom.
  *
- * Uses tldraw's 'tick' event for synchronous updates with the render cycle,
- * ensuring the shape never visually lags behind camera movements.
+ * Uses store.listen for immediate synchronous updates when the camera changes,
+ * ensuring zero visual lag between camera movement and shape repositioning.
  */
 export function usePinnedToView(
   editor: Editor | null,
@@ -51,16 +51,12 @@ export function usePinnedToView(
       // Store the original coordinates - these will be restored when unpinned
       originalCoordinatesRef.current = { x: shape.x, y: shape.y }
 
-      // Store the original zoom level in shape meta for CSS transform calculation
-      const currentCamera = editor.getCamera()
-
-      // Store original zoom in meta so StandardizedToolWrapper can access it
+      // Store original position in meta for unpinning
       editor.updateShape({
         id: shapeId as TLShapeId,
         type: shape.type,
         meta: {
           ...shape.meta,
-          pinnedAtZoom: currentCamera.z,
           originalX: shape.x,
           originalY: shape.y,
         },
@@ -69,6 +65,7 @@ export function usePinnedToView(
       // Calculate screen position based on position option
       let screenPoint: { x: number; y: number }
       const viewport = editor.getViewportScreenBounds()
+      const currentCamera = editor.getCamera()
       const shapeWidth = (shape.props as any).w || 0
       const shapeHeight = (shape.props as any).h || 0
 
@@ -168,8 +165,7 @@ export function usePinnedToView(
             } else {
               // Animation complete - clear pinned meta data
               try {
-                // Create new meta without pinned properties (don't use undefined)
-                const { pinnedAtZoom, originalX, originalY, ...cleanMeta } = (currentShape.meta || {}) as any
+                const { originalX, originalY, ...cleanMeta } = (currentShape.meta || {}) as any
                 editor.updateShape({
                   id: shapeId as TLShapeId,
                   type: currentShape.type,
@@ -188,8 +184,7 @@ export function usePinnedToView(
         } else {
           // Distance is too small, just set directly and clear meta
           try {
-            // Create new meta without pinned properties (don't use undefined)
-            const { pinnedAtZoom, originalX, originalY, ...cleanMeta } = (currentShape.meta || {}) as any
+            const { originalX, originalY, ...cleanMeta } = (currentShape.meta || {}) as any
             editor.updateShape({
               id: shapeId as TLShapeId,
               type: currentShape.type,
@@ -216,10 +211,9 @@ export function usePinnedToView(
       return
     }
 
-    // Use tldraw's tick event for synchronous updates with the render cycle
-    // This ensures the shape position is updated BEFORE rendering, eliminating visual lag
-    const handleTick = () => {
-      if (isUpdatingRef.current || !editor || !shapeId || !isPinned) {
+    // Function to update pinned position - called synchronously on camera changes
+    const updatePinnedPosition = () => {
+      if (isUpdatingRef.current || !editor || !shapeId) {
         return
       }
 
@@ -236,27 +230,21 @@ export function usePinnedToView(
         const currentCamera = editor.getCamera()
         const shapeWidth = (currentShape.props as any).w || 0
         const shapeHeight = (currentShape.props as any).h || 0
-        const pinnedAtZoom = (currentShape.meta as any)?.pinnedAtZoom || currentCamera.z
-
-        // For preset positions, account for the visual scale
-        const visualScale = pinnedAtZoom / currentCamera.z
-        const visualWidth = shapeWidth * visualScale
-        const visualHeight = shapeHeight * visualScale
 
         if (position === 'top-center') {
           pinnedScreenPos = {
-            x: viewport.x + (viewport.w / 2) - (visualWidth * currentCamera.z / 2) + offsetX,
+            x: viewport.x + (viewport.w / 2) - (shapeWidth * currentCamera.z / 2) + offsetX,
             y: viewport.y + offsetY,
           }
         } else if (position === 'bottom-center') {
           pinnedScreenPos = {
-            x: viewport.x + (viewport.w / 2) - (visualWidth * currentCamera.z / 2) + offsetX,
-            y: viewport.y + viewport.h - (visualHeight * currentCamera.z) - offsetY,
+            x: viewport.x + (viewport.w / 2) - (shapeWidth * currentCamera.z / 2) + offsetX,
+            y: viewport.y + viewport.h - (shapeHeight * currentCamera.z) - offsetY,
           }
         } else if (position === 'center') {
           pinnedScreenPos = {
-            x: viewport.x + (viewport.w / 2) - (visualWidth * currentCamera.z / 2) + offsetX,
-            y: viewport.y + (viewport.h / 2) - (visualHeight * currentCamera.z / 2) + offsetY,
+            x: viewport.x + (viewport.w / 2) - (shapeWidth * currentCamera.z / 2) + offsetX,
+            y: viewport.y + (viewport.h / 2) - (shapeHeight * currentCamera.z / 2) + offsetY,
           }
         } else {
           pinnedScreenPos = pinnedScreenPositionRef.current!
@@ -272,40 +260,47 @@ export function usePinnedToView(
         // Convert screen position back to page coordinates
         const newPagePoint = editor.screenToPage(pinnedScreenPos)
 
-        // Check if position needs updating (with small tolerance to avoid unnecessary updates)
-        const deltaX = Math.abs(currentShape.x - newPagePoint.x)
-        const deltaY = Math.abs(currentShape.y - newPagePoint.y)
+        // Always update - no threshold, for maximum responsiveness
+        isUpdatingRef.current = true
 
-        if (deltaX > 0.01 || deltaY > 0.01) {
-          isUpdatingRef.current = true
+        editor.updateShape({
+          id: shapeId as TLShapeId,
+          type: currentShape.type,
+          x: newPagePoint.x,
+          y: newPagePoint.y,
+        })
 
-          editor.updateShape({
-            id: shapeId as TLShapeId,
-            type: currentShape.type,
-            x: newPagePoint.x,
-            y: newPagePoint.y,
-          })
-
-          isUpdatingRef.current = false
-        }
+        isUpdatingRef.current = false
       } catch (error) {
         console.error('Error updating pinned shape position:', error)
         isUpdatingRef.current = false
       }
     }
 
-    // Subscribe to tick event for synchronous updates
-    editor.on('tick', handleTick)
+    // Use store.listen to react immediately to camera changes
+    // This is more immediate than 'tick' as it fires synchronously when the store changes
+    const unsubscribe = editor.store.listen(
+      (entry) => {
+        // Only react to camera changes
+        const dominated = Object.entries(entry.changes.updated).some(
+          ([, [, record]]) => record.typeName === 'camera'
+        )
+        if (dominated && !isUpdatingRef.current) {
+          updatePinnedPosition()
+        }
+      },
+      { source: 'all', scope: 'document' }
+    )
 
     // Also do an immediate update to sync position
-    handleTick()
+    updatePinnedPosition()
 
     return () => {
       if (driftAnimationRef.current) {
         cancelAnimationFrame(driftAnimationRef.current)
         driftAnimationRef.current = null
       }
-      editor.off('tick', handleTick)
+      unsubscribe()
     }
   }, [editor, shapeId, isPinned, position, offsetX, offsetY])
 }
