@@ -46,17 +46,52 @@ export function usePinnedToView(
     const shape = editor.getShape(shapeId as TLShapeId)
     if (!shape) return
 
+    // Helper to clear all pin-related state
+    const clearPinState = () => {
+      pinnedScreenPositionRef.current = null
+      originalCoordinatesRef.current = null
+      isUpdatingRef.current = false
+      if (driftAnimationRef.current) {
+        cancelAnimationFrame(driftAnimationRef.current)
+        driftAnimationRef.current = null
+      }
+    }
+
+    // Helper to clean shape meta of any pin-related properties
+    const cleanShapeMeta = (currentShape: any) => {
+      const meta = currentShape.meta || {}
+      // Remove all pin-related meta properties
+      const { originalX, originalY, pinnedAtZoom, ...cleanMeta } = meta as any
+      // Only update if there were pin properties to remove
+      if ('originalX' in meta || 'originalY' in meta || 'pinnedAtZoom' in meta) {
+        try {
+          editor.updateShape({
+            id: shapeId as TLShapeId,
+            type: currentShape.type,
+            meta: cleanMeta,
+          })
+        } catch (e) {
+          // Ignore errors during cleanup
+        }
+      }
+      return cleanMeta
+    }
+
     // If just became pinned (transition from false to true)
     if (isPinned && !wasPinnedRef.current) {
+      // Clear any leftover state from previous pin sessions
+      clearPinState()
+
       // Store the original coordinates - these will be restored when unpinned
       originalCoordinatesRef.current = { x: shape.x, y: shape.y }
 
-      // Store original position in meta for unpinning
+      // Store original position in meta for unpinning (clean any old meta first)
+      const cleanMeta = cleanShapeMeta(shape)
       editor.updateShape({
         id: shapeId as TLShapeId,
         type: shape.type,
         meta: {
-          ...shape.meta,
+          ...cleanMeta,
           originalX: shape.x,
           originalY: shape.y,
         },
@@ -85,7 +120,7 @@ export function usePinnedToView(
           y: viewport.y + (viewport.h / 2) - (shapeHeight * currentCamera.z / 2) + offsetY,
         }
       } else {
-        // Default: use current position
+        // Default: use current position - shape stays exactly where it is
         const pagePoint = { x: shape.x, y: shape.y }
         screenPoint = editor.pageToScreen(pagePoint)
       }
@@ -116,6 +151,12 @@ export function usePinnedToView(
 
     // If just became unpinned, animate back to original coordinates
     if (!isPinned && wasPinnedRef.current) {
+      // Cancel any ongoing animations
+      if (driftAnimationRef.current) {
+        cancelAnimationFrame(driftAnimationRef.current)
+        driftAnimationRef.current = null
+      }
+
       // Get original coordinates from meta
       const currentShape = editor.getShape(shapeId as TLShapeId)
       if (currentShape) {
@@ -131,6 +172,10 @@ export function usePinnedToView(
         const distance = Math.sqrt(
           Math.pow(targetX - startX, 2) + Math.pow(targetY - startY, 2)
         )
+
+        // Immediately clear refs so next pin session starts fresh
+        pinnedScreenPositionRef.current = null
+        originalCoordinatesRef.current = null
 
         if (distance > 1) {
           // Animation parameters
@@ -164,18 +209,7 @@ export function usePinnedToView(
               driftAnimationRef.current = requestAnimationFrame(animateDrift)
             } else {
               // Animation complete - clear pinned meta data
-              try {
-                const { originalX, originalY, ...cleanMeta } = (currentShape.meta || {}) as any
-                editor.updateShape({
-                  id: shapeId as TLShapeId,
-                  type: currentShape.type,
-                  x: targetX,
-                  y: targetY,
-                  meta: cleanMeta,
-                })
-              } catch (error) {
-                console.error('Error setting final position:', error)
-              }
+              cleanShapeMeta(currentShape)
               driftAnimationRef.current = null
             }
           }
@@ -184,25 +218,22 @@ export function usePinnedToView(
         } else {
           // Distance is too small, just set directly and clear meta
           try {
-            const { originalX, originalY, ...cleanMeta } = (currentShape.meta || {}) as any
             editor.updateShape({
               id: shapeId as TLShapeId,
               type: currentShape.type,
               x: targetX,
               y: targetY,
-              meta: cleanMeta,
             })
+            cleanShapeMeta(currentShape)
           } catch (error) {
             console.error('Error restoring original coordinates:', error)
           }
         }
-      }
-
-      // Clear refs
-      setTimeout(() => {
+      } else {
+        // Shape doesn't exist, just clear refs
         pinnedScreenPositionRef.current = null
         originalCoordinatesRef.current = null
-      }, 50)
+      }
     }
 
     wasPinnedRef.current = isPinned
@@ -282,18 +313,19 @@ export function usePinnedToView(
     const unsubscribe = editor.store.listen(
       (entry) => {
         // Only react to camera changes
-        const dominated = Object.entries(entry.changes.updated).some(
+        const hasCamera = Object.entries(entry.changes.updated).some(
           ([, [, record]]) => record.typeName === 'camera'
         )
-        if (dominated && !isUpdatingRef.current) {
+        if (hasCamera && !isUpdatingRef.current) {
           updatePinnedPosition()
         }
       },
       { source: 'all', scope: 'document' }
     )
 
-    // Also do an immediate update to sync position
-    updatePinnedPosition()
+    // Don't call updatePinnedPosition immediately - the shape is already at
+    // the correct position since we just captured its current screen position
+    // Only start listening for camera changes
 
     return () => {
       if (driftAnimationRef.current) {
