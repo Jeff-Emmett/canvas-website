@@ -4,7 +4,7 @@ title: Integrate MycroZine generator tool into canvas
 status: In Progress
 assignee: []
 created_date: '2025-12-15 23:41'
-updated_date: '2025-12-16 00:34'
+updated_date: '2025-12-18 23:24'
 labels:
   - feature
   - canvas
@@ -59,4 +59,10 @@ Created MycroZineGeneratorTool.ts
 Registered in Board.tsx
 
 Build successful - no TypeScript errors
+
+Integrated Gemini Nano Banana Pro for image generation:
+- Updated standalone mycro-zine app (generate-page/route.ts) with fallback chain: Nano Banana Pro → Imagen 3 → Gemini 2.0 Flash → placeholder
+- Updated canvas MycroZineGeneratorShapeUtil.tsx to call Gemini API directly with proper types
+- Added getGeminiConfig() to clientConfig.ts for API key management
+- Aspect ratio: 3:4 portrait for zine pages (825x1275 target dimensions)
 <!-- SECTION:NOTES:END -->
