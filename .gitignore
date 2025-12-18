@@ -176,3 +176,7 @@ dist
 .dev.vars
 .env.production
 .aider*
+
+# Playwright
+playwright-report/
+test-results/
