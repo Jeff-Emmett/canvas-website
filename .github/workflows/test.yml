@@ -30,6 +30,9 @@ jobs:
       - name: Run unit tests with coverage
         run: npm run test:coverage
 
+      - name: Run worker tests
+        run: npm run test:worker
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         with:
