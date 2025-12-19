@@ -11,7 +11,7 @@ import React, { useState, useRef, useEffect } from "react"
 import { StandardizedToolWrapper } from "@/components/StandardizedToolWrapper"
 import { usePinnedToView } from "@/hooks/usePinnedToView"
 import { useMaximize } from "@/hooks/useMaximize"
-import { getGeminiConfig } from "@/lib/clientConfig"
+// Note: Image generation now uses zine.jeffemmett.com API which proxies through RunPod
 
 // ============================================================================
 // Types
@@ -1059,156 +1059,58 @@ Tone: ${toneDesc}
 High contrast black and white with neon green accent highlights. Xerox texture, DIY cut-and-paste collage aesthetic, rough edges, rebellious feel.`
 }
 
+interface GenerateImageResponse {
+  success: boolean
+  imageData?: string
+  mimeType?: string
+  error?: string
+}
+
 async function generatePageImage(prompt: string, pageNumber: number): Promise<string> {
-  console.log(`🍄 Generating page ${pageNumber} with Gemini Nano Banana Pro...`)
+  console.log(`🍄 Generating page ${pageNumber} via RunPod proxy...`)
   console.log(`📝 Prompt preview:`, prompt.substring(0, 100) + '...')
 
-  const geminiConfig = getGeminiConfig()
+  // Use the mycro-zine API which proxies through RunPod (US-based, bypasses geo-restrictions)
+  const ZINE_API_URL = 'https://zine.jeffemmett.com/api/generate-image'
 
-  if (!geminiConfig) {
-    console.warn('⚠️ No Gemini API key configured, using placeholder')
-    return `https://via.placeholder.com/825x1275/1a1a1a/00ff00?text=Page+${pageNumber}+%28No+API+Key%29`
-  }
-
-  const { apiKey } = geminiConfig
-
-  // Try Nano Banana Pro first (gemini-2.0-flash-exp-image-generation)
   try {
-    const imageUrl = await generateWithNanoBananaPro(prompt, apiKey)
-    if (imageUrl) {
-      console.log(`✅ Page ${pageNumber} generated with Nano Banana Pro`)
-      return imageUrl
-    }
-  } catch (error) {
-    console.error(`❌ Nano Banana Pro failed for page ${pageNumber}:`, error)
-  }
-
-  // Fallback to Gemini 2.0 Flash experimental
-  try {
-    const imageUrl = await generateWithGemini2Flash(prompt, apiKey)
-    if (imageUrl) {
-      console.log(`✅ Page ${pageNumber} generated with Gemini 2.0 Flash`)
-      return imageUrl
-    }
-  } catch (error) {
-    console.error(`❌ Gemini 2.0 Flash failed for page ${pageNumber}:`, error)
-  }
-
-  // Final fallback: placeholder
-  console.warn(`⚠️ All generation methods failed for page ${pageNumber}, using placeholder`)
-  return `https://via.placeholder.com/825x1275/1a1a1a/00ff00?text=Page+${pageNumber}+%28Generation+Failed%29`
-}
-
-// Types for Gemini API response
-interface GeminiPart {
-  text?: string
-  inlineData?: {
-    mimeType: string
-    data: string
-  }
-}
-
-interface GeminiCandidate {
-  content?: {
-    parts?: GeminiPart[]
-  }
-}
-
-interface GeminiResponse {
-  candidates?: GeminiCandidate[]
-}
-
-// Nano Banana Pro - highest quality, excellent text rendering
-async function generateWithNanoBananaPro(prompt: string, apiKey: string): Promise<string | null> {
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${apiKey}`,
-    {
+    const response = await fetch(ZINE_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: prompt,
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          responseModalities: ['IMAGE'],
-        },
-      }),
+      body: JSON.stringify({ prompt }),
+    })
+
+    if (!response.ok) {
+      let errorMessage = `HTTP ${response.status}`
+      try {
+        const errorData = await response.json() as { error?: string }
+        if (errorData.error) errorMessage = errorData.error
+      } catch {
+        // Ignore JSON parse errors
+      }
+      console.error(`❌ API error for page ${pageNumber}:`, response.status, errorMessage)
+      throw new Error(errorMessage)
     }
-  )
 
-  if (!response.ok) {
-    const errorText = await response.text()
-    console.error('Nano Banana Pro API error:', response.status, errorText)
-    return null
-  }
+    const data: GenerateImageResponse = await response.json()
 
-  const data: GeminiResponse = await response.json()
-
-  // Extract image from response
-  const parts = data.candidates?.[0]?.content?.parts || []
-  for (const part of parts) {
-    if (part.inlineData?.mimeType?.startsWith('image/')) {
+    if (data.success && data.imageData) {
+      console.log(`✅ Page ${pageNumber} generated via RunPod proxy`)
       // Convert base64 to data URL
-      return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`
+      return `data:${data.mimeType || 'image/png'};base64,${data.imageData}`
     }
-  }
 
-  return null
+    throw new Error('No image data in response')
+  } catch (error) {
+    console.error(`❌ Generation failed for page ${pageNumber}:`, error)
+    // Fallback to placeholder
+    return `https://via.placeholder.com/825x1275/1a1a1a/00ff00?text=Page+${pageNumber}+%28Generation+Failed%29`
+  }
 }
 
-// Gemini 2.0 Flash experimental fallback
-async function generateWithGemini2Flash(prompt: string, apiKey: string): Promise<string | null> {
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: `Generate an image: ${prompt}`,
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          responseModalities: ['IMAGE', 'TEXT'],
-          responseMimeType: 'image/png',
-        },
-      }),
-    }
-  )
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    console.error('Gemini 2.0 Flash error:', response.status, errorText)
-    return null
-  }
-
-  const data: GeminiResponse = await response.json()
-
-  // Extract image from response
-  const parts = data.candidates?.[0]?.content?.parts || []
-  for (const part of parts) {
-    if (part.inlineData?.mimeType?.startsWith('image/')) {
-      return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`
-    }
-  }
-
-  return null
-}
+// Removed direct Gemini API functions - now using zine.jeffemmett.com proxy
 
 async function spawnPageOnCanvas(
   editor: any,
