@@ -106,9 +106,10 @@ const { preflight, corsify } = cors({
     }
 
     // For development - check if it's a localhost or local IP (both http and https)
+    // Includes: localhost, 127.x, 192.168.x, 169.254.x, 10.x, 172.16-31.x (private), 100.x (Tailscale)
     if (
       origin.match(
-        /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.|169\.254\.|10\.)/,
+        /^https?:\/\/(localhost|127\.\d+\.\d+\.\d+|192\.168\.|169\.254\.|10\.|172\.(1[6-9]|2\d|3[01])\.|100\.)/,
       )
     ) {
       return origin

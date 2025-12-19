@@ -11,6 +11,7 @@ import React, { useState, useRef, useEffect } from "react"
 import { StandardizedToolWrapper } from "@/components/StandardizedToolWrapper"
 import { usePinnedToView } from "@/hooks/usePinnedToView"
 import { useMaximize } from "@/hooks/useMaximize"
+import { getGeminiConfig } from "@/lib/clientConfig"
 
 // ============================================================================
 // Types
@@ -1059,15 +1060,154 @@ High contrast black and white with neon green accent highlights. Xerox texture, 
 }
 
 async function generatePageImage(prompt: string, pageNumber: number): Promise<string> {
-  // In actual implementation, this would call the Gemini MCP server
-  // For now, return a placeholder
-  console.log(`Generating page ${pageNumber} with prompt:`, prompt.substring(0, 100) + '...')
+  console.log(`🍄 Generating page ${pageNumber} with Gemini Nano Banana Pro...`)
+  console.log(`📝 Prompt preview:`, prompt.substring(0, 100) + '...')
 
-  // Simulate generation delay
-  await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000))
+  const geminiConfig = getGeminiConfig()
 
-  // Return placeholder image
-  return `https://via.placeholder.com/825x1275/1a1a1a/00ff00?text=Page+${pageNumber}`
+  if (!geminiConfig) {
+    console.warn('⚠️ No Gemini API key configured, using placeholder')
+    return `https://via.placeholder.com/825x1275/1a1a1a/00ff00?text=Page+${pageNumber}+%28No+API+Key%29`
+  }
+
+  const { apiKey } = geminiConfig
+
+  // Try Nano Banana Pro first (gemini-2.0-flash-exp-image-generation)
+  try {
+    const imageUrl = await generateWithNanoBananaPro(prompt, apiKey)
+    if (imageUrl) {
+      console.log(`✅ Page ${pageNumber} generated with Nano Banana Pro`)
+      return imageUrl
+    }
+  } catch (error) {
+    console.error(`❌ Nano Banana Pro failed for page ${pageNumber}:`, error)
+  }
+
+  // Fallback to Gemini 2.0 Flash experimental
+  try {
+    const imageUrl = await generateWithGemini2Flash(prompt, apiKey)
+    if (imageUrl) {
+      console.log(`✅ Page ${pageNumber} generated with Gemini 2.0 Flash`)
+      return imageUrl
+    }
+  } catch (error) {
+    console.error(`❌ Gemini 2.0 Flash failed for page ${pageNumber}:`, error)
+  }
+
+  // Final fallback: placeholder
+  console.warn(`⚠️ All generation methods failed for page ${pageNumber}, using placeholder`)
+  return `https://via.placeholder.com/825x1275/1a1a1a/00ff00?text=Page+${pageNumber}+%28Generation+Failed%29`
+}
+
+// Types for Gemini API response
+interface GeminiPart {
+  text?: string
+  inlineData?: {
+    mimeType: string
+    data: string
+  }
+}
+
+interface GeminiCandidate {
+  content?: {
+    parts?: GeminiPart[]
+  }
+}
+
+interface GeminiResponse {
+  candidates?: GeminiCandidate[]
+}
+
+// Nano Banana Pro - highest quality, excellent text rendering
+async function generateWithNanoBananaPro(prompt: string, apiKey: string): Promise<string | null> {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt,
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          responseModalities: ['IMAGE'],
+        },
+      }),
+    }
+  )
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    console.error('Nano Banana Pro API error:', response.status, errorText)
+    return null
+  }
+
+  const data: GeminiResponse = await response.json()
+
+  // Extract image from response
+  const parts = data.candidates?.[0]?.content?.parts || []
+  for (const part of parts) {
+    if (part.inlineData?.mimeType?.startsWith('image/')) {
+      // Convert base64 to data URL
+      return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`
+    }
+  }
+
+  return null
+}
+
+// Gemini 2.0 Flash experimental fallback
+async function generateWithGemini2Flash(prompt: string, apiKey: string): Promise<string | null> {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: `Generate an image: ${prompt}`,
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          responseModalities: ['IMAGE', 'TEXT'],
+          responseMimeType: 'image/png',
+        },
+      }),
+    }
+  )
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    console.error('Gemini 2.0 Flash error:', response.status, errorText)
+    return null
+  }
+
+  const data: GeminiResponse = await response.json()
+
+  // Extract image from response
+  const parts = data.candidates?.[0]?.content?.parts || []
+  for (const part of parts) {
+    if (part.inlineData?.mimeType?.startsWith('image/')) {
+      return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`
+    }
+  }
+
+  return null
 }
 
 async function spawnPageOnCanvas(

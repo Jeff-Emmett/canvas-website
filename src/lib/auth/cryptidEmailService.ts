@@ -7,10 +7,21 @@ import * as crypto from './crypto';
 
 // Get the worker API URL based on environment
 function getApiUrl(): string {
-  // In development, use the local worker
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return 'http://localhost:5172';
+  const hostname = window.location.hostname;
+
+  // In development (localhost, local IPs, Tailscale IPs), use the local worker on same host
+  const isLocalDev =
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname.startsWith('192.168.') ||
+    hostname.startsWith('10.') ||
+    hostname.startsWith('172.') ||
+    hostname.startsWith('100.'); // Tailscale
+
+  if (isLocalDev) {
+    return `http://${hostname}:5172`;
   }
+
   // In production, use the deployed worker
   return 'https://jeffemmett-canvas.jeffemmett.workers.dev';
 }

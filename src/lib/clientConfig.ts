@@ -21,6 +21,7 @@ export interface ClientConfig {
   runpodTextEndpointId?: string
   runpodWhisperEndpointId?: string
   ollamaUrl?: string
+  geminiApiKey?: string
 }
 
 /**
@@ -52,6 +53,7 @@ export function getClientConfig(): ClientConfig {
         runpodTextEndpointId: import.meta.env.VITE_RUNPOD_TEXT_ENDPOINT_ID || import.meta.env.NEXT_PUBLIC_RUNPOD_TEXT_ENDPOINT_ID,
         runpodWhisperEndpointId: import.meta.env.VITE_RUNPOD_WHISPER_ENDPOINT_ID || import.meta.env.NEXT_PUBLIC_RUNPOD_WHISPER_ENDPOINT_ID,
         ollamaUrl: import.meta.env.VITE_OLLAMA_URL || import.meta.env.NEXT_PUBLIC_OLLAMA_URL,
+        geminiApiKey: import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.NEXT_PUBLIC_GEMINI_API_KEY,
       }
     } else {
       // Next.js environment
@@ -89,6 +91,7 @@ export function getClientConfig(): ClientConfig {
       runpodTextEndpointId: process.env.VITE_RUNPOD_TEXT_ENDPOINT_ID || process.env.NEXT_PUBLIC_RUNPOD_TEXT_ENDPOINT_ID,
       runpodWhisperEndpointId: process.env.VITE_RUNPOD_WHISPER_ENDPOINT_ID || process.env.NEXT_PUBLIC_RUNPOD_WHISPER_ENDPOINT_ID,
       ollamaUrl: process.env.VITE_OLLAMA_URL || process.env.NEXT_PUBLIC_OLLAMA_URL,
+      geminiApiKey: process.env.VITE_GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY,
     }
   }
 }
@@ -325,6 +328,91 @@ export function getOpenAIConfig(): { apiKey: string } | null {
     return null
   } catch (e) {
     console.log('🔑 Error getting OpenAI config:', e)
+    return null
+  }
+}
+
+/**
+ * Check if Gemini integration is configured
+ * Reads from user profile settings (localStorage) or environment variables
+ */
+export function isGeminiConfigured(): boolean {
+  try {
+    // First try to get user-specific API keys if available
+    const session = JSON.parse(localStorage.getItem('session') || '{}')
+    if (session.authed && session.username) {
+      const userApiKeys = localStorage.getItem(`${session.username}_api_keys`)
+      if (userApiKeys) {
+        try {
+          const parsed = JSON.parse(userApiKeys)
+          if (parsed.keys && parsed.keys.gemini && parsed.keys.gemini.trim() !== '') {
+            return true
+          }
+        } catch (e) {
+          // Continue to fallback
+        }
+      }
+    }
+
+    // Fallback to global API keys
+    const settings = localStorage.getItem("gemini_api_key")
+    if (settings && settings.trim() !== '') {
+      return true
+    }
+
+    // Check environment variable
+    const config = getClientConfig()
+    if (config.geminiApiKey && config.geminiApiKey.trim() !== '') {
+      return true
+    }
+
+    return false
+  } catch (e) {
+    return false
+  }
+}
+
+/**
+ * Get Gemini API key for API calls
+ * Reads from user profile settings (localStorage) or environment variables
+ */
+export function getGeminiConfig(): { apiKey: string } | null {
+  try {
+    // First try to get user-specific API keys if available
+    const session = JSON.parse(localStorage.getItem('session') || '{}')
+    if (session.authed && session.username) {
+      const userApiKeys = localStorage.getItem(`${session.username}_api_keys`)
+      if (userApiKeys) {
+        try {
+          const parsed = JSON.parse(userApiKeys)
+          if (parsed.keys && parsed.keys.gemini && parsed.keys.gemini.trim() !== '') {
+            console.log('🔑 Found user-specific Gemini API key')
+            return { apiKey: parsed.keys.gemini }
+          }
+        } catch (e) {
+          console.log('🔑 Error parsing user-specific API keys:', e)
+        }
+      }
+    }
+
+    // Fallback to global API keys in localStorage
+    const settings = localStorage.getItem("gemini_api_key")
+    if (settings && settings.trim() !== '') {
+      console.log('🔑 Found global Gemini API key in localStorage')
+      return { apiKey: settings }
+    }
+
+    // Fallback to environment variable
+    const config = getClientConfig()
+    if (config.geminiApiKey && config.geminiApiKey.trim() !== '') {
+      console.log('🔑 Found Gemini API key in environment')
+      return { apiKey: config.geminiApiKey }
+    }
+
+    console.log('🔑 No Gemini API key found')
+    return null
+  } catch (e) {
+    console.log('🔑 Error getting Gemini config:', e)
     return null
   }
 }
