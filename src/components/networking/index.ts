@@ -5,6 +5,7 @@
  */
 
 export { NetworkGraphMinimap } from './NetworkGraphMinimap';
+export { NetworkGraph3D } from './NetworkGraph3D';
 export { NetworkGraphPanel } from './NetworkGraphPanel';
 export { UserSearchModal } from './UserSearchModal';
 export { useNetworkGraph, useRoomParticipantsFromEditor } from './useNetworkGraph';
