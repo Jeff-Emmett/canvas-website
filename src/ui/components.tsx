@@ -27,6 +27,7 @@ import {
   useDialogs,
 } from "tldraw"
 import { SlidesPanel } from "@/slides/SlidesPanel"
+import { OnboardingTour, startOnboardingTour } from "./OnboardingTour"
 
 // AI tool model configurations
 const AI_TOOLS = [
@@ -636,6 +637,31 @@ function CustomSharePanel() {
                     <span>API Keys</span>
                   </span>
                 </button>
+
+                {/* Show Tutorial */}
+                <button
+                  onClick={() => {
+                    setShowMobileMenu(false)
+                    startOnboardingTour()
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '12px 16px',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--color-text)',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '18px' }}>🎓</span>
+                    <span>Show Tutorial</span>
+                  </span>
+                </button>
               </>
             )}
 
@@ -836,14 +862,14 @@ function CustomSharePanel() {
         boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
       }}>
         {/* CryptID dropdown - leftmost */}
-        <div style={{ padding: '0 4px' }}>
+        <div className="cryptid-dropdown-trigger" style={{ padding: '0 4px' }}>
           <CryptIDDropdown isDarkMode={isDarkMode} />
         </div>
 
         <Separator />
 
         {/* Share board button */}
-        <div style={{ padding: '0 2px' }}>
+        <div className="share-board-button" style={{ padding: '0 2px' }}>
           <ShareBoardButton className="share-panel-btn" />
         </div>
 
@@ -1332,6 +1358,46 @@ function CustomSharePanel() {
 
                 <div style={{ height: '1px', background: 'var(--color-panel-contrast)', margin: '0' }} />
 
+                {/* Show Tutorial Button */}
+                <div style={{ padding: '12px 16px' }}>
+                  <button
+                    onClick={() => {
+                      setShowSettingsDropdown(false)
+                      startOnboardingTour()
+                    }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      padding: '10px 16px',
+                      background: 'none',
+                      border: `1px solid ${isDarkMode ? '#404040' : '#e5e7eb'}`,
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      color: 'var(--color-text)',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      fontFamily: 'inherit',
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'
+                      e.currentTarget.style.borderColor = '#10b981'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'none'
+                      e.currentTarget.style.borderColor = isDarkMode ? '#404040' : '#e5e7eb'
+                    }}
+                  >
+                    <span style={{ fontSize: '16px' }}>🎓</span>
+                    <span>Show Tutorial</span>
+                  </button>
+                </div>
+
+                <div style={{ height: '1px', background: 'var(--color-panel-contrast)', margin: '0' }} />
+
                 {/* AI Models Accordion */}
                 <div>
                   <button
@@ -1530,7 +1596,7 @@ function CustomSharePanel() {
         <Separator />
 
         {/* Help/Keyboard shortcuts button - rightmost - opens Command Palette */}
-        <div style={{ padding: '0 4px' }}>
+        <div className="help-button" style={{ padding: '0 4px' }}>
           <button
             onClick={() => openCommandPalette()}
             className="share-panel-btn"
@@ -1595,6 +1661,7 @@ function CustomInFrontOfCanvas() {
       <FocusLockIndicator />
       <CommandPalette />
       <NetworkGraphPanel />
+      <OnboardingTour />
     </>
   )
 }
