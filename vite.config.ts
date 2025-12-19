@@ -2,6 +2,7 @@ import { defineConfig, loadEnv } from "vite"
 import react from "@vitejs/plugin-react"
 import wasm from "vite-plugin-wasm"
 import topLevelAwait from "vite-plugin-top-level-await"
+import { VitePWA } from "vite-plugin-pwa"
 
 export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
@@ -25,17 +26,103 @@ export default defineConfig(({ mode }) => {
 
   return {
     envPrefix: ["VITE_"],
-    plugins: [react(), wasm(), topLevelAwait()],
+    plugins: [
+      react(),
+      wasm(),
+      topLevelAwait(),
+      VitePWA({
+        registerType: 'autoUpdate',
+        injectRegister: 'auto',
+        workbox: {
+          // Cache all static assets
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,wasm}'],
+          // Increase the limit for large chunks (Board is ~8MB with tldraw, automerge, etc.)
+          maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10MB
+          // Runtime caching for dynamic requests
+          runtimeCaching: [
+            {
+              // Cache API responses with network-first strategy
+              urlPattern: /^https?:\/\/.*\/api\/.*/i,
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'api-cache',
+                expiration: {
+                  maxEntries: 100,
+                  maxAgeSeconds: 60 * 60 * 24, // 24 hours
+                },
+                networkTimeoutSeconds: 10,
+              },
+            },
+            {
+              // Cache fonts
+              urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'google-fonts-cache',
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+                },
+              },
+            },
+            {
+              urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'gstatic-fonts-cache',
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+                },
+              },
+            },
+          ],
+        },
+        manifest: {
+          name: 'Jeff Emmett Canvas',
+          short_name: 'Canvas',
+          description: 'Collaborative canvas for research and creativity',
+          theme_color: '#1a1a2e',
+          background_color: '#1a1a2e',
+          display: 'standalone',
+          start_url: '/',
+          icons: [
+            {
+              src: '/pwa-192x192.svg',
+              sizes: '192x192',
+              type: 'image/svg+xml',
+            },
+            {
+              src: '/pwa-512x512.svg',
+              sizes: '512x512',
+              type: 'image/svg+xml',
+            },
+            {
+              src: '/pwa-512x512.svg',
+              sizes: '512x512',
+              type: 'image/svg+xml',
+              purpose: 'maskable',
+            },
+          ],
+        },
+        devOptions: {
+          // Enable SW in development for testing
+          enabled: true,
+          type: 'module',
+        },
+      }),
+    ],
     server: {
       host: "0.0.0.0",
       port: 5173,
       strictPort: true,
       // Force IPv4 to ensure compatibility with WSL2 and remote devices
       listen: "0.0.0.0",
-      // Configure HMR to use the correct hostname for WebSocket connections
+      // Configure HMR to use the client's hostname for WebSocket connections
+      // This allows HMR to work from any network (localhost, LAN, Tailscale)
       hmr: {
-        host: wslIp,
-        port: 5173,
+        // Use 'clientPort' to let client determine the correct host
+        clientPort: 5173,
       },
       // Proxy API requests to the worker server
       proxy: {
