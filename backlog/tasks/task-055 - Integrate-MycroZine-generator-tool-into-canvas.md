@@ -65,4 +65,11 @@ Integrated Gemini Nano Banana Pro for image generation:
 - Updated canvas MycroZineGeneratorShapeUtil.tsx to call Gemini API directly with proper types
 - Added getGeminiConfig() to clientConfig.ts for API key management
 - Aspect ratio: 3:4 portrait for zine pages (825x1275 target dimensions)
+
+2025-12-18: Fixed geo-restriction issue for image generation
+- Direct Gemini API calls were blocked in EU (Netcup server location)
+- Created RunPod serverless proxy (US-based) to bypass geo-restrictions
+- Added /api/generate-image endpoint to zine.jeffemmett.com that returns base64
+- Updated canvas MycroZineGeneratorShapeUtil to call zine.jeffemmett.com API instead of Gemini directly
+- Image generation now works reliably from any location
 <!-- SECTION:NOTES:END -->
