@@ -1660,7 +1660,8 @@ function CustomInFrontOfCanvas() {
       <MycelialIntelligenceBar />
       <FocusLockIndicator />
       <CommandPalette />
-      <NetworkGraphPanel />
+      {/* NetworkGraphPanel temporarily disabled for main branch - re-enable when ready */}
+      {/* <NetworkGraphPanel /> */}
       <OnboardingTour />
     </>
   )
