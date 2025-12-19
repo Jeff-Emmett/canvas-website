@@ -256,19 +256,24 @@ export function UserSearchModal({
     }
   }, [onConnect, onDisconnect]);
 
-  // Handle escape key
+  // Handle escape key - use a ref to avoid stale closure issues
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
+    if (!isOpen) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        e.preventDefault();
+        e.stopPropagation();
+        onCloseRef.current();
       }
     };
 
-    if (isOpen) {
-      window.addEventListener('keydown', handleKeyDown);
-      return () => window.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [isOpen, onClose]);
+    window.addEventListener('keydown', handleKeyDown, true); // Use capture phase
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

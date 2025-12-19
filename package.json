@@ -86,7 +86,7 @@
 		"react-router-dom": "^7.0.2",
 		"recoil": "^0.7.7",
 		"sharp": "^0.33.5",
-		"three": "^0.182.0",
+		"three": "^0.168.0",
 		"tldraw": "^3.15.4",
 		"use-whisper": "^0.0.1",
 		"webcola": "^3.4.0"

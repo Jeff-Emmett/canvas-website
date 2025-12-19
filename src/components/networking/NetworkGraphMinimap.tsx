@@ -249,6 +249,11 @@ export function NetworkGraphMinimap({
   const [selectedNode, setSelectedNode] = useState<{ node: GraphNode; x: number; y: number } | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
 
+  // Stable callback for closing search modal (prevents ESC handler issues)
+  const handleCloseSearch = useCallback(() => {
+    setIsSearchOpen(false);
+  }, []);
+
   // Three-state display mode: minimized, normal, maximized
   const [displayMode, setDisplayMode] = useState<DisplayMode>(isCollapsed ? 'minimized' : 'normal');
 
@@ -963,7 +968,7 @@ export function NetworkGraphMinimap({
 
       <UserSearchModal
         isOpen={isSearchOpen}
-        onClose={() => setIsSearchOpen(false)}
+        onClose={handleCloseSearch}
         onConnect={onConnect}
         onDisconnect={onDisconnect ? (userId) => {
           // Find the connection ID for this user
