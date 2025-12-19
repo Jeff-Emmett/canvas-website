@@ -46,13 +46,28 @@ const PERMISSION_CONFIG: Record<PermissionLevel, { label: string; color: string;
 }
 
 // Custom SharePanel with layout: CryptID -> Star -> Gear -> Question mark
+// On mobile: Single gear icon that opens consolidated menu
 function CustomSharePanel() {
   const { addDialog, removeDialog } = useDialogs()
   const { session } = useAuth()
   const { slug } = useParams<{ slug: string }>()
   const boardId = slug || 'mycofi33'
 
+  // Mobile detection
+  const [isMobile, setIsMobile] = React.useState(
+    typeof window !== 'undefined' && window.innerWidth < 640
+  )
+
+  // Listen for resize to update mobile state
+  React.useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 640)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   const [showSettingsDropdown, setShowSettingsDropdown] = React.useState(false)
+  const [showMobileMenu, setShowMobileMenu] = React.useState(false)
+  const [mobileMenuSection, setMobileMenuSection] = React.useState<'main' | 'signin' | 'share' | 'settings'>('main')
   // const [showVersionHistory, setShowVersionHistory] = React.useState(false) // TODO: Re-enable when version reversion is ready
   const [showAISection, setShowAISection] = React.useState(false)
   const [hasApiKey, setHasApiKey] = React.useState(false)
@@ -70,7 +85,9 @@ function CustomSharePanel() {
 
   // Refs for dropdown positioning
   const settingsButtonRef = React.useRef<HTMLButtonElement>(null)
+  const mobileMenuButtonRef = React.useRef<HTMLButtonElement>(null)
   const [settingsDropdownPos, setSettingsDropdownPos] = React.useState<{ top: number; right: number } | null>(null)
+  const [mobileMenuPos, setMobileMenuPos] = React.useState<{ top: number; right: number } | null>(null)
 
   // Get current permission from session
   // Authenticated users default to 'edit', unauthenticated to 'view'
@@ -131,6 +148,17 @@ function CustomSharePanel() {
     }
   }, [showSettingsDropdown])
 
+  // Update mobile menu position when it opens
+  React.useEffect(() => {
+    if (showMobileMenu && mobileMenuButtonRef.current) {
+      const rect = mobileMenuButtonRef.current.getBoundingClientRect()
+      setMobileMenuPos({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right,
+      })
+    }
+  }, [showMobileMenu])
+
   // ESC key handler for closing dropdowns
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -138,14 +166,21 @@ function CustomSharePanel() {
         e.preventDefault()
         e.stopPropagation()
         if (showSettingsDropdown) setShowSettingsDropdown(false)
+        if (showMobileMenu) {
+          if (mobileMenuSection !== 'main') {
+            setMobileMenuSection('main')
+          } else {
+            setShowMobileMenu(false)
+          }
+        }
       }
     }
-    if (showSettingsDropdown) {
+    if (showSettingsDropdown || showMobileMenu) {
       // Use capture phase to intercept before tldraw
       document.addEventListener('keydown', handleKeyDown, true)
     }
     return () => document.removeEventListener('keydown', handleKeyDown, true)
-  }, [showSettingsDropdown])
+  }, [showSettingsDropdown, showMobileMenu, mobileMenuSection])
 
   // Detect dark mode - use state to trigger re-render on change
   const [isDarkMode, setIsDarkMode] = React.useState(
@@ -352,6 +387,437 @@ function CustomSharePanel() {
       opacity: 0.5,
     }} />
   )
+
+  // Mobile consolidated menu component
+  const MobileMenu = () => (
+    <div
+      className="tlui-share-zone"
+      draggable={false}
+      style={{
+        position: 'fixed',
+        top: '8px',
+        right: '8px',
+        pointerEvents: 'all',
+        zIndex: 1000,
+      }}
+    >
+      {/* Single gear icon for mobile - positioned to match top-left menu */}
+      <button
+        ref={mobileMenuButtonRef}
+        onClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setShowMobileMenu(!showMobileMenu)
+          setMobileMenuSection('main')
+        }}
+        onPointerDown={(e) => {
+          e.stopPropagation()
+        }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: '32px',
+          height: '32px',
+          borderRadius: '8px',
+          background: isDarkMode ? '#2d2d2d' : '#f3f4f6',
+          border: `1px solid ${isDarkMode ? '#404040' : '#e5e7eb'}`,
+          boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
+          cursor: 'pointer',
+          color: 'var(--color-text-1)',
+          transition: 'all 0.15s',
+          pointerEvents: 'all',
+          touchAction: 'manipulation',
+          WebkitTapHighlightColor: 'transparent',
+        }}
+        title="Menu"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
+
+      {/* Mobile menu dropdown */}
+      {showMobileMenu && mobileMenuPos && createPortal(
+        <>
+          {/* Backdrop */}
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 99998,
+              background: 'rgba(0,0,0,0.3)',
+            }}
+            onClick={() => {
+              setShowMobileMenu(false)
+              setMobileMenuSection('main')
+            }}
+          />
+          {/* Menu */}
+          <div
+            style={{
+              position: 'fixed',
+              top: mobileMenuPos.top,
+              right: Math.max(8, mobileMenuPos.right - 100),
+              width: 'calc(100vw - 16px)',
+              maxWidth: '320px',
+              maxHeight: '70vh',
+              overflowY: 'auto',
+              background: 'var(--color-panel)',
+              border: '1px solid var(--color-panel-contrast)',
+              borderRadius: '12px',
+              boxShadow: isDarkMode ? '0 4px 24px rgba(0,0,0,0.6)' : '0 4px 24px rgba(0,0,0,0.2)',
+              zIndex: 99999,
+              padding: '8px 0',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Main menu */}
+            {mobileMenuSection === 'main' && (
+              <>
+                {/* Header */}
+                <div style={{
+                  padding: '8px 16px 12px',
+                  borderBottom: '1px solid var(--color-panel-contrast)',
+                  marginBottom: '4px',
+                }}>
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)' }}>
+                    Menu
+                  </span>
+                </div>
+
+                {/* Sign In / Account */}
+                <button
+                  onClick={() => setMobileMenuSection('signin')}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--color-text)',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '18px' }}>👤</span>
+                    <span>{session.authed ? `@${session.username}` : 'Sign In'}</span>
+                  </span>
+                  <span style={{ color: 'var(--color-text-3)' }}>→</span>
+                </button>
+
+                {/* Share */}
+                <div style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '18px' }}>🔗</span>
+                  <ShareBoardButton className="mobile-menu-item" />
+                </div>
+
+                {/* Star */}
+                <div style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ fontSize: '18px' }}>⭐</span>
+                  <StarBoardButton className="mobile-menu-item" />
+                </div>
+
+                <div style={{ height: '1px', background: 'var(--color-panel-contrast)', margin: '8px 0' }} />
+
+                {/* Appearance */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 16px',
+                }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '14px', color: 'var(--color-text)' }}>
+                    <span style={{ fontSize: '18px' }}>🎨</span>
+                    <span>Dark Mode</span>
+                  </span>
+                  <button
+                    onClick={handleToggleDarkMode}
+                    style={{
+                      width: '44px',
+                      height: '24px',
+                      borderRadius: '12px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: isDarkMode ? '#3b82f6' : '#d1d5db',
+                      position: 'relative',
+                      transition: 'background 0.2s',
+                    }}
+                  >
+                    <div style={{
+                      width: '20px',
+                      height: '20px',
+                      borderRadius: '10px',
+                      background: 'white',
+                      position: 'absolute',
+                      top: '2px',
+                      left: isDarkMode ? '22px' : '2px',
+                      transition: 'left 0.2s',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                    }} />
+                  </button>
+                </div>
+
+                {/* Settings */}
+                <button
+                  onClick={() => setMobileMenuSection('settings')}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--color-text)',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '18px' }}>⚙️</span>
+                    <span>Settings & Permissions</span>
+                  </span>
+                  <span style={{ color: 'var(--color-text-3)' }}>→</span>
+                </button>
+
+                {/* Keyboard Shortcuts */}
+                <button
+                  onClick={() => {
+                    setShowMobileMenu(false)
+                    openCommandPalette()
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '12px 16px',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--color-text)',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '18px' }}>⌨️</span>
+                    <span>Keyboard Shortcuts</span>
+                  </span>
+                </button>
+
+                {/* API Keys */}
+                <button
+                  onClick={() => {
+                    setShowMobileMenu(false)
+                    handleManageApiKeys()
+                  }}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '12px 16px',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--color-text)',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '18px' }}>🔑</span>
+                    <span>API Keys</span>
+                  </span>
+                </button>
+              </>
+            )}
+
+            {/* Sign In Section */}
+            {mobileMenuSection === 'signin' && (
+              <>
+                {/* Back button */}
+                <button
+                  onClick={() => setMobileMenuSection('main')}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '12px 16px',
+                    background: 'none',
+                    border: 'none',
+                    borderBottom: '1px solid var(--color-panel-contrast)',
+                    cursor: 'pointer',
+                    color: 'var(--color-text)',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <span>←</span>
+                  <span style={{ fontWeight: 600 }}>Account</span>
+                </button>
+                <div style={{ padding: '16px' }}>
+                  {/* Render CryptIDDropdown which handles its own modal */}
+                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <CryptIDDropdown isDarkMode={isDarkMode} />
+                  </div>
+                  {session.authed && (
+                    <div style={{ marginTop: '16px', textAlign: 'center' }}>
+                      <p style={{ fontSize: '12px', color: 'var(--color-text-3)', marginBottom: '8px' }}>
+                        Signed in as <strong>@{session.username}</strong>
+                      </p>
+                      {session.email && (
+                        <p style={{ fontSize: '11px', color: 'var(--color-text-3)' }}>
+                          {session.email}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Settings Section */}
+            {mobileMenuSection === 'settings' && (
+              <>
+                {/* Back button */}
+                <button
+                  onClick={() => setMobileMenuSection('main')}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '12px 16px',
+                    background: 'none',
+                    border: 'none',
+                    borderBottom: '1px solid var(--color-panel-contrast)',
+                    cursor: 'pointer',
+                    color: 'var(--color-text)',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <span>←</span>
+                  <span style={{ fontWeight: 600 }}>Settings & Permissions</span>
+                </button>
+
+                {/* Permission info */}
+                <div style={{ padding: '16px' }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: '12px',
+                  }}>
+                    <span style={{ fontSize: '12px', color: 'var(--color-text-3)' }}>Your Permission</span>
+                    <span style={{
+                      fontSize: '11px',
+                      padding: '4px 10px',
+                      borderRadius: '12px',
+                      background: `${PERMISSION_CONFIG[currentPermission].color}20`,
+                      color: PERMISSION_CONFIG[currentPermission].color,
+                      fontWeight: 600,
+                    }}>
+                      {PERMISSION_CONFIG[currentPermission].icon} {PERMISSION_CONFIG[currentPermission].label}
+                    </span>
+                  </div>
+
+                  {/* Request higher permission */}
+                  {session.authed && currentPermission !== 'admin' && (
+                    <button
+                      onClick={() => handleRequestPermission(currentPermission === 'view' ? 'edit' : 'admin')}
+                      disabled={permissionRequestStatus === 'sending'}
+                      style={{
+                        width: '100%',
+                        padding: '10px',
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        fontFamily: 'inherit',
+                        borderRadius: '8px',
+                        border: '1px solid var(--color-primary, #3b82f6)',
+                        background: 'transparent',
+                        color: 'var(--color-primary, #3b82f6)',
+                        cursor: permissionRequestStatus === 'sending' ? 'wait' : 'pointer',
+                        marginBottom: '12px',
+                      }}
+                    >
+                      {permissionRequestStatus === 'sending' ? 'Sending...' :
+                       permissionRequestStatus === 'sent' ? 'Request Sent!' :
+                       `Request ${currentPermission === 'view' ? 'Edit' : 'Admin'} Access`}
+                    </button>
+                  )}
+
+                  {/* Board protection toggle for admins */}
+                  {isBoardAdmin && (
+                    <div style={{
+                      padding: '12px',
+                      background: 'var(--color-muted-2)',
+                      borderRadius: '8px',
+                      marginTop: '8px',
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: '8px',
+                      }}>
+                        <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text)' }}>
+                          🛡️ View-only Mode
+                        </span>
+                        <button
+                          onClick={handleToggleProtection}
+                          disabled={protectionLoading}
+                          style={{
+                            width: '44px',
+                            height: '24px',
+                            borderRadius: '12px',
+                            border: 'none',
+                            cursor: protectionLoading ? 'not-allowed' : 'pointer',
+                            background: boardProtected ? '#3b82f6' : '#d1d5db',
+                            position: 'relative',
+                            transition: 'background 0.2s',
+                          }}
+                        >
+                          <div style={{
+                            width: '20px',
+                            height: '20px',
+                            borderRadius: '10px',
+                            background: 'white',
+                            position: 'absolute',
+                            top: '2px',
+                            left: boardProtected ? '22px' : '2px',
+                            transition: 'left 0.2s',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                          }} />
+                        </button>
+                      </div>
+                      <p style={{ fontSize: '11px', color: 'var(--color-text-3)', margin: 0 }}>
+                        {boardProtected ? 'Only listed editors can make changes' : 'Anyone can edit this board'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </>,
+        document.body
+      )}
+    </div>
+  )
+
+  // Return mobile menu on small screens, full menu on larger screens
+  if (isMobile) {
+    return <MobileMenu />
+  }
 
   return (
     <div className="tlui-share-zone" draggable={false} style={{ position: 'relative' }}>

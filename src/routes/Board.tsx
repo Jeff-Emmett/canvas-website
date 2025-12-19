@@ -1459,14 +1459,14 @@ export function Board() {
             <PrivateWorkspaceManager />
             <VisibilityChangeManager />
           </Tldraw>
-          {/* Anonymous viewer banner - show for unauthenticated users or when edit was attempted */}
-          {/* Wait for auth to finish loading to avoid flash, then show if not authed or edit triggered */}
+          {/* Anonymous viewer banner - REMOVED: Anonymous users can now edit freely
           {!session.loading && (!session.authed || showEditPrompt) && (
             <AnonymousViewerBanner
               onAuthenticated={handleAuthenticated}
               triggeredByEdit={showEditPrompt}
             />
           )}
+          */}
         </div>
         </LiveImageProvider>
       </ConnectionProvider>

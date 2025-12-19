@@ -160,7 +160,10 @@ interface NetworkGraphPanelProps {
 export function NetworkGraphPanel({ onExpand }: NetworkGraphPanelProps) {
   const editor = useEditor();
   const { session } = useAuth();
-  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  // Start collapsed on mobile for less cluttered UI
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+  const [isCollapsed, setIsCollapsed] = useState(isMobile);
   const [selectedEdge, setSelectedEdge] = useState<GraphEdge | null>(null);
 
   // Broadcast mode state - tracks who we're following

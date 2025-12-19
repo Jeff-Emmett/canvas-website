@@ -802,7 +802,7 @@ interface ConversationMessage {
   executedTransform?: TransformCommand
 }
 
-// Connection status indicator component - unobtrusive inline display
+// Connection status indicator component - appears below MI bar as status update
 interface ConnectionStatusProps {
   connectionState: 'disconnected' | 'connecting' | 'connected' | 'reconnecting'
   isNetworkOnline: boolean
@@ -810,46 +810,81 @@ interface ConnectionStatusProps {
 }
 
 function ConnectionStatusBadge({ connectionState, isNetworkOnline, isDark }: ConnectionStatusProps) {
-  // Don't show anything when fully connected and online
-  if (connectionState === 'connected' && isNetworkOnline) {
-    return null
-  }
+  const [showLiveStatus, setShowLiveStatus] = useState(false)
+  const [wasDisconnected, setWasDisconnected] = useState(false)
+  const prevConnectionState = useRef(connectionState)
+  const prevNetworkOnline = useRef(isNetworkOnline)
 
+  // Track when we transition from disconnected/reconnecting to connected
+  useEffect(() => {
+    const wasOffline = !prevNetworkOnline.current ||
+      prevConnectionState.current === 'disconnected' ||
+      prevConnectionState.current === 'reconnecting' ||
+      prevConnectionState.current === 'connecting'
+
+    const isNowConnected = connectionState === 'connected' && isNetworkOnline
+
+    // If we just connected after being disconnected, show "Live" for 5 seconds
+    if (wasOffline && isNowConnected && wasDisconnected) {
+      setShowLiveStatus(true)
+      const timer = setTimeout(() => {
+        setShowLiveStatus(false)
+      }, 5000)
+      return () => clearTimeout(timer)
+    }
+
+    // Track if we've been disconnected
+    if (!isNetworkOnline || connectionState === 'disconnected' || connectionState === 'reconnecting') {
+      setWasDisconnected(true)
+    }
+
+    prevConnectionState.current = connectionState
+    prevNetworkOnline.current = isNetworkOnline
+  }, [connectionState, isNetworkOnline, wasDisconnected])
+
+  // Determine what to show
   const getStatusConfig = () => {
-    if (!isNetworkOnline) {
+    // Offline use - persistent while offline
+    if (!isNetworkOnline || connectionState === 'disconnected') {
       return {
         icon: '📴',
-        label: 'Offline',
+        label: 'Offline use',
+        message: 'Changes saved locally and will sync on reconnection',
         color: isDark ? '#a78bfa' : '#8b5cf6',
+        bgColor: isDark ? 'rgba(139, 92, 246, 0.12)' : 'rgba(139, 92, 246, 0.08)',
+        borderColor: isDark ? 'rgba(139, 92, 246, 0.25)' : 'rgba(139, 92, 246, 0.15)',
         pulse: false,
       }
     }
 
-    switch (connectionState) {
-      case 'connecting':
-        return {
-          icon: '🌱',
-          label: 'Connecting',
-          color: '#f59e0b',
-          pulse: true,
-        }
-      case 'reconnecting':
-        return {
-          icon: '🔄',
-          label: 'Reconnecting',
-          color: '#f59e0b',
-          pulse: true,
-        }
-      case 'disconnected':
-        return {
-          icon: '🍄',
-          label: 'Local',
-          color: isDark ? '#a78bfa' : '#8b5cf6',
-          pulse: false,
-        }
-      default:
-        return null
+    // Reconnecting - while connection is being established
+    if (connectionState === 'reconnecting' || connectionState === 'connecting') {
+      return {
+        icon: '🔄',
+        label: 'Reconnecting',
+        message: 'Your changes are safe locally, syncing to live board now',
+        color: '#f59e0b',
+        bgColor: isDark ? 'rgba(245, 158, 11, 0.12)' : 'rgba(245, 158, 11, 0.08)',
+        borderColor: isDark ? 'rgba(245, 158, 11, 0.25)' : 'rgba(245, 158, 11, 0.15)',
+        pulse: true,
+      }
     }
+
+    // Live - shows for 5 seconds after connection established
+    if (connectionState === 'connected' && isNetworkOnline && showLiveStatus) {
+      return {
+        icon: '✨',
+        label: 'Live',
+        message: 'Your changes synced',
+        color: '#10b981',
+        bgColor: isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.08)',
+        borderColor: isDark ? 'rgba(16, 185, 129, 0.25)' : 'rgba(16, 185, 129, 0.15)',
+        pulse: false,
+      }
+    }
+
+    // Fully connected and not showing live status - show nothing
+    return null
   }
 
   const config = getStatusConfig()
@@ -860,26 +895,21 @@ function ConnectionStatusBadge({ connectionState, isNetworkOnline, isDark }: Con
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: '4px',
-        padding: '2px 8px',
-        borderRadius: '12px',
-        backgroundColor: isDark ? 'rgba(139, 92, 246, 0.15)' : 'rgba(139, 92, 246, 0.1)',
-        border: `1px solid ${isDark ? 'rgba(139, 92, 246, 0.3)' : 'rgba(139, 92, 246, 0.2)'}`,
-        fontSize: '10px',
+        justifyContent: 'center',
+        gap: '6px',
+        padding: '4px 12px',
+        fontSize: '11px',
         fontWeight: 500,
         color: config.color,
-        animation: config.pulse ? 'connectionPulse 2s infinite' : undefined,
-        flexShrink: 0,
+        backgroundColor: config.bgColor,
+        borderTop: `1px solid ${config.borderColor}`,
+        animation: config.pulse ? 'connectionPulse 2s infinite' : 'fadeIn 0.3s ease',
+        transition: 'all 0.3s ease',
       }}
-      title={!isNetworkOnline
-        ? 'Working offline - changes saved locally and will sync when reconnected'
-        : connectionState === 'reconnecting'
-          ? 'Reconnecting to server - your changes are safe'
-          : 'Connecting to server...'
-      }
     >
-      <span style={{ fontSize: '11px' }}>{config.icon}</span>
-      <span>{config.label}</span>
+      <span style={{ fontSize: '12px' }}>{config.icon}</span>
+      <span style={{ fontWeight: 600 }}>{config.label}</span>
+      <span style={{ opacity: 0.8, fontSize: '10px' }}>— {config.message}</span>
     </div>
   )
 }
@@ -1468,9 +1498,9 @@ export function MycelialIntelligenceBar() {
       className="mycelial-intelligence-bar"
       style={{
         position: 'fixed',
-        // On mobile: bottom of screen, on desktop: top center
-        top: isMobile ? 'auto' : '10px',
-        bottom: isMobile ? '70px' : 'auto', // Above bottom toolbar on mobile
+        // On mobile: top of screen beneath menus, on desktop: top center
+        top: isMobile ? '48px' : '10px', // Position below top menus on mobile
+        bottom: 'auto',
         left: '50%',
         transform: 'translateX(-50%)',
         width: barWidth,
@@ -1589,13 +1619,6 @@ export function MycelialIntelligenceBar() {
                   outline: 'none',
                 }}
               />
-
-            {/* Connection status indicator - unobtrusive */}
-            <ConnectionStatusBadge
-              connectionState={connectionState}
-              isNetworkOnline={isNetworkOnline}
-              isDark={isDark}
-            />
 
             {/* Indexing indicator */}
             {isIndexing && (
@@ -1790,12 +1813,6 @@ export function MycelialIntelligenceBar() {
                 }}>
                   <span style={{ fontStyle: 'italic', opacity: 0.85 }}>ask your mycelial intelligence anything about this workspace</span>
                 </span>
-                {/* Connection status in expanded header */}
-                <ConnectionStatusBadge
-                  connectionState={connectionState}
-                  isNetworkOnline={isNetworkOnline}
-                  isDark={isDark}
-                />
                 {isIndexing && (
                   <span style={{
                     color: colors.textMuted,
@@ -2178,6 +2195,13 @@ export function MycelialIntelligenceBar() {
             </div>
           </>
         )}
+
+        {/* Connection status badge - appears at bottom of MI bar as status update */}
+        <ConnectionStatusBadge
+          connectionState={connectionState}
+          isNetworkOnline={isNetworkOnline}
+          isDark={isDark}
+        />
       </div>
 
       {/* CSS animations */}
@@ -2199,6 +2223,10 @@ export function MycelialIntelligenceBar() {
         @keyframes connectionPulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.6; }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-4px); }
+          to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
     </div>
