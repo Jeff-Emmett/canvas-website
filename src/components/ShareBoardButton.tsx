@@ -18,6 +18,22 @@ const PERMISSION_LABELS: Record<PermissionType, { label: string; description: st
 const ShareBoardButton: React.FC<ShareBoardButtonProps> = ({ className = '' }) => {
   const { slug } = useParams<{ slug: string }>();
   const [showDropdown, setShowDropdown] = useState(false);
+
+  // Detect dark mode
+  const [isDarkMode, setIsDarkMode] = useState(
+    typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
+  );
+  useEffect(() => {
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'class') {
+          setIsDarkMode(document.documentElement.classList.contains('dark'));
+        }
+      });
+    });
+    observer.observe(document.documentElement, { attributes: true });
+    return () => observer.disconnect();
+  }, []);
   const [copied, setCopied] = useState(false);
   const [permission, setPermission] = useState<PermissionType>('edit');
   const [nfcStatus, setNfcStatus] = useState<'idle' | 'writing' | 'success' | 'error' | 'unsupported'>('idle');
@@ -208,13 +224,13 @@ const ShareBoardButton: React.FC<ShareBoardButtonProps> = ({ className = '' }) =
               top: dropdownPosition.top,
               right: dropdownPosition.right,
               width: '340px',
-              background: 'var(--color-panel)',
-              backgroundColor: 'var(--color-panel)',
+              background: isDarkMode ? '#2d2d2d' : '#ffffff',
+              backgroundColor: isDarkMode ? '#2d2d2d' : '#ffffff',
               backdropFilter: 'none',
               opacity: 1,
-              border: '1px solid var(--color-panel-contrast)',
+              border: `1px solid ${isDarkMode ? '#404040' : '#e5e5e5'}`,
               borderRadius: '12px',
-              boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+              boxShadow: isDarkMode ? '0 8px 32px rgba(0,0,0,0.5)' : '0 8px 32px rgba(0,0,0,0.2)',
               zIndex: 100000,
               overflow: 'hidden',
               pointerEvents: 'all',
