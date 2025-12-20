@@ -116,6 +116,7 @@ import { VideoChatShape } from "@/shapes/VideoChatShapeUtil"
 import { EmbedShape } from "@/shapes/EmbedShapeUtil"
 import { MarkdownShape } from "@/shapes/MarkdownShapeUtil"
 import { MycrozineTemplateShape } from "@/shapes/MycrozineTemplateShapeUtil"
+import { MycroZineGeneratorShape } from "@/shapes/MycroZineGeneratorShapeUtil"
 import { SlideShape } from "@/shapes/SlideShapeUtil"
 import { PromptShape } from "@/shapes/PromptShapeUtil"
 import { TranscriptionShape } from "@/shapes/TranscriptionShapeUtil"
@@ -154,6 +155,7 @@ export function useAutomergeStoreV2({
       EmbedShape,
       MarkdownShape,
       MycrozineTemplateShape,
+      MycroZineGeneratorShape,
       SlideShape,
       PromptShape,
       TranscriptionShape,
@@ -177,6 +179,7 @@ export function useAutomergeStoreV2({
       'Embed',
       'Markdown',
       'MycrozineTemplate',
+      'MycroZineGenerator',
       'Slide',
       'Prompt',
       'Transcription',
