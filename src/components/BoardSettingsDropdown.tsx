@@ -36,6 +36,7 @@ const BoardSettingsDropdown: React.FC<BoardSettingsDropdownProps> = ({ className
   const [updating, setUpdating] = useState(false);
   const [requestingAdmin, setRequestingAdmin] = useState(false);
   const [adminRequestSent, setAdminRequestSent] = useState(false);
+  const [adminRequestError, setAdminRequestError] = useState<string | null>(null);
   const [inviteInput, setInviteInput] = useState('');
   const [inviteStatus, setInviteStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
 
@@ -120,6 +121,7 @@ const BoardSettingsDropdown: React.FC<BoardSettingsDropdownProps> = ({ className
     if (requestingAdmin || adminRequestSent) return;
 
     setRequestingAdmin(true);
+    setAdminRequestError(null);
     try {
       const headers = getAuthHeaders();
       const res = await fetch(`${WORKER_URL}/admin/request`, {
@@ -128,11 +130,16 @@ const BoardSettingsDropdown: React.FC<BoardSettingsDropdownProps> = ({ className
         body: JSON.stringify({ reason: `Requesting admin access for board: ${boardId}` }),
       });
 
-      if (res.ok) {
+      const data = await res.json() as { success?: boolean; message?: string; error?: string };
+
+      if (res.ok && data.success) {
         setAdminRequestSent(true);
+      } else {
+        setAdminRequestError(data.error || data.message || 'Failed to send request');
       }
     } catch (error) {
       console.error('Failed to request admin:', error);
+      setAdminRequestError('Network error - please try again');
     } finally {
       setRequestingAdmin(false);
     }
@@ -514,8 +521,8 @@ const BoardSettingsDropdown: React.FC<BoardSettingsDropdownProps> = ({ className
                     style={{
                       width: '100%',
                       padding: '10px',
-                      backgroundColor: adminRequestSent ? '#10b981' : 'var(--color-muted-2)',
-                      color: adminRequestSent ? 'white' : 'var(--color-text)',
+                      backgroundColor: adminRequestSent ? '#10b981' : adminRequestError ? '#ef4444' : 'var(--color-muted-2)',
+                      color: adminRequestSent || adminRequestError ? 'white' : 'var(--color-text)',
                       border: '1px solid var(--color-panel-contrast)',
                       borderRadius: '8px',
                       cursor: requestingAdmin || adminRequestSent ? 'not-allowed' : 'pointer',
@@ -524,8 +531,13 @@ const BoardSettingsDropdown: React.FC<BoardSettingsDropdownProps> = ({ className
                       fontFamily: 'inherit',
                     }}
                   >
-                    {requestingAdmin ? 'Sending request...' : adminRequestSent ? 'Request Sent!' : 'Request Admin Access'}
+                    {requestingAdmin ? 'Sending request...' : adminRequestSent ? 'Request Sent!' : adminRequestError ? 'Retry Request' : 'Request Admin Access'}
                   </button>
+                  {adminRequestError && (
+                    <div style={{ fontSize: '10px', color: '#ef4444', marginTop: '6px', textAlign: 'center' }}>
+                      {adminRequestError}
+                    </div>
+                  )}
                   <div style={{ fontSize: '10px', color: 'var(--color-text-3)', marginTop: '6px', textAlign: 'center' }}>
                     Admin requests are sent to jeffemmett@gmail.com
                   </div>
