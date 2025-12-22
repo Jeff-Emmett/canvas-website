@@ -11,7 +11,13 @@ import React, { useState, useRef, useEffect } from "react"
 import { StandardizedToolWrapper } from "@/components/StandardizedToolWrapper"
 import { usePinnedToView } from "@/hooks/usePinnedToView"
 import { useMaximize } from "@/hooks/useMaximize"
-// Note: Image generation now uses zine.jeffemmett.com API which proxies through RunPod
+// Uses zine.jeffemmett.com API for full zine generation workflow:
+// - /api/outline - AI-generated 8-page outlines via Gemini
+// - /api/generate-page - Individual page image generation via RunPod
+// - /api/regenerate-page - Page regeneration with feedback
+// - /api/print-layout - 300 DPI print-ready layout generation
+
+const ZINE_API_BASE = 'https://zine.jeffemmett.com'
 
 // ============================================================================
 // Types
@@ -262,7 +268,7 @@ export class MycroZineGeneratorShape extends BaseBoxShapeUtil<IMycroZineGenerato
       return newMessage
     }
 
-    // Generate content outline from ideation
+    // Generate content outline from ideation using AI API
     const generateOutline = async () => {
       if (!shape.props.topic) {
         updateProps({ error: 'Please enter a topic first' })
@@ -272,26 +278,58 @@ export class MycroZineGeneratorShape extends BaseBoxShapeUtil<IMycroZineGenerato
       updateProps({ isLoading: true, error: null })
 
       try {
-        // Build outline based on topic and conversation
-        const outline: ZinePageOutline[] = PAGE_TEMPLATES.map((template, index) => ({
-          pageNumber: index + 1,
-          type: template.type as 'cover' | 'content' | 'cta',
-          title: index === 0 ? shape.props.topic.toUpperCase() : `Page ${index + 1}`,
-          subtitle: template.description,
-          keyPoints: [],
+        // Call the standalone zine API for AI-generated outline
+        const response = await fetch(`${ZINE_API_BASE}/api/outline`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            topic: shape.props.topic,
+            style: shape.props.style,
+            tone: shape.props.tone,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({})) as { error?: string }
+          throw new Error(errorData.error || `API error: ${response.status}`)
+        }
+
+        const data = await response.json() as {
+          id: string
+          outline: Array<{
+            pageNumber: number
+            type: string
+            title: string
+            keyPoints: string[]
+            imagePrompt: string
+          }>
+        }
+
+        // Convert API response to our outline format
+        const outline: ZinePageOutline[] = data.outline.map((page) => ({
+          pageNumber: page.pageNumber,
+          type: page.type as 'cover' | 'content' | 'cta',
+          title: page.title,
+          subtitle: undefined,
+          keyPoints: page.keyPoints,
           hashtags: [],
-          imagePrompt: `${STYLES[shape.props.style]}. ${TONES[shape.props.tone]}. ${template.description} for ${shape.props.topic}.`,
+          imagePrompt: page.imagePrompt,
         }))
 
+        // Store the zine ID from the API for later use
+        const newZineId = data.id
+
         // Add assistant message with outline summary
-        addMessage('assistant', `Great! I've created an outline for your "${shape.props.topic}" zine:\n\n${outline.map(p => `Page ${p.pageNumber}: ${p.title}`).join('\n')}\n\nClick "Generate Drafts" when you're ready to create the pages!`)
+        addMessage('assistant', `Great! I've created an AI-generated outline for your "${shape.props.topic}" zine:\n\n${outline.map(p => `Page ${p.pageNumber}: ${p.title}\n  • ${p.keyPoints.slice(0, 2).join('\n  • ')}`).join('\n\n')}\n\nClick "Generate Drafts" when you're ready to create the pages!`)
 
         updateProps({
+          zineId: newZineId,
           contentOutline: outline,
-          title: shape.props.topic.toUpperCase(),
+          title: outline[0]?.title || shape.props.topic.toUpperCase(),
           isLoading: false,
         })
       } catch (err) {
+        console.error('Outline generation error:', err)
         updateProps({
           isLoading: false,
           error: `Failed to generate outline: ${err instanceof Error ? err.message : String(err)}`,
@@ -323,7 +361,7 @@ export class MycroZineGeneratorShape extends BaseBoxShapeUtil<IMycroZineGenerato
       }
     }
 
-    // Generate draft pages using Gemini
+    // Generate draft pages using the standalone zine API
     const generateDrafts = async () => {
       if (!shape.props.contentOutline) {
         await generateOutline()
@@ -338,6 +376,7 @@ export class MycroZineGeneratorShape extends BaseBoxShapeUtil<IMycroZineGenerato
       })
 
       const outline = shape.props.contentOutline!
+      const zineId = shape.props.zineId
       const generatedPages: GeneratedZinePage[] = []
 
       for (let i = 0; i < outline.length; i++) {
@@ -345,19 +384,34 @@ export class MycroZineGeneratorShape extends BaseBoxShapeUtil<IMycroZineGenerato
         updateProps({ currentGeneratingPage: i + 1 })
 
         try {
-          // Build the image generation prompt
-          const prompt = buildImagePrompt(pageOutline, shape.props.topic, shape.props.style, shape.props.tone)
+          // Call the standalone zine API for page generation
+          const response = await fetch(`${ZINE_API_BASE}/api/generate-page`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              zineId: zineId,
+              pageNumber: i + 1,
+              outline: pageOutline,
+              style: shape.props.style,
+              tone: shape.props.tone,
+            }),
+          })
 
-          // Call Gemini MCP for image generation
-          // Note: In actual implementation, this would call the MCP server
-          // For now, we'll use a placeholder approach
-          const imageUrl = await generatePageImage(prompt, i + 1)
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({})) as { error?: string }
+            throw new Error(errorData.error || `API error: ${response.status}`)
+          }
+
+          const data = await response.json() as { pageNumber: number; imageUrl: string; success: boolean }
+
+          // Use the API-returned image URL
+          const imageUrl = `${ZINE_API_BASE}${data.imageUrl}`
 
           generatedPages.push({
             pageNumber: i + 1,
             imageUrl,
             outline: pageOutline,
-            generationPrompt: prompt,
+            generationPrompt: pageOutline.imagePrompt,
             timestamp: Date.now(),
             version: 1,
           })
@@ -374,6 +428,7 @@ export class MycroZineGeneratorShape extends BaseBoxShapeUtil<IMycroZineGenerato
           updateProps({
             error: `Failed to generate page ${i + 1}: ${err instanceof Error ? err.message : String(err)}`,
           })
+          // Continue with remaining pages even if one fails
         }
       }
 
@@ -418,7 +473,7 @@ export class MycroZineGeneratorShape extends BaseBoxShapeUtil<IMycroZineGenerato
       f => f.approved || f.feedbackText.length > 0
     )
 
-    // Move to finalization
+    // Move to finalization - regenerate pages with feedback using API
     const startFinalization = async () => {
       const pagesNeedingUpdate = shape.props.pageFeedback.filter(f => !f.approved && f.feedbackText)
 
@@ -438,6 +493,7 @@ export class MycroZineGeneratorShape extends BaseBoxShapeUtil<IMycroZineGenerato
       })
 
       const finalPages = [...shape.props.draftPages]
+      const zineId = shape.props.zineId
 
       for (const feedback of pagesNeedingUpdate) {
         updateProps({ currentGeneratingPage: feedback.pageNumber })
@@ -446,19 +502,45 @@ export class MycroZineGeneratorShape extends BaseBoxShapeUtil<IMycroZineGenerato
           const originalPage = shape.props.draftPages.find(p => p.pageNumber === feedback.pageNumber)
           if (!originalPage) continue
 
-          // Regenerate with feedback incorporated
-          const prompt = `${originalPage.generationPrompt}\n\nIMPORTANT REVISIONS: ${feedback.feedbackText}`
-          const imageUrl = await generatePageImage(prompt, feedback.pageNumber)
+          // Call the standalone API to regenerate with feedback
+          const response = await fetch(`${ZINE_API_BASE}/api/regenerate-page`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              zineId: zineId,
+              pageNumber: feedback.pageNumber,
+              currentOutline: originalPage.outline,
+              feedback: feedback.feedbackText,
+              style: shape.props.style,
+              tone: shape.props.tone,
+            }),
+          })
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({})) as { error?: string }
+            throw new Error(errorData.error || `API error: ${response.status}`)
+          }
+
+          const data = await response.json() as {
+            imageUrl: string
+            updatedOutline: ZinePageOutline
+          }
+
+          const imageUrl = `${ZINE_API_BASE}${data.imageUrl}`
 
           finalPages[feedback.pageNumber - 1] = {
             ...originalPage,
             imageUrl,
-            generationPrompt: prompt,
+            outline: data.updatedOutline || originalPage.outline,
+            generationPrompt: data.updatedOutline?.imagePrompt || originalPage.generationPrompt,
             timestamp: Date.now(),
             version: originalPage.version + 1,
           }
         } catch (err) {
           console.error(`Failed to regenerate page ${feedback.pageNumber}:`, err)
+          updateProps({
+            error: `Failed to regenerate page ${feedback.pageNumber}: ${err instanceof Error ? err.message : String(err)}`,
+          })
         }
       }
 
@@ -470,23 +552,45 @@ export class MycroZineGeneratorShape extends BaseBoxShapeUtil<IMycroZineGenerato
       })
     }
 
-    // Generate print layout
+    // Generate print layout using the standalone API (300 DPI, proper folding order)
     const generatePrintLayout = async () => {
       updateProps({ isLoading: true, error: null })
 
       try {
-        // In actual implementation, this would call the mycro-zine layout generator
-        // For now, show a success message
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5)
-        const printUrl = `/output/${shape.props.zineId}_print_${timestamp}.png`
+        const zineId = shape.props.zineId
+        const zineName = (shape.props.title || shape.props.topic).slice(0, 20).replace(/[^a-zA-Z0-9]/g, '_')
+
+        // Call the standalone API for print layout generation
+        const response = await fetch(`${ZINE_API_BASE}/api/print-layout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            zineId: zineId,
+            zineName: zineName,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({})) as { error?: string }
+          throw new Error(errorData.error || `API error: ${response.status}`)
+        }
+
+        const data = await response.json() as {
+          success: boolean
+          printLayoutUrl: string
+          filename: string
+        }
+
+        const printUrl = `${ZINE_API_BASE}${data.printLayoutUrl}`
 
         updateProps({
           printLayoutUrl: printUrl,
           isLoading: false,
         })
 
-        addMessage('assistant', `Print layout generated! Your zine is ready to download and print.`)
+        addMessage('assistant', `🖨️ Print layout generated at 300 DPI!\n\nDownload and print on 8.5" × 11" paper (landscape).\n\nFolding instructions:\n1. Fold in half lengthwise (hotdog fold)\n2. Fold in half again\n3. Fold once more to create booklet\n4. Unfold and cut center slit\n5. Refold and push ends together\n6. Pages should now be in order 1-8!`)
       } catch (err) {
+        console.error('Print layout error:', err)
         updateProps({
           isLoading: false,
           error: `Failed to generate print layout: ${err instanceof Error ? err.message : String(err)}`,
@@ -1035,83 +1139,7 @@ export class MycroZineGeneratorShape extends BaseBoxShapeUtil<IMycroZineGenerato
 // Helper Functions
 // ============================================================================
 
-function buildImagePrompt(
-  pageOutline: ZinePageOutline,
-  topic: string,
-  style: ZineStyle,
-  tone: ZineTone
-): string {
-  const styleDesc = STYLES[style]
-  const toneDesc = TONES[tone]
-
-  return `Punk zine page ${pageOutline.pageNumber}/8 for "${topic}".
-
-${pageOutline.imagePrompt}
-
-Title text: "${pageOutline.title}"
-${pageOutline.subtitle ? `Subtitle: "${pageOutline.subtitle}"` : ''}
-${pageOutline.keyPoints.length > 0 ? `Key points: ${pageOutline.keyPoints.join(', ')}` : ''}
-${pageOutline.hashtags.length > 0 ? `Hashtags: ${pageOutline.hashtags.join(' ')}` : ''}
-
-Style: ${styleDesc}
-Tone: ${toneDesc}
-
-High contrast black and white with neon green accent highlights. Xerox texture, DIY cut-and-paste collage aesthetic, rough edges, rebellious feel.`
-}
-
-interface GenerateImageResponse {
-  success: boolean
-  imageData?: string
-  mimeType?: string
-  error?: string
-}
-
-async function generatePageImage(prompt: string, pageNumber: number): Promise<string> {
-  console.log(`🍄 Generating page ${pageNumber} via RunPod proxy...`)
-  console.log(`📝 Prompt preview:`, prompt.substring(0, 100) + '...')
-
-  // Use the mycro-zine API which proxies through RunPod (US-based, bypasses geo-restrictions)
-  const ZINE_API_URL = 'https://zine.jeffemmett.com/api/generate-image'
-
-  try {
-    const response = await fetch(ZINE_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ prompt }),
-    })
-
-    if (!response.ok) {
-      let errorMessage = `HTTP ${response.status}`
-      try {
-        const errorData = await response.json() as { error?: string }
-        if (errorData.error) errorMessage = errorData.error
-      } catch {
-        // Ignore JSON parse errors
-      }
-      console.error(`❌ API error for page ${pageNumber}:`, response.status, errorMessage)
-      throw new Error(errorMessage)
-    }
-
-    const data: GenerateImageResponse = await response.json()
-
-    if (data.success && data.imageData) {
-      console.log(`✅ Page ${pageNumber} generated via RunPod proxy`)
-      // Convert base64 to data URL
-      return `data:${data.mimeType || 'image/png'};base64,${data.imageData}`
-    }
-
-    throw new Error('No image data in response')
-  } catch (error) {
-    console.error(`❌ Generation failed for page ${pageNumber}:`, error)
-    // Fallback to placeholder
-    return `https://via.placeholder.com/825x1275/1a1a1a/00ff00?text=Page+${pageNumber}+%28Generation+Failed%29`
-  }
-}
-
-// Removed direct Gemini API functions - now using zine.jeffemmett.com proxy
-
+// Spawn page images on the canvas in a 4x2 grid
 async function spawnPageOnCanvas(
   editor: any,
   imageUrl: string,
