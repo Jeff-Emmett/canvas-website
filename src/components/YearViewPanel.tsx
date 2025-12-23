@@ -42,9 +42,9 @@ const SHORT_MONTH_NAMES = [
 ]
 
 export const YearViewPanel: React.FC<YearViewPanelProps> = ({
-  onClose,
+  onClose: _onClose,
   onMonthSelect,
-  shapeMode = false,
+  shapeMode: _shapeMode = false,
   initialYear,
 }) => {
   const [currentYear, setCurrentYear] = useState(initialYear || new Date().getFullYear())

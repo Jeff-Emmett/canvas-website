@@ -45,9 +45,9 @@ const isToday = (date: Date) => {
 }
 
 export function CalendarPanel({
-  onClose,
+  onClose: _onClose,
   onEventSelect,
-  shapeMode = false,
+  shapeMode: _shapeMode = false,
   initialView = "month",
   initialDate,
 }: CalendarPanelProps) {
@@ -255,7 +255,7 @@ export function CalendarPanel({
           {date.getDate()}
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: "2px" }}>
-          {dayEvents.slice(0, 3).map((event, i) => (
+          {dayEvents.slice(0, 3).map((event) => (
             <div
               key={event.id}
               style={{

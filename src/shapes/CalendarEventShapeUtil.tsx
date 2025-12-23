@@ -93,7 +93,8 @@ export class CalendarEventShape extends BaseBoxShapeUtil<ICalendarEventShape> {
   }
 
   component(shape: ICalendarEventShape) {
-    const { w, h, props } = shape
+    const { props } = shape
+    const { w, h } = props
     const isSelected = this.editor.getSelectedShapeIds().includes(shape.id)
 
     // Detect dark mode
