@@ -692,6 +692,7 @@ export function CustomToolbar() {
                 isSelected={tools["Markdown"].id === editor.getCurrentToolId()}
               />
             )}
+            {/* MycroZine Generator temporarily disabled for debugging
             {tools["MycroZineGenerator"] && (
               <TldrawUiMenuItem
                 {...tools["MycroZineGenerator"]}
@@ -702,6 +703,7 @@ export function CustomToolbar() {
                 }
               />
             )}
+            */}
             {tools["Prompt"] && (
               <TldrawUiMenuItem
                 {...tools["Prompt"]}

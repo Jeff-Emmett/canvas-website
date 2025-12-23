@@ -148,7 +148,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           <TldrawUiMenuItem {...tools.SlideShape} />
           <TldrawUiMenuItem {...tools.VideoChat} />
           <TldrawUiMenuItem {...tools.FathomMeetings} />
-          <TldrawUiMenuItem {...tools.MycroZineGenerator} />
+          {/* MycroZineGenerator temporarily disabled for debugging */}
         </TldrawUiMenuSubmenu>
       </TldrawUiMenuGroup>
 
