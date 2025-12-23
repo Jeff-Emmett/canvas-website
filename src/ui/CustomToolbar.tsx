@@ -14,7 +14,8 @@ import { createShapeId } from "tldraw"
 import type { ObsidianObsNote } from "../lib/obsidianImporter"
 import { HolonData } from "../lib/HoloSphereService"
 import { FathomMeetingsPanel } from "../components/FathomMeetingsPanel"
-import { WorkflowPalette } from "../components/workflow/WorkflowPalette"
+// TODO: Fix TypeScript errors in workflow files before re-enabling
+// import { WorkflowPalette } from "../components/workflow/WorkflowPalette"
 import { getFathomApiKey, saveFathomApiKey, removeFathomApiKey, isFathomApiKeyConfigured } from "../lib/fathomApiKey"
 import { getMyConnections, updateEdgeMetadata, createConnection, removeConnection, updateTrustLevel } from "../lib/networking/connectionService"
 import { TRUST_LEVEL_COLORS, type TrustLevel, type UserConnectionWithProfile, type EdgeMetadata } from "../lib/networking/types"
@@ -792,13 +793,14 @@ export function CustomToolbar() {
                 isSelected={tools["calendar"].id === editor.getCurrentToolId()}
               />
             )}
-            {/* Workflow Builder - Toggle Palette */}
+            {/* Workflow Builder - Toggle Palette (disabled - TypeScript errors)
             <TldrawUiMenuItem
               id="workflow-palette"
               icon="sticker"
               label="Workflow Blocks"
               onSelect={() => setShowWorkflowPalette(!showWorkflowPalette)}
             />
+            */}
             {/* Refresh All ObsNotes Button */}
             {(() => {
               const allShapes = editor.getCurrentPageShapes()
@@ -826,11 +828,12 @@ export function CustomToolbar() {
         />
       )}
 
-      {/* Workflow Builder Palette */}
+      {/* Workflow Builder Palette (disabled - TypeScript errors)
       <WorkflowPalette
         isOpen={showWorkflowPalette}
         onClose={() => setShowWorkflowPalette(false)}
       />
+      */}
     </>
   )
 }
