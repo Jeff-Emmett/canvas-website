@@ -65,16 +65,15 @@ import { GoogleItemTool } from "@/tools/GoogleItemTool"
 import { MapShape } from "@/shapes/MapShapeUtil"
 import { MapTool } from "@/tools/MapTool"
 // Workflow Builder - Flowy-like workflow blocks
-// TODO: Fix TypeScript errors in workflow files before re-enabling
-// import { WorkflowBlockShape } from "@/shapes/WorkflowBlockShapeUtil"
-// import { WorkflowBlockTool } from "@/tools/WorkflowBlockTool"
+import { WorkflowBlockShape } from "@/shapes/WorkflowBlockShapeUtil"
+import { WorkflowBlockTool } from "@/tools/WorkflowBlockTool"
 // Calendar - Unified calendar with view switching (browser, widget, year)
 import { CalendarShape } from "@/shapes/CalendarShapeUtil"
 import { CalendarTool } from "@/tools/CalendarTool"
 import { CalendarEventShape } from "@/shapes/CalendarEventShapeUtil"
-// TODO: Fix TypeScript errors in workflow files before re-enabling
-// import { registerWorkflowPropagator } from "@/propagators/WorkflowPropagator"
-// import { setupBlockExecutionListener } from "@/lib/workflow/executor"
+// Workflow propagator for real-time data flow
+import { registerWorkflowPropagator } from "@/propagators/WorkflowPropagator"
+import { setupBlockExecutionListener } from "@/lib/workflow/executor"
 import {
   lockElement,
   unlockElement,
@@ -176,7 +175,7 @@ const customShapeUtils = [
   PrivateWorkspaceShape, // Private zone for Google Export data sovereignty
   GoogleItemShape, // Individual items from Google Export with privacy badges
   MapShape, // Open Mapping - OSM map shape
-  // WorkflowBlockShape, // Workflow Builder - Flowy-like blocks (disabled - TypeScript errors)
+  WorkflowBlockShape, // Workflow Builder - Flowy-like blocks
   CalendarShape, // Calendar - Unified with view switching (browser/widget/year)
   CalendarEventShape, // Calendar - Individual event cards
 ]
@@ -201,7 +200,7 @@ const customTools = [
   PrivateWorkspaceTool,
   GoogleItemTool,
   MapTool, // Open Mapping - OSM map tool
-  // WorkflowBlockTool, // Workflow Builder - click-to-place (disabled - TypeScript errors)
+  WorkflowBlockTool, // Workflow Builder - click-to-place
   CalendarTool, // Calendar - Unified with view switching
 ]
 
@@ -1376,9 +1375,8 @@ export function Board() {
             ])
 
             // Register workflow propagator for real-time data flow
-            // TODO: Fix TypeScript errors in workflow files before re-enabling
-            // const cleanupWorkflowPropagator = registerWorkflowPropagator(editor)
-            // const cleanupBlockExecution = setupBlockExecutionListener(editor)
+            const cleanupWorkflowPropagator = registerWorkflowPropagator(editor)
+            const cleanupBlockExecution = setupBlockExecutionListener(editor)
 
             // Clean up corrupted shapes that cause "No nearest point found" errors
             // This typically happens with draw/line shapes that have no points

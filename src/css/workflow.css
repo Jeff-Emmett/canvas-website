@@ -1,0 +1,357 @@
+/**
+ * Workflow Palette Styles
+ *
+ * Styles for the workflow block palette sidebar component.
+ */
+
+/* =============================================================================
+   Palette Container
+   ============================================================================= */
+
+.workflow-palette {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 280px;
+  height: 100vh;
+  background: white;
+  border-right: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  box-shadow: 4px 0 16px rgba(0, 0, 0, 0.08);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+}
+
+/* =============================================================================
+   Header
+   ============================================================================= */
+
+.workflow-palette-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.workflow-palette-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.workflow-palette-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.workflow-palette-close:hover {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+/* =============================================================================
+   Search Bar
+   ============================================================================= */
+
+.workflow-palette-search {
+  position: relative;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.workflow-palette-search-input {
+  width: 100%;
+  padding: 8px 32px 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.workflow-palette-search-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.workflow-palette-search-input::placeholder {
+  color: #9ca3af;
+}
+
+.workflow-palette-search-clear {
+  position: absolute;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+}
+
+.workflow-palette-search-clear:hover {
+  color: #6b7280;
+}
+
+/* =============================================================================
+   Content Area
+   ============================================================================= */
+
+.workflow-palette-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+/* =============================================================================
+   Category Section
+   ============================================================================= */
+
+.workflow-palette-category {
+  margin-bottom: 4px;
+}
+
+.workflow-palette-category-header {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: background-color 0.15s ease;
+}
+
+.workflow-palette-category-header:hover {
+  background: #f3f4f6;
+}
+
+.workflow-palette-category-icon {
+  font-size: 14px;
+  margin-right: 8px;
+}
+
+.workflow-palette-category-label {
+  flex: 1;
+}
+
+.workflow-palette-category-count {
+  font-weight: 400;
+  color: #9ca3af;
+  margin-right: 8px;
+}
+
+.workflow-palette-chevron {
+  font-size: 10px;
+  color: #9ca3af;
+  transition: transform 0.15s ease;
+}
+
+.workflow-palette-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+/* =============================================================================
+   Block Cards
+   ============================================================================= */
+
+.workflow-palette-blocks {
+  padding: 4px 0;
+}
+
+.workflow-palette-block {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  border-left: 3px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.workflow-palette-block:hover {
+  background: #f9fafb;
+}
+
+.workflow-palette-block-icon {
+  font-size: 18px;
+  margin-right: 10px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.workflow-palette-block-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.workflow-palette-block-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #111827;
+  margin-bottom: 2px;
+}
+
+.workflow-palette-block-description {
+  display: block;
+  font-size: 11px;
+  color: #6b7280;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workflow-palette-block-ports {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+
+.workflow-palette-port-count {
+  font-size: 10px;
+  color: #9ca3af;
+  font-family: monospace;
+}
+
+/* =============================================================================
+   Footer
+   ============================================================================= */
+
+.workflow-palette-footer {
+  padding: 12px 16px;
+  border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.workflow-palette-hint {
+  font-size: 11px;
+  color: #6b7280;
+  text-align: center;
+}
+
+/* =============================================================================
+   Scrollbar Styling
+   ============================================================================= */
+
+.workflow-palette-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.workflow-palette-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.workflow-palette-content::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+
+.workflow-palette-content::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+/* =============================================================================
+   Dark Mode Support (optional)
+   ============================================================================= */
+
+@media (prefers-color-scheme: dark) {
+  .workflow-palette {
+    background: #1f2937;
+    border-right-color: #374151;
+  }
+
+  .workflow-palette-header {
+    background: #111827;
+    border-bottom-color: #374151;
+  }
+
+  .workflow-palette-title {
+    color: #f9fafb;
+  }
+
+  .workflow-palette-close {
+    color: #9ca3af;
+  }
+
+  .workflow-palette-close:hover {
+    background: #374151;
+    color: #f9fafb;
+  }
+
+  .workflow-palette-search {
+    border-bottom-color: #374151;
+  }
+
+  .workflow-palette-search-input {
+    background: #111827;
+    border-color: #4b5563;
+    color: #f9fafb;
+  }
+
+  .workflow-palette-search-input:focus {
+    border-color: #6366f1;
+  }
+
+  .workflow-palette-category-header {
+    color: #d1d5db;
+  }
+
+  .workflow-palette-category-header:hover {
+    background: #374151;
+  }
+
+  .workflow-palette-block:hover {
+    background: #374151;
+  }
+
+  .workflow-palette-block-name {
+    color: #f9fafb;
+  }
+
+  .workflow-palette-block-description {
+    color: #9ca3af;
+  }
+
+  .workflow-palette-footer {
+    background: #111827;
+    border-top-color: #374151;
+  }
+}
+
+/* =============================================================================
+   Responsive Adjustments
+   ============================================================================= */
+
+@media (max-width: 640px) {
+  .workflow-palette {
+    width: 100%;
+    max-width: 320px;
+  }
+}
