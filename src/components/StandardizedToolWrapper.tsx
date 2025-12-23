@@ -277,14 +277,13 @@ export const StandardizedToolWrapper: React.FC<StandardizedToolWrapperProps> = (
 
   const contentStyle: React.CSSProperties = {
     width: '100%',
-    height: isMinimized ? 0 : 'calc(100% - 40px)',
+    minHeight: 0, // Allow flex shrinking
     overflow: 'auto',
     position: 'relative',
     pointerEvents: 'auto',
-    transition: 'height 0.2s ease',
     display: 'flex',
     flexDirection: 'column',
-    flex: 1,
+    flex: 1, // Take remaining space after header and tags
   }
 
   const tagsContainerStyle: React.CSSProperties = {

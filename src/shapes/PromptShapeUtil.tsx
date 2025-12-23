@@ -392,6 +392,7 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
     }
 
     const handlePinToggle = () => {
+      console.log('📌 Pin toggle clicked, current state:', shape.props.pinnedToView, '-> new state:', !shape.props.pinnedToView)
       this.editor.updateShape<IPrompt>({
         id: shape.id,
         type: shape.type,
