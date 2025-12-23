@@ -14,6 +14,7 @@ import { createShapeId } from "tldraw"
 import type { ObsidianObsNote } from "../lib/obsidianImporter"
 import { HolonData } from "../lib/HoloSphereService"
 import { FathomMeetingsPanel } from "../components/FathomMeetingsPanel"
+import { WorkflowPalette } from "../components/workflow/WorkflowPalette"
 import { getFathomApiKey, saveFathomApiKey, removeFathomApiKey, isFathomApiKeyConfigured } from "../lib/fathomApiKey"
 import { getMyConnections, updateEdgeMetadata, createConnection, removeConnection, updateTrustLevel } from "../lib/networking/connectionService"
 import { TRUST_LEVEL_COLORS, type TrustLevel, type UserConnectionWithProfile, type EdgeMetadata } from "../lib/networking/types"
@@ -57,6 +58,7 @@ export function CustomToolbar() {
   const [showHolonBrowser, setShowHolonBrowser] = useState(false)
   const [vaultBrowserMode, setVaultBrowserMode] = useState<'keyboard' | 'button'>('keyboard')
   const [showFathomPanel, setShowFathomPanel] = useState(false)
+  const [showWorkflowPalette, setShowWorkflowPalette] = useState(false)
   const profilePopupRef = useRef<HTMLDivElement>(null)
   const [isDarkMode, setIsDarkMode] = useState(getDarkMode())
 
@@ -782,6 +784,21 @@ export function CustomToolbar() {
                 isSelected={tools["Map"].id === editor.getCurrentToolId()}
               />
             )}
+            {tools["calendar"] && (
+              <TldrawUiMenuItem
+                {...tools["calendar"]}
+                icon="calendar"
+                label="Calendar"
+                isSelected={tools["calendar"].id === editor.getCurrentToolId()}
+              />
+            )}
+            {/* Workflow Builder - Toggle Palette */}
+            <TldrawUiMenuItem
+              id="workflow-palette"
+              icon="sticker"
+              label="Workflow Blocks"
+              onSelect={() => setShowWorkflowPalette(!showWorkflowPalette)}
+            />
             {/* Refresh All ObsNotes Button */}
             {(() => {
               const allShapes = editor.getCurrentPageShapes()
@@ -808,6 +825,12 @@ export function CustomToolbar() {
           onClose={() => setShowFathomPanel(false)}
         />
       )}
+
+      {/* Workflow Builder Palette */}
+      <WorkflowPalette
+        isOpen={showWorkflowPalette}
+        onClose={() => setShowWorkflowPalette(false)}
+      />
     </>
   )
 }

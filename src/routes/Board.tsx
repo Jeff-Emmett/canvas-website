@@ -64,6 +64,15 @@ import { GoogleItemTool } from "@/tools/GoogleItemTool"
 // Open Mapping - OSM map shape for geographic visualization
 import { MapShape } from "@/shapes/MapShapeUtil"
 import { MapTool } from "@/tools/MapTool"
+// Workflow Builder - Flowy-like workflow blocks
+import { WorkflowBlockShape } from "@/shapes/WorkflowBlockShapeUtil"
+import { WorkflowBlockTool } from "@/tools/WorkflowBlockTool"
+// Calendar - Unified calendar with view switching (browser, widget, year)
+import { CalendarShape } from "@/shapes/CalendarShapeUtil"
+import { CalendarTool } from "@/tools/CalendarTool"
+import { CalendarEventShape } from "@/shapes/CalendarEventShapeUtil"
+import { registerWorkflowPropagator } from "@/propagators/WorkflowPropagator"
+import { setupBlockExecutionListener } from "@/lib/workflow/executor"
 import {
   lockElement,
   unlockElement,
@@ -84,6 +93,7 @@ import "@/css/anonymous-banner.css"
 import "react-cmdk/dist/cmdk.css"
 import "@/css/style.css"
 import "@/css/obsidian-browser.css"
+import "@/css/workflow.css"
 
 // Helper to validate and fix tldraw IndexKey format
 // tldraw uses fractional indexing where the first letter encodes integer part length:
@@ -164,6 +174,9 @@ const customShapeUtils = [
   PrivateWorkspaceShape, // Private zone for Google Export data sovereignty
   GoogleItemShape, // Individual items from Google Export with privacy badges
   MapShape, // Open Mapping - OSM map shape
+  WorkflowBlockShape, // Workflow Builder - Flowy-like blocks
+  CalendarShape, // Calendar - Unified with view switching (browser/widget/year)
+  CalendarEventShape, // Calendar - Individual event cards
 ]
 const customTools = [
   ChatBoxTool,
@@ -186,6 +199,8 @@ const customTools = [
   PrivateWorkspaceTool,
   GoogleItemTool,
   MapTool, // Open Mapping - OSM map tool
+  WorkflowBlockTool, // Workflow Builder - click-to-place
+  CalendarTool, // Calendar - Unified with view switching
 ]
 
 // Debug: Log tool and shape registration info
@@ -1357,6 +1372,10 @@ export function Board() {
               ChangePropagator,
               ClickPropagator,
             ])
+
+            // Register workflow propagator for real-time data flow
+            const cleanupWorkflowPropagator = registerWorkflowPropagator(editor)
+            const cleanupBlockExecution = setupBlockExecutionListener(editor)
 
             // Clean up corrupted shapes that cause "No nearest point found" errors
             // This typically happens with draw/line shapes that have no points

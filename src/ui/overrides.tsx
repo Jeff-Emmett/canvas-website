@@ -246,6 +246,14 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("map"),
       },
+      calendar: {
+        id: "calendar",
+        icon: "calendar",
+        label: "Calendar",
+        kbd: "ctrl+alt+k",
+        readonlyOk: true,
+        onSelect: () => editor.setCurrentTool("calendar"),
+      },
       // MycelialIntelligence removed - now a permanent UI bar (MycelialIntelligenceBar.tsx)
       hand: {
         ...tools.hand,
