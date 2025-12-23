@@ -145,6 +145,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           <TldrawUiMenuItem {...tools.Multmux} />
           */}
           <TldrawUiMenuItem {...tools.Map} />
+          <TldrawUiMenuItem {...tools.calendar} />
           <TldrawUiMenuItem {...tools.SlideShape} />
           <TldrawUiMenuItem {...tools.VideoChat} />
           <TldrawUiMenuItem {...tools.FathomMeetings} />

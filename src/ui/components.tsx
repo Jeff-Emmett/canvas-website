@@ -1694,6 +1694,7 @@ export const components: TLComponents = {
       tools["ImageGen"],
       // tools["VideoGen"], // Temporarily hidden
       tools["Multmux"],
+      tools["calendar"],
       // MycelialIntelligence moved to permanent floating bar
     ].filter(tool => tool && tool.kbd)
     
