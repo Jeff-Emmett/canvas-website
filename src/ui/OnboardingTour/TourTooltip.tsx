@@ -27,6 +27,12 @@ function calculateTooltipPosition(
   const centerY = top + height / 2
 
   switch (placement) {
+    case 'center':
+      // Center in viewport
+      return {
+        top: window.innerHeight / 2 - tooltipHeight / 2,
+        left: window.innerWidth / 2 - tooltipWidth / 2
+      }
     case 'top':
       return { top: top - tooltipHeight - gap, left: centerX - tooltipWidth / 2 }
     case 'bottom':
@@ -118,8 +124,23 @@ export function TourTooltip({
 
   return (
     <>
-      {/* Spotlight overlay with cutout */}
-      {targetRect && (
+      {/* Spotlight overlay with cutout (or full overlay for noSpotlight steps) */}
+      {step.noSpotlight ? (
+        // Full overlay without cutout for intro/welcome steps
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: colors.overlay,
+            zIndex: 99998,
+            pointerEvents: 'none',
+            transition: 'opacity 0.3s ease-out'
+          }}
+        />
+      ) : targetRect && (
         <div
           style={{
             position: 'fixed',

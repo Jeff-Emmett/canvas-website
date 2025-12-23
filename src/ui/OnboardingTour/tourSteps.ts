@@ -9,25 +9,27 @@ export interface TourStep {
   // Fallback positioning if element not found
   fallbackPosition?: { top: number; left: number }
   // Tooltip placement relative to target
-  placement: 'top' | 'bottom' | 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+  placement: 'top' | 'bottom' | 'left' | 'right' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center'
   // Optional highlight padding around target element
   highlightPadding?: number
   // Optional action hint (e.g., "Click to continue" vs "Press Enter")
   actionHint?: string
   // Optional icon for visual interest
   icon?: string
+  // If true, don't show spotlight cutout (for full-canvas intro steps)
+  noSpotlight?: boolean
 }
 
 export const TOUR_STEPS: TourStep[] = [
   {
-    id: 'local-first',
-    title: 'Your Data, Your Device',
-    content: 'This canvas stores everything locally in your browser first. Your work is saved automatically and works offline - no account required to start creating.',
-    targetSelector: '.tlui-menu__button',
-    placement: 'bottom-right',
-    highlightPadding: 8,
-    icon: '🏠',
-    actionHint: 'Your data never leaves your device unless you choose to sync'
+    id: 'welcome-canvas',
+    title: 'Welcome to Your Canvas',
+    content: 'This is your infinite creative space. Everything you create here is stored locally in your browser first - your work is saved automatically and works offline.',
+    targetSelector: '.tl-container',
+    placement: 'center',
+    noSpotlight: true,
+    icon: '✨',
+    actionHint: 'No account required to start creating'
   },
   {
     id: 'cryptid-login',
