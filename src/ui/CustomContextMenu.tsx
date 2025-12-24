@@ -129,25 +129,19 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           <TldrawUiMenuItem {...tools.ChatBox} />
           <TldrawUiMenuItem {...tools.ImageGen} />
           <TldrawUiMenuItem {...tools.VideoGen} />
-          {/* Drawfast - temporarily hidden until in better working state
           <TldrawUiMenuItem {...tools.Drawfast} />
-          */}
           <TldrawUiMenuItem {...tools.Markdown} />
           <TldrawUiMenuItem {...tools.ObsidianNote} />
           <TldrawUiMenuItem {...tools.Transcription} />
           <TldrawUiMenuItem {...tools.Embed} />
-          {/* Holon - temporarily hidden until in better working state
           <TldrawUiMenuItem {...tools.Holon} />
-          */}
-          {/* Terminal (Multmux) - temporarily hidden until in better working state
           <TldrawUiMenuItem {...tools.Multmux} />
-          */}
           <TldrawUiMenuItem {...tools.Map} />
           <TldrawUiMenuItem {...tools.calendar} />
           <TldrawUiMenuItem {...tools.SlideShape} />
           <TldrawUiMenuItem {...tools.VideoChat} />
           <TldrawUiMenuItem {...tools.FathomMeetings} />
-          {/* MycroZineGenerator temporarily disabled for debugging */}
+          <TldrawUiMenuItem {...tools.MycroZineGenerator} />
         </TldrawUiMenuSubmenu>
       </TldrawUiMenuGroup>
 
