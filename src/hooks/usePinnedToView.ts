@@ -79,7 +79,6 @@ export function usePinnedToView(
 
     // If just became pinned (transition from false to true)
     if (isPinned && !wasPinnedRef.current) {
-      console.log('📌 usePinnedToView: Shape became PINNED', shapeId)
       // Clear any leftover state from previous pin sessions
       clearPinState()
 
@@ -152,7 +151,6 @@ export function usePinnedToView(
 
     // If just became unpinned, animate back to original coordinates
     if (!isPinned && wasPinnedRef.current) {
-      console.log('📌 usePinnedToView: Shape became UNPINNED', shapeId)
       // Cancel any ongoing animations
       if (driftAnimationRef.current) {
         cancelAnimationFrame(driftAnimationRef.current)

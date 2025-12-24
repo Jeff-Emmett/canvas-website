@@ -313,7 +313,6 @@ export function useNetworkGraph(options: UseNetworkGraphOptions = {}): UseNetwor
   // Listen for session-cleared event to immediately clear graph state
   useEffect(() => {
     const handleSessionCleared = () => {
-      console.log('🔐 useNetworkGraph: Session cleared - resetting graph state');
       clearGraphCache();
       setState({
         nodes: [],

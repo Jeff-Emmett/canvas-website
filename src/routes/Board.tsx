@@ -324,7 +324,6 @@ export function Board() {
     // When auth state changes, reset permission to trigger fresh fetch
     setPermission(null)
     setPermissionLoading(true)
-    console.log('🔄 Auth changed, forcing tldraw remount. New auth state:', session.authed)
   }, [session.authed])
 
   // Fetch permission when board loads or auth changes
@@ -337,7 +336,6 @@ export function Board() {
         const perm = await fetchBoardPermission(roomId)
         if (mounted) {
           setPermission(perm)
-          console.log('🔐 Permission fetched:', perm)
         }
       } catch (error) {
         console.error('Failed to fetch permission:', error)
@@ -379,7 +377,6 @@ export function Board() {
     : permission === 'view'  // Only restrict if explicitly view (protected board)
 
   // Debug logging for permission issues
-  console.log('🔐 Permission Debug:', {
     permission,
     permissionLoading,
     sessionAuthed: session.authed,
@@ -415,7 +412,6 @@ export function Board() {
     // Force permission state reset - the useEffect will fetch fresh permissions
     setPermission(null)
     setPermissionLoading(true)
-    console.log('🔐 handleAuthenticated: Cleared permission state, useEffect will fetch fresh')
   }
 
   // Store roomId in localStorage for VideoChatShapeUtil to access
@@ -431,7 +427,6 @@ export function Board() {
     
     oldStorageKeys.forEach(key => {
       if (localStorage.getItem(key)) {
-        console.log(`Migrating: clearing old video chat storage entry: ${key}`);
         localStorage.removeItem(key);
         localStorage.removeItem(`${key}_token`);
       }
@@ -491,7 +486,6 @@ export function Board() {
         color: session.username ? generateUserColor(session.username) : generateUserColor(uniqueUserId),
         colorScheme: getColorScheme(),
       })
-      console.log('🔐 User preferences set for authenticated user:', session.username)
     } else {
       // Not authenticated - reset to anonymous with fresh ID
       const anonymousId = `anonymous-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -501,7 +495,6 @@ export function Board() {
         color: '#6b7280', // Gray for anonymous
         colorScheme: getColorScheme(),
       })
-      console.log('🔐 User preferences reset to anonymous')
     }
   }, [uniqueUserId, session.username, session.authed])
 
@@ -562,10 +555,8 @@ export function Board() {
 
     if (isReadOnly) {
       editor.updateInstanceState({ isReadonly: true })
-      console.log('🔒 Permission changed: Board is now read-only')
     } else {
       editor.updateInstanceState({ isReadonly: false })
-      console.log('🔓 Permission changed: Board is now editable')
     }
   }, [editor, isReadOnly])
 
@@ -576,7 +567,6 @@ export function Board() {
 
     const handleSessionLoggedIn = (event: Event) => {
       const customEvent = event as CustomEvent<{ username: string }>;
-      console.log('🔐 Board: session-logged-in event received for:', customEvent.detail.username);
 
       // Immediately enable editing - user just logged in
       editor.updateInstanceState({ isReadonly: false });
@@ -584,7 +574,6 @@ export function Board() {
       // Switch to select tool to ensure tools are available
       editor.setCurrentTool('select');
 
-      console.log('🔓 Board: Enabled editing mode after login');
     };
 
     window.addEventListener('session-logged-in', handleSessionLoggedIn);
@@ -691,18 +680,12 @@ export function Board() {
       
       // Debug: Log page information
       const allPages = store.store.allRecords().filter((r: any) => r.typeName === 'page')
-      console.log(`📊 Board: Current page ID: ${currentPageId}`)
-      console.log(`📊 Board: Available pages:`, allPages.map((p: any) => ({ id: p.id, name: p.name })))
-      console.log(`📊 Board: Store has ${storeShapes.length} total shapes, ${storeShapesOnCurrentPage.length} on current page. Editor sees ${editorShapes.length} shapes on current page.`)
       
       // CRITICAL DEBUG: Check if shapes exist in editor but aren't returned by getCurrentPageShapes
       if (storeShapesOnCurrentPage.length > 0 && editorShapes.length === 0) {
-        console.log(`🔍 DEBUG: Checking why ${storeShapesOnCurrentPage.length} shapes aren't visible...`)
         const sampleShape = storeShapesOnCurrentPage[0]
         const shapeInEditor = editor.getShape(sampleShape.id as TLShapeId)
-        console.log(`🔍 DEBUG: Sample shape ${sampleShape.id} in editor:`, shapeInEditor ? 'EXISTS' : 'MISSING')
         if (shapeInEditor) {
-          console.log(`🔍 DEBUG: Shape details:`, {
             id: shapeInEditor.id,
             type: shapeInEditor.type,
             parentId: shapeInEditor.parentId,
@@ -719,7 +702,6 @@ export function Board() {
           const pid = s.parentId || 'no-parent'
           parentIdCounts.set(pid, (parentIdCounts.get(pid) || 0) + 1)
         })
-        console.log(`📊 Board: Shape parent ID distribution:`, Array.from(parentIdCounts.entries()))
       }
       
       // REMOVED: Aggressive force refresh that was causing coordinate loss
@@ -751,7 +733,6 @@ export function Board() {
             .filter((s): s is NonNullable<typeof s> => s !== undefined)
           
           if (shapesFromEditor.length > 0) {
-            console.log(`📊 Board: ${shapesFromEditor.length} missing shapes actually exist in editor but aren't in getCurrentPageShapes()`)
             // Try to select them to make them visible
             const shapeIds = shapesFromEditor.map((s: any) => s.id).filter((id: string): id is TLShapeId => id !== undefined)
             if (shapeIds.length > 0) {
@@ -763,7 +744,6 @@ export function Board() {
             
             // REMOVED: Force refresh that was causing coordinate loss
             // Re-putting shapes was resetting coordinates to 0,0
-            console.log(`📊 Board: ${missingShapes.length} shapes are in store but not visible in editor - this may indicate a sync issue`)
           }
           
           // Check if shapes are outside viewport
@@ -785,7 +765,6 @@ export function Board() {
           })
           
           if (shapesOutsideViewport.length > 0) {
-            console.log(`📊 Board: ${shapesOutsideViewport.length} missing shapes are outside viewport - focusing on them`)
             // Focus on the first missing shape
             const firstShape = shapesOutsideViewport[0] as any
             if (firstShape && firstShape.x !== undefined && firstShape.y !== undefined) {
@@ -807,7 +786,6 @@ export function Board() {
         s.parentId !== currentPageId
       )
       if (shapesOnOtherPages.length > 0) {
-        console.log(`📊 Board: ${shapesOnOtherPages.length} shapes exist on other pages (not current page ${currentPageId})`)
         
         // Find which page has the most shapes
         // CRITICAL: Only count shapes that are DIRECT children of pages, not frame/group children
@@ -897,7 +875,6 @@ export function Board() {
                 }
               })
             }
-            console.log(`📊 Board: Fixed ${fixedShapes.length} shapes by assigning them to current page ${currentPageId} (coordinates preserved)`)
           } catch (error) {
             console.error(`📊 Board: Error fixing shapes with invalid parentId:`, error)
           }
@@ -915,13 +892,11 @@ export function Board() {
         
         // If current page has no shapes but another page does, switch to that page
         if (editorShapes.length === 0 && pageWithMostShapes && pageWithMostShapes !== currentPageId) {
-          console.log(`📊 Board: Current page has no shapes. Switching to page ${pageWithMostShapes} which has ${maxShapes} shapes`)
           try {
             editor.setCurrentPage(pageWithMostShapes as any)
             // Focus camera on shapes after switching
             setTimeout(() => {
               const newPageShapes = editor.getCurrentPageShapes()
-              console.log(`📊 Board: After page switch, editor sees ${newPageShapes.length} shapes on page ${pageWithMostShapes}`)
               if (newPageShapes.length > 0) {
                 const bounds = editor.getShapePageBounds(newPageShapes[0])
                 if (bounds) {
@@ -935,17 +910,14 @@ export function Board() {
                 // Still no shapes after switching - might be a validation issue
                 console.warn(`📊 Board: After switching to page ${pageWithMostShapes}, still no shapes visible. Checking store...`)
                 const shapesOnNewPage = storeShapes.filter((s: any) => s.parentId === pageWithMostShapes)
-                console.log(`📊 Board: Store has ${shapesOnNewPage.length} shapes on page ${pageWithMostShapes}`)
                 if (shapesOnNewPage.length > 0) {
                   // Try to manually add shapes that might have validation issues
-                  console.log(`📊 Board: Attempting to force visibility by selecting all shapes on page`)
                     const shapeIds = shapesOnNewPage.map((s: any) => s.id as TLShapeId).filter((id): id is TLShapeId => id !== undefined)
                     if (shapeIds.length > 0) {
                       // Try to get shapes from editor to see if they exist
                       const existingShapes = shapeIds
                         .map((id: TLShapeId) => editor.getShape(id))
                         .filter((s): s is NonNullable<typeof s> => s !== undefined)
-                    console.log(`📊 Board: ${existingShapes.length} of ${shapeIds.length} shapes exist in editor`)
                       if (existingShapes.length > 0) {
                         editor.setSelectedShapes(existingShapes.map((s: any) => s.id))
                         editor.zoomToFit()
@@ -958,7 +930,6 @@ export function Board() {
             console.error(`❌ Board: Error switching to page ${pageWithMostShapes}:`, error)
           }
         } else if (pageWithMostShapes) {
-          console.log(`📊 Board: Page breakdown:`, Array.from(pageShapeCounts.entries()).map(([pageId, count]) => ({
             pageId,
             shapeCount: count,
             isCurrent: pageId === currentPageId
@@ -1007,7 +978,6 @@ export function Board() {
             })
 
             if (presencesToRemove.length > 0) {
-              console.log(`🧹 Force cleaning ${presencesToRemove.length} non-current presence record(s) on auth change`)
               editor.store.remove(presencesToRemove.map((r: any) => r.id))
             }
           } else {
@@ -1019,7 +989,6 @@ export function Board() {
             )
 
             if (stalePresences.length > 0) {
-              console.log(`🧹 Cleaning up ${stalePresences.length} stale presence record(s)`)
               editor.store.remove(stalePresences.map((r: any) => r.id))
             }
           }
@@ -1041,10 +1010,8 @@ export function Board() {
     const handleSessionCleared = (event: Event) => {
       const customEvent = event as CustomEvent<{ previousUsername: string }>;
       const previousUsername = customEvent.detail?.previousUsername;
-      console.log('🧹 Session cleared event received for user:', previousUsername)
 
       if (!previousUsername) {
-        console.log('🧹 No previous username, skipping presence cleanup')
         return
       }
 
@@ -1054,7 +1021,6 @@ export function Board() {
         const previousUserId = localStorage.getItem(storageKey);
 
         if (!previousUserId) {
-          console.log('🧹 No tldraw user ID found for', previousUsername)
           return
         }
 
@@ -1071,7 +1037,6 @@ export function Board() {
         })
 
         if (userPresences.length > 0) {
-          console.log(`🧹 Removing ${userPresences.length} presence record(s) for logged-out user: ${previousUsername}`)
           editor.store.remove(userPresences.map((r: any) => r.id))
         }
       } catch (error) {
@@ -1463,8 +1428,6 @@ export function Board() {
             const isAuthenticated = checkAuthFromStorage();
             const initialReadOnly = !isAuthenticated;
             editor.updateInstanceState({ isReadonly: initialReadOnly })
-            console.log('🔄 onMount: isAuthenticated (from storage) =', isAuthenticated, ', setting isReadonly =', initialReadOnly)
-            console.log(initialReadOnly
               ? '🔒 Board is in read-only mode (not authenticated)'
               : '🔓 Board is editable (authenticated)')
 

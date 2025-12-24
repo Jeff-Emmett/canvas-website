@@ -26,7 +26,6 @@ export function CustomMainMenu() {
                 }
                 try {
                     const jsonData = JSON.parse(event.target.result)
-                    console.log('Parsed JSON data:', jsonData)
                     
                     // Helper function to validate and normalize shape types
                     const validateAndNormalizeShapeType = (shape: any): string => {
@@ -243,7 +242,6 @@ export function CustomMainMenu() {
                         // CRITICAL: Validate and normalize shape type
                         const normalizedType = validateAndNormalizeShapeType(fixedShape)
                         if (normalizedType !== fixedShape.type) {
-                            console.log(`🔧 Normalizing shape type "${fixedShape.type}" to "${normalizedType}" for shape:`, fixedShape.id)
                             fixedShape.type = normalizedType
                             
                             // If converted to text, set up proper text shape props
@@ -349,7 +347,6 @@ export function CustomMainMenu() {
                     
                     // Check if it's a worker export format (has documents array)
                     if (jsonData.documents && Array.isArray(jsonData.documents)) {
-                        console.log('Detected worker export format with', jsonData.documents.length, 'documents')
                         
                         // Convert worker export format to TLContent format
                         const pageId = jsonData.documents.find((doc: any) => doc.state?.typeName === 'page')?.state?.id || 'page:default'
@@ -365,7 +362,6 @@ export function CustomMainMenu() {
                             .filter((doc: any) => doc.state?.typeName === 'asset')
                             .map((doc: any) => doc.state)
                         
-                        console.log('Extracted:', { shapes: shapes.length, bindings: bindings.length, assets: assets.length })
                         
                         // CRITICAL: rootShapeIds should only include shapes that are direct children of the page
                         // Shapes inside frames should NOT be in rootShapeIds (they're children of frames)
@@ -382,7 +378,6 @@ export function CustomMainMenu() {
                             assets: assets,
                         }
                     } else if (jsonData.store && jsonData.schema) {
-                        console.log('Detected Automerge format')
                         // Convert Automerge format to TLContent format
                         const store = jsonData.store
                         const shapes: any[] = []
@@ -411,7 +406,6 @@ export function CustomMainMenu() {
                             }
                         })
                         
-                        console.log('Extracted from Automerge format:', { shapes: shapes.length, bindings: bindings.length, assets: assets.length })
                         
                         // CRITICAL: rootShapeIds should only include shapes that are direct children of the page
                         // Shapes inside frames should NOT be in rootShapeIds (they're children of frames)
@@ -428,7 +422,6 @@ export function CustomMainMenu() {
                             assets: assets,
                         }
                     } else if (jsonData.shapes && Array.isArray(jsonData.shapes)) {
-                        console.log('Detected standard TLContent format with', jsonData.shapes.length, 'shapes')
                         // Find page ID from imported data or use current page
                         const importedPageId = jsonData.pages?.[0]?.id || 'page:default'
                         const currentPageId = editor.getCurrentPageId()
@@ -455,7 +448,6 @@ export function CustomMainMenu() {
                             assets: jsonData.assets || [],
                         }
                     } else {
-                        console.log('Detected unknown format, attempting fallback')
                         // Try to extract shapes from any other format
                         const pageId = 'page:default'
                         // Filter out null shapes (shapes that failed validation)
@@ -480,7 +472,6 @@ export function CustomMainMenu() {
                     }
                     
                     // Validate all required properties
-                    console.log('Final contentToImport:', contentToImport)
                     
                     if (!contentToImport.shapes || !Array.isArray(contentToImport.shapes)) {
                         console.error('Invalid JSON format: missing or invalid shapes array')
@@ -530,7 +521,6 @@ export function CustomMainMenu() {
                             // Validate and normalize shape type
                             const normalizedType = validateAndNormalizeShapeType(shape)
                             if (normalizedType !== shape.type) {
-                                console.log(`🔧 Normalizing shape type "${shape.type}" to "${normalizedType}" for shape:`, shape.id)
                                 shape.type = normalizedType
                                 
                                 // If converted to text, set up proper text shape props
@@ -584,7 +574,6 @@ export function CustomMainMenu() {
                         })
                     }
                     
-                    console.log('About to call putContentOntoCurrentPage with:', contentToImport)
                     
                     try {
                         editor.putContentOntoCurrentPage(contentToImport, { select: true })
@@ -593,7 +582,6 @@ export function CustomMainMenu() {
                         
                         // Fallback: Create shapes individually
                         if (contentToImport.shapes && contentToImport.shapes.length > 0) {
-                            console.log('Attempting to create shapes individually...')
                             
                             // Clear current page first
                             const currentShapes = editor.getCurrentPageShapes()
@@ -614,7 +602,6 @@ export function CustomMainMenu() {
                                         // CRITICAL: Validate and normalize shape type
                                         const normalizedType = validateAndNormalizeShapeType(shape)
                                         if (normalizedType !== shape.type) {
-                                            console.log(`🔧 Normalizing shape type "${shape.type}" to "${normalizedType}" for shape:`, shape.id)
                                             shape.type = normalizedType
                                             
                                             // If converted to text, set up proper text shape props
@@ -690,7 +677,6 @@ export function CustomMainMenu() {
                                 })
                             }
                             
-                            console.log('Individual shape creation completed')
                         } else {
                             alert('No valid shapes found in the JSON file.')
                         }
@@ -770,7 +756,6 @@ export function CustomMainMenu() {
         // Get all shapes on the current page
         const shapes = editor.getCurrentPageShapes()
         if (shapes.length === 0) {
-            console.log("No shapes to fit to")
             return
         }
         
@@ -789,7 +774,6 @@ export function CustomMainMenu() {
         const maxDimension = Math.max(width, height)
         const zoom = Math.min(1, 800 / maxDimension) // Fit in 800px viewport
         
-        console.log("Fitting to content:", { bounds, centerX, centerY, zoom })
         
         // Set camera to show all shapes
         editor.setCamera({ x: centerX, y: centerY, z: zoom })

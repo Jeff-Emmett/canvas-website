@@ -1640,7 +1640,6 @@ function CustomSharePanel() {
           roomId={boardId}
           onClose={() => setShowVersionHistory(false)}
           onRevert={(hash) => {
-            console.log('Reverted to version:', hash)
             window.location.reload()
           }}
           isDarkMode={isDarkMode}

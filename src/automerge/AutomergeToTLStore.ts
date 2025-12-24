@@ -300,11 +300,9 @@ export function applyAutomergePatchesToTLStore(
       case "unmark":
       case "conflict": {
         // These actions are not currently supported for TLDraw
-        console.log("Unsupported patch action:", patch.action)
         break
       }
       default: {
-        console.log("Unsupported patch:", patch)
       }
     }
     
@@ -422,7 +420,6 @@ export function applyAutomergePatchesToTLStore(
     
     // Filter out SharedPiano shapes since they're no longer supported
     if (record.typeName === 'shape' && (record as any).type === 'SharedPiano') {
-      console.log(`⚠️ Filtering out deprecated SharedPiano shape: ${record.id}`)
       return // Skip - SharedPiano is deprecated
     }
     
@@ -444,12 +441,10 @@ export function applyAutomergePatchesToTLStore(
 
   // put / remove the records in the store
   // Log patch application for debugging
-  console.log(`🔧 AutomergeToTLStore: Applying ${patches.length} patches, ${toPut.length} records to put, ${toRemove.length} records to remove`)
 
   // DEBUG: Log shape updates being applied to store
   toPut.forEach(record => {
     if (record.typeName === 'shape' && (record as any).props?.w) {
-      console.log(`🔧 AutomergeToTLStore: Putting shape ${(record as any).type} ${record.id}:`, {
         w: (record as any).props.w,
         h: (record as any).props.h,
         x: (record as any).x,
@@ -459,7 +454,6 @@ export function applyAutomergePatchesToTLStore(
   })
   
   if (failedRecords.length > 0) {
-    console.log({ patches, toPut: toPut.length, failed: failedRecords.length })
   }
   
   if (failedRecords.length > 0) {
@@ -695,14 +689,12 @@ export function sanitizeRecord(record: any): TLRecord {
 
     // Normalize the shape type if it's a custom type with incorrect case
     if (sanitized.type && typeof sanitized.type === 'string' && customShapeTypeMap[sanitized.type]) {
-      console.log(`🔧 Normalizing shape type: "${sanitized.type}" → "${customShapeTypeMap[sanitized.type]}"`)
       sanitized.type = customShapeTypeMap[sanitized.type]
     }
 
     // CRITICAL: Sanitize Multmux shapes AFTER case normalization - ensure all required props exist
     // Old shapes may have wsUrl (removed) or undefined values
     if (sanitized.type === 'Multmux') {
-      console.log(`🔧 Sanitizing Multmux shape ${sanitized.id}:`, JSON.stringify(sanitized.props))
       // Remove deprecated wsUrl prop
       if ('wsUrl' in sanitized.props) {
         delete sanitized.props.wsUrl
@@ -762,7 +754,6 @@ export function sanitizeRecord(record: any): TLRecord {
       }
 
       sanitized.props = cleanProps
-      console.log(`🔧 Sanitized Multmux shape ${sanitized.id} props:`, JSON.stringify(sanitized.props))
     }
 
     // CRITICAL: Sanitize Map shapes - ensure all required props have defaults
@@ -835,7 +826,6 @@ export function sanitizeRecord(record: any): TLRecord {
       if (typeof sanitized.props.h !== 'number' || isNaN(sanitized.props.h)) {
         sanitized.props.h = 550
       }
-      console.log(`🔧 Sanitized Map shape ${sanitized.id}`)
     }
 
     // CRITICAL: Infer type from properties BEFORE defaulting to 'geo'

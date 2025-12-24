@@ -320,7 +320,6 @@ export function setupMultiPasteHandler(editor: Editor): () => void {
       e.preventDefault()
       e.stopPropagation()
 
-      console.log(`📋 Multi-paste: ${imageFiles.length} images, ${urls.length} URLs`)
 
       // Calculate grid positions
       const positions = calculateGridPositions(center, totalItems)

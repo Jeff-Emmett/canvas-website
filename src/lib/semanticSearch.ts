@@ -48,11 +48,9 @@ async function initializeModel(): Promise<void> {
     const { pipeline: pipelineFn } = await import('@xenova/transformers')
     pipeline = pipelineFn
 
-    console.log('🔄 Loading embedding model...')
     embeddingModel = await pipeline('feature-extraction', MODEL_NAME, {
       quantized: true, // Use quantized model for faster inference
     })
-    console.log('✅ Embedding model loaded')
   } catch (error) {
     console.error('❌ Failed to load embedding model:', error)
     throw error
@@ -264,7 +262,6 @@ export class SemanticSearchService {
       const shapes = this.editor.getCurrentPageShapes()
       const shapesWithText = shapes.filter(s => extractShapeText(s).length > 10) // Only shapes with meaningful text
 
-      console.log(`🔍 Indexing ${shapesWithText.length} shapes with text content...`)
 
       for (let i = 0; i < shapesWithText.length; i++) {
         const shape = shapesWithText[i]
@@ -292,7 +289,6 @@ export class SemanticSearchService {
         onProgress?.(this.indexingProgress)
       }
 
-      console.log('✅ Canvas indexing complete')
     } finally {
       this.isIndexing = false
     }
@@ -467,7 +463,6 @@ export class SemanticSearchService {
     }
 
     if (removed > 0) {
-      console.log(`🧹 Cleaned up ${removed} stale embeddings`)
     }
 
     return removed
@@ -478,7 +473,6 @@ export class SemanticSearchService {
    */
   async clearIndex(): Promise<void> {
     await embeddingStore.clear()
-    console.log('🗑️ Embedding index cleared')
   }
 
   /**

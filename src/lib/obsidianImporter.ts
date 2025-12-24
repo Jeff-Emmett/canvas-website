@@ -807,7 +807,6 @@ A collection of creative project ideas and concepts.
     
     try {
       // First, try to fetch the main page to discover content
-      console.log('🔍 Fetching main page to discover content structure...')
       const mainPageResponse = await fetch(baseUrl)
       if (mainPageResponse.ok) {
         const mainPageContent = await mainPageResponse.text()

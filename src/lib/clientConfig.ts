@@ -324,11 +324,9 @@ export function getOpenAIConfig(): { apiKey: string } | null {
         try {
           const parsed = JSON.parse(userApiKeys)
           if (parsed.keys && parsed.keys.openai && parsed.keys.openai.trim() !== '') {
-            console.log('🔑 Found user-specific OpenAI API key')
             return { apiKey: parsed.keys.openai }
           }
         } catch (e) {
-          console.log('🔑 Error parsing user-specific API keys:', e)
         }
       }
     }
@@ -339,22 +337,18 @@ export function getOpenAIConfig(): { apiKey: string } | null {
       try {
         const parsed = JSON.parse(settings)
         if (parsed.keys && parsed.keys.openai && parsed.keys.openai.trim() !== '') {
-          console.log('🔑 Found global OpenAI API key')
           return { apiKey: parsed.keys.openai }
         }
       } catch (e) {
         // If it's not JSON, it might be the old format (just a string)
         if (settings.startsWith('sk-') && settings.trim() !== '') {
-          console.log('🔑 Found old format OpenAI API key')
           return { apiKey: settings }
         }
       }
     }
     
-    console.log('🔑 No OpenAI API key found')
     return null
   } catch (e) {
-    console.log('🔑 Error getting OpenAI config:', e)
     return null
   }
 }
@@ -413,11 +407,9 @@ export function getGeminiConfig(): { apiKey: string } | null {
         try {
           const parsed = JSON.parse(userApiKeys)
           if (parsed.keys && parsed.keys.gemini && parsed.keys.gemini.trim() !== '') {
-            console.log('🔑 Found user-specific Gemini API key')
             return { apiKey: parsed.keys.gemini }
           }
         } catch (e) {
-          console.log('🔑 Error parsing user-specific API keys:', e)
         }
       }
     }
@@ -425,21 +417,17 @@ export function getGeminiConfig(): { apiKey: string } | null {
     // Fallback to global API keys in localStorage
     const settings = localStorage.getItem("gemini_api_key")
     if (settings && settings.trim() !== '') {
-      console.log('🔑 Found global Gemini API key in localStorage')
       return { apiKey: settings }
     }
 
     // Fallback to environment variable
     const config = getClientConfig()
     if (config.geminiApiKey && config.geminiApiKey.trim() !== '') {
-      console.log('🔑 Found Gemini API key in environment')
       return { apiKey: config.geminiApiKey }
     }
 
-    console.log('🔑 No Gemini API key found')
     return null
   } catch (e) {
-    console.log('🔑 Error getting Gemini config:', e)
     return null
   }
 }

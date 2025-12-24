@@ -183,7 +183,6 @@ export function MapCanvas({
   useEffect(() => {
     if (!mapRef.current || !isLoaded) return;
     // TODO: Add layer management
-    console.log('MapCanvas: Updating layers', layers);
   }, [layers, isLoaded]);
 
   // Project function for presence layer

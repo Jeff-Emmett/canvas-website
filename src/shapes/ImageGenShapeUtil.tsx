@@ -70,7 +70,6 @@ async function pollRunPodJob(
   pollInterval: number = 2000
 ): Promise<string> {
   const statusUrl = `https://api.runpod.ai/v2/${endpointId}/status/${jobId}`
-  console.log('🔄 ImageGen: Polling job:', jobId)
   
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
@@ -88,11 +87,8 @@ async function pollRunPodJob(
       }
 
       const data = await response.json() as RunPodJobResponse
-      console.log(`🔄 ImageGen: Poll attempt ${attempt + 1}/${maxAttempts}, status:`, data.status)
-      console.log(`📋 ImageGen: Full response data:`, JSON.stringify(data, null, 2))
       
       if (data.status === 'COMPLETED') {
-        console.log('✅ ImageGen: Job completed, processing output...')
         
         // Extract image URL from various possible response formats
         let imageUrl = ''
@@ -101,22 +97,17 @@ async function pollRunPodJob(
         if (!data.output) {
           // Only retry 2-3 times, then proceed to check alternatives
           if (attempt < 3) {
-            console.log(`⏳ ImageGen: COMPLETED but no output yet, waiting briefly (attempt ${attempt + 1}/3)...`)
             await new Promise(resolve => setTimeout(resolve, 500))
             continue
           }
           
           // Try alternative ways to get the output - maybe it's at the top level
-          console.log('⚠️ ImageGen: No output field found, checking for alternative response formats...')
-          console.log('📋 ImageGen: All available fields:', Object.keys(data))
           
           // Check if image data is at top level
           if (data.image) {
             imageUrl = data.image
-            console.log('✅ ImageGen: Found image at top level')
           } else if (data.url) {
             imageUrl = data.url
-            console.log('✅ ImageGen: Found url at top level')
           } else if (data.result) {
             // Some endpoints return result instead of output
             if (typeof data.result === 'string') {
@@ -126,10 +117,8 @@ async function pollRunPodJob(
             } else if (data.result.url) {
               imageUrl = data.result.url
             }
-            console.log('✅ ImageGen: Found result field')
           } else {
             // Last resort: try to fetch output via stream endpoint (some RunPod endpoints use this)
-            console.log('⚠️ ImageGen: Trying alternative endpoint to retrieve output...')
             try {
               const streamUrl = `https://api.runpod.ai/v2/${endpointId}/stream/${jobId}`
               const streamResponse = await fetch(streamUrl, {
@@ -141,7 +130,6 @@ async function pollRunPodJob(
               
               if (streamResponse.ok) {
                 const streamData = await streamResponse.json() as RunPodJobResponse
-                console.log('📥 ImageGen: Stream endpoint response:', JSON.stringify(streamData, null, 2))
                 
                 if (streamData.output) {
                   if (typeof streamData.output === 'string') {
@@ -160,13 +148,11 @@ async function pollRunPodJob(
                   }
                   
                   if (imageUrl) {
-                    console.log('✅ ImageGen: Found image URL via stream endpoint')
                     return imageUrl
                   }
                 }
               }
             } catch (streamError) {
-              console.log('⚠️ ImageGen: Stream endpoint not available or failed:', streamError)
             }
             
             console.error('❌ ImageGen: Job completed but no output field in response after retries:', JSON.stringify(data, null, 2))
@@ -232,13 +218,10 @@ async function pollRunPodJob(
                 // Assume base64 without prefix
                 imageUrl = `data:image/${firstImage.type || 'png'};base64,${firstImage.data}`
               }
-              console.log('✅ ImageGen: Found image in ComfyUI format (images array)')
             } else if (firstImage.url) {
               imageUrl = firstImage.url
-              console.log('✅ ImageGen: Found image URL in ComfyUI format')
             } else if (firstImage.filename) {
               // Try to construct URL from filename (may need endpoint-specific handling)
-              console.log('⚠️ ImageGen: Found filename but no URL, filename:', firstImage.filename)
             }
           }
         }
@@ -345,7 +328,6 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
     }
 
     const generateImage = async (prompt: string) => {
-      console.log("🎨 ImageGen: Generating image with prompt:", prompt)
 
       // Store the prompt being used and clear any previous errors
       editor.updateShape<IImageGen>({
@@ -366,8 +348,6 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
 
         // Mock API mode: Return placeholder image without calling RunPod
         if (USE_MOCK_API) {
-          console.log("🎭 ImageGen: Using MOCK API mode (no real RunPod call)")
-          console.log("🎨 ImageGen: Mock prompt:", prompt)
 
           // Simulate API delay
           await new Promise(resolve => setTimeout(resolve, 1500))
@@ -375,7 +355,6 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
           // Use a placeholder image service
           const mockImageUrl = `https://via.placeholder.com/512x512/4F46E5/FFFFFF?text=${encodeURIComponent(prompt.substring(0, 30))}`
 
-          console.log("✅ ImageGen: Mock image generated:", mockImageUrl)
 
           // Get current shape to access existing history
           const currentShape = editor.getShape<IImageGen>(shape.id)
@@ -411,7 +390,6 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
         // Use runsync for synchronous execution - returns output directly without polling
         const url = `https://api.runpod.ai/v2/${endpointId}/runsync`
 
-        console.log("📤 ImageGen: Sending request to:", url)
 
         const response = await fetch(url, {
           method: "POST",
@@ -433,7 +411,6 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
         }
 
         const data = await response.json() as RunPodJobResponse
-        console.log("📥 ImageGen: Response data:", JSON.stringify(data, null, 2).substring(0, 500) + '...')
 
         // With runsync, we get the output directly (no polling needed)
         if (data.output) {
@@ -446,7 +423,6 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
             // Base64 encoded image string
             if (typeof firstImage === 'string') {
               imageUrl = firstImage.startsWith('data:') ? firstImage : `data:image/png;base64,${firstImage}`
-              console.log('✅ ImageGen: Found base64 image in output.images array')
             } else if (firstImage.data) {
               imageUrl = firstImage.data.startsWith('data:') ? firstImage.data : `data:image/png;base64,${firstImage.data}`
             } else if (firstImage.url) {
@@ -470,7 +446,6 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
           }
 
           if (imageUrl) {
-            console.log('✅ ImageGen: Image generated successfully')
 
             // Get current shape to access existing history
             const currentShape = editor.getShape<IImageGen>(shape.id)
@@ -795,12 +770,10 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
                                 new ClipboardItem({ [blob.type]: blob })
                               ])
                             }
-                            console.log('✅ ImageGen: Image copied to clipboard')
                           } catch (err) {
                             console.error('❌ ImageGen: Failed to copy image:', err)
                             // Fallback: copy the URL
                             await navigator.clipboard.writeText(image.imageUrl)
-                            console.log('✅ ImageGen: Image URL copied to clipboard (fallback)')
                           }
                         }}
                         onPointerDown={(e) => e.stopPropagation()}
@@ -851,7 +824,6 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
                           document.body.appendChild(link)
                           link.click()
                           document.body.removeChild(link)
-                          console.log('✅ ImageGen: Image download initiated')
                         }}
                         onPointerDown={(e) => e.stopPropagation()}
                         onTouchStart={(e) => e.stopPropagation()}

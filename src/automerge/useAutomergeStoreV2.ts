@@ -363,7 +363,6 @@ export function useAutomergeStoreV2({
                   if (existingRecord && (existingRecord as any).typeName === 'shape' && (existingRecord as any).type === 'geo') {
                     const geoRecord = existingRecord as any
                     if (!geoRecord.props || !geoRecord.props.geo) {
-                      console.log(`🔧 Attempting to fix geo shape ${recordId} missing props.geo`)
                       // This won't help with the current patch, but might help future patches
                       // The real fix should happen in AutomergeToTLStore sanitization
                     }
@@ -421,7 +420,6 @@ export function useAutomergeStoreV2({
       const storeShapeCount = store.allRecords().filter((r: any) => r.typeName === 'shape').length
       
       if (docShapeCount > 0 && storeShapeCount === 0) {
-        console.log(`🔧 Handler set up after data was written. Manually processing ${docShapeCount} shapes that were loaded before handler was ready...`)
         // Since patches were already emitted when handle.change() was called in useAutomergeSyncRepo,
         // we need to manually process the data that's already in the doc
         try {
@@ -451,14 +449,12 @@ export function useAutomergeStoreV2({
           // Filter out SharedPiano shapes since they're no longer supported
           const filteredRecords = allRecords.filter((record: any) => {
             if (record.typeName === 'shape' && record.type === 'SharedPiano') {
-              console.log(`⚠️ Filtering out deprecated SharedPiano shape: ${record.id}`)
               return false
             }
             return true
           })
           
           if (filteredRecords.length > 0) {
-            console.log(`🔧 Manually applying ${filteredRecords.length} records to store (patches were missed during initial load, filtered out ${allRecords.length - filteredRecords.length} SharedPiano shapes)`)
             store.mergeRemoteChanges(() => {
               const pageRecords = filteredRecords.filter(r => r.typeName === 'page')
               const shapeRecords = filteredRecords.filter(r => r.typeName === 'shape')
@@ -466,7 +462,6 @@ export function useAutomergeStoreV2({
               const recordsToAdd = [...pageRecords, ...otherRecords, ...shapeRecords]
               store.put(recordsToAdd)
             })
-            console.log(`✅ Manually applied ${filteredRecords.length} records to store`)
           }
         } catch (error) {
           console.error(`❌ Error manually processing initial data:`, error)
@@ -807,7 +802,6 @@ export function useAutomergeStoreV2({
                 
                 // If only position changed (x/y), restore original coordinates
                 if (!otherPropsChanged && (newX !== originalX || newY !== originalY)) {
-                  console.log(`🚫 Filtering out x/y coordinate change for pinned shape ${id}: (${newX}, ${newY}) -> keeping original (${originalX}, ${originalY})`)
                   // Restore original coordinates
                   const recordWithOriginalCoords = {
                     ...record,
@@ -1098,11 +1092,9 @@ export function useAutomergeStoreV2({
         if (doc.store) {
           const storeKeys = Object.keys(doc.store)
           const docShapes = Object.values(doc.store).filter((r: any) => r?.typeName === 'shape').length
-          console.log(`📊 Patch-based initialization: doc has ${storeKeys.length} records (${docShapes} shapes), store has ${existingStoreRecords.length} records (${existingStoreShapes.length} shapes), network: ${connectionStatus}`)
 
           // If store already has shapes, patches have been applied (dev mode behavior)
           if (existingStoreShapes.length > 0) {
-            console.log(`✅ Store already populated from patches (${existingStoreShapes.length} shapes) - using patch-based loading like dev`)
 
             // REMOVED: Aggressive shape refresh that was causing coordinate loss
             // Shapes should be visible through normal patch application
@@ -1119,7 +1111,6 @@ export function useAutomergeStoreV2({
           // OFFLINE FAST PATH: When offline with local data, load immediately
           // Don't wait for patches that will never come from the network
           if (!isNetworkOnline && docShapes > 0) {
-            console.log(`📴 Offline mode with ${docShapes} shapes in local storage - loading immediately`)
 
             // Manually load data from Automerge doc since patches won't come through
             try {
@@ -1155,7 +1146,6 @@ export function useAutomergeStoreV2({
               })
 
               if (filteredRecords.length > 0) {
-                console.log(`📴 Loading ${filteredRecords.length} records from offline storage`)
                 store.mergeRemoteChanges(() => {
                   const pageRecords = filteredRecords.filter(r => r.typeName === 'page')
                   const shapeRecords = filteredRecords.filter(r => r.typeName === 'shape')
@@ -1163,7 +1153,6 @@ export function useAutomergeStoreV2({
                   const recordsToAdd = [...pageRecords, ...otherRecords, ...shapeRecords]
                   store.put(recordsToAdd)
                 })
-                console.log(`✅ Offline data loaded: ${filteredRecords.filter(r => r.typeName === 'shape').length} shapes`)
               }
             } catch (error) {
               console.error(`❌ Error loading offline data:`, error)
@@ -1181,7 +1170,6 @@ export function useAutomergeStoreV2({
           // The automergeChangeHandler (set up above) should process them automatically
           // Just wait a bit for patches to be processed, then set status
           if (docShapes > 0 && existingStoreShapes.length === 0) {
-            console.log(`📊 Doc has ${docShapes} shapes but store is empty. Waiting for patches to be processed by handler...`)
 
             // Wait briefly for patches to be processed by automergeChangeHandler
             // The handler is already set up, so it should catch patches from the initial data load
@@ -1194,7 +1182,6 @@ export function useAutomergeStoreV2({
                 const currentShapes = store.allRecords().filter((r: any) => r.typeName === 'shape')
 
                 if (currentShapes.length > 0) {
-                  console.log(`✅ Patches applied successfully: ${currentShapes.length} shapes loaded via patches`)
 
                   // REMOVED: Aggressive shape refresh that was causing coordinate loss
                   // Shapes loaded via patches should be visible without forced refresh
@@ -1237,7 +1224,6 @@ export function useAutomergeStoreV2({
 
           // If doc is empty, just set status
           if (docShapes === 0) {
-            console.log(`📊 Empty document - starting fresh (patch-based loading)`)
             setStoreWithStatus({
               store,
               status: "synced-remote",
@@ -1247,7 +1233,6 @@ export function useAutomergeStoreV2({
           }
         } else {
           // No store in doc - empty document
-          console.log(`📊 No store in Automerge doc - starting fresh (patch-based loading)`)
           setStoreWithStatus({
             store,
             status: "synced-remote",

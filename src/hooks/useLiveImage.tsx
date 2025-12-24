@@ -44,7 +44,6 @@ export function LiveImageProvider({ children, apiKey: initialApiKey }: LiveImage
     if (apiKey) {
       fal.config({ credentials: apiKey })
       setIsConnected(true)
-      console.log('LiveImage: Fal.ai client configured with default key')
     } else {
       setIsConnected(false)
     }
@@ -181,7 +180,6 @@ export function useLiveImage({
   // Generate AI image from the sketch
   const generateImage = useCallback(async () => {
     if (!context?.isConnected || !enabled) {
-      console.log('LiveImage: Not connected or disabled')
       return
     }
 
@@ -198,7 +196,6 @@ export function useLiveImage({
 
       // Check if this request is still valid (not superseded by newer request)
       if (currentVersion !== requestVersionRef.current) {
-        console.log('LiveImage: Request superseded, skipping')
         return
       }
 
@@ -209,7 +206,6 @@ export function useLiveImage({
         ? `${prompt}, hd, award-winning, impressive, detailed`
         : 'hd, award-winning, impressive, detailed illustration'
 
-      console.log('LiveImage: Generating with prompt:', fullPrompt)
 
       const result = await fal.subscribe(modelEndpoint, {
         input: {
@@ -228,7 +224,6 @@ export function useLiveImage({
 
       // Check if this result is still relevant
       if (currentVersion !== requestVersionRef.current) {
-        console.log('LiveImage: Result from old request, discarding')
         return
       }
 
@@ -247,7 +242,6 @@ export function useLiveImage({
       }
 
       if (imageUrl) {
-        console.log('LiveImage: Generated image:', imageUrl)
         setState(prev => ({
           ...prev,
           isGenerating: false,

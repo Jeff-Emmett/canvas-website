@@ -41,7 +41,6 @@ export class QuartzSync {
       const { githubToken, githubRepo } = this.config
       const [owner, repo] = githubRepo.split('/')
       
-      console.log('🔧 GitHub sync details:', {
         owner,
         repo,
         noteTitle: note.title,
@@ -52,11 +51,9 @@ export class QuartzSync {
       const filePath = `content/${note.filePath}`
       let sha: string | undefined
       
-      console.log('🔍 Checking for existing file:', filePath)
       
       try {
         const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`
-        console.log('🌐 Making API call to:', apiUrl)
         
         const existingFile = await fetch(apiUrl, {
           headers: {
@@ -65,18 +62,14 @@ export class QuartzSync {
           }
         })
         
-        console.log('📡 API response status:', existingFile.status)
         
         if (existingFile.ok) {
           const fileData = await existingFile.json() as { sha: string }
           sha = fileData.sha
-          console.log('✅ File exists, will update with SHA:', sha)
         } else {
-          console.log('ℹ️ File does not exist, will create new one')
         }
       } catch (error) {
         // File doesn't exist, that's okay
-        console.log('ℹ️ File does not exist, will create new one:', error)
       }
 
       // Create the markdown content
@@ -113,9 +106,6 @@ ${note.content}`
 
       if (response.ok) {
         const result = await response.json() as { commit: { sha: string } }
-        console.log('✅ Successfully synced note to GitHub:', note.title)
-        console.log('📁 File path:', filePath)
-        console.log('🔗 Commit SHA:', result.commit.sha)
         return true
       } else {
         const error = await response.text()
@@ -162,7 +152,6 @@ ${note.content}`
       })
 
       if (response.ok) {
-        console.log('✅ Successfully synced note to Cloudflare:', note.title)
         return true
       } else {
         throw new Error(`Cloudflare sync failed: ${response.statusText}`)
@@ -192,7 +181,6 @@ ${note.content}`
       })
 
       if (response.ok) {
-        console.log('✅ Successfully synced note to Quartz API:', note.title)
         return true
       } else {
         throw new Error(`Quartz API error: ${response.statusText}`)
@@ -222,7 +210,6 @@ ${note.content}`
       })
 
       if (response.ok) {
-        console.log('✅ Successfully sent note to webhook:', note.title)
         return true
       } else {
         throw new Error(`Webhook error: ${response.statusText}`)
@@ -238,8 +225,6 @@ ${note.content}`
    * Prioritizes GitHub integration for Quartz sites
    */
   async smartSync(note: QuartzNote): Promise<boolean> {
-    console.log('🔄 Starting smart sync for note:', note.title)
-    console.log('🔧 Sync config available:', {
       hasGitHubToken: !!this.config.githubToken,
       hasGitHubRepo: !!this.config.githubRepo,
       hasCloudflareApiKey: !!this.config.cloudflareApiKey,
@@ -250,10 +235,8 @@ ${note.content}`
     // Check if GitHub integration is available and preferred
     if (this.config.githubToken && this.config.githubRepo) {
       try {
-        console.log('🔄 Attempting GitHub sync (preferred method)')
         const result = await this.syncToGitHub(note)
         if (result) {
-          console.log('✅ GitHub sync successful!')
           return true
         }
       } catch (error) {
@@ -264,7 +247,6 @@ ${note.content}`
         })
       }
     } else {
-      console.log('⚠️ GitHub sync not available - missing token or repo')
     }
 
     // Fallback to other methods

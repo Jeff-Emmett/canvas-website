@@ -142,7 +142,6 @@ export function HolonBrowser({ isOpen, onClose, onSelectHolon, shapeMode = false
       try {
         metadata = await holosphereService.getData(holonId, 'metadata')
       } catch (error) {
-        console.log('No metadata found for holon')
       }
 
       // Get available lenses by trying to fetch data from common lens types
@@ -161,7 +160,6 @@ export function HolonBrowser({ isOpen, onClose, onSelectHolon, shapeMode = false
           const data = await holosphereService.getDataWithWait(holonId, lens, 1000)
           if (data && (Array.isArray(data) ? data.length > 0 : Object.keys(data).length > 0)) {
             availableLenses.push(lens)
-            console.log(`✓ Found lens: ${lens} with ${Object.keys(data).length} keys`)
           }
         } catch (error) {
           // Lens doesn't exist or is empty, skip
@@ -207,7 +205,6 @@ export function HolonBrowser({ isOpen, onClose, onSelectHolon, shapeMode = false
       // Use getDataWithWait for better Gun data retrieval
       const data = await holosphereService.getDataWithWait(holonInfo.id, lens, 2000)
       setLensData(data)
-      console.log(`📊 Loaded lens data for ${lens}:`, data)
     } catch (error) {
       console.error('Error loading lens data:', error)
       setLensData(null)

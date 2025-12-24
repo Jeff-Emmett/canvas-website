@@ -101,27 +101,21 @@ export function getGitHubSetupInstructions(): string[] {
 export function logGitHubSetupStatus(): void {
   const status = validateGitHubSetup()
   
-  console.log('🔧 GitHub Integration Setup Status:')
   
   if (status.isValid) {
-    console.log('✅ GitHub integration is properly configured!')
   } else {
-    console.log('❌ GitHub integration has issues:')
-    status.issues.forEach(issue => console.log(`   - ${issue}`))
+    status.issues.forEach(issue => {})
   }
   
   if (status.warnings.length > 0) {
-    console.log('⚠️ Warnings:')
-    status.warnings.forEach(warning => console.log(`   - ${warning}`))
+    status.warnings.forEach(warning => {})
   }
   
   if (status.suggestions.length > 0) {
-    console.log('💡 Suggestions:')
-    status.suggestions.forEach(suggestion => console.log(`   - ${suggestion}`))
+    status.suggestions.forEach(suggestion => {})
   }
   
   if (!status.isValid) {
-    console.log('\n📋 Setup Instructions:')
-    getGitHubSetupInstructions().forEach(instruction => console.log(instruction))
+    getGitHubSetupInstructions().forEach(instruction => {})
   }
 }

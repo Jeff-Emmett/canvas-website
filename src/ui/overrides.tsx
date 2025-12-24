@@ -483,12 +483,10 @@ export const overrides: TLUiOverrides = {
             const answer = await askCanvasAI(editor, undefined, (partial, done) => {
               // Log streaming response to console for now
               if (!done) {
-                console.log("AI response:", partial)
               }
             })
             if (answer) {
               // Could display in a UI element - for now show alert with result
-              console.log("Canvas AI answer:", answer)
             }
           } catch (error) {
             console.error("Canvas AI error:", error)
@@ -502,11 +500,8 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: async () => {
           try {
-            console.log("Starting canvas indexing...")
             await indexCanvasForSearch(editor, (progress) => {
-              console.log(`Indexing progress: ${progress.toFixed(1)}%`)
             })
-            console.log("Canvas indexing complete!")
           } catch (error) {
             console.error("Canvas indexing error:", error)
           }
@@ -519,10 +514,8 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: async () => {
           try {
-            console.log("Analyzing viewport...")
             await explainViewport(editor, (partial, done) => {
               if (!done) {
-                console.log("Viewport analysis:", partial)
               }
             })
           } catch (error) {
@@ -537,12 +530,10 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: async () => {
           if (editor.getSelectedShapeIds().length === 0) {
-            console.log("Select a shape first to find similar ones")
             return
           }
           try {
             const results = await findSimilarToSelection(editor)
-            console.log(`Found ${results.length} similar shapes`)
           } catch (error) {
             console.error("Find similar error:", error)
           }

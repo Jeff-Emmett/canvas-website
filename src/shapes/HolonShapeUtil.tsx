@@ -164,10 +164,8 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
     // This prevents the shape from auto-generating IDs based on coordinates.
 
     const loadHolonData = useCallback(async () => {
-      console.log('🔄 loadHolonData called with holonId:', holonId)
 
       if (!holonId) {
-        console.log('⚠️ No holonId, skipping data load')
         return
       }
 
@@ -175,7 +173,6 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
         setIsLoading(true)
         setError(null)
 
-        console.log('📡 Starting to load data from GunDB for holon:', holonId)
 
         // Load data from specific categories
         const lensesToCheck = [
@@ -203,21 +200,16 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
         // This properly waits for Gun data to load from the network
         for (const lens of lensesToCheck) {
           try {
-            console.log(`📂 Checking lens: ${lens}`)
             // Use getDataWithWait which subscribes and waits for Gun data (5 second timeout for network sync)
             const lensData = await holosphereService.getDataWithWait(holonId, lens, 5000)
             if (lensData && Object.keys(lensData).length > 0) {
-              console.log(`✓ Found data in lens ${lens}:`, Object.keys(lensData).length, 'keys')
               allData[lens] = lensData
             } else {
-              console.log(`⚠️ No data found in lens ${lens} after waiting`)
             }
           } catch (err) {
-            console.log(`⚠️ Error loading data from lens ${lens}:`, err)
           }
         }
 
-        console.log(`📊 Total data loaded: ${Object.keys(allData).length} categories`)
         
         // If no data was loaded, check for connection issues
         if (Object.keys(allData).length === 0) {
@@ -241,7 +233,6 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
           }
         })
 
-        console.log(`✅ Successfully loaded data from ${Object.keys(allData).length} categories:`, Object.keys(allData))
       } catch (error) {
         console.error('❌ Error loading holon data:', error)
         setError('Failed to load data')
@@ -252,15 +243,12 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
 
     // Load data when holon is connected
     useEffect(() => {
-      console.log('🔍 useEffect triggered - holonId:', holonId, 'isConnected:', isConnected, 'selectedLens:', selectedLens)
 
       if (holonId && isConnected) {
-        console.log('✓ Conditions met, calling loadHolonData')
         loadHolonData()
       } else {
-        console.log('⚠️ Conditions not met for loading data')
-        if (!holonId) console.log('  - Missing holonId')
-        if (!isConnected) console.log('  - Not connected')
+        if (!holonId) {}
+        if (!isConnected) {}
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [holonId, isConnected, selectedLens])
@@ -342,7 +330,6 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
         return
       }
 
-      console.log('🔌 Connecting to Holon:', trimmedHolonId)
       setError(null)
 
       // Extract H3 cell info if applicable (coordinates and resolution)
@@ -357,14 +344,12 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
           cellLatitude = lat
           cellLongitude = lng
           cellResolution = h3.getResolution(trimmedHolonId)
-          console.log(`📍 H3 Cell Info: lat=${lat}, lng=${lng}, resolution=${cellResolution}`)
         } catch (e) {
           console.warn('Could not extract H3 cell coordinates:', e)
         }
       } else {
         // For numeric/alphanumeric Holon IDs, use default coordinates
         // The holon is not geospatially indexed
-        console.log(`📍 Numeric Holon ID detected: ${trimmedHolonId} (not geospatially indexed)`)
         cellResolution = -1 // Indicate non-H3 holon
       }
 
@@ -422,7 +407,6 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
           }
         }
       } catch (error) {
-        console.log('⚠️ Could not load metadata, using default name:', error)
       }
 
       // Explicitly load holon data after connecting
@@ -434,7 +418,6 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
           setIsLoading(true)
           setError(null)
 
-          console.log('📡 Starting to load data from GunDB for holon:', trimmedHolonId)
 
           // Load data from specific categories
           const lensesToCheck = [
@@ -461,20 +444,15 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
           // Load data from each lens
           for (const lens of lensesToCheck) {
             try {
-              console.log(`📂 Checking lens: ${lens}`)
               const lensData = await holosphereService.getDataWithWait(trimmedHolonId, lens, 2000)
               if (lensData && Object.keys(lensData).length > 0) {
-                console.log(`✓ Found data in lens ${lens}:`, Object.keys(lensData).length, 'keys')
                 allData[lens] = lensData
               } else {
-                console.log(`⚠️ No data found in lens ${lens} after waiting`)
               }
             } catch (err) {
-              console.log(`⚠️ Error loading data from lens ${lens}:`, err)
             }
           }
 
-          console.log(`📊 Total data loaded: ${Object.keys(allData).length} categories`)
 
           // Update current data for selected lens
           const currentLensData = allData[shape.props.selectedLens || 'users']
@@ -493,7 +471,6 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
             },
           })
 
-          console.log(`✅ Successfully loaded data from ${Object.keys(allData).length} categories:`, Object.keys(allData))
         } catch (error) {
           console.error('❌ Error loading holon data:', error)
           setError('Failed to load data')
@@ -510,11 +487,6 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
       // If holonId is provided, mark as connected
       const shouldConnect = !!(holonId && holonId.trim() !== '')
 
-      console.log('💾 Saving Holon shape')
-      console.log('   holonId:', holonId)
-      console.log('   shouldConnect:', shouldConnect)
-      console.log('   newName:', newName)
-      console.log('   newDescription:', newDescription)
 
       // Create new props without the editing fields
       const { editingName: _editingName, editingDescription: _editingDescription, ...restProps } = shape.props
@@ -528,7 +500,6 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
         holonId: holonId, // Explicitly set holonId
       }
 
-      console.log('   New props:', newProps)
 
       // Update the shape
       this.editor.updateShape<IHolon>({
@@ -537,18 +508,15 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
         props: newProps,
       })
 
-      console.log('✅ Shape updated, isConnected:', shouldConnect)
 
       // If we have a connected holon, store the metadata
       if (holonId && shouldConnect) {
-        console.log('📝 Storing metadata to GunDB for holon:', holonId)
         try {
           await holosphereService.putData(holonId, 'metadata', {
             name: newName,
             description: newDescription,
             lastUpdated: Date.now()
           })
-          console.log('✅ Metadata saved to GunDB')
         } catch (error) {
           console.error('❌ Error saving metadata:', error)
         }

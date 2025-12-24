@@ -1392,7 +1392,6 @@ export function MycelialIntelligenceBar() {
         break
 
       default:
-        console.log(`Direct input not implemented for ${toolType}`)
     }
 
     // Clear the prompt
@@ -1431,7 +1430,6 @@ export function MycelialIntelligenceBar() {
       })
       setFollowUpSuggestions(newFollowUps)
 
-      console.log(`Spawned ${tool.displayName} on canvas`)
     }
   }, [editor])
 
@@ -1450,7 +1448,6 @@ export function MycelialIntelligenceBar() {
 
     if (ids.length > 0) {
       setSpawnedToolIds(prev => new Set([...prev, ...toolsToSpawn.map(t => t.id)]))
-      console.log(`Spawned ${ids.length} tools on canvas`)
     }
   }, [editor, suggestedTools, spawnedToolIds])
 

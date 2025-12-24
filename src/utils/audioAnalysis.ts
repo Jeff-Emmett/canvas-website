@@ -64,7 +64,6 @@ export class AudioAnalyzer {
     if (this.audioContext && this.analyser) {
       this.microphone = this.audioContext.createMediaStreamSource(stream)
       this.microphone.connect(this.analyser)
-      console.log('🎤 Microphone connected to audio analyzer')
     }
   }
 
@@ -233,7 +232,6 @@ export class AudioAnalyzer {
       }
       this.speakers.set(newSpeakerId, newSpeaker)
       bestMatch = newSpeakerId
-      console.log(`🎤 New speaker identified: ${newSpeaker.name} (${newSpeakerId})`)
     } else {
       // Update existing speaker profile
       const speaker = this.speakers.get(bestMatch)!
@@ -307,7 +305,6 @@ export class AudioAnalyzer {
     const speaker = this.speakers.get(speakerId)
     if (speaker) {
       speaker.name = name
-      console.log(`🎤 Updated speaker name: ${speakerId} -> ${name}`)
     }
   }
 

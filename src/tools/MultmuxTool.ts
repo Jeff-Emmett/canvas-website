@@ -7,7 +7,6 @@ export class MultmuxTool extends StateNode {
   static override children = () => [MultmuxIdle]
 
   onSelect() {
-    console.log('🖥️ MultmuxTool: tool selected - waiting for user click')
   }
 }
 
@@ -118,7 +117,6 @@ export class MultmuxIdle extends StateNode {
         }
       })
 
-      console.log('🖥️ Created Multmux shape:', multmuxShape.id)
 
       const newCamera = this.editor.getCamera()
       if (currentCamera.x !== newCamera.x || currentCamera.y !== newCamera.y || currentCamera.z !== newCamera.z) {

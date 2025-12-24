@@ -309,7 +309,6 @@ export class GoogleDataService {
     setInterval(async () => {
       try {
         await touchLocalData();
-        console.log('Touched local data to prevent Safari eviction');
       } catch (error) {
         console.warn('Failed to touch local data:', error);
       }

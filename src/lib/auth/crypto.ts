@@ -39,7 +39,6 @@ export const addRegisteredUser = (username: string): void => {
 
 // Check if a username is available
 export const isUsernameAvailable = async (username: string): Promise<boolean> => {
-  console.log('Checking if username is available:', username);
 
   try {
     // Get the list of registered users
@@ -48,7 +47,6 @@ export const isUsernameAvailable = async (username: string): Promise<boolean> =>
     // Check if the username is already taken
     const isAvailable = !users.includes(username);
 
-    console.log('Username availability result:', isAvailable);
     return isAvailable;
   } catch (error) {
     console.error('Error checking username availability:', error);

@@ -313,7 +313,6 @@ export class TranscriptionShape extends BaseBoxShapeUtil<ITranscription> {
           props: cleanProps
         })
         
-        console.log(`🔄 Updated shape state: isTranscribing=${cleanProps.isTranscribing}, hookIsTranscribing=${hookIsTranscribing}, isRecording=${isRecording}`)
       }
     }, [hookIsTranscribing, isRecording, shape.id]) // Removed shape.props from dependencies
     
@@ -468,7 +467,6 @@ export class TranscriptionShape extends BaseBoxShapeUtil<ITranscription> {
       try {
         if (isRecording) {
           // Currently recording, stop it
-          console.log('🛑 Stopping transcription...')
           stopRecording()
           this.editor.updateShape<ITranscription>({
             id: shape.id,
@@ -482,7 +480,6 @@ export class TranscriptionShape extends BaseBoxShapeUtil<ITranscription> {
         } else {
           // Not recording, start it (or resume if paused)
           if (isPaused) {
-            console.log('▶️ Resuming transcription...')
             startRecording()
             this.editor.updateShape<ITranscription>({
               id: shape.id,
@@ -494,7 +491,6 @@ export class TranscriptionShape extends BaseBoxShapeUtil<ITranscription> {
               }
             })
           } else {
-            console.log('🎤 Starting transcription...')
             
             // Clear editing content and live edit transcript when starting new recording session
             if (isLiveEditing) {
@@ -523,7 +519,6 @@ export class TranscriptionShape extends BaseBoxShapeUtil<ITranscription> {
       try {
         if (isPaused) {
           // Currently paused, resume
-          console.log('▶️ Resuming transcription...')
           if (useWebSpeech) {
             // For Web Speech, restart recording
             startRecording()
@@ -543,7 +538,6 @@ export class TranscriptionShape extends BaseBoxShapeUtil<ITranscription> {
           })
         } else {
           // Currently recording, pause it
-          console.log('⏸️ Pausing transcription...')
           if (useWebSpeech) {
             // For Web Speech, stop recording (pause not natively supported)
             stopRecording()

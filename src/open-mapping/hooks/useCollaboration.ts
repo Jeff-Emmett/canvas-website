@@ -62,7 +62,6 @@ export function useCollaboration({
   useEffect(() => {
     if (!sessionId) return;
 
-    console.log('useCollaboration: Would connect to session', sessionId);
     // const ydoc = new Y.Doc();
     // const provider = new WebsocketProvider(serverUrl, sessionId, ydoc);
 
@@ -78,18 +77,15 @@ export function useCollaboration({
   const createSession = useCallback(async (name: string): Promise<string> => {
     // TODO: Create new Y.js document and return session ID
     const newSessionId = `session-${Date.now()}`;
-    console.log('useCollaboration: Creating session', name, newSessionId);
     return newSessionId;
   }, []);
 
   const joinSession = useCallback(async (sessionIdToJoin: string): Promise<void> => {
     // TODO: Join existing Y.js session
-    console.log('useCollaboration: Joining session', sessionIdToJoin);
   }, []);
 
   const leaveSession = useCallback(() => {
     // TODO: Disconnect from session
-    console.log('useCollaboration: Leaving session');
     setSession(null);
     setParticipants([]);
     setIsConnected(false);
@@ -102,17 +98,14 @@ export function useCollaboration({
 
   const broadcastRouteChange = useCallback((route: Route) => {
     // TODO: Update Y.js shared route array
-    console.log('useCollaboration: Broadcasting route change', route.id);
   }, []);
 
   const broadcastWaypointChange = useCallback((waypoint: Waypoint) => {
     // TODO: Update Y.js shared waypoint array
-    console.log('useCollaboration: Broadcasting waypoint change', waypoint.id);
   }, []);
 
   const broadcastLayerChange = useCallback((layer: MapLayer) => {
     // TODO: Update Y.js shared layer array
-    console.log('useCollaboration: Broadcasting layer change', layer.id);
   }, []);
 
   return {

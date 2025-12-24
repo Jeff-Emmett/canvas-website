@@ -161,7 +161,6 @@ export class ObsNoteIdle extends StateNode {
       
       if (existingBrowserShapes.length > 0) {
         // If a browser already exists, just select it
-        console.log('✅ ObsidianBrowser already exists, selecting it')
         this.editor.setSelectedShapes([existingBrowserShapes[0].id])
         this.editor.setCurrentTool('select')
         return

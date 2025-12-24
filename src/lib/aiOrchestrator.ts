@@ -308,20 +308,16 @@ export async function isAIOrchestratorAvailable(): Promise<boolean> {
   const url = import.meta.env.VITE_AI_ORCHESTRATOR_URL
 
   if (!url) {
-    console.log('🔍 AI Orchestrator URL not configured')
     return false
   }
 
   try {
     const available = await aiOrchestrator.isAvailable()
     if (available) {
-      console.log('✅ AI Orchestrator is available at', url)
     } else {
-      console.log('⚠️ AI Orchestrator configured but not responding at', url)
     }
     return available
   } catch (error) {
-    console.log('❌ Error checking AI Orchestrator availability:', error)
     return false
   }
 }

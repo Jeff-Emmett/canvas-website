@@ -465,21 +465,18 @@ export function applyTLStoreChangesToAutomerge(
       // DEBUG: Log richText, meta.text, and Obsidian note properties before sanitization
       if (record.typeName === 'shape') {
         if (record.type === 'geo' && (record.props as any)?.richText) {
-          console.log(`🔍 TLStoreToAutomerge: Geo shape ${record.id} has richText before sanitization:`, {
             hasRichText: !!(record.props as any).richText,
             richTextType: typeof (record.props as any).richText,
             richTextContent: Array.isArray((record.props as any).richText) ? 'array' : (record.props as any).richText?.content ? 'object with content' : 'object without content'
           })
         }
         if (record.type === 'geo' && (record.meta as any)?.text !== undefined) {
-          console.log(`🔍 TLStoreToAutomerge: Geo shape ${record.id} has meta.text before sanitization:`, {
             hasMetaText: !!(record.meta as any).text,
             metaTextValue: (record.meta as any).text,
             metaTextType: typeof (record.meta as any).text
           })
         }
         if (record.type === 'note' && (record.props as any)?.richText) {
-          console.log(`🔍 TLStoreToAutomerge: Note shape ${record.id} has richText before sanitization:`, {
             hasRichText: !!(record.props as any).richText,
             richTextType: typeof (record.props as any).richText,
             richTextContent: Array.isArray((record.props as any).richText) ? 'array' : (record.props as any).richText?.content ? 'object with content' : 'object without content',
@@ -487,14 +484,12 @@ export function applyTLStoreChangesToAutomerge(
           })
         }
         if (record.type === 'arrow' && (record.props as any)?.text !== undefined) {
-          console.log(`🔍 TLStoreToAutomerge: Arrow shape ${record.id} has text before sanitization:`, {
             hasText: !!(record.props as any).text,
             textValue: (record.props as any).text,
             textType: typeof (record.props as any).text
           })
         }
         if (record.type === 'ObsNote') {
-          console.log(`🔍 TLStoreToAutomerge: ObsNote shape ${record.id} before sanitization:`, {
             hasTitle: !!(record.props as any).title,
             hasContent: !!(record.props as any).content,
             hasTags: Array.isArray((record.props as any).tags),
@@ -521,21 +516,18 @@ export function applyTLStoreChangesToAutomerge(
       // DEBUG: Log richText, meta.text, and Obsidian note properties after sanitization
       if (sanitizedRecord.typeName === 'shape') {
         if (sanitizedRecord.type === 'geo' && (sanitizedRecord.props as any)?.richText) {
-          console.log(`🔍 TLStoreToAutomerge: Geo shape ${sanitizedRecord.id} has richText after sanitization:`, {
             hasRichText: !!(sanitizedRecord.props as any).richText,
             richTextType: typeof (sanitizedRecord.props as any).richText,
             richTextContent: Array.isArray((sanitizedRecord.props as any).richText) ? 'array' : (sanitizedRecord.props as any).richText?.content ? 'object with content' : 'object without content'
           })
         }
         if (sanitizedRecord.type === 'geo' && (sanitizedRecord.meta as any)?.text !== undefined) {
-          console.log(`🔍 TLStoreToAutomerge: Geo shape ${sanitizedRecord.id} has meta.text after sanitization:`, {
             hasMetaText: !!(sanitizedRecord.meta as any).text,
             metaTextValue: (sanitizedRecord.meta as any).text,
             metaTextType: typeof (sanitizedRecord.meta as any).text
           })
         }
         if (sanitizedRecord.type === 'note' && (sanitizedRecord.props as any)?.richText) {
-          console.log(`🔍 TLStoreToAutomerge: Note shape ${sanitizedRecord.id} has richText after sanitization:`, {
             hasRichText: !!(sanitizedRecord.props as any).richText,
             richTextType: typeof (sanitizedRecord.props as any).richText,
             richTextContent: Array.isArray((sanitizedRecord.props as any).richText) ? 'array' : (sanitizedRecord.props as any).richText?.content ? 'object with content' : 'object without content',
@@ -543,14 +535,12 @@ export function applyTLStoreChangesToAutomerge(
           })
         }
         if (sanitizedRecord.type === 'arrow' && (sanitizedRecord.props as any)?.text !== undefined) {
-          console.log(`🔍 TLStoreToAutomerge: Arrow shape ${sanitizedRecord.id} has text after sanitization:`, {
             hasText: !!(sanitizedRecord.props as any).text,
             textValue: (sanitizedRecord.props as any).text,
             textType: typeof (sanitizedRecord.props as any).text
           })
         }
         if (sanitizedRecord.type === 'ObsNote') {
-          console.log(`🔍 TLStoreToAutomerge: ObsNote shape ${sanitizedRecord.id} after sanitization:`, {
             hasTitle: !!(sanitizedRecord.props as any).title,
             hasContent: !!(sanitizedRecord.props as any).content,
             hasTags: Array.isArray((sanitizedRecord.props as any).tags),
@@ -569,7 +559,6 @@ export function applyTLStoreChangesToAutomerge(
       // DEBUG: Log richText, meta.text, and Obsidian note properties after deep copy
       if (recordToSave.typeName === 'shape') {
         if (recordToSave.type === 'geo' && recordToSave.props?.richText) {
-          console.log(`🔍 TLStoreToAutomerge: Geo shape ${recordToSave.id} has richText after deep copy:`, {
             hasRichText: !!recordToSave.props.richText,
             richTextType: typeof recordToSave.props.richText,
             richTextContent: Array.isArray(recordToSave.props.richText) ? 'array' : recordToSave.props.richText?.content ? 'object with content' : 'object without content',
@@ -577,14 +566,12 @@ export function applyTLStoreChangesToAutomerge(
           })
         }
         if (recordToSave.type === 'geo' && recordToSave.meta?.text !== undefined) {
-          console.log(`🔍 TLStoreToAutomerge: Geo shape ${recordToSave.id} has meta.text after deep copy:`, {
             hasMetaText: !!recordToSave.meta.text,
             metaTextValue: recordToSave.meta.text,
             metaTextType: typeof recordToSave.meta.text
           })
         }
         if (recordToSave.type === 'note' && recordToSave.props?.richText) {
-          console.log(`🔍 TLStoreToAutomerge: Note shape ${recordToSave.id} has richText after deep copy:`, {
             hasRichText: !!recordToSave.props.richText,
             richTextType: typeof recordToSave.props.richText,
             richTextContent: Array.isArray(recordToSave.props.richText) ? 'array' : recordToSave.props.richText?.content ? 'object with content' : 'object without content',
@@ -592,14 +579,12 @@ export function applyTLStoreChangesToAutomerge(
           })
         }
         if (recordToSave.type === 'arrow' && recordToSave.props?.text !== undefined) {
-          console.log(`🔍 TLStoreToAutomerge: Arrow shape ${recordToSave.id} has text after deep copy:`, {
             hasText: !!recordToSave.props.text,
             textValue: recordToSave.props.text,
             textType: typeof recordToSave.props.text
           })
         }
         if (recordToSave.type === 'ObsNote') {
-          console.log(`🔍 TLStoreToAutomerge: ObsNote shape ${recordToSave.id} after deep copy:`, {
             hasTitle: !!recordToSave.props.title,
             hasContent: !!recordToSave.props.content,
             hasTags: Array.isArray(recordToSave.props.tags),

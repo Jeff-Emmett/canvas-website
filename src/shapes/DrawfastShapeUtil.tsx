@@ -212,7 +212,6 @@ export class DrawfastShape extends BaseBoxShapeUtil<IDrawfastShape> {
         })
 
         if (childShapes.length === 0) {
-          console.log('Drawfast: No shapes to capture')
           editor.updateShape<IDrawfastShape>({
             id: shape.id,
             type: 'Drawfast',
@@ -246,7 +245,6 @@ export class DrawfastShape extends BaseBoxShapeUtil<IDrawfastShape> {
           ? `${shape.props.prompt}, hd, award-winning, impressive, detailed`
           : 'hd, award-winning, impressive, detailed illustration'
 
-        console.log('Drawfast: Generating with prompt:', fullPrompt)
 
         const result = await fal.subscribe('fal-ai/lcm-sd15-i2i', {
           input: {
@@ -277,7 +275,6 @@ export class DrawfastShape extends BaseBoxShapeUtil<IDrawfastShape> {
         }
 
         if (imageUrl) {
-          console.log('Drawfast: Generated image:', imageUrl)
           editor.updateShape<IDrawfastShape>({
             id: shape.id,
             type: 'Drawfast',

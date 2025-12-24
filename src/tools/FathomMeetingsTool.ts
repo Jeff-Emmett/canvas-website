@@ -9,7 +9,6 @@ export class FathomMeetingsTool extends StateNode {
   onSelect() {
     // Don't create a shape immediately when tool is selected
     // The user will create one by clicking on the canvas (onPointerDown in idle state)
-    console.log('🎯 FathomMeetingsTool parent: tool selected - waiting for user click')
   }
 }
 
@@ -83,11 +82,9 @@ export class FathomMeetingsIdle extends StateNode {
   }
 
   override onPointerDown = (info?: any) => {
-    console.log('📍 FathomMeetingsTool: onPointerDown called', { info, fullInfo: JSON.stringify(info) })
     
     // Prevent multiple shapes from being created if user clicks multiple times
     if (this.isCreatingShape) {
-      console.log('📍 FathomMeetingsTool: Shape creation already in progress, ignoring click')
       return
     }
     
@@ -106,7 +103,6 @@ export class FathomMeetingsIdle extends StateNode {
     // CRITICAL: Ensure this is a primary button click (left mouse button = 0)
     // This prevents accidental triggers from other pointer events
     if (info.button !== 0) {
-      console.log('📍 FathomMeetingsTool: Non-primary button click, ignoring', { button: info.button })
       return
     }
     
@@ -120,7 +116,6 @@ export class FathomMeetingsIdle extends StateNode {
           target.closest('.tlui-toolbar') ||
           target.closest('[role="menu"]') ||
           target.closest('[role="toolbar"]')) {
-        console.log('📍 FathomMeetingsTool: Click on UI element, ignoring')
         return
       }
     }
@@ -137,7 +132,6 @@ export class FathomMeetingsIdle extends StateNode {
         const pagePoint = this.editor.screenToPage(info.point)
         clickX = pagePoint.x
         clickY = pagePoint.y
-        console.log('📍 FathomMeetingsTool: Using info.point converted to page:', { screen: info.point, page: { x: clickX, y: clickY } })
       } catch (e) {
         console.error('📍 FathomMeetingsTool: Failed to convert info.point to page coordinates', e)
       }
@@ -193,7 +187,6 @@ export class FathomMeetingsIdle extends StateNode {
   onSelect() {
     // Don't create a shape immediately when tool is selected
     // The user will create one by clicking on the canvas (onPointerDown)
-    console.log('🎯 FathomMeetings tool selected - waiting for user click')
   }
   
   override onExit = () => {
@@ -221,7 +214,6 @@ export class FathomMeetingsIdle extends StateNode {
     this.isCreatingShape = true
     
     try {
-      console.log('📍 FathomMeetingsTool: createFathomMeetingsBrowserShape called', { clickX, clickY })
       
       // Store current camera position to prevent it from changing
       const currentCamera = this.editor.getCamera()
@@ -234,19 +226,16 @@ export class FathomMeetingsIdle extends StateNode {
       // Position new browser shape at click location (centered on click)
       const baseX = clickX - shapeWidth / 2 // Center the shape on click
       const baseY = clickY - shapeHeight / 2 // Center the shape on click
-      console.log('📍 FathomMeetingsTool: Using click position:', { clickX, clickY, baseX, baseY })
 
       // User clicked - ALWAYS use that exact position, no collision detection
       // This ensures the shape appears exactly where the user clicked
       const finalX = baseX
       const finalY = baseY
-      console.log('📍 FathomMeetingsTool: Using click position directly (no collision check):', { 
         clickPosition: { x: clickX, y: clickY }, 
         shapePosition: { x: finalX, y: finalY },
         shapeSize: { w: shapeWidth, h: shapeHeight }
       })
 
-      console.log('📍 FathomMeetingsTool: Final position for shape:', { finalX, finalY })
       
       const browserShape = this.editor.createShape({
         type: 'FathomMeetingsBrowser',
@@ -258,7 +247,6 @@ export class FathomMeetingsIdle extends StateNode {
         }
       })
 
-      console.log('✅ Created FathomMeetingsBrowser shape:', browserShape.id)
       
       // Restore camera position if it changed
       const newCamera = this.editor.getCamera()

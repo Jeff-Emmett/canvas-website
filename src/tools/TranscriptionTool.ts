@@ -15,7 +15,6 @@ export class TranscriptionTool extends StateNode {
     if (transcriptionShapes.length > 0) {
       // If Transcription shapes exist, start whisper audio processing on the first one
       const firstTranscriptionShape = transcriptionShapes[0]
-      console.log('🎯 Transcription tool selected - starting whisper audio processing on existing shape:', firstTranscriptionShape.id)
       
       // Select the first transcription shape
       this.editor.setSelectedShapes([`shape:${firstTranscriptionShape.id}`] as any)
@@ -34,7 +33,6 @@ export class TranscriptionTool extends StateNode {
       this.editor.setCurrentTool('select')
     } else {
       // If no Transcription shapes exist, create a new one
-      console.log('🎯 Transcription tool selected - creating new Transcription shape')
       this.createTranscriptionShape()
     }
   }
@@ -91,7 +89,6 @@ export class TranscriptionTool extends StateNode {
         }
       })
       
-      console.log('✅ Created transcription shape:', transcriptionShape.id)
 
       // Select the new shape and switch to select tool
       this.editor.setSelectedShapes([`shape:${transcriptionShape.id}`] as any)

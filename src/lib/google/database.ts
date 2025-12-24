@@ -444,7 +444,6 @@ export const tokensStore = {
 export async function requestPersistentStorage(): Promise<boolean> {
   if (navigator.storage && navigator.storage.persist) {
     const isPersisted = await navigator.storage.persist();
-    console.log(`Persistent storage ${isPersisted ? 'granted' : 'denied'}`);
     return isPersisted;
   }
   return false;

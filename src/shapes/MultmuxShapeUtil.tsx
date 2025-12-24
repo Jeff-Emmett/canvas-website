@@ -470,7 +470,6 @@ export class MultmuxShape extends BaseBoxShapeUtil<IMultmuxShape> {
         })
 
         // Session created - terminal will connect via WebSocket
-        console.log('✓ Created session:', session.name)
       } catch (error) {
         console.error('Failed to create session:', error)
       }

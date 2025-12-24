@@ -37,7 +37,6 @@ export const saveSession = (session: Session): boolean => {
       window.dispatchEvent(new CustomEvent('session-logged-in', {
         detail: { username: session.username }
       }));
-      console.log('🔐 Session saved and session-logged-in event dispatched for:', session.username);
     }
 
     return true;
@@ -56,12 +55,10 @@ export const loadSession = (): StoredSession | null => {
   try {
     const stored = localStorage.getItem(SESSION_STORAGE_KEY);
     if (!stored) {
-      console.log('🔐 loadSession: No stored session found');
       return null;
     }
 
     const parsed = JSON.parse(stored) as StoredSession;
-    console.log('🔐 loadSession: Found stored session:', {
       username: parsed.username,
       authed: parsed.authed,
       timestamp: new Date(parsed.timestamp).toISOString()
@@ -70,7 +67,6 @@ export const loadSession = (): StoredSession | null => {
     // Check if session is not too old (7 days)
     const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
     if (Date.now() - parsed.timestamp > maxAge) {
-      console.log('🔐 loadSession: Session expired, removing');
       localStorage.removeItem(SESSION_STORAGE_KEY);
       return null;
     }
@@ -129,7 +125,6 @@ export const clearStoredSession = (): boolean => {
       detail: { previousUsername: username }
     }));
 
-    console.log('🔐 Session cleared - removed session state, preserved account data (crypto keys, tldraw IDs)');
     return true;
   } catch (error) {
     console.error('🔧 Error clearing session:', error);

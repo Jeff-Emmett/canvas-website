@@ -51,7 +51,6 @@ export class HoloSphereService {
     this.isInitialized = true
     // Only log if Holon functionality is enabled
     if (HOLON_ENABLED) {
-      console.log('⚠️ HoloSphere service initialized (STUB MODE - awaiting Nostr integration)')
     }
   }
 

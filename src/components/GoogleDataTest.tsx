@@ -37,7 +37,6 @@ export function GoogleDataTest() {
   const [viewItems, setViewItems] = useState<ShareableItem[]>([]);
 
   const addLog = (msg: string) => {
-    console.log(msg);
     setLogs(prev => [...prev.slice(-20), `${new Date().toLocaleTimeString()}: ${msg}`]);
   };
 

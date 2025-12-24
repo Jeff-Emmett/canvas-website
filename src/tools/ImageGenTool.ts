@@ -6,7 +6,6 @@ export class ImageGenTool extends BaseBoxShapeTool {
   override shapeType = 'ImageGen'
 
   override onComplete: TLEventHandlers["onComplete"] = () => {
-    console.log('🎨 ImageGenTool: Shape creation completed')
     this.editor.setCurrentTool('select')
   }
 }

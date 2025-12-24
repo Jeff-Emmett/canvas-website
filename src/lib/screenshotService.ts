@@ -16,7 +16,6 @@ export const generateCanvasScreenshot = async (editor: Editor): Promise<string |
     const shapes = editor.getCurrentPageShapes();
 
     if (shapes.length === 0) {
-      console.log('No shapes found, no screenshot generated');
       return null;
     }
 

@@ -134,7 +134,6 @@ export function saveQuartzSyncSettings(settings: Partial<QuartzSyncSettings>): v
     const currentSettings = getQuartzSyncSettings()
     const newSettings = { ...currentSettings, ...settings }
     localStorage.setItem('quartz_sync_settings', JSON.stringify(newSettings))
-    console.log('✅ Quartz sync settings saved')
   } catch (error) {
     console.error('❌ Failed to save Quartz sync settings:', error)
   }

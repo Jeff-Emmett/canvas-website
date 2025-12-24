@@ -163,7 +163,6 @@ export const useWebSpeechTranscription = ({
       // Reduced debug logging
     } else {
       setIsSupported(false)
-      console.log('❌ Web Speech API is not supported')
       onError?.(new Error('Web Speech API is not supported in this browser'))
     }
   }, [onError])
@@ -181,7 +180,6 @@ export const useWebSpeechTranscription = ({
     recognition.maxAlternatives = 1
 
     recognition.onstart = () => {
-      console.log('🎤 Web Speech API started')
       setIsRecording(true)
       setIsTranscribing(true)
     }
@@ -221,7 +219,6 @@ export const useWebSpeechTranscription = ({
         finalTranscriptRef.current += newText
         setTranscript(finalTranscriptRef.current)
         onTranscriptUpdate?.(newText) // Only send the new text portion
-        console.log(`✅ Final transcript: "${processedFinal}" (confidence: ${confidence.toFixed(2)})`)
         
         // Trigger pause detection
         handlePauseDetection()
@@ -232,7 +229,6 @@ export const useWebSpeechTranscription = ({
         const processedInterim = processTranscript(interimTranscript, false)
         interimTranscriptRef.current = processedInterim
         setInterimTranscript(processedInterim)
-        console.log(`🔄 Interim transcript: "${processedInterim}"`)
       }
     }
 
@@ -244,7 +240,6 @@ export const useWebSpeechTranscription = ({
     }
 
     recognition.onend = () => {
-      console.log('🛑 Web Speech API ended')
       setIsRecording(false)
       setIsTranscribing(false)
     }
@@ -260,7 +255,6 @@ export const useWebSpeechTranscription = ({
     }
 
     try {
-      console.log('🎤 Starting Web Speech API recording...')
       
       // Don't reset transcripts for continuous transcription - keep existing content
       // finalTranscriptRef.current = ''
@@ -291,7 +285,6 @@ export const useWebSpeechTranscription = ({
   // Stop recording
   const stopRecording = useCallback(() => {
     if (recognitionRef.current) {
-      console.log('🛑 Stopping Web Speech API recording...')
       recognitionRef.current.stop()
       recognitionRef.current = null
     }

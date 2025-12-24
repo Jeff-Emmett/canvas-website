@@ -257,9 +257,6 @@ registerBlockExecutor('ai.llm', async (_ctx, inputs, config) => {
   const systemPrompt = config.systemPrompt as string
 
   // Placeholder - would integrate with actual LLM API
-  console.log('[AI LLM] Prompt:', prompt)
-  console.log('[AI LLM] Context:', context)
-  console.log('[AI LLM] System:', systemPrompt)
 
   return {
     response: `[LLM Response placeholder for: ${prompt}]`,
@@ -272,7 +269,6 @@ registerBlockExecutor('ai.imageGen', async (_ctx, inputs, config) => {
   const prompt = inputs.prompt as string
   const size = config.size as string
 
-  console.log('[AI Image] Prompt:', prompt, 'Size:', size)
 
   return {
     image: `[Generated image placeholder for: ${prompt}]`,
@@ -291,7 +287,6 @@ registerBlockExecutor('output.display', async (_ctx, inputs, config) => {
     displayValue = String(value)
   }
 
-  console.log('[Display]:', displayValue)
   return { displayed: displayValue }
 })
 
@@ -308,7 +303,6 @@ registerBlockExecutor('output.log', async (_ctx, inputs, config) => {
       console.warn('[Workflow Log]:', message)
       break
     default:
-      console.log('[Workflow Log]:', message)
   }
 
   return { logged: true }
@@ -460,7 +454,6 @@ export async function executeWorkflow(
     return results
   }
 
-  console.log(`[Workflow] Executing ${executionOrder.length} blocks`)
 
   for (const blockId of executionOrder) {
     // Gather inputs from upstream blocks
@@ -479,7 +472,6 @@ export async function executeWorkflow(
     }
   }
 
-  console.log('[Workflow] Execution complete')
   return results
 }
 

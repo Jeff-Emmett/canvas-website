@@ -145,7 +145,6 @@ export const useAdvancedSpeakerDiarization = ({
       source.connect(processor)
       processor.connect(audioContext.destination)
       
-      console.log('🎤 Advanced speaker diarization started')
       
     } catch (error) {
       console.error('❌ Error starting speaker diarization:', error)
@@ -172,7 +171,6 @@ export const useAdvancedSpeakerDiarization = ({
     }
     
     setIsProcessing(false)
-    console.log('🛑 Advanced speaker diarization stopped')
   }, [])
 
   // Cleanup on unmount

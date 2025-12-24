@@ -102,7 +102,6 @@ export class HolonBrowserShape extends BaseBoxShapeUtil<IHolonBrowser> {
         }
       })
       
-      console.log('✅ Created Holon shape from browser:', holonShape.id)
       
       // Restore camera position if it changed
       const newCamera = this.editor.getCamera()

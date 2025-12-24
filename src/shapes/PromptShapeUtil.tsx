@@ -122,7 +122,6 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
     }, {} as Record<string, TLShape>)
 
     const generateText = async (prompt: string) => {
-      console.log("🎯 generateText called with prompt:", prompt);
       
       // Clear any previous errors
       this.editor.updateShape<IPrompt>({
@@ -137,8 +136,6 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
       const escapedPrompt = prompt.replace(/[\\"]/g, '\\$&').replace(/\n/g, '\\n')
       const userMessage = `{"role": "user", "content": "${escapedPrompt}"}`
       
-      console.log("💬 User message:", userMessage);
-      console.log("📚 Conversation history:", conversationHistory);
       
       // Update with user message and trigger scroll
       this.editor.updateShape<IPrompt>({
@@ -153,23 +150,19 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
 
       let fullResponse = ''
 
-      console.log("🚀 Calling llm function...");
       try {
         await llm(prompt, (partial: string, done?: boolean) => {
-          console.log(`📝 LLM callback received - partial: "${partial}", done: ${done}`);
           if (partial) {
             fullResponse = partial
             const escapedResponse = partial.replace(/[\\"]/g, '\\$&').replace(/\n/g, '\\n')
             const assistantMessage = `{"role": "assistant", "content": "${escapedResponse}"}`
             
-            console.log("🤖 Assistant message:", assistantMessage);
             
             try {
               JSON.parse(assistantMessage)
               
               // Use requestAnimationFrame to ensure smooth scrolling during streaming
               requestAnimationFrame(() => {
-                console.log("🔄 Updating shape with partial response...");
                 this.editor.updateShape<IPrompt>({
                   id: shape.id,
                   type: "Prompt",
@@ -185,7 +178,6 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
             }
           }
         }, shape.props.personality)
-        console.log("✅ LLM function completed successfully");
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         console.error("❌ Error in LLM function:", errorMessage);
@@ -211,7 +203,6 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
 
       // Ensure the final message is saved after streaming is complete
       if (fullResponse) {
-        console.log("💾 Saving final response:", fullResponse);
         const escapedResponse = fullResponse.replace(/[\\"]/g, '\\$&').replace(/\n/g, '\\n')
         const assistantMessage = `{"role": "assistant", "content": "${escapedResponse}"}`
         
@@ -228,7 +219,6 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
               error: null // Clear any errors on success
             },
           })
-          console.log("✅ Final response saved successfully");
         } catch (error) {
           console.error('❌ Invalid JSON in final message:', error)
         }
@@ -392,7 +382,6 @@ export class PromptShape extends BaseBoxShapeUtil<IPrompt> {
     }
 
     const handlePinToggle = () => {
-      console.log('📌 Pin toggle clicked, current state:', shape.props.pinnedToView, '-> new state:', !shape.props.pinnedToView)
       this.editor.updateShape<IPrompt>({
         id: shape.id,
         type: shape.type,

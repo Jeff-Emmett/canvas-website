@@ -80,7 +80,6 @@ export function FathomMeetingsPanel({ onClose, onMeetingSelect, shapeMode = fals
           }
         })
       } catch (error) {
-        console.log('Production worker failed, trying local worker...')
         response = await fetch(`${LOCAL_WORKER_URL}/fathom/meetings`, {
           headers: {
             'X-Api-Key': key,
@@ -151,7 +150,6 @@ export function FathomMeetingsPanel({ onClose, onMeetingSelect, shapeMode = fals
   // Handler for individual data type buttons - creates shapes directly
   const handleDataButtonClick = async (meeting: FathomMeeting, dataType: 'summary' | 'transcript' | 'actionItems' | 'video') => {
     // Log to verify the correct meeting is being used
-    console.log('🔵 handleDataButtonClick called with meeting:', {
       recording_id: meeting.recording_id,
       title: meeting.title,
       dataType
@@ -251,7 +249,6 @@ export function FathomMeetingsPanel({ onClose, onMeetingSelect, shapeMode = fals
                         (callId ? `https://fathom.video/calls/${callId}` : null)
         
         if (videoUrl) {
-          console.log('Opening Fathom video URL:', videoUrl, 'for meeting:', { callId, recording_id: meeting.recording_id })
           window.open(videoUrl, '_blank', 'noopener,noreferrer')
         } else {
           console.error('Could not determine Fathom video URL for meeting:', meeting)
@@ -272,7 +269,6 @@ export function FathomMeetingsPanel({ onClose, onMeetingSelect, shapeMode = fals
           }
         })
       } catch (error) {
-        console.log('Production worker failed, trying local worker...')
         response = await fetch(`${LOCAL_WORKER_URL}/fathom/meetings/${meeting.recording_id}${includeTranscript ? '?include_transcript=true' : ''}`, {
           headers: {
             'X-Api-Key': apiKey,

@@ -37,10 +37,8 @@ export const overrides: TLUiOverrides = {
 				onSelect: () => {
 					const onlySelectedShape = editor.getOnlySelectedShape()
 					if (!onlySelectedShape || onlySelectedShape.type !== "draw") return
-					console.log("recognizing")
 					const verts = editor.getShapeGeometry(onlySelectedShape).vertices
 					const result = R.recognize(verts)
-					console.log(result)
 				},
 			},
 			addGesture: {
@@ -51,7 +49,6 @@ export const overrides: TLUiOverrides = {
 					if (!onlySelectedShape || onlySelectedShape.type !== "draw") return
 					const name = onlySelectedShape.meta.name
 					if (!name) return
-					console.log("adding gesture:", name)
 					const points = editor.getShapeGeometry(onlySelectedShape).vertices
 					R.addGesture(name as string, points)
 				},
@@ -64,7 +61,6 @@ export const overrides: TLUiOverrides = {
 					if (!onlySelectedShape || onlySelectedShape.type !== "draw") return
 					const points = editor.getShapeGeometry(onlySelectedShape).vertices
 					const result = R.recognize(points)
-					console.log("morphing to closest:", result.name)
 					const newShape: TLShapePartial<TLDrawShape> = {
 						...onlySelectedShape,
 						type: "draw",

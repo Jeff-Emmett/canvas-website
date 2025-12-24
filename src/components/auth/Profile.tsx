@@ -32,7 +32,6 @@ export const Profile: React.FC<ProfileProps> = ({ onLogout, onOpenVaultBrowser }
       obsidianVaultName: undefined
     });
     setIsEditingVault(false);
-    console.log('🔧 Vault disconnected from profile');
   };
 
   const handleChangeVault = () => {

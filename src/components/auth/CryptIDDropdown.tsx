@@ -136,7 +136,6 @@ const CryptIDDropdown: React.FC<CryptIDDropdownProps> = ({ isDarkMode = false })
   // Listen for session-cleared event to immediately clear connections state
   useEffect(() => {
     const handleSessionCleared = () => {
-      console.log('🔐 CryptIDDropdown: Session cleared - resetting connections state');
       setConnections([]);
       setConnectionsLoading(false);
       setShowDropdown(false);

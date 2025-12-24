@@ -77,7 +77,6 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
     const editor = this.editor
 
     // Debug: log what's in shape props on each render
-    console.log('🎬 VideoGen render - shape.props.videoUrl:', shape.props.videoUrl?.substring(0, 80) || 'null')
 
     const [prompt, setPrompt] = useState(shape.props.prompt)
     const [imageUrl, setImageUrl] = useState(shape.props.imageUrl)
@@ -97,7 +96,6 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
     // This ensures the displayed video matches the shape's stored videoUrl
     useEffect(() => {
       if (shape.props.videoUrl !== videoUrl) {
-        console.log('🎬 VideoGen: Syncing videoUrl from shape props:', shape.props.videoUrl?.substring(0, 50))
         setVideoUrl(shape.props.videoUrl)
       }
     }, [shape.props.videoUrl])
@@ -176,10 +174,7 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
       }
 
       const currentMode = (imageUrl.trim() || imageBase64) ? 'i2v' : 't2v'
-      console.log(`🎬 VideoGen: Starting ${currentMode.toUpperCase()} generation via fal.ai`)
-      console.log('🎬 VideoGen: Prompt:', prompt)
       if (currentMode === 'i2v') {
-        console.log('🎬 VideoGen: Image source:', imageUrl ? 'URL' : 'Uploaded')
       }
 
       // Clear any existing video and set loading state
@@ -209,7 +204,6 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
         // WAN 2.1 models: fast startup, good quality
         const endpoint = currentMode === 'i2v' ? 'fal-ai/wan-i2v' : 'fal-ai/wan-t2v'
 
-        console.log('🎬 VideoGen: Submitting to fal.ai endpoint:', endpoint)
         const submitUrl = `https://queue.fal.run/${endpoint}`
 
         // Build input payload for fal.ai
@@ -248,7 +242,6 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
         }
 
         const jobData = await response.json() as FalQueueResponse
-        console.log('🎬 VideoGen: Job submitted:', jobData.request_id)
 
         if (!jobData.request_id) {
           throw new Error('No request_id returned from fal.ai')
@@ -275,7 +268,6 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
           }
 
           const statusData = await statusResponse.json() as FalQueueResponse
-          console.log(`🎬 VideoGen: Poll ${attempts}/${maxAttempts}, status:`, statusData.status)
 
           if (statusData.status === 'COMPLETED') {
             // Fetch the result
@@ -289,13 +281,11 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
             }
 
             const resultData = await resultResponse.json() as { video?: { url: string }; output?: { video?: { url: string } } }
-            console.log('🎬 VideoGen: Result data:', JSON.stringify(resultData).substring(0, 200))
 
             // Extract video URL from result
             const videoResultUrl = resultData.video?.url || resultData.output?.video?.url
 
             if (videoResultUrl) {
-              console.log('✅ VideoGen: Generation complete, URL:', videoResultUrl.substring(0, 100))
 
               // Update local state immediately
               setVideoUrl(videoResultUrl)
@@ -319,7 +309,6 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
               }
               return
             } else {
-              console.log('⚠️ VideoGen: Completed but no video in result:', JSON.stringify(resultData))
               throw new Error('Video generation completed but no video URL returned')
             }
           } else if (statusData.status === 'FAILED') {
@@ -702,7 +691,7 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                   playsInline
                   onPointerDown={(e) => e.stopPropagation()}
                   onTouchStart={(e) => e.stopPropagation()}
-                  onLoadedData={() => console.log('🎬 VideoGen: Video loaded successfully')}
+                  onLoadedData={() => {}}
                   onError={(e) => console.error('🎬 VideoGen: Video load error:', e)}
                   style={{
                     width: '100%',

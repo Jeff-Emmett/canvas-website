@@ -205,7 +205,6 @@ export function NetworkGraphPanel({ onExpand }: NetworkGraphPanelProps) {
       window.history.replaceState(null, '', url.toString());
     }
 
-    console.log('Stopped following user');
   }, [editor]);
 
   // Keyboard handler for ESC and X to exit broadcast mode
@@ -299,7 +298,6 @@ export function NetworkGraphPanel({ onExpand }: NetworkGraphPanelProps) {
   // Handle node click
   const handleNodeClick = useCallback((node: any) => {
     // Could open a profile modal or navigate to user
-    console.log('Node clicked:', node);
   }, []);
 
   // Handle going to a user's cursor on canvas (navigate/pan to their location)
@@ -320,7 +318,6 @@ export function NetworkGraphPanel({ onExpand }: NetworkGraphPanelProps) {
       editor.centerOnPoint({ x, y });
     } else {
       // If no cursor position, try to find any presence data
-      console.log('Could not find cursor position for user:', node.username);
     }
   }, [editor, collaborators]);
 
@@ -353,9 +350,7 @@ export function NetworkGraphPanel({ onExpand }: NetworkGraphPanelProps) {
       url.searchParams.set('followId', userId);
       window.history.replaceState(null, '', url.toString());
 
-      console.log('Now following user:', node.username, '- Press ESC or X to exit');
     } else {
-      console.log('Could not find user to follow:', node.username);
     }
   }, [editor, collaborators]);
 
@@ -371,7 +366,6 @@ export function NetworkGraphPanel({ onExpand }: NetworkGraphPanelProps) {
   const handleEdgeClick = useCallback((edge: GraphEdge) => {
     setSelectedEdge(edge);
     // Could open an edge metadata editor modal
-    console.log('Edge clicked:', edge);
   }, []);
 
   // Handle expand to full 3D view

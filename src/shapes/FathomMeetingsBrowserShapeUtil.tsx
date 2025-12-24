@@ -107,7 +107,6 @@ export class FathomMeetingsBrowserShape extends BaseBoxShapeUtil<IFathomMeetings
           }
           
           // Log to verify the correct meeting is being received
-          console.log('🔵 handleMeetingSelect called with meeting:', {
             recording_id: meetingRecordingId,
             title: meetingTitle,
             options,
@@ -128,13 +127,11 @@ export class FathomMeetingsBrowserShape extends BaseBoxShapeUtil<IFathomMeetings
         const includeTranscript = options.transcript
         
         // Use the stored meetingRecordingId (already extracted above)
-        console.log('🔵 Fetching data for meeting recording_id:', meetingRecordingId)
         
         let response
         try {
           // Fetch data for THIS specific meeting using its recording_id
           const apiUrl = `${WORKER_URL}/fathom/meetings/${meetingRecordingId}${includeTranscript ? '?include_transcript=true' : ''}`
-          console.log('🔵 API URL:', apiUrl)
           response = await fetch(apiUrl, {
             headers: {
               'X-Api-Key': apiKey,
@@ -159,15 +156,9 @@ export class FathomMeetingsBrowserShape extends BaseBoxShapeUtil<IFathomMeetings
         const fullMeeting = await response.json() as any
 
         // Debug: Log the meeting response structure
-        console.log('Full meeting response:', fullMeeting)
-        console.log('Meeting keys:', Object.keys(fullMeeting))
-        console.log('Has default_summary:', !!fullMeeting.default_summary)
-        console.log('Has action_items:', !!fullMeeting.action_items)
         if (fullMeeting.default_summary) {
-          console.log('default_summary structure:', fullMeeting.default_summary)
         }
         if (fullMeeting.action_items) {
-          console.log('action_items length:', fullMeeting.action_items.length)
         }
 
         // Helper function to format date as YYYY.MM.DD
@@ -461,7 +452,6 @@ export class FathomMeetingsBrowserShape extends BaseBoxShapeUtil<IFathomMeetings
                           (callId ? `https://fathom.video/calls/${callId}` : null)
           
           if (videoUrl) {
-            console.log('Opening Fathom video URL:', videoUrl, 'for meeting:', { callId, recording_id: meeting.recording_id })
             window.open(videoUrl, '_blank', 'noopener,noreferrer')
           } else {
             console.error('Could not determine Fathom video URL for meeting:', { meeting, fullMeeting })

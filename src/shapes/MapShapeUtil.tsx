@@ -527,7 +527,6 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
       const currentTool = activeToolRef.current;
       const currentDrawingPoints = drawingPointsRef.current;
 
-      console.log('Map click with tool:', currentTool, 'at', coord, 'points:', currentDrawingPoints.length);
 
       if (currentTool === 'marker') {
         addAnnotation('marker', [coord]);
@@ -570,7 +569,6 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
       const currentTool = activeToolRef.current;
       const currentDrawingPoints = drawingPointsRef.current;
 
-      console.log('Map double-click with tool:', currentTool, 'points:', currentDrawingPoints.length);
 
       if (currentTool === 'line' && currentDrawingPoints.length >= 2) {
         addAnnotation('line', currentDrawingPoints);
@@ -660,7 +658,6 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
 
     // Debug logging
     if (collaboratorsWithLocation.length > 0) {
-      console.log('📍 GPS Markers Update:', {
         total: allCollaborators.length,
         withLocation: collaboratorsWithLocation.length,
         users: collaboratorsWithLocation.map(c => ({ id: c.id.slice(0, 8), name: c.name, loc: c.location })),
@@ -1282,13 +1279,11 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
   const findNearby = useCallback(async (category: typeof NEARBY_CATEGORIES[0]) => {
     if (!mapRef.current || !isMountedRef.current) return;
 
-    console.log('🗺️ findNearby called for category:', category.label);
     setIsFetchingNearby(true);
 
     let bounds;
     try {
       bounds = mapRef.current.getBounds();
-      console.log('🗺️ Map bounds:', bounds.toString());
     } catch (err) {
       console.error('🗺️ Error getting bounds:', err);
       setIsFetchingNearby(false);
@@ -1303,7 +1298,6 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
         );
         out body 10;
       `;
-      console.log('🗺️ Overpass query:', query);
 
       const response = await fetch('https://overpass-api.de/api/interpreter', {
         method: 'POST',
@@ -1315,9 +1309,7 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
         return;
       }
 
-      console.log('🗺️ Overpass response status:', response.status);
       const data = await response.json() as { elements: { id: number; lat: number; lon: number; tags?: { name?: string; amenity?: string } }[] };
-      console.log('🗺️ Found', data.elements.length, 'places');
 
       const places = data.elements.slice(0, 10).map((el) => ({
         id: el.id,
@@ -1335,7 +1327,6 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
       setNearbyPlaces(places);
 
       // Add markers for nearby places
-      console.log('🗺️ Adding', places.length, 'markers');
       places.forEach((place: any) => {
         if (isMountedRef.current) {
           addAnnotation('marker', [{ lat: place.lat, lng: place.lng }], {
@@ -1388,7 +1379,6 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
     const userColor = editor.user.getColor();
 
     setIsSharingLocation(true);
-    console.log('📍 Starting location sharing for user:', userName);
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
@@ -1419,7 +1409,6 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
           lastSeen: Date.now(),
         };
 
-        console.log('📍 Broadcasting location:', newLocation, 'Total collaborators:', existingCollaborators.length + 1);
 
         editor.updateShape<IMapShape>({
           id: shape.id,
@@ -1453,7 +1442,6 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
     // Get current shape to avoid stale closure
     const currentShape = editor.getShape<IMapShape>(shape.id);
     if (!currentShape) {
-      console.log('📍 Shape not found, skipping collaborator removal');
       return;
     }
 
@@ -1463,7 +1451,6 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
       (c: CollaboratorPresence) => c.id !== userId
     );
 
-    console.log('📍 Stopping location sharing, remaining collaborators:', filteredCollaborators.length);
 
     editor.updateShape<IMapShape>({
       id: shape.id,

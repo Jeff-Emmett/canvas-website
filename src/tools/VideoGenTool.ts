@@ -7,7 +7,6 @@ export class VideoGenTool extends StateNode {
   static override children = () => [VideoGenIdle]
 
   onSelect() {
-    console.log('🎬 VideoGenTool: tool selected - waiting for user click')
   }
 }
 
@@ -112,7 +111,6 @@ export class VideoGenIdle extends StateNode {
         }
       })
 
-      console.log('🎬 Created VideoGen shape:', videoGenShape.id)
 
       const newCamera = this.editor.getCamera()
       if (currentCamera.x !== newCamera.x || currentCamera.y !== newCamera.y || currentCamera.z !== newCamera.z) {

@@ -154,13 +154,11 @@ export function SettingsDialog({ onClose }: TLUiDialogProps) {
     
     // If user is logged in, save to user-specific storage
     if (session.authed && session.username) {
-      console.log(`💾 Saving user-specific settings for ${session.username}:`, settings);
       localStorage.setItem(`${session.username}_api_keys`, JSON.stringify(settings))
       
       // Also save to global storage as fallback
       localStorage.setItem("openai_api_key", JSON.stringify(settings))
     } else {
-      console.log("💾 Saving global settings to localStorage:", settings);
       localStorage.setItem("openai_api_key", JSON.stringify(settings))
     }
   }

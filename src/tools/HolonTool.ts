@@ -88,9 +88,7 @@ export class HolonIdle extends StateNode {
         const pagePoint = this.editor.screenToPage(info.point)
         clickX = pagePoint.x
         clickY = pagePoint.y
-        console.log('📍 HolonTool: Method 1 - info.point converted:', { screen: info.point, page: { x: clickX, y: clickY } })
       } catch (e) {
-        console.log('📍 HolonTool: Failed to convert info.point, trying other methods')
       }
     }
     
@@ -100,7 +98,6 @@ export class HolonIdle extends StateNode {
       if (currentPagePoint && currentPagePoint.x !== undefined && currentPagePoint.y !== undefined) {
         clickX = currentPagePoint.x
         clickY = currentPagePoint.y
-        console.log('📍 HolonTool: Method 2 - currentPagePoint:', { x: clickX, y: clickY })
       }
     }
     
@@ -110,7 +107,6 @@ export class HolonIdle extends StateNode {
       if (originPagePoint && originPagePoint.x !== undefined && originPagePoint.y !== undefined) {
         clickX = originPagePoint.x
         clickY = originPagePoint.y
-        console.log('📍 HolonTool: Method 3 - originPagePoint:', { x: clickX, y: clickY })
       }
     }
     
@@ -145,7 +141,6 @@ export class HolonIdle extends StateNode {
         }
       } catch (e) {
         // Element might already be removed, ignore error
-        console.log('Tooltip element already removed')
       }
       this.tooltipElement = undefined
     }
@@ -169,7 +164,6 @@ export class HolonIdle extends StateNode {
         // Position new Holon shape at click location (centered on click)
         baseX = clickX - shapeWidth / 2 // Center the shape on click
         baseY = clickY - shapeHeight / 2 // Center the shape on click
-        console.log('📍 HolonTool: Calculated base position from click:', { clickX, clickY, baseX, baseY, shapeWidth, shapeHeight })
       } else {
         // Fallback to viewport center if no click coordinates
         const viewport = this.editor.getViewportPageBounds()
@@ -193,7 +187,6 @@ export class HolonIdle extends StateNode {
         // This ensures the shape appears exactly where the user clicked
         finalX = baseX
         finalY = baseY
-        console.log('📍 Using click position directly (no collision check):', { 
           clickPosition: { x: clickX, y: clickY }, 
           shapePosition: { x: finalX, y: finalY },
           shapeSize: { w: shapeWidth, h: shapeHeight }
@@ -202,7 +195,6 @@ export class HolonIdle extends StateNode {
         // For fallback (no click), use base position directly
         finalX = baseX
         finalY = baseY
-        console.log('📍 No click position - using base position:', { finalX, finalY })
       }
       
       // Default coordinates (can be changed by user)
@@ -210,7 +202,6 @@ export class HolonIdle extends StateNode {
       const defaultLng = -74.0060
       const defaultResolution = 7 // City level
       
-      console.log('📍 HolonTool: Final position for shape:', { finalX, finalY, wasOverlap: clickX !== undefined && clickY !== undefined && (finalX !== baseX || finalY !== baseY) })
       
       const holonShape = this.editor.createShape({
         type: 'Holon',
@@ -234,7 +225,6 @@ export class HolonIdle extends StateNode {
         }
       })
       
-      console.log('✅ Created Holon shape:', holonShape.id)
       
       // Restore camera position if it changed
       const newCamera = this.editor.getCamera()
@@ -262,21 +252,18 @@ export class HolonIdle extends StateNode {
       // If Holon shapes exist, select them and center the view
       this.editor.setSelectedShapes(holonShapes.map(shape => shape.id))
       this.editor.zoomToFit()
-      console.log('🎯 Holon tool selected - showing existing Holon shapes:', holonShapes.length)
       
       // Add refresh all functionality
       this.addRefreshAllListener()
     } else {
       // If no Holon shapes exist, don't automatically create one
       // The user will create one by clicking on the canvas (onPointerDown)
-      console.log('🎯 Holon tool selected - no Holon shapes found, waiting for user interaction')
     }
   }
 
   private addRefreshAllListener() {
     // Listen for refresh-all-holons event
     const handleRefreshAll = async () => {
-      console.log('🔄 Refreshing all Holon shapes...')
       const shapeUtil = new HolonShape(this.editor)
       shapeUtil.editor = this.editor
       

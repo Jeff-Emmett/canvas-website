@@ -30,7 +30,3 @@ export const getWorkerInfo = () => ({
 })
 
 // Log current environment on import (for debugging)
-console.log(`🔧 Worker Environment: ${WORKER_ENV}`)
-console.log(`🔧 Worker URL: ${WORKER_URL}`)
-console.log(`🔧 Available environments: local, dev, production`)
-console.log(`🔧 To switch: Set VITE_WORKER_ENV environment variable or change WORKER_ENV in this file`)

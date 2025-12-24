@@ -110,11 +110,9 @@ export async function transcribeWithRunPod(
 
     const data: RunPodTranscriptionResponse = await response.json()
     
-    console.log('RunPod initial response:', data)
     
     // Handle async job pattern (RunPod often returns job IDs)
     if (data.id && (data.status === 'IN_QUEUE' || data.status === 'IN_PROGRESS')) {
-      console.log('Job is async, polling for results...', data.id)
       return await pollRunPodJob(data.id, config.apiKey, config.endpointId)
     }
     
@@ -157,7 +155,6 @@ async function pollRunPodJob(
 ): Promise<string> {
   const statusUrl = `https://api.runpod.ai/v2/${endpointId}/status/${jobId}`
   
-  console.log(`Polling job ${jobId} (max ${maxAttempts} attempts, ${pollInterval}ms interval)`)
   
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
@@ -185,7 +182,6 @@ async function pollRunPodJob(
         
         // Don't fail immediately on 404 - job might still be processing
         if (response.status === 404 && attempt < maxAttempts - 1) {
-          console.log('Job not found yet, continuing to poll...')
           await new Promise(resolve => setTimeout(resolve, pollInterval))
           continue
         }
@@ -195,10 +191,8 @@ async function pollRunPodJob(
 
       const data: RunPodTranscriptionResponse = await response.json()
       
-      console.log(`Job status (attempt ${attempt + 1}/${maxAttempts}):`, data.status)
       
       if (data.status === 'COMPLETED') {
-        console.log('Job completed, extracting transcription...')
         
         if (data.output?.text) {
           return data.output.text.trim()
@@ -220,7 +214,6 @@ async function pollRunPodJob(
       
       // Job still in progress, wait and retry
       if (attempt % 10 === 0) {
-        console.log(`Job still processing... (${attempt + 1}/${maxAttempts} attempts)`)
       }
       await new Promise(resolve => setTimeout(resolve, pollInterval))
     } catch (error: any) {

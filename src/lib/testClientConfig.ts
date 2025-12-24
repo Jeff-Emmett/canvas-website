@@ -6,10 +6,8 @@
 import { getClientConfig, isGitHubConfigured, getGitHubConfig } from './clientConfig'
 
 export function testClientConfig() {
-  console.log('🧪 Testing client configuration...')
   
   const config = getClientConfig()
-  console.log('📋 Client config:', {
     hasGithubToken: !!config.githubToken,
     hasQuartzRepo: !!config.quartzRepo,
     githubTokenLength: config.githubToken?.length || 0,
@@ -17,10 +15,8 @@ export function testClientConfig() {
   })
   
   const isConfigured = isGitHubConfigured()
-  console.log('✅ GitHub configured:', isConfigured)
   
   const githubConfig = getGitHubConfig()
-  console.log('🔧 GitHub config:', githubConfig)
   
   return {
     config,

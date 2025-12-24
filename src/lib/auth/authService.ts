@@ -31,7 +31,6 @@ export class AuthService {
         obsidianVaultPath: storedSession.obsidianVaultPath,
         obsidianVaultName: storedSession.obsidianVaultName
       };
-      console.log('🔐 Restored authenticated session for:', storedSession.username);
     } else {
       // No valid session - user is anonymous
       // Note: User may still have crypto keys stored from previous sessions,
@@ -42,7 +41,6 @@ export class AuthService {
         loading: false,
         backupCreated: null
       };
-      console.log('🔐 No valid session found - user is anonymous');
     }
 
     return { session };

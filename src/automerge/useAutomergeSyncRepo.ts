@@ -68,7 +68,6 @@ function migrateStoreData(store: Record<string, any>): Record<string, any> {
     return store
   }
 
-  console.log('🔄 Migrating store data: fixing invalid shape indices')
 
   // Copy non-shape records as-is
   for (const [id, record] of nonShapes) {
@@ -99,7 +98,6 @@ function migrateStoreData(store: Record<string, any>): Record<string, any> {
     migratedStore[id] = migratedRecord
   }
 
-  console.log(`✅ Migrated ${shapes.length} shapes with new indices`)
   return migratedStore
 }
 
@@ -161,10 +159,8 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
     const deletedShapes = deletedRecordIds.filter(id => id.startsWith('shape:'))
 
     // Log incoming sync data for debugging
-    console.log(`📥 Received JSON sync: ${changedRecordCount} records (${shapeRecords.length} shapes), ${deletedRecordIds.length} deletions (${deletedShapes.length} shapes)`)
     if (shapeRecords.length > 0) {
       shapeRecords.forEach((shape: any) => {
-        console.log(`📥 Shape update: ${shape.type} ${shape.id}`, {
           x: shape.x,
           y: shape.y,
           w: shape.props?.w,
@@ -173,7 +169,6 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
       })
     }
     if (deletedShapes.length > 0) {
-      console.log(`📥 Shape deletions:`, deletedShapes)
     }
 
     // Apply changes to the Automerge document
@@ -200,7 +195,6 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
       }
     })
 
-    console.log(`✅ Applied ${changedRecordCount} records and ${deletedRecordIds.length} deletions to Automerge document`)
   }, [])
 
   // Presence update batching to prevent "Maximum update depth exceeded" errors
@@ -315,7 +309,6 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
       )
 
       if (presenceRecord) {
-        console.log('👋 Removing presence record for session:', sessionId, presenceRecord.id)
         currentStore.remove([presenceRecord.id])
       }
     } catch (error) {
@@ -380,7 +373,6 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
         const storedDocumentId = await getDocumentId(roomId)
 
         if (storedDocumentId) {
-          console.log(`Found stored document ID for room ${roomId}: ${storedDocumentId}`)
           try {
             // Parse the URL to get the DocumentId
             const parsed = parseAutomergeUrl(storedDocumentId as AutomergeUrl)
@@ -392,7 +384,6 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
 
             let foundHandle: DocHandle<TLStoreSnapshot>
             if (existingHandle) {
-              console.log(`Document ${docId} already in repo cache, reusing handle`)
               foundHandle = existingHandle
             } else {
               // Try to find the existing document in the repo (loads from IndexedDB)
@@ -408,14 +399,12 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
             const localShapeCount = localDoc?.store ? Object.values(localDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
 
             if (localRecordCount > 0) {
-              console.log(`📦 Loaded document from IndexedDB: ${localRecordCount} records, ${localShapeCount} shapes`)
 
               // CRITICAL: Migrate local IndexedDB data to fix any invalid indices
               // This ensures shapes with old-format indices like "b1" are fixed
               if (localDoc?.store) {
                 const migratedStore = migrateStoreData(localDoc.store)
                 if (migratedStore !== localDoc.store) {
-                  console.log('🔄 Applying index migration to local IndexedDB data')
                   handle.change((doc: any) => {
                     doc.store = migratedStore
                   })
@@ -424,7 +413,6 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
 
               loadedFromLocal = true
             } else {
-              console.log(`Document found in IndexedDB but is empty, will load from server`)
             }
           } catch (error) {
             console.warn(`Failed to load document ${storedDocumentId} from IndexedDB:`, error)
@@ -434,7 +422,6 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
 
         // If we didn't load from local storage, create a new document
         if (!loadedFromLocal || !handle!) {
-          console.log(`Creating new Automerge document for room ${roomId}`)
           handle = repo.create<TLStoreSnapshot>()
           await handle.whenReady()
 
@@ -442,7 +429,6 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
           const documentId = handle.url
           if (documentId) {
             await saveDocumentId(roomId, documentId)
-            console.log(`Saved new document mapping: ${roomId} -> ${documentId}`)
           }
         }
 
@@ -452,14 +438,12 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
         // This allows the UI to render immediately with local data
         if (handle.url) {
           adapter.setDocumentId(handle.url)
-          console.log(`📋 Set documentId on adapter: ${handle.url}`)
         }
 
         // If we loaded from local, set handle immediately so UI can render
         if (loadedFromLocal) {
           const localDoc = handle.doc() as any
           const localShapeCount = localDoc?.store ? Object.values(localDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
-          console.log(`📴 Offline-ready: ${localShapeCount} shapes available from IndexedDB`)
           setHandle(handle)
           setIsLoading(false)
         }
@@ -477,7 +461,6 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
             const result = await Promise.race([networkReadyPromise, timeoutPromise])
 
             if (result === 'timeout') {
-              console.log(`⏱️ Network adapter timeout - continuing in offline mode`)
               // If we haven't set the handle yet (no local data), set it now
               if (!loadedFromLocal && mounted) {
                 setHandle(handle)
@@ -541,22 +524,17 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
                     }
                   })
 
-                  console.log(`📥 Merge strategy: local was ${localIsEmpty ? 'EMPTY' : 'populated'}, added ${addedFromServer} from server, preserved ${skippedExisting} local records`)
                 })
 
                 const finalDoc = handle.doc()
                 const finalRecordCount = finalDoc?.store ? Object.keys(finalDoc.store).length : 0
-                console.log(`🔄 Merged server data: server had ${serverRecordCount}, local had ${localRecordCount}, final has ${finalRecordCount} records`)
               } else if (!loadedFromLocal) {
                 // Server is empty and we didn't load from local - fresh start
-                console.log(`Starting fresh - no data on server or locally`)
               }
             } else if (response.status === 404) {
               // No document found on server
               if (loadedFromLocal) {
-                console.log(`No server document, but loaded ${handle.doc()?.store ? Object.keys(handle.doc()!.store).length : 0} records from local storage`)
               } else {
-                console.log(`No document found on server - starting fresh`)
               }
             } else {
               console.warn(`Failed to load document from server: ${response.status} ${response.statusText}`)
@@ -564,7 +542,6 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
           } catch (error) {
             // Network error - continue with local data if available
             if (loadedFromLocal) {
-              console.log(`📴 Offline mode: using local data from IndexedDB`)
             } else {
               console.error("Error loading from server (offline?):", error)
             }
@@ -574,7 +551,6 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
           const finalDoc = handle.doc() as any
           const finalStoreKeys = finalDoc?.store ? Object.keys(finalDoc.store).length : 0
           const finalShapeCount = finalDoc?.store ? Object.values(finalDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
-          console.log(`✅ Automerge handle ready: ${finalStoreKeys} records, ${finalShapeCount} shapes (loaded from ${loadedFromLocal ? 'IndexedDB' : 'server/new'})`)
 
           // If we haven't set the handle yet (no local data), set it now after server sync
           if (!loadedFromLocal && mounted) {
@@ -652,7 +628,6 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
       })
 
       if (shapePatches.length > 0) {
-        console.log('🔄 Automerge document changed (binary sync will propagate):', {
           patchCount: patchCount,
           shapePatches: shapePatches.length
         })
