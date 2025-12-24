@@ -22,6 +22,7 @@ export interface ClientConfig {
   runpodWhisperEndpointId?: string
   ollamaUrl?: string
   geminiApiKey?: string
+  falApiKey?: string
 }
 
 /**
@@ -54,6 +55,7 @@ export function getClientConfig(): ClientConfig {
         runpodWhisperEndpointId: import.meta.env.VITE_RUNPOD_WHISPER_ENDPOINT_ID || import.meta.env.NEXT_PUBLIC_RUNPOD_WHISPER_ENDPOINT_ID,
         ollamaUrl: import.meta.env.VITE_OLLAMA_URL || import.meta.env.NEXT_PUBLIC_OLLAMA_URL,
         geminiApiKey: import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.NEXT_PUBLIC_GEMINI_API_KEY,
+        falApiKey: import.meta.env.VITE_FAL_API_KEY || import.meta.env.NEXT_PUBLIC_FAL_API_KEY,
       }
     } else {
       // Next.js environment
@@ -92,9 +94,13 @@ export function getClientConfig(): ClientConfig {
       runpodWhisperEndpointId: process.env.VITE_RUNPOD_WHISPER_ENDPOINT_ID || process.env.NEXT_PUBLIC_RUNPOD_WHISPER_ENDPOINT_ID,
       ollamaUrl: process.env.VITE_OLLAMA_URL || process.env.NEXT_PUBLIC_OLLAMA_URL,
       geminiApiKey: process.env.VITE_GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY,
+      falApiKey: process.env.VITE_FAL_API_KEY || process.env.NEXT_PUBLIC_FAL_API_KEY,
     }
   }
 }
+
+// Default fal.ai API key - shared for all users
+const DEFAULT_FAL_API_KEY = '(REDACTED-FAL-KEY)'
 
 // Default RunPod API key - shared across all endpoints
 // This allows all users to access AI features without their own API keys
@@ -184,6 +190,27 @@ export function getRunPodWhisperConfig(): { apiKey: string; endpointId: string }
     apiKey: apiKey,
     endpointId: endpointId
   }
+}
+
+/**
+ * Get fal.ai configuration for image and video generation
+ * Falls back to pre-configured API key if not set
+ */
+export function getFalConfig(): { apiKey: string } | null {
+  const config = getClientConfig()
+  const apiKey = config.falApiKey || DEFAULT_FAL_API_KEY
+
+  return {
+    apiKey: apiKey
+  }
+}
+
+/**
+ * Check if fal.ai integration is configured
+ */
+export function isFalConfigured(): boolean {
+  const config = getClientConfig()
+  return !!(config.falApiKey || DEFAULT_FAL_API_KEY)
 }
 
 /**
