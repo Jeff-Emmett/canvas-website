@@ -50,7 +50,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
     if (token) {
-      console.log('🔑 Access token found in URL');
       setAccessTokenState(token);
       // Optionally remove from URL to clean it up (but keep the token in state)
       // This prevents the token from being shared if someone copies the URL
@@ -119,7 +118,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           boardPermissions: {},
           currentBoardPermission: undefined,
         });
-        console.log('🔐 Login successful - cleared permission cache, authChangedAt:', authChangedAtRef.current);
 
         // Save session to localStorage if authenticated
         if (result.session.authed && result.session.username) {
@@ -165,7 +163,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           boardPermissions: {},
           currentBoardPermission: undefined,
         });
-        console.log('🔐 Registration successful - cleared permission cache, authChangedAt:', authChangedAtRef.current);
 
         // Save session to localStorage if authenticated
         if (result.session.authed && result.session.username) {
@@ -181,7 +178,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return false;
       }
     } catch (error) {
-      console.error('Register error:', error);
+      console.error('Registration error:', error);
       setSessionState(prev => ({
         ...prev,
         loading: false,
@@ -210,7 +207,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       boardPermissions: {},
       currentBoardPermission: undefined,
     });
-    console.log('🔐 Session cleared - marked auth as changed, authChangedAt:', authChangedAtRef.current);
   }, []);
 
   /**
@@ -247,13 +243,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // IMPORTANT: Check if auth state changed recently (within last 5 seconds)
     // If so, bypass cache entirely to prevent stale callbacks from returning old cached values
     const authChangedRecently = Date.now() - authChangedAtRef.current < 5000;
-    if (authChangedRecently) {
-      console.log('🔐 Auth changed recently, bypassing permission cache');
-    }
 
     // Check cache first (but only if no access token and auth didn't just change)
     if (!accessToken && !authChangedRecently && session.boardPermissions?.[boardId]) {
-      console.log('🔐 Using cached permission for board:', boardId, session.boardPermissions[boardId]);
       return session.boardPermissions[boardId];
     }
 
@@ -272,20 +264,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       }
 
-      // Debug: Log what we're sending
-      console.log('🔐 fetchBoardPermission:', {
-        boardId,
-        sessionAuthed: session.authed,
-        sessionUsername: session.username,
-        publicKeyUsed: publicKeyUsed ? `${publicKeyUsed.substring(0, 20)}...` : null,
-        hasAccessToken: !!accessToken
-      });
-
       // Build URL with optional access token
       let url = `${WORKER_URL}/boards/${boardId}/permission`;
       if (accessToken) {
         url += `?token=${encodeURIComponent(accessToken)}`;
-        console.log('🔑 Including access token in permission check');
       }
 
       const response = await fetch(url, {
@@ -294,9 +276,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       if (!response.ok) {
-        console.error('Failed to fetch board permission:', response.status);
-        // NEW: Default to 'edit' for everyone (open by default)
-        console.log('🔐 Using default permission (API failed): edit');
+        // Default to 'edit' for everyone (open by default) if API fails
         return 'edit';
       }
 
@@ -310,26 +290,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isGlobalAdmin?: boolean; // Whether user is global admin
       };
 
-      // Debug: Log what we received
-      console.log('🔐 Permission response:', data);
-
-      if (data.grantedByToken) {
-        console.log('🔓 Permission granted via access token:', data.permission);
-      }
-      if (data.isGlobalAdmin) {
-        console.log('🔓 User is global admin');
-      }
-
       // NEW PERMISSION MODEL (Dec 2024):
       // - Everyone (including anonymous) can EDIT by default
       // - Only protected boards restrict editing to listed editors
       // The backend now returns the correct permission, so we just use it directly
       let effectivePermission = data.permission;
-
-      // Log why view permission was given (for debugging protected boards)
-      if (data.permission === 'view' && data.isProtected) {
-        console.log('🔒 View-only: board is protected and user is not an editor');
-      }
 
       // Cache the permission
       setSessionState(prev => ({
@@ -344,8 +309,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return effectivePermission;
     } catch (error) {
       console.error('Error fetching board permission:', error);
-      // NEW: Default to 'edit' for everyone (open by default)
-      console.log('🔐 Using default permission (error): edit');
+      // Default to 'edit' for everyone (open by default)
       return 'edit';
     }
   }, [session.authed, session.username, session.boardPermissions, accessToken]);

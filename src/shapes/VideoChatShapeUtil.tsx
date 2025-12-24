@@ -41,7 +41,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
   }
 
   getDefaultProps(): IVideoChatShape["props"] {
-    const props = {
+    return {
       roomUrl: null,
       w: 800,
       h: 560, // Reduced from 600 to account for header (40px) and avoid scrollbars
@@ -54,8 +54,6 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
       pinnedToView: false,
       tags: ['video-chat']
     };
-    console.log('🔧 getDefaultProps called, returning:', props);
-    return props;
   }
 
   async generateMeetingToken(roomName: string) {
@@ -72,7 +70,6 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 
     // For now, let's skip token generation and use a simpler approach
     // We'll use the room URL directly and handle owner permissions differently
-    console.log('Skipping meeting token generation for now');
     return `token_${roomName}_${Date.now()}`;
   }
 
@@ -90,8 +87,6 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
       roomId = localStorage.getItem('currentRoomId') || 'default-room';
     }
 
-    console.log('🔧 Using room ID:', roomId);
-
     // Clear old storage entries that use the old boardId format
     // This ensures we don't load old rooms with the wrong naming convention
     const oldStorageKeys = [
@@ -102,7 +97,6 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     
     oldStorageKeys.forEach(key => {
       if (localStorage.getItem(key)) {
-        console.log(`Clearing old storage entry: ${key}`);
         localStorage.removeItem(key);
         localStorage.removeItem(`${key}_token`);
       }
@@ -116,11 +110,9 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     if (existingRoomUrl && existingRoomUrl !== 'undefined' && existingToken) {
         // Check if the existing room URL uses the old naming pattern
         if (existingRoomUrl.includes('board_page_page_') || existingRoomUrl.includes('page_page')) {
-            console.log("Found old room URL format, clearing and creating new room:", existingRoomUrl);
             localStorage.removeItem(storageKey);
             localStorage.removeItem(`${storageKey}_token`);
         } else {
-            console.log("Using existing room from storage:", existingRoomUrl);
             await this.editor.updateShape<IVideoChatShape>({
                 id: shape.id,
                 type: shape.type,
@@ -137,10 +129,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 
     if (shape.props.roomUrl !== null && shape.props.roomUrl !== 'undefined' && shape.props.meetingToken) {
         // Check if the shape's room URL uses the old naming pattern
-        if (shape.props.roomUrl.includes('board_page_page_') || shape.props.roomUrl.includes('page_page')) {
-            console.log("Shape has old room URL format, will create new room:", shape.props.roomUrl);
-        } else {
-            console.log("Room already exists:", shape.props.roomUrl);
+        if (!shape.props.roomUrl.includes('board_page_page_') && !shape.props.roomUrl.includes('page_page')) {
             localStorage.setItem(storageKey, shape.props.roomUrl);
             localStorage.setItem(`${storageKey}_token`, shape.props.meetingToken);
             return;
@@ -150,12 +139,6 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     try {
         const workerUrl = WORKER_URL;
         const apiKey = import.meta.env.VITE_DAILY_API_KEY;
-
-        // Debug logging
-        console.log('🔧 VideoChat Debug:');
-        console.log('WORKER_URL:', WORKER_URL);
-        console.log('workerUrl:', workerUrl);
-        console.log('apiKey exists:', !!apiKey);
 
         if (!apiKey) {
             throw new Error('Daily.co API key not configured');
@@ -170,22 +153,6 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         const shortId = roomId.length > 8 ? roomId.substring(0, 8) : roomId;
         const cleanId = shortId.replace(/[^A-Za-z0-9]/g, '');
         const roomName = `canvas-${cleanId}`;
-        
-        console.log('🔧 Room name generation:');
-        console.log('Original roomId:', roomId);
-        console.log('Short ID:', shortId);
-        console.log('Clean ID:', cleanId);
-        console.log('Final roomName:', roomName);
-
-        console.log('🔧 Creating Daily.co room with:', {
-          name: roomName,
-          properties: {
-            enable_chat: true,
-            enable_screenshare: true,
-            start_video_off: true,
-            start_audio_off: true
-          }
-        });
 
         const response = await fetch(`${workerUrl}/daily/rooms`, {
           method: 'POST',
@@ -204,21 +171,16 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
           })
         });
 
-        console.log('🔧 Daily.co API response status:', response.status);
-        console.log('🔧 Daily.co API response ok:', response.ok);
-
         let url: string;
         let isNewRoom: boolean = false;
 
         if (!response.ok) {
           const error = await response.json() as any
-          console.error('🔧 Daily.co API error:', error);
-          
+
           // Check if the room already exists
           if (response.status === 400 && error.info && error.info.includes('already exists')) {
-            console.log('🔧 Room already exists, connecting to existing room:', roomName);
             isNewRoom = false;
-            
+
             // Try to get the existing room info from Daily.co API
             try {
               const getRoomResponse = await fetch(`https://api.daily.co/v1/rooms/${roomName}`, {
@@ -227,21 +189,14 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
                   'Authorization': `Bearer ${apiKey}`
                 }
               });
-              
+
               if (getRoomResponse.ok) {
                 const roomData = await getRoomResponse.json() as any;
                 url = roomData.url;
-                console.log('🔧 Retrieved existing room URL:', url);
               } else {
-                // If we can't get room info, construct the URL
-                // This is a fallback - ideally we'd get it from the API
-                console.warn('🔧 Could not get room info, constructing URL (this may not work)');
-                // We'll need to construct it, but we don't have the domain
-                // For now, throw an error and let the user know
                 throw new Error(`Room ${roomName} already exists but could not retrieve room URL. Please contact support.`);
               }
             } catch (getRoomError) {
-              console.error('🔧 Error getting existing room:', getRoomError);
               throw new Error(`Room ${roomName} already exists but could not connect to it: ${(getRoomError as Error).message}`);
             }
           } else {
@@ -252,34 +207,19 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
           // Room was created successfully
           isNewRoom = true;
           const data = (await response.json()) as DailyApiResponse;
-          console.log('🔧 Daily.co API response data:', data);
           url = data.url;
         }
 
         if (!url) {
-          console.error('🔧 Room URL is missing');
           throw new Error("Room URL is missing")
         }
 
-        console.log('🔧 Room URL from API:', url);
-        
         // Generate meeting token for the owner
-        // First ensure the room exists, then generate token
         const meetingToken = await this.generateMeetingToken(roomName);
 
         // Store the room URL and token in localStorage
         localStorage.setItem(storageKey, url);
         localStorage.setItem(`${storageKey}_token`, meetingToken);
-
-        if (isNewRoom) {
-          console.log("Room created successfully:", url)
-        } else {
-          console.log("Connected to existing room:", url)
-        }
-        console.log("Meeting token generated:", meetingToken)
-        console.log("Updating shape with new URL and token")
-        // Set isOwner to true only if we created the room, false if we connected to existing
-        console.log("Setting isOwner to", isNewRoom)
 
         await this.editor.updateShape<IVideoChatShape>({
           id: shape.id,
@@ -291,10 +231,6 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
             isOwner: isNewRoom, // Only owner if we created the room
           },
         })
-
-        console.log("Shape updated:", this.editor.getShape(shape.id))
-        const updatedShape = this.editor.getShape(shape.id) as IVideoChatShape;
-        console.log("Updated shape isOwner:", updatedShape?.props.isOwner)
     } catch (error) {
       console.error("Error in ensureRoomExists:", error)
       throw error
@@ -636,20 +572,17 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
               console.error('Iframe loading error:', e);
               setIframeError(true);
               if (retryCount < 2) {
-                console.log(`Retrying iframe load (attempt ${retryCount + 1})`);
                 setTimeout(() => {
                   setRetryCount(prev => prev + 1);
                   setIframeError(false);
                 }, 2000);
               } else {
-                console.log('Switching to fallback iframe configuration');
                 setUseFallback(true);
                 setIframeError(false);
                 setRetryCount(0);
               }
             }}
             onLoad={() => {
-              console.log('Iframe loaded successfully');
               setIframeError(false);
               setRetryCount(0);
             }}
@@ -675,7 +608,6 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
               console.error('Fallback iframe loading error:', e);
               setIframeError(true);
               if (retryCount < 3) {
-                console.log(`Retrying fallback iframe load (attempt ${retryCount + 1})`);
                 setTimeout(() => {
                   setRetryCount(prev => prev + 1);
                   setIframeError(false);
@@ -685,7 +617,6 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
               }
             }}
             onLoad={() => {
-              console.log('Fallback iframe loaded successfully');
               setIframeError(false);
               setRetryCount(0);
             }}
