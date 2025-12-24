@@ -34,6 +34,9 @@ export default defineConfig(({ mode }) => {
         registerType: 'autoUpdate',
         injectRegister: 'auto',
         workbox: {
+          // Force the service worker to take control immediately
+          skipWaiting: true,
+          clientsClaim: true,
           // Cache all static assets
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,wasm}'],
           // Increase the limit for large chunks (Board is ~8MB with tldraw, automerge, etc.)
