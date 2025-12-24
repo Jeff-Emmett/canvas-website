@@ -4,7 +4,7 @@ import {
   TLBaseShape,
 } from "tldraw"
 import React, { useState, useRef, useEffect, useCallback } from "react"
-import { holosphereService, HoloSphereService, HolonConnection } from "@/lib/HoloSphereService"
+import { holosphereService, HoloSphereService, HolonConnection, HOLON_ENABLED } from "@/lib/HoloSphereService"
 import * as h3 from 'h3-js'
 import { StandardizedToolWrapper } from "../components/StandardizedToolWrapper"
 import { usePinnedToView } from "../hooks/usePinnedToView"
@@ -99,7 +99,45 @@ export class HolonShape extends BaseBoxShapeUtil<IHolon> {
       data, connections, lastUpdated
     } = shape.props
 
-    console.log('🔧 Holon component rendering - isEditing:', isEditing, 'holonId:', holonId)
+    // If Holon functionality is disabled, show a disabled message
+    if (!HOLON_ENABLED) {
+      return (
+        <HTMLContainer style={{ width: w, height: h }}>
+          <div style={{
+            width: '100%',
+            height: '100%',
+            backgroundColor: '#f3f4f6',
+            border: '2px solid #d1d5db',
+            borderRadius: '8px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            boxSizing: 'border-box',
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🌐</div>
+            <div style={{
+              fontSize: '16px',
+              fontWeight: '600',
+              color: '#374151',
+              marginBottom: '8px',
+              textAlign: 'center'
+            }}>
+              Holon Feature Disabled
+            </div>
+            <div style={{
+              fontSize: '12px',
+              color: '#6b7280',
+              textAlign: 'center',
+              maxWidth: '300px'
+            }}>
+              Holon functionality is currently disabled. It will be re-enabled when Nostr integration is available.
+            </div>
+          </div>
+        </HTMLContainer>
+      )
+    }
 
     const [isHovering, setIsHovering] = useState(false)
     const [isLoading, setIsLoading] = useState(false)

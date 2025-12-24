@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { holosphereService, HoloSphereService, HolonData, HolonLens } from '@/lib/HoloSphereService'
+import { holosphereService, HoloSphereService, HolonData, HolonLens, HOLON_ENABLED } from '@/lib/HoloSphereService'
 import * as h3 from 'h3-js'
 
 interface HolonBrowserProps {
@@ -31,6 +31,66 @@ export function HolonBrowser({ isOpen, onClose, onSelectHolon, shapeMode = false
   const [lensData, setLensData] = useState<any>(null)
   const [isLoadingData, setIsLoadingData] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // If Holon functionality is disabled, show a disabled message
+  if (!HOLON_ENABLED) {
+    if (!isOpen) return null
+
+    const disabledContent = (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '40px',
+        height: '100%',
+        textAlign: 'center'
+      }}>
+        <div style={{ fontSize: '64px', marginBottom: '24px' }}>🌐</div>
+        <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#374151', marginBottom: '12px' }}>
+          Holon Browser Disabled
+        </h2>
+        <p style={{ fontSize: '14px', color: '#6b7280', maxWidth: '400px' }}>
+          Holon functionality is currently disabled while awaiting Nostr integration.
+          This feature will be re-enabled in a future update.
+        </p>
+        {!shapeMode && (
+          <button
+            onClick={onClose}
+            style={{
+              marginTop: '24px',
+              padding: '8px 16px',
+              backgroundColor: '#6b7280',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer'
+            }}
+          >
+            Close
+          </button>
+        )}
+      </div>
+    )
+
+    if (shapeMode) {
+      return disabledContent
+    }
+
+    return (
+      <div
+        className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]"
+        onClick={onClose}
+      >
+        <div
+          className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 overflow-hidden z-[10000]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {disabledContent}
+        </div>
+      </div>
+    )
+  }
 
   useEffect(() => {
     if (isOpen && inputRef.current) {

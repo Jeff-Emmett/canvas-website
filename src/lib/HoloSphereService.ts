@@ -7,6 +7,10 @@
  * TODO: Integrate with Nostr protocol when Holons.io provides their Nostr-based API
  */
 
+// Feature flag to completely disable Holon functionality
+// Set to true when ready to re-enable
+export const HOLON_ENABLED = false
+
 import * as h3 from 'h3-js'
 
 export interface HolonData {
@@ -45,7 +49,10 @@ export class HoloSphereService {
 
   constructor(_appName: string = 'canvas-holons', _strict: boolean = false, _openaiKey?: string) {
     this.isInitialized = true
-    console.log('⚠️ HoloSphere service initialized (STUB MODE - awaiting Nostr integration)')
+    // Only log if Holon functionality is enabled
+    if (HOLON_ENABLED) {
+      console.log('⚠️ HoloSphere service initialized (STUB MODE - awaiting Nostr integration)')
+    }
   }
 
   async initialize(): Promise<boolean> {
@@ -54,37 +61,40 @@ export class HoloSphereService {
 
   // Get a holon for specific coordinates and resolution
   async getHolon(lat: number, lng: number, resolution: number): Promise<string> {
+    if (!HOLON_ENABLED) return ''
     try {
       return h3.latLngToCell(lat, lng, resolution)
     } catch (error) {
-      console.error('❌ Error getting holon:', error)
+      // Silently fail when disabled
       return ''
     }
   }
 
   // Store data in local cache (placeholder for Nostr)
   async putData(holon: string, lens: string, data: any): Promise<boolean> {
+    if (!HOLON_ENABLED) return false
     const key = `${holon}:${lens}`
     const existing = this.localCache.get(key) || {}
     this.localCache.set(key, { ...existing, ...data })
-    console.log(`📝 [STUB] Stored data locally: ${key}`)
     return true
   }
 
   // Retrieve data from local cache
   async getData(holon: string, lens: string, _key?: string): Promise<any> {
+    if (!HOLON_ENABLED) return null
     const cacheKey = `${holon}:${lens}`
     return this.localCache.get(cacheKey) || null
   }
 
   // Retrieve data with subscription (stub - just returns cached data)
   async getDataWithWait(holon: string, lens: string, _timeoutMs: number = 5000): Promise<any> {
-    console.log(`🔍 [STUB] getDataWithWait: holon=${holon}, lens=${lens}`)
+    if (!HOLON_ENABLED) return null
     return this.getData(holon, lens)
   }
 
   // Delete data from local cache
   async deleteData(holon: string, lens: string, _key?: string): Promise<boolean> {
+    if (!HOLON_ENABLED) return false
     const cacheKey = `${holon}:${lens}`
     this.localCache.delete(cacheKey)
     return true
@@ -92,7 +102,7 @@ export class HoloSphereService {
 
   // Schema methods (stub)
   async setSchema(_lens: string, _schema: any): Promise<boolean> {
-    console.log('⚠️ [STUB] setSchema not implemented')
+    if (!HOLON_ENABLED) return false
     return true
   }
 
@@ -102,24 +112,25 @@ export class HoloSphereService {
 
   // Subscribe to changes (stub - no-op)
   subscribe(_holon: string, _lens: string, _callback: (data: any) => void): void {
-    console.log('⚠️ [STUB] subscribe not implemented - awaiting Nostr integration')
+    // No-op when disabled or in stub mode
   }
 
   // Get holon hierarchy using h3-js
   getHolonHierarchy(holon: string): { parent?: string; children: string[] } {
+    if (!HOLON_ENABLED) return { children: [] }
     try {
       const resolution = h3.getResolution(holon)
       const parent = resolution > 0 ? h3.cellToParent(holon, resolution - 1) : undefined
       const children = h3.cellToChildren(holon, resolution + 1)
       return { parent, children }
     } catch (error) {
-      console.error('❌ Error getting holon hierarchy:', error)
       return { children: [] }
     }
   }
 
   // Get all scales for a holon
   getHolonScalespace(holon: string): string[] {
+    if (!HOLON_ENABLED) return []
     try {
       const resolution = h3.getResolution(holon)
       const scales: string[] = [holon]
@@ -133,19 +144,16 @@ export class HoloSphereService {
 
       return scales
     } catch (error) {
-      console.error('❌ Error getting holon scalespace:', error)
       return []
     }
   }
 
   // Federation methods (stub)
   async federate(_spaceId1: string, _spaceId2: string, _password1?: string, _password2?: string, _bidirectional?: boolean): Promise<boolean> {
-    console.log('⚠️ [STUB] federate not implemented - awaiting Nostr integration')
     return false
   }
 
   async propagate(_holon: string, _lens: string, _data: any, _options?: { useReferences?: boolean; targetSpaces?: string[] }): Promise<boolean> {
-    console.log('⚠️ [STUB] propagate not implemented - awaiting Nostr integration')
     return false
   }
 
