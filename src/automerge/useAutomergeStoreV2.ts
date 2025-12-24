@@ -132,6 +132,10 @@ import { MultmuxShape } from "@/shapes/MultmuxShapeUtil"
 import { MycelialIntelligenceShape } from "@/shapes/MycelialIntelligenceShapeUtil"
 // Open Mapping - OSM map shape for geographic visualization
 import { MapShape } from "@/shapes/MapShapeUtil"
+// Calendar shape for calendar functionality
+import { CalendarShape } from "@/shapes/CalendarShapeUtil"
+// Drawfast shape for quick drawing/sketching
+import { DrawfastShape } from "@/shapes/DrawfastShapeUtil"
 
 export function useAutomergeStoreV2({
   handle,
@@ -169,6 +173,8 @@ export function useAutomergeStoreV2({
       MultmuxShape,
       MycelialIntelligenceShape, // Deprecated - kept for backwards compatibility
       MapShape, // Open Mapping - OSM map shape
+      CalendarShape, // Calendar with view switching
+      DrawfastShape, // Drawfast quick sketching
     ]
 
     // CRITICAL: Explicitly list ALL custom shape types to ensure they're registered
@@ -193,6 +199,8 @@ export function useAutomergeStoreV2({
       'Multmux',
       'MycelialIntelligence', // Deprecated - kept for backwards compatibility
       'Map', // Open Mapping - OSM map shape
+      'Calendar', // Calendar with view switching
+      'Drawfast', // Drawfast quick sketching
     ]
 
     // Build schema with explicit entries for all custom shapes

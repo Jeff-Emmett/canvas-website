@@ -23,20 +23,16 @@ export class CloudflareAdapter {
 
   async getHandle(roomId: string): Promise<DocHandle<TLStoreSnapshot>> {
     if (!this.handles.has(roomId)) {
-      console.log(`Creating new Automerge handle for room ${roomId}`)
       const handle = this.repo.create<TLStoreSnapshot>()
-      
+
       // Initialize with default store if this is a new document
       handle.change((doc) => {
         if (!doc.store) {
-          console.log("Initializing new document with default store")
           init(doc)
         }
       })
 
       this.handles.set(roomId, handle)
-    } else {
-      console.log(`Reusing existing Automerge handle for room ${roomId}`)
     }
 
     return this.handles.get(roomId)!
@@ -72,13 +68,11 @@ export class CloudflareAdapter {
   async saveToCloudflare(roomId: string): Promise<void> {
     const handle = this.handles.get(roomId)
     if (!handle) {
-      console.log(`No handle found for room ${roomId}`)
       return
     }
 
     const doc = handle.doc()
     if (!doc) {
-      console.log(`No document found for room ${roomId}`)
       return
     }
 
@@ -114,7 +108,6 @@ export class CloudflareAdapter {
 
   async loadFromCloudflare(roomId: string): Promise<TLStoreSnapshot | null> {
     try {
-      
       // Add retry logic for connection issues
       let response: Response;
       let retries = 3;
@@ -131,7 +124,7 @@ export class CloudflareAdapter {
           }
         }
       }
-      
+
       if (!response!.ok) {
         if (response!.status === 404) {
           return null // Room doesn't exist yet
@@ -141,12 +134,7 @@ export class CloudflareAdapter {
       }
 
       const doc = await response!.json() as TLStoreSnapshot
-      console.log(`Successfully loaded document from Cloudflare for room ${roomId}:`, {
-        hasStore: !!doc.store,
-        storeKeys: doc.store ? Object.keys(doc.store).length : 0
-      })
-      
-      
+
       // Initialize the last persisted state with the loaded document
       if (doc) {
         const docHash = this.generateDocHash(doc)
@@ -202,7 +190,6 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
 
   private setConnectionState(state: ConnectionState): void {
     if (this._connectionState !== state) {
-      console.log(`🔌 Connection state: ${this._connectionState} → ${state}`)
       this._connectionState = state
       this.connectionStateListeners.forEach(listener => listener(state))
     }
@@ -237,7 +224,6 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
 
     // Set up network online/offline listeners
     this.networkOnlineHandler = () => {
-      console.log('🌐 Network: online')
       this._isNetworkOnline = true
       // Trigger reconnect if we were disconnected
       if (this._connectionState === 'disconnected' && this.peerId) {
@@ -246,7 +232,6 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
       }
     }
     this.networkOfflineHandler = () => {
-      console.log('🌐 Network: offline')
       this._isNetworkOnline = false
       if (this._connectionState === 'connected') {
         this.setConnectionState('disconnected')
@@ -273,12 +258,10 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
    * @param documentId The Automerge document ID to use for incoming messages
    */
   setDocumentId(documentId: string): void {
-    console.log('📋 CloudflareAdapter: Setting documentId:', documentId)
     this.currentDocumentId = documentId
 
     // Process any buffered binary messages now that we have a documentId
     if (this.pendingBinaryMessages.length > 0) {
-      console.log(`📦 CloudflareAdapter: Processing ${this.pendingBinaryMessages.length} buffered binary messages`)
       const bufferedMessages = this.pendingBinaryMessages
       this.pendingBinaryMessages = []
 
@@ -290,7 +273,6 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
           targetId: this.peerId || ('unknown' as PeerId),
           documentId: this.currentDocumentId as any
         }
-        console.log('📥 CloudflareAdapter: Emitting buffered sync message with documentId:', this.currentDocumentId, 'size:', binaryData.byteLength)
         this.emit('message', message)
       }
     }
@@ -305,7 +287,6 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
 
   connect(peerId: PeerId, peerMetadata?: PeerMetadata): void {
     if (this.isConnecting) {
-      console.log('🔌 CloudflareAdapter: Connection already in progress, skipping')
       return
     }
 
@@ -329,33 +310,27 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
     const wsUrl = `${protocol}${baseUrl}/connect/${this.roomId}?sessionId=${sessionId}`
 
     this.isConnecting = true
-    
+
     // Add a small delay to ensure the server is ready
     setTimeout(() => {
       try {
-        console.log('🔌 CloudflareAdapter: Creating WebSocket connection to:', wsUrl)
         this.websocket = new WebSocket(wsUrl)
         
         this.websocket.onopen = () => {
-          console.log('🔌 CloudflareAdapter: WebSocket connection opened successfully')
           this.isConnecting = false
           this.reconnectAttempts = 0
           this.setConnectionState('connected')
           this.readyResolve?.()
           this.startKeepAlive()
 
-          // CRITICAL: Emit 'ready' event for Automerge Repo
-          // This tells the Repo that the network adapter is ready to sync
+          // Emit 'ready' event for Automerge Repo
           // @ts-expect-error - 'ready' event is valid but not in NetworkAdapterEvents type
           this.emit('ready', { network: this })
 
           // Create a server peer ID based on the room
-          // The server acts as a "hub" peer that all clients sync with
           this.serverPeerId = `server-${this.roomId}` as PeerId
 
-          // CRITICAL: Emit 'peer-candidate' to announce the server as a sync peer
-          // This tells the Automerge Repo there's a peer to sync documents with
-          console.log('🔌 CloudflareAdapter: Announcing server peer for Automerge sync:', this.serverPeerId)
+          // Emit 'peer-candidate' to announce the server as a sync peer
           this.emit('peer-candidate', {
             peerId: this.serverPeerId,
             peerMetadata: { storageId: undefined, isEphemeral: false }
@@ -367,16 +342,8 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
             // Automerge's native protocol uses binary messages
             // We need to handle both binary and text messages
             if (event.data instanceof ArrayBuffer) {
-              console.log('🔌 CloudflareAdapter: Received binary message (Automerge protocol)', event.data.byteLength, 'bytes')
-              // Handle binary Automerge sync messages - convert ArrayBuffer to Uint8Array
-              // Automerge Repo expects binary sync messages as Uint8Array
-              // CRITICAL: senderId should be the SERVER (where the message came from)
-              // targetId should be US (where the message is going to)
-              // CRITICAL: Include documentId for Automerge Repo to route the message correctly
               const binaryData = new Uint8Array(event.data)
               if (!this.currentDocumentId) {
-                console.log('📦 CloudflareAdapter: Buffering binary sync message (no documentId yet), size:', binaryData.byteLength)
-                // Buffer for later processing when we have a documentId
                 this.pendingBinaryMessages.push(binaryData)
                 return
               }
@@ -385,17 +352,13 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
                 data: binaryData,
                 senderId: this.serverPeerId || ('server' as PeerId),
                 targetId: this.peerId || ('unknown' as PeerId),
-                documentId: this.currentDocumentId as any  // DocumentId type
+                documentId: this.currentDocumentId as any
               }
-              console.log('📥 CloudflareAdapter: Emitting sync message with documentId:', this.currentDocumentId)
               this.emit('message', message)
             } else if (event.data instanceof Blob) {
-              // Handle Blob messages (convert to Uint8Array)
               event.data.arrayBuffer().then((buffer) => {
-                console.log('🔌 CloudflareAdapter: Received Blob message, converted to Uint8Array', buffer.byteLength, 'bytes')
                 const binaryData = new Uint8Array(buffer)
                 if (!this.currentDocumentId) {
-                  console.log('📦 CloudflareAdapter: Buffering Blob sync message (no documentId yet), size:', binaryData.byteLength)
                   this.pendingBinaryMessages.push(binaryData)
                   return
                 }
@@ -406,17 +369,11 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
                   targetId: this.peerId || ('unknown' as PeerId),
                   documentId: this.currentDocumentId as any
                 }
-                console.log('📥 CloudflareAdapter: Emitting Blob sync message with documentId:', this.currentDocumentId)
                 this.emit('message', message)
               })
             } else {
               // Handle text messages (our custom protocol for backward compatibility)
               const message = JSON.parse(event.data)
-
-              // Only log non-presence messages to reduce console spam
-              if (message.type !== 'presence' && message.type !== 'pong') {
-                console.log('🔌 CloudflareAdapter: Received WebSocket message:', message.type)
-              }
 
               // Handle ping/pong messages for keep-alive
               if (message.type === 'ping') {
@@ -426,13 +383,11 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
 
               // Handle test messages
               if (message.type === 'test') {
-                console.log('🔌 CloudflareAdapter: Received test message:', message.message)
                 return
               }
 
               // Handle presence updates from other clients
               if (message.type === 'presence') {
-                // Pass senderId, userName, and userColor so we can create proper instance_presence records
                 if (this.onPresenceUpdate && message.userId && message.data) {
                   this.onPresenceUpdate(message.userId, message.data, message.senderId, message.userName, message.userColor)
                 }
@@ -441,49 +396,31 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
 
               // Handle leave messages (user disconnected)
               if (message.type === 'leave') {
-                console.log('👋 CloudflareAdapter: User left:', message.sessionId)
                 if (this.onPresenceLeave && message.sessionId) {
                   this.onPresenceLeave(message.sessionId)
                 }
                 return
               }
-              
+
               // Convert the message to the format expected by Automerge
               if (message.type === 'sync' && message.data) {
-                console.log('🔌 CloudflareAdapter: Received sync message with data:', {
-                  hasStore: !!message.data.store,
-                  storeKeys: message.data.store ? Object.keys(message.data.store).length : 0,
-                  documentId: message.documentId,
-                  documentIdType: typeof message.documentId
-                })
-                
                 // JSON sync for real-time collaboration
-                // When we receive TLDraw changes from other clients, apply them locally
                 const isJsonDocumentData = message.data && typeof message.data === 'object' && message.data.store
 
                 if (isJsonDocumentData) {
-                  console.log('📥 CloudflareAdapter: Received JSON sync message with store data')
-
-                  // Call the JSON sync callback to apply changes
                   if (this.onJsonSyncData) {
                     this.onJsonSyncData(message.data)
-                  } else {
-                    console.warn('⚠️ No JSON sync callback registered')
                   }
-                  return // JSON sync handled
+                  return
                 }
-                
-                // Validate documentId - Automerge requires a valid Automerge URL format
-                // Valid formats: "automerge:xxxxx" or other valid URL formats
-                // Invalid: plain strings like "default", "default-room", etc.
-                const isValidDocumentId = message.documentId && 
-                  (typeof message.documentId === 'string' && 
-                   (message.documentId.startsWith('automerge:') || 
-                    message.documentId.includes(':') || 
-                    /^[a-f0-9-]{36,}$/i.test(message.documentId))) // UUID-like format
-                
-                // For binary sync messages, use Automerge's sync protocol
-                // Only include documentId if it's a valid Automerge document ID format
+
+                // Validate documentId format
+                const isValidDocumentId = message.documentId &&
+                  (typeof message.documentId === 'string' &&
+                   (message.documentId.startsWith('automerge:') ||
+                    message.documentId.includes(':') ||
+                    /^[a-f0-9-]{36,}$/i.test(message.documentId)))
+
                 const syncMessage: Message = {
                   type: 'sync',
                   senderId: message.senderId || this.peerId || ('unknown' as PeerId),
@@ -491,42 +428,22 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
                   data: message.data,
                   ...(isValidDocumentId && { documentId: message.documentId })
                 }
-                
-                if (message.documentId && !isValidDocumentId) {
-                  console.warn('⚠️ CloudflareAdapter: Ignoring invalid documentId from server:', message.documentId)
-                }
-                
+
                 this.emit('message', syncMessage)
               } else if (message.senderId && message.targetId) {
                 this.emit('message', message as Message)
               }
             }
           } catch (error) {
-            console.error('❌ CloudflareAdapter: Error parsing WebSocket message:', error)
+            console.error('Error parsing WebSocket message:', error)
           }
         }
 
         this.websocket.onclose = (event) => {
-          console.log('Disconnected from Cloudflare WebSocket', {
-            code: event.code,
-            reason: event.reason,
-            wasClean: event.wasClean,
-            url: wsUrl,
-            reconnectAttempts: this.reconnectAttempts
-          })
-
           this.isConnecting = false
           this.stopKeepAlive()
 
-          // Log specific error codes for debugging
-          if (event.code === 1005) {
-            console.error('❌ WebSocket closed with code 1005 (No Status Received) - this usually indicates a connection issue or idle timeout')
-          } else if (event.code === 1006) {
-            console.error('❌ WebSocket closed with code 1006 (Abnormal Closure) - connection was lost unexpectedly')
-          } else if (event.code === 1011) {
-            console.error('❌ WebSocket closed with code 1011 (Server Error) - server encountered an error')
-          } else if (event.code === 1000) {
-            console.log('✅ WebSocket closed normally (code 1000)')
+          if (event.code === 1000) {
             this.setConnectionState('disconnected')
             return // Don't reconnect on normal closure
           }
@@ -544,15 +461,7 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
           this.scheduleReconnect(peerId, peerMetadata)
         }
 
-        this.websocket.onerror = (error) => {
-          console.error('WebSocket error:', error)
-          console.error('WebSocket readyState:', this.websocket?.readyState)
-          console.error('WebSocket URL:', wsUrl)
-          console.error('Error event details:', {
-            type: error.type,
-            target: error.target,
-            isTrusted: error.isTrusted
-          })
+        this.websocket.onerror = () => {
           this.isConnecting = false
         }
       } catch (error) {
@@ -564,25 +473,10 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
   }
 
   send(message: Message): void {
-    // Only log non-presence messages to reduce console spam
-    if (message.type !== 'presence') {
-      console.log('📤 CloudflareAdapter.send() called:', {
-        messageType: message.type,
-        dataType: (message as any).data?.constructor?.name || typeof (message as any).data,
-        dataLength: (message as any).data?.byteLength || (message as any).data?.length,
-        documentId: (message as any).documentId,
-        hasTargetId: !!message.targetId,
-        hasSenderId: !!message.senderId,
-        useBinarySync: this.useBinarySync
-      })
-    }
-
-    // CRITICAL: Capture documentId from outgoing sync messages
-    // This allows us to use it for incoming messages from the server
+    // Capture documentId from outgoing sync messages
     if (message.type === 'sync' && (message as any).documentId) {
       const docId = (message as any).documentId
       if (this.currentDocumentId !== docId) {
-        console.log('📋 CloudflareAdapter: Captured documentId from outgoing sync:', docId)
         this.currentDocumentId = docId
       }
     }
@@ -590,48 +484,13 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
     if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
       // Check if this is a binary sync message from Automerge Repo
       if (message.type === 'sync' && (message as any).data instanceof ArrayBuffer) {
-        console.log('📤 CloudflareAdapter: Sending binary sync message (Automerge protocol)', {
-          dataLength: (message as any).data.byteLength,
-          documentId: (message as any).documentId,
-          targetId: message.targetId
-        })
-        // Send binary data directly for Automerge's native sync protocol
         this.websocket.send((message as any).data)
-        return  // CRITICAL: Don't fall through to JSON send
+        return
       } else if (message.type === 'sync' && (message as any).data instanceof Uint8Array) {
-        console.log('📤 CloudflareAdapter: Sending Uint8Array sync message (Automerge protocol)', {
-          dataLength: (message as any).data.length,
-          documentId: (message as any).documentId,
-          targetId: message.targetId
-        })
-        // Send Uint8Array directly - WebSocket accepts Uint8Array
         this.websocket.send((message as any).data)
-        return  // CRITICAL: Don't fall through to JSON send
+        return
       } else {
-        // Handle text-based messages (backward compatibility and control messages)
-        // Only log non-presence messages
-        if (message.type !== 'presence') {
-          console.log('📤 Sending WebSocket message:', message.type)
-        }
-        // Debug: Log patch content if it's a patch message
-        if (message.type === 'patch' && (message as any).patches) {
-          console.log('🔍 Sending patches:', (message as any).patches.length, 'patches')
-          ;(message as any).patches.forEach((patch: any, index: number) => {
-            console.log(`  Patch ${index}:`, {
-              action: patch.action,
-              path: patch.path,
-              value: patch.value ? (typeof patch.value === 'object' ? 'object' : patch.value) : 'undefined'
-            })
-          })
-        }
         this.websocket.send(JSON.stringify(message))
-      }
-    } else {
-      if (message.type !== 'presence') {
-        console.warn('⚠️ CloudflareAdapter: Cannot send message - WebSocket not open', {
-          messageType: message.type,
-          readyState: this.websocket?.readyState
-        })
       }
     }
   }
@@ -669,7 +528,6 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
             type: 'leave',
             sessionId: this.sessionId
           }))
-          console.log('👋 CloudflareAdapter: Sent leave message for session:', this.sessionId)
         } catch (e) {
           // Ignore errors when sending leave message
         }
@@ -683,13 +541,12 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
     // Send ping every 30 seconds to prevent idle timeout
     this.keepAliveInterval = setInterval(() => {
       if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-        console.log('🔌 CloudflareAdapter: Sending keep-alive ping')
         this.websocket.send(JSON.stringify({
           type: 'ping',
           timestamp: Date.now()
         }))
       }
-    }, 30000) // 30 seconds
+    }, 30000)
   }
 
   private stopKeepAlive(): void {
@@ -710,18 +567,14 @@ export class CloudflareNetworkAdapter extends NetworkAdapter {
 
   private scheduleReconnect(peerId: PeerId, peerMetadata?: PeerMetadata): void {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('❌ CloudflareAdapter: Max reconnection attempts reached, giving up')
       return
     }
 
     this.reconnectAttempts++
-    const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), 30000) // Max 30 seconds
-    
-    console.log(`🔄 CloudflareAdapter: Scheduling reconnect attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts} in ${delay}ms`)
-    
+    const delay = Math.min(this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1), 30000)
+
     this.reconnectTimeout = setTimeout(() => {
       if (this.roomId) {
-        console.log(`🔄 CloudflareAdapter: Attempting reconnect ${this.reconnectAttempts}/${this.maxReconnectAttempts}`)
         this.connect(peerId, peerMetadata)
       }
     }, delay)

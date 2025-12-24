@@ -65,16 +65,8 @@ export async function llm(
 	
 	// Get all available providers with valid keys
 	const availableProviders = getAvailableProviders(availableKeys, settings);
-	
-	console.log(`🔍 Found ${availableProviders.length} available AI providers:`, 
-		availableProviders.map(p => `${p.provider} (${p.model})`).join(', '));
-	
+
 	if (availableProviders.length === 0) {
-		const runpodConfig = getRunPodConfig();
-		if (runpodConfig && runpodConfig.apiKey && runpodConfig.endpointId) {
-			// RunPod should have been added, but if not, try one more time
-			console.log('⚠️ No user API keys found, but RunPod is configured - this should not happen');
-		}
 		throw new Error("No valid API key found for any provider. Please configure API keys in settings or set up RunPod environment variables (VITE_RUNPOD_API_KEY and VITE_RUNPOD_ENDPOINT_ID).")
 	}
 	
@@ -95,55 +87,43 @@ export async function llm(
 	for (const providerInfo of availableProviders) {
 		const { provider, apiKey, model, endpointId } = providerInfo as any;
 		try {
-			console.log(`🔄 Attempting to use ${provider} API (${model})...`);
 			attemptedProviders.push(`${provider} (${model})`);
-			
+
 			// Add retry logic for temporary failures
 			await callProviderAPIWithRetry(provider, apiKey, model, userPrompt, onToken, settings, endpointId, customSystemPrompt);
-			console.log(`✅ Successfully used ${provider} API (${model})`);
 			return; // Success, exit the function
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error);
 			
 			// Check if it's a model not found error (404) for Anthropic - try fallback models
 			if (provider === 'anthropic' && (errorMessage.includes('404') || errorMessage.includes('not_found_error') || errorMessage.includes('model:'))) {
-				console.warn(`❌ ${provider} model ${model} not found, trying fallback models...`);
-				
 				// Try fallback models
 				let fallbackSucceeded = false;
 				for (const fallbackModel of anthropicFallbackModels) {
 					if (fallbackModel === model) continue; // Skip the one we already tried
-					
+
 					try {
-						console.log(`🔄 Trying fallback model: ${fallbackModel}...`);
 						attemptedProviders.push(`${provider} (${fallbackModel})`);
 						const providerInfo = availableProviders.find(p => p.provider === provider);
 						const endpointId = (providerInfo as any)?.endpointId;
 						await callProviderAPIWithRetry(provider, apiKey, fallbackModel, userPrompt, onToken, settings, endpointId, customSystemPrompt);
-						console.log(`✅ Successfully used ${provider} API with fallback model ${fallbackModel}`);
 						fallbackSucceeded = true;
 						return; // Success, exit the function
 					} catch (fallbackError) {
-						const fallbackErrorMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
-						console.warn(`❌ Fallback model ${fallbackModel} also failed:`, fallbackErrorMessage);
 						// Continue to next fallback model
 					}
 				}
-				
+
 				if (!fallbackSucceeded) {
-					console.warn(`❌ All ${provider} models failed`);
 					lastError = error as Error;
 				}
-			} else if (errorMessage.includes('401') || errorMessage.includes('403') || 
+			} else if (errorMessage.includes('401') || errorMessage.includes('403') ||
 			    errorMessage.includes('Unauthorized') || errorMessage.includes('Invalid API key') ||
 			    errorMessage.includes('expired') || errorMessage.includes('Expired')) {
-				console.warn(`❌ ${provider} API authentication failed (invalid/expired API key):`, errorMessage);
 				// Mark this specific API key as invalid for future attempts
 				markApiKeyAsInvalid(provider, apiKey);
-				console.log(`🔄 Will try next available API key...`);
 				lastError = error as Error;
 			} else {
-				console.warn(`❌ ${provider} API failed (non-auth error):`, errorMessage);
 				lastError = error as Error;
 			}
 			// Continue to next provider/key
@@ -173,8 +153,6 @@ function getAvailableProviders(availableKeys: Record<string, string>, settings: 
 			}
 			providers.push(providerInfo);
 			return true;
-		} else if (isApiKeyInvalid(provider, apiKey)) {
-			console.log(`⏭️ Skipping ${provider} API key (marked as invalid)`);
 		}
 		return false;
 	};
@@ -184,7 +162,6 @@ function getAvailableProviders(availableKeys: Record<string, string>, settings: 
 	if (ollamaConfig && ollamaConfig.url) {
 		// Get the selected Ollama model from settings
 		const selectedOllamaModel = settings.ollamaModel || 'llama3.1:8b';
-		console.log(`🦙 Found Ollama configuration - using as primary AI provider (FREE) with model: ${selectedOllamaModel}`);
 		providers.push({
 			provider: 'ollama',
 			apiKey: 'ollama', // Ollama doesn't need an API key
@@ -197,7 +174,6 @@ function getAvailableProviders(availableKeys: Record<string, string>, settings: 
 	// RunPod vLLM text endpoint is used as fallback when Ollama is not available
 	const runpodTextConfig = getRunPodTextConfig();
 	if (runpodTextConfig && runpodTextConfig.apiKey && runpodTextConfig.endpointId) {
-		console.log('🔑 Found RunPod TEXT endpoint configuration from environment variables');
 		providers.push({
 			provider: 'runpod',
 			apiKey: runpodTextConfig.apiKey,
@@ -208,7 +184,6 @@ function getAvailableProviders(availableKeys: Record<string, string>, settings: 
 		// Fallback to generic RunPod config if text endpoint not configured
 		const runpodConfig = getRunPodConfig();
 		if (runpodConfig && runpodConfig.apiKey && runpodConfig.endpointId) {
-			console.log('🔑 Found RunPod configuration from environment variables (generic endpoint)');
 			providers.push({
 				provider: 'runpod',
 				apiKey: runpodConfig.apiKey,
@@ -262,8 +237,6 @@ function getAvailableProviders(availableKeys: Record<string, string>, settings: 
 							apiKey: directSettings,
 							model: getDefaultModel('openai')
 						});
-					} else if (isApiKeyInvalid('openai', directSettings)) {
-						console.log(`⏭️ Skipping OpenAI API key (marked as invalid)`);
 					}
 				} else {
 					// Try to parse as JSON
@@ -277,8 +250,6 @@ function getAvailableProviders(availableKeys: Record<string, string>, settings: 
 										apiKey: value,
 										model: parsed.models?.[key] || getDefaultModel(key)
 									});
-								} else if (isApiKeyInvalid(key, value as string)) {
-									console.log(`⏭️ Skipping ${key} API key (marked as invalid)`);
 								}
 							}
 						}
@@ -290,8 +261,6 @@ function getAvailableProviders(availableKeys: Record<string, string>, settings: 
 								apiKey: directSettings,
 								model: getDefaultModel('openai')
 							});
-						} else if (isApiKeyInvalid('openai', directSettings)) {
-							console.log(`⏭️ Skipping OpenAI API key (marked as invalid)`);
 						}
 					}
 				}
@@ -336,13 +305,11 @@ function getUserSpecificApiKeys() {
 										apiKey,
 										model: parsed.models?.[provider] || getDefaultModel(provider)
 									});
-								} else if (isApiKeyInvalid(provider, apiKey as string)) {
-									console.log(`⏭️ Skipping ${provider} API key (marked as invalid)`);
 								}
 							}
 						}
 					} catch (parseError) {
-						console.warn('Failed to parse user-specific API keys:', parseError);
+						// Silently skip invalid JSON
 					}
 				}
 				
@@ -356,8 +323,6 @@ function getUserSpecificApiKeys() {
 							apiKey: key,
 							model: getDefaultModel(provider)
 						});
-					} else if (isApiKeyInvalid(provider, key as string)) {
-						console.log(`⏭️ Skipping ${provider} API key (marked as invalid)`);
 					}
 				}
 			}
@@ -389,8 +354,6 @@ function getUserSpecificApiKeys() {
 											apiKey,
 											model: parsed.models?.[provider] || getDefaultModel(provider)
 										});
-									} else if (isApiKeyInvalid(provider, apiKey as string)) {
-										console.log(`⏭️ Skipping ${provider} API key (marked as invalid)`);
 									}
 								}
 							}
@@ -400,11 +363,11 @@ function getUserSpecificApiKeys() {
 					}
 				}
 			} catch (parseError) {
-				console.warn('Failed to parse registered users:', parseError);
+				// Silently skip parse errors
 			}
 		}
 	} catch (error) {
-		console.warn('Error checking user-specific API keys:', error);
+		// Silently skip errors
 	}
 	
 	return providers;
@@ -463,10 +426,9 @@ async function callProviderAPIWithRetry(
 			if (attempt === maxRetries) {
 				throw error;
 			}
-			
+
 			// Wait before retry (exponential backoff)
 			const delay = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s...
-			console.log(`⏳ Retrying ${provider} API in ${delay}ms... (attempt ${attempt + 1}/${maxRetries})`);
 			await new Promise(resolve => setTimeout(resolve, delay));
 		}
 	}
@@ -499,7 +461,6 @@ function markApiKeyAsInvalid(provider: string, apiKey: string) {
 		if (!invalidKeys[provider].includes(apiKey)) {
 			invalidKeys[provider].push(apiKey);
 			localStorage.setItem(invalidKeysKey, JSON.stringify(invalidKeys));
-			console.log(`🚫 Marked ${provider} API key as invalid`);
 		}
 	} catch (e) {
 		// Silently handle errors
@@ -549,20 +510,11 @@ async function callProviderAPI(
 	// Use custom system prompt if provided, otherwise fall back to personality-based prompt
 	const systemPrompt = customSystemPrompt || (settings ? getSystemPrompt(settings) : 'You are a helpful assistant.');
 
-	// Debug: log which system prompt is being used
-	if (customSystemPrompt) {
-		console.log(`🧠 Using custom system prompt (${customSystemPrompt.length} chars)`);
-	} else {
-		console.log(`🧠 Using personality-based system prompt: ${settings?.personality || 'default'}`);
-	}
-
 	if (provider === 'ollama') {
 		// Ollama API integration via AI Orchestrator
 		// The orchestrator provides /api/chat endpoint that routes to local Ollama
 		const ollamaConfig = getOllamaConfig();
 		const baseUrl = (settings as any)?.baseUrl || ollamaConfig?.url || 'http://localhost:11434';
-
-		console.log(`🦙 Ollama API: Using ${baseUrl}/api/chat with model ${model}`);
 
 		const messages = [];
 		if (systemPrompt) {
@@ -586,12 +538,10 @@ async function callProviderAPI(
 
 			if (!response.ok) {
 				const errorText = await response.text();
-				console.error('❌ Ollama API error:', response.status, errorText);
 				throw new Error(`Ollama API error: ${response.status} - ${errorText}`);
 			}
 
 			const data = await response.json() as Record<string, any>;
-			console.log('📥 Ollama API: Response received:', JSON.stringify(data, null, 2).substring(0, 500));
 
 			// Extract response from AI Orchestrator format
 			let responseText = '';
@@ -615,11 +565,9 @@ async function callProviderAPI(
 				}
 			}
 
-			console.log('✅ Ollama API: Response complete, length:', partial.length);
 			onToken(partial, true);
 			return;
 		} catch (error) {
-			console.error('❌ Ollama API error:', error);
 			throw error;
 		}
 	} else if (provider === 'runpod') {
@@ -660,10 +608,7 @@ async function callProviderAPI(
 				stream: false  // vLLM can handle streaming, but we'll process it synchronously for now
 			}
 		};
-		
-		console.log('📤 RunPod API: Trying synchronous endpoint first:', syncUrl);
-		console.log('📤 RunPod API: Using OpenAI-compatible messages format');
-		
+
 		try {
 			// First, try synchronous endpoint (/runsync) - this returns output immediately
 			try {
@@ -675,11 +620,10 @@ async function callProviderAPI(
 					},
 					body: JSON.stringify(requestBody)
 				});
-				
+
 				if (syncResponse.ok) {
 					const syncData = await syncResponse.json() as Record<string, any>;
-					console.log('📥 RunPod API: Synchronous response:', JSON.stringify(syncData, null, 2));
-					
+
 					// Check if we got output directly
 					if (syncData.output) {
 						let responseText = '';
@@ -695,9 +639,8 @@ async function callProviderAPI(
 						} else if (syncData.output.response) {
 							responseText = syncData.output.response;
 						}
-						
+
 						if (responseText) {
-							console.log('✅ RunPod API: Got output from synchronous endpoint, length:', responseText.length);
 							// Stream the response character by character to simulate streaming
 							for (let i = 0; i < responseText.length; i++) {
 								partial += responseText[i];
@@ -708,23 +651,20 @@ async function callProviderAPI(
 							return;
 						}
 					}
-					
+
 					// If sync endpoint returned a job ID, fall through to async polling
 					if (syncData.id && (syncData.status === 'IN_QUEUE' || syncData.status === 'IN_PROGRESS')) {
-						console.log('⏳ RunPod API: Sync endpoint returned job ID, polling:', syncData.id);
 						const result = await pollRunPodJob(syncData.id, apiKey, runpodEndpointId);
-						console.log('✅ RunPod API: Job completed, result length:', result.length);
 						partial = result;
 						onToken(partial, true);
 						return;
 					}
 				}
 			} catch (syncError) {
-				console.log('⚠️ RunPod API: Synchronous endpoint not available, trying async:', syncError);
+				// Synchronous endpoint not available, fall back to async
 			}
-			
+
 			// Fall back to async endpoint (/run) if sync didn't work
-			console.log('📤 RunPod API: Using async endpoint:', asyncUrl);
 			const response = await fetch(asyncUrl, {
 				method: 'POST',
 				headers: {
@@ -733,36 +673,28 @@ async function callProviderAPI(
 				},
 				body: JSON.stringify(requestBody)
 			});
-			
-			console.log('📥 RunPod API: Response status:', response.status, response.statusText);
-			
+
 			if (!response.ok) {
 				const errorText = await response.text();
-				console.error('❌ RunPod API: Error response:', errorText);
 				throw new Error(`RunPod API error: ${response.status} - ${errorText}`);
 			}
-			
+
 			const data = await response.json() as Record<string, any>;
-			console.log('📥 RunPod API: Response data:', JSON.stringify(data, null, 2));
 
 			// Handle async job pattern (RunPod often returns job IDs)
 			if (data.id && (data.status === 'IN_QUEUE' || data.status === 'IN_PROGRESS')) {
-				console.log('⏳ RunPod API: Job queued/in progress, polling job ID:', data.id);
 				const result = await pollRunPodJob(data.id, apiKey, runpodEndpointId);
-				console.log('✅ RunPod API: Job completed, result length:', result.length);
 				partial = result;
 				onToken(partial, true);
 				return;
 			}
-			
+
 			// Handle OpenAI-compatible response format (vLLM endpoints)
 			if (data.output && data.output.choices && Array.isArray(data.output.choices)) {
-				console.log('📥 RunPod API: Detected OpenAI-compatible response format');
 				const choice = data.output.choices[0];
 				if (choice && choice.message && choice.message.content) {
 					const responseText = choice.message.content;
-					console.log('✅ RunPod API: Extracted content from OpenAI-compatible format, length:', responseText.length);
-					
+
 					// Stream the response character by character to simulate streaming
 					for (let i = 0; i < responseText.length; i++) {
 						partial += responseText[i];
@@ -774,33 +706,26 @@ async function callProviderAPI(
 					return;
 				}
 			}
-			
+
 			// Handle direct response
 			if (data.output) {
-				console.log('📥 RunPod API: Processing output:', typeof data.output, Array.isArray(data.output) ? 'array' : 'object');
 				// Try to extract text from various possible response formats
 				let responseText = '';
 				if (typeof data.output === 'string') {
 					responseText = data.output;
-					console.log('✅ RunPod API: Extracted string output, length:', responseText.length);
 				} else if (data.output.text) {
 					responseText = data.output.text;
-					console.log('✅ RunPod API: Extracted text from output.text, length:', responseText.length);
 				} else if (data.output.response) {
 					responseText = data.output.response;
-					console.log('✅ RunPod API: Extracted response from output.response, length:', responseText.length);
 				} else if (data.output.content) {
 					responseText = data.output.content;
-					console.log('✅ RunPod API: Extracted content from output.content, length:', responseText.length);
 				} else if (Array.isArray(data.output.segments)) {
 					responseText = data.output.segments.map((seg: any) => seg.text || seg).join(' ');
-					console.log('✅ RunPod API: Extracted text from segments, length:', responseText.length);
 				} else {
 					// Fallback: stringify the output
-					console.warn('⚠️ RunPod API: Unknown output format, stringifying:', Object.keys(data.output));
 					responseText = JSON.stringify(data.output);
 				}
-				
+
 				// Stream the response character by character to simulate streaming
 				for (let i = 0; i < responseText.length; i++) {
 					partial += responseText[i];
@@ -811,28 +736,23 @@ async function callProviderAPI(
 				onToken(partial, true);
 				return;
 			}
-			
+
 			// Handle error response
 			if (data.error) {
-				console.error('❌ RunPod API: Error in response:', data.error);
 				throw new Error(`RunPod API error: ${data.error}`);
 			}
-			
+
 			// Check for status messages that might indicate endpoint is starting up
 			if (data.status) {
-				console.log('ℹ️ RunPod API: Response status:', data.status);
 				if (data.status === 'STARTING' || data.status === 'PENDING') {
-					console.log('⏳ RunPod API: Endpoint appears to be starting up, this may take a moment...');
 					// Wait a bit and retry
 					await new Promise(resolve => setTimeout(resolve, 2000));
 					throw new Error('RunPod endpoint is starting up. Please wait a moment and try again.');
 				}
 			}
-			
-			console.error('❌ RunPod API: No valid response format detected. Full response:', JSON.stringify(data, null, 2));
+
 			throw new Error('No valid response from RunPod API');
 		} catch (error) {
-			console.error('❌ RunPod API error:', error);
 			throw error;
 		}
 	} else if (provider === 'openai') {
@@ -924,8 +844,7 @@ async function pollRunPodJob(
 	pollInterval: number = 1000
 ): Promise<string> {
 	const statusUrl = `https://api.runpod.ai/v2/${endpointId}/status/${jobId}`;
-	console.log('🔄 RunPod API: Starting to poll job:', jobId);
-	
+
 	for (let attempt = 0; attempt < maxAttempts; attempt++) {
 		try {
 			const response = await fetch(statusUrl, {
@@ -937,30 +856,21 @@ async function pollRunPodJob(
 
 			if (!response.ok) {
 				const errorText = await response.text();
-				console.error(`❌ RunPod API: Poll error (attempt ${attempt + 1}/${maxAttempts}):`, response.status, errorText);
 				throw new Error(`Failed to check job status: ${response.status} - ${errorText}`);
 			}
 
 			const data = await response.json() as Record<string, any>;
-			console.log(`🔄 RunPod API: Poll attempt ${attempt + 1}/${maxAttempts}, status:`, data.status);
-			console.log(`📥 RunPod API: Full poll response:`, JSON.stringify(data, null, 2));
-			
+
 			if (data.status === 'COMPLETED') {
-				console.log('✅ RunPod API: Job completed, processing output...');
-				console.log('📥 RunPod API: Output structure:', typeof data.output, data.output ? Object.keys(data.output) : 'null');
-				console.log('📥 RunPod API: Full data object keys:', Object.keys(data));
-				
 				// If no output after a couple of retries, try the stream endpoint as fallback
 				if (!data.output) {
 					if (attempt < 3) {
 						// Only retry 2-3 times, then try stream endpoint
-						console.log(`⏳ RunPod API: COMPLETED but no output yet, waiting briefly (attempt ${attempt + 1}/3)...`);
 						await new Promise(resolve => setTimeout(resolve, 500));
 						continue;
 					}
-					
+
 					// After a few retries, try the stream endpoint as fallback
-					console.log('⚠️ RunPod API: Status endpoint not returning output, trying stream endpoint...');
 					try {
 						const streamUrl = `https://api.runpod.ai/v2/${endpointId}/stream/${jobId}`;
 						const streamResponse = await fetch(streamUrl, {
@@ -969,52 +879,41 @@ async function pollRunPodJob(
 								'Authorization': `Bearer ${apiKey}`
 							}
 						});
-						
+
 						if (streamResponse.ok) {
 							const streamData = await streamResponse.json() as Record<string, any>;
-							console.log('📥 RunPod API: Stream endpoint response:', JSON.stringify(streamData, null, 2));
 
 							if (streamData.output) {
 								// Use stream endpoint output
 								data.output = streamData.output;
-								console.log('✅ RunPod API: Found output via stream endpoint');
 							} else if (streamData.choices && Array.isArray(streamData.choices)) {
 								// Handle OpenAI-compatible format from stream endpoint
 								data.output = { choices: streamData.choices };
-								console.log('✅ RunPod API: Found choices via stream endpoint');
 							}
-						} else {
-							console.log(`⚠️ RunPod API: Stream endpoint returned ${streamResponse.status}`);
 						}
 					} catch (streamError) {
-						console.log('⚠️ RunPod API: Stream endpoint not available or failed:', streamError);
+						// Stream endpoint not available or failed
 					}
 				}
-				
+
 				// Extract text from various possible response formats
 				let result = '';
 				if (typeof data.output === 'string') {
 					result = data.output;
-					console.log('✅ RunPod API: Extracted string output from job, length:', result.length);
 				} else if (data.output?.text) {
 					result = data.output.text;
-					console.log('✅ RunPod API: Extracted text from output.text, length:', result.length);
 				} else if (data.output?.response) {
 					result = data.output.response;
-					console.log('✅ RunPod API: Extracted response from output.response, length:', result.length);
 				} else if (data.output?.content) {
 					result = data.output.content;
-					console.log('✅ RunPod API: Extracted content from output.content, length:', result.length);
 				} else if (data.output?.choices && Array.isArray(data.output.choices)) {
 					// Handle OpenAI-compatible response format (vLLM endpoints)
 					const choice = data.output.choices[0];
 					if (choice && choice.message && choice.message.content) {
 						result = choice.message.content;
-						console.log('✅ RunPod API: Extracted content from OpenAI-compatible format, length:', result.length);
 					}
 				} else if (data.output?.segments && Array.isArray(data.output.segments)) {
 					result = data.output.segments.map((seg: any) => seg.text || seg).join(' ');
-					console.log('✅ RunPod API: Extracted text from segments, length:', result.length);
 				} else if (Array.isArray(data.output)) {
 					// Handle array responses (some vLLM endpoints return arrays)
 					result = data.output.map((item: any) => {
@@ -1023,63 +922,37 @@ async function pollRunPodJob(
 						if (item.response) return item.response;
 						return JSON.stringify(item);
 					}).join('\n');
-					console.log('✅ RunPod API: Extracted text from array output, length:', result.length);
-					} else if (!data.output) {
-						// No output field - check alternative structures or return empty
-						console.warn('⚠️ RunPod API: No output field found, checking alternative structures...');
-						console.log('📥 RunPod API: Full data structure:', JSON.stringify(data, null, 2));
-						
-						// Try checking if output is directly in data (not data.output)
-						if (typeof data === 'string') {
-							result = data;
-							console.log('✅ RunPod API: Data itself is a string, length:', result.length);
-						} else if (data.text) {
-							result = data.text;
-							console.log('✅ RunPod API: Found text at top level, length:', result.length);
-						} else if (data.response) {
-							result = data.response;
-							console.log('✅ RunPod API: Found response at top level, length:', result.length);
-						} else if (data.content) {
-							result = data.content;
-							console.log('✅ RunPod API: Found content at top level, length:', result.length);
-						} else {
-							// Stream endpoint already tried above (around line 848), just log that we couldn't find output
-							if (attempt >= 3) {
-								console.warn('⚠️ RunPod API: Could not find output in status or stream endpoint after multiple attempts');
-							}
-							
-							// If still no result, return empty string instead of throwing error
-							// This allows the UI to render something instead of failing
-							if (!result) {
-								console.warn('⚠️ RunPod API: No output found in response. Returning empty result.');
-								console.log('📥 RunPod API: Available fields:', Object.keys(data));
-								result = ''; // Return empty string so UI can render
-							}
-						}
+				} else if (!data.output) {
+					// No output field - check alternative structures or return empty
+					// Try checking if output is directly in data (not data.output)
+					if (typeof data === 'string') {
+						result = data;
+					} else if (data.text) {
+						result = data.text;
+					} else if (data.response) {
+						result = data.response;
+					} else if (data.content) {
+						result = data.content;
+					} else {
+						// If still no result, return empty string instead of throwing error
+						// This allows the UI to render something instead of failing
+						result = '';
 					}
-				
+				}
+
 				// Return result even if empty - don't loop forever
 				if (result !== undefined) {
-					// Return empty string if no result found - allows UI to render
-					console.log('✅ RunPod API: Returning result (may be empty):', result ? `length ${result.length}` : 'empty');
 					return result || '';
 				}
-				
+
 				// If we get here, no output was found - return empty string instead of looping
-				console.warn('⚠️ RunPod API: No output found after checking all formats. Returning empty result.');
 				return '';
 			}
-			
+
 			if (data.status === 'FAILED') {
-				console.error('❌ RunPod API: Job failed:', data.error || 'Unknown error');
 				throw new Error(`Job failed: ${data.error || 'Unknown error'}`);
 			}
-			
-			// Check for starting/pending status
-			if (data.status === 'STARTING' || data.status === 'PENDING') {
-				console.log(`⏳ RunPod API: Endpoint still starting (attempt ${attempt + 1}/${maxAttempts})...`);
-			}
-			
+
 			// Job still in progress, wait and retry
 			await new Promise(resolve => setTimeout(resolve, pollInterval));
 		} catch (error) {
@@ -1090,7 +963,7 @@ async function pollRunPodJob(
 			await new Promise(resolve => setTimeout(resolve, pollInterval));
 		}
 	}
-	
+
 	throw new Error('Job polling timeout - job did not complete in time');
 }
 
@@ -1119,7 +992,7 @@ async function autoMigrateAPIKeys() {
 						}
 						if (needsUpdate) {
 							localStorage.setItem("openai_api_key", JSON.stringify(parsed));
-							console.log('🔄 Migrated invalid Anthropic model name to claude-3-opus-20240229');
+							
 						}
 					}
 					return; // Already migrated
@@ -1260,7 +1133,7 @@ export function getFirstAvailableApiKeyAndProvider(): { key: string; provider: s
 export function clearInvalidApiKeys() {
 	try {
 		localStorage.removeItem('invalid_api_keys');
-		console.log('🧹 Cleared all invalid API key markers');
+		
 	} catch (e) {
 		console.warn('Failed to clear invalid API keys:', e);
 	}

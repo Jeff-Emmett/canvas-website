@@ -82,58 +82,48 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
   // Save vault to Automerge store
   const saveVaultToAutomerge = (vault: ObsidianVault) => {
     if (!automergeHandle) {
-      console.warn('⚠️ Automerge handle not available, saving to localStorage only')
       try {
         const vaultRecord = importer.vaultToRecord(vault)
         localStorage.setItem(`obsidian_vault_cache:${vault.name}`, JSON.stringify({
           ...vaultRecord,
           lastImported: vaultRecord.lastImported instanceof Date ? vaultRecord.lastImported.toISOString() : vaultRecord.lastImported
         }))
-        console.log('🔧 Saved vault to localStorage (Automerge handle not available):', vaultRecord.id)
       } catch (localStorageError) {
-        console.warn('⚠️ Could not save vault to localStorage:', localStorageError)
+        console.warn('Could not save vault to localStorage:', localStorageError)
       }
       return
     }
-    
+
     try {
       const vaultRecord = importer.vaultToRecord(vault)
-      
+
       // Save directly to Automerge, bypassing TLDraw store validation
-      // This allows us to save custom record types like obsidian_vault
       automergeHandle.change((doc: any) => {
-        // Ensure doc.store exists
         if (!doc.store) {
           doc.store = {}
         }
-        
-        // Save the vault record directly to Automerge store
-        // Convert Date to ISO string for serialization
+
         const recordToSave = {
           ...vaultRecord,
-          lastImported: vaultRecord.lastImported instanceof Date 
-            ? vaultRecord.lastImported.toISOString() 
+          lastImported: vaultRecord.lastImported instanceof Date
+            ? vaultRecord.lastImported.toISOString()
             : vaultRecord.lastImported
         }
-        
+
         doc.store[vaultRecord.id] = recordToSave
       })
-      
-      console.log('🔧 Saved vault to Automerge:', vaultRecord.id)
-      
+
       // Also save to localStorage as a backup
       try {
         localStorage.setItem(`obsidian_vault_cache:${vault.name}`, JSON.stringify({
           ...vaultRecord,
           lastImported: vaultRecord.lastImported instanceof Date ? vaultRecord.lastImported.toISOString() : vaultRecord.lastImported
         }))
-        console.log('🔧 Saved vault to localStorage as backup:', vaultRecord.id)
       } catch (localStorageError) {
-        console.warn('⚠️ Could not save vault to localStorage:', localStorageError)
+        // Silent fail for backup
       }
     } catch (error) {
-      console.error('❌ Error saving vault to Automerge:', error)
-      // Don't throw - allow vault loading to continue even if saving fails
+      console.error('Error saving vault to Automerge:', error)
       // Try localStorage as fallback
       try {
         const vaultRecord = importer.vaultToRecord(vault)
@@ -141,9 +131,8 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
           ...vaultRecord,
           lastImported: vaultRecord.lastImported instanceof Date ? vaultRecord.lastImported.toISOString() : vaultRecord.lastImported
         }))
-        console.log('🔧 Saved vault to localStorage as fallback:', vaultRecord.id)
       } catch (localStorageError) {
-        console.warn('⚠️ Could not save vault to localStorage:', localStorageError)
+        console.warn('Could not save vault to localStorage:', localStorageError)
       }
     }
   }
@@ -157,10 +146,8 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
         if (doc && doc.store) {
           const vaultId = `obsidian_vault:${vaultName}`
           const vaultRecord = doc.store[vaultId] as ObsidianVaultRecord | undefined
-          
+
           if (vaultRecord && vaultRecord.typeName === 'obsidian_vault') {
-            console.log('🔧 Loaded vault from Automerge:', vaultId)
-            // Convert date string back to Date object if needed
             const recordCopy = JSON.parse(JSON.stringify(vaultRecord))
             if (typeof recordCopy.lastImported === 'string') {
               recordCopy.lastImported = new Date(recordCopy.lastImported)
@@ -169,18 +156,16 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
           }
         }
       } catch (error) {
-        console.warn('⚠️ Could not load vault from Automerge:', error)
+        // Fall through to localStorage
       }
     }
-    
+
     // Try localStorage as fallback
     try {
       const cached = localStorage.getItem(`obsidian_vault_cache:${vaultName}`)
       if (cached) {
         const vaultRecord = JSON.parse(cached) as ObsidianVaultRecord
         if (vaultRecord && vaultRecord.typeName === 'obsidian_vault') {
-          console.log('🔧 Loaded vault from localStorage cache:', vaultName)
-          // Convert date string back to Date object
           if (typeof vaultRecord.lastImported === 'string') {
             vaultRecord.lastImported = new Date(vaultRecord.lastImported)
           }
@@ -188,9 +173,9 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
         }
       }
     } catch (e) {
-      console.warn('⚠️ Could not load vault from localStorage:', e)
+      // Silent fail
     }
-    
+
     return null
   }
 
@@ -198,47 +183,31 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
   useEffect(() => {
     // Prevent multiple loads if already loading or already loaded once
     if (isLoadingVault || hasLoadedOnce) {
-      console.log('🔧 ObsidianVaultBrowser: Skipping load - already loading or loaded once')
       return
     }
 
-    console.log('🔧 ObsidianVaultBrowser: Component mounted, checking user identity for vault...')
-    console.log('🔧 Current session vault data:', { 
-      path: session.obsidianVaultPath, 
-      name: session.obsidianVaultName,
-      authed: session.authed,
-      username: session.username
-    })
-    
     // FIRST PRIORITY: Try to load from user's configured vault in session (user identity)
     if (session.obsidianVaultPath && session.obsidianVaultPath !== 'folder-selected') {
-      console.log('✅ Found configured vault in user identity:', session.obsidianVaultPath)
-      console.log('🔧 Loading vault from user identity...')
-      
       // First try to load from Automerge cache for faster loading
       if (session.obsidianVaultName) {
         const cachedVault = loadVaultFromAutomerge(session.obsidianVaultName)
         if (cachedVault) {
-          console.log('✅ Loaded vault from Automerge cache')
           setVault(cachedVault)
           setIsLoading(false)
           setHasLoadedOnce(true)
           return
         }
       }
-      
+
       // If not in cache, load from source (Quartz URL or local path)
-      console.log('🔧 Loading vault from source:', session.obsidianVaultPath)
       loadVault(session.obsidianVaultPath)
     } else if (session.obsidianVaultPath === 'folder-selected' && session.obsidianVaultName) {
-      console.log('🔧 Vault was previously selected via folder picker, showing reselect interface')
       // For folder-selected vaults, we can't reload them, so show a special reselect interface
       setVault(null)
       setShowFolderReselect(true)
       setIsLoading(false)
       setHasLoadedOnce(true)
     } else {
-      console.log('⚠️ No vault configured in user identity, showing empty state...')
       setVault(null)
       setIsLoading(false)
       setHasLoadedOnce(true)
@@ -250,30 +219,28 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
     // Check if values actually changed (not just object reference)
     const vaultPathChanged = previousVaultPathRef.current !== session.obsidianVaultPath
     const vaultNameChanged = previousVaultNameRef.current !== session.obsidianVaultName
-    
+
     // If vault is already loaded and values haven't changed, don't do anything
     if (hasLoadedOnce && !vaultPathChanged && !vaultNameChanged) {
-      return // Already loaded and nothing changed, no need to reload
+      return
     }
-    
+
     // Update refs to current values
     previousVaultPathRef.current = session.obsidianVaultPath
     previousVaultNameRef.current = session.obsidianVaultName
-    
+
     // Only proceed if values actually changed and we haven't loaded yet
     if (!vaultPathChanged && !vaultNameChanged) {
-      return // Values haven't changed, no need to reload
+      return
     }
-    
+
     if (hasLoadedOnce || isLoadingVault) {
-      return // Don't reload if we've already loaded or are currently loading
+      return
     }
 
     if (session.obsidianVaultPath && session.obsidianVaultPath !== 'folder-selected') {
-      console.log('🔧 Session vault path changed, loading vault:', session.obsidianVaultPath)
       loadVault(session.obsidianVaultPath)
     } else if (session.obsidianVaultPath === 'folder-selected' && session.obsidianVaultName) {
-      console.log('🔧 Session shows folder-selected vault, showing reselect interface')
       setVault(null)
       setShowFolderReselect(true)
       setIsLoading(false)
@@ -284,7 +251,6 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
   // Auto-open folder picker if requested
   useEffect(() => {
     if (autoOpenFolderPicker) {
-      console.log('Auto-opening folder picker...')
       handleFolderPicker()
     }
   }, [autoOpenFolderPicker])
@@ -312,7 +278,6 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        console.log('🔧 ESC key pressed, closing vault browser')
         onClose()
       }
     }
@@ -326,57 +291,38 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
   const loadVault = async (path?: string) => {
     // Prevent concurrent loading operations
     if (isLoadingVault) {
-      console.log('🔧 loadVault: Already loading, skipping concurrent request')
       return
     }
 
     setIsLoadingVault(true)
     setIsLoading(true)
     setError(null)
-    
+
     try {
       if (path) {
         // Check if it's a Quartz URL
         if (path.startsWith('http') || path.includes('quartz') || path.includes('.xyz') || path.includes('.com')) {
-          // Load from Quartz URL - always get latest data
-          console.log('🔧 Loading Quartz vault from URL (getting latest data):', path)
           const loadedVault = await importer.importFromQuartzUrl(path)
-          console.log('Loaded Quartz vault from URL:', loadedVault)
           setVault(loadedVault)
           setShowVaultInput(false)
           setShowFolderReselect(false)
-          // Save the vault path and name to user session
-          console.log('🔧 Saving Quartz vault to session:', { path, name: loadedVault.name })
-          updateSession({ 
+          updateSession({
             obsidianVaultPath: path,
             obsidianVaultName: loadedVault.name
           })
-          console.log('🔧 Quartz vault saved to session successfully')
-          
-          // Save vault to Automerge for persistence
           saveVaultToAutomerge(loadedVault)
         } else {
-          // Load from local directory
-          console.log('🔧 Loading vault from local directory:', path)
           const loadedVault = await importer.importFromDirectory(path)
-          console.log('Loaded vault from path:', loadedVault)
           setVault(loadedVault)
           setShowVaultInput(false)
           setShowFolderReselect(false)
-          // Save the vault path and name to user session
-          console.log('🔧 Saving vault to session:', { path, name: loadedVault.name })
-          updateSession({ 
+          updateSession({
             obsidianVaultPath: path,
             obsidianVaultName: loadedVault.name
           })
-          console.log('🔧 Vault saved to session successfully')
-          
-          // Save vault to Automerge for persistence
           saveVaultToAutomerge(loadedVault)
         }
       } else {
-        // No vault configured - show empty state
-        console.log('No vault configured, showing empty state...')
         setVault(null)
         setShowVaultInput(false)
       }
@@ -384,8 +330,6 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
       console.error('Failed to load vault:', err)
       setError('Failed to load Obsidian vault. Please try again.')
       setVault(null)
-      // Don't show vault input if user already has a vault configured
-      // Only show vault input if this is a fresh attempt
       if (!session.obsidianVaultPath) {
         setShowVaultInput(true)
       }
@@ -401,11 +345,8 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
       setError('Please enter a vault path or URL')
       return
     }
-    
-    console.log('📝 Submitting vault path:', vaultPath.trim(), 'Method:', inputMethod)
-    
+
     if (inputMethod === 'quartz') {
-      // Handle Quartz URL
       try {
         setIsLoading(true)
         setError(null)
@@ -413,70 +354,49 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
         setVault(loadedVault)
         setShowVaultInput(false)
         setShowFolderReselect(false)
-        
-        // Save Quartz vault to user identity (session)
-        console.log('🔧 Saving Quartz vault to user identity:', { 
-          path: vaultPath.trim(), 
-          name: loadedVault.name 
-        })
-        updateSession({ 
+        updateSession({
           obsidianVaultPath: vaultPath.trim(),
           obsidianVaultName: loadedVault.name
         })
       } catch (error) {
-        console.error('❌ Error loading Quartz vault:', error)
+        console.error('Error loading Quartz vault:', error)
         setError(error instanceof Error ? error.message : 'Failed to load Quartz vault')
       } finally {
         setIsLoading(false)
       }
     } else {
-      // Handle regular vault path (local folder or URL)
       loadVault(vaultPath.trim())
     }
   }
 
   const handleFolderPicker = async () => {
-    console.log('📁 Folder picker button clicked')
-    
     if (!('showDirectoryPicker' in window)) {
       setError('File System Access API is not supported in this browser. Please use "Enter Path" instead.')
       setShowVaultInput(true)
       return
     }
-    
+
     try {
       setIsLoading(true)
       setError(null)
-      console.log('📁 Opening directory picker...')
-      
+
       const loadedVault = await importer.importFromFileSystem()
-      console.log('✅ Vault loaded from folder picker:', loadedVault.name)
-      
+
       setVault(loadedVault)
       setShowVaultInput(false)
       setShowFolderReselect(false)
-      
-      // Note: We can't get the actual path from importFromFileSystem, 
-      // but we can save a flag that a folder was selected
-      console.log('🔧 Saving folder-selected vault to user identity:', { 
-        path: 'folder-selected', 
-        name: loadedVault.name 
-      })
-      updateSession({ 
+
+      updateSession({
         obsidianVaultPath: 'folder-selected',
         obsidianVaultName: loadedVault.name
       })
-      console.log('✅ Folder-selected vault saved to user identity successfully')
-      
-      // Save vault to Automerge for persistence
+
       saveVaultToAutomerge(loadedVault)
     } catch (err) {
-      console.error('❌ Failed to load vault from folder picker:', err)
       if ((err as any).name === 'AbortError') {
-        // User cancelled the folder picker
-        console.log('📁 User cancelled folder picker')
-        setError(null) // Don't show error for cancellation
+        setError(null)
       } else {
+        console.error('Failed to load vault from folder picker:', err)
         setError('Failed to load Obsidian vault. Please try again.')
       }
     } finally {
@@ -514,17 +434,7 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
         const folderNotes = importer.getAllNotesFromTree(folder)
         obs_notes = obs_notes.filter(note => folderNotes.some(folderNote => folderNote.id === note.id))
       }
-    } else if (viewMode === 'tree' && selectedFolder === null) {
-      // In tree view but no folder selected, show all notes
-      // This allows users to see all notes when no specific folder is selected
     }
-
-    // Debug logging
-    console.log('Search query:', debouncedSearchQuery)
-    console.log('View mode:', viewMode)
-    console.log('Selected folder:', selectedFolder)
-    console.log('Total notes:', vault.obs_notes.length)
-    console.log('Filtered notes:', obs_notes.length)
 
     return obs_notes
   }, [vault, debouncedSearchQuery, viewMode, selectedFolder, folderTree, importer])
@@ -532,27 +442,19 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
   // Listen for trigger-obsnote-creation event from CustomToolbar
   useEffect(() => {
     const handleTriggerCreation = () => {
-      console.log('🎯 ObsidianVaultBrowser: Received trigger-obsnote-creation event')
-      
       if (selectedNotes.size > 0) {
-        // Create shapes from currently selected notes
         const selectedObsNotes = filteredObsNotes.filter(obs_note => selectedNotes.has(obs_note.id))
-        console.log('🎯 Creating shapes from selected notes:', selectedObsNotes.length)
         onObsNotesSelect(selectedObsNotes)
       } else {
-        // If no notes are selected, select all visible notes
         const allVisibleNotes = filteredObsNotes
         if (allVisibleNotes.length > 0) {
-          console.log('🎯 No notes selected, creating shapes from all visible notes:', allVisibleNotes.length)
           onObsNotesSelect(allVisibleNotes)
-        } else {
-          console.log('🎯 No notes available to create shapes from')
         }
       }
     }
 
     window.addEventListener('trigger-obsnote-creation', handleTriggerCreation as EventListener)
-    
+
     return () => {
       window.removeEventListener('trigger-obsnote-creation', handleTriggerCreation as EventListener)
     }
@@ -663,7 +565,6 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
   }
 
   const handleObsNoteClick = (obs_note: ObsidianObsNote) => {
-    console.log('🎯 ObsidianVaultBrowser: handleObsNoteClick called with:', obs_note)
     onObsNoteSelect(obs_note)
   }
 
@@ -679,7 +580,6 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
 
   const handleBulkImport = () => {
     const selectedObsNotes = filteredObsNotes.filter(obs_note => selectedNotes.has(obs_note.id))
-    console.log('🎯 ObsidianVaultBrowser: handleBulkImport called with:', selectedObsNotes.length, 'notes')
     onObsNotesSelect(selectedObsNotes)
     setSelectedNotes(new Set())
   }
@@ -730,13 +630,11 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
 
 
   const handleDisconnectVault = () => {
-    // Clear the vault from session
-    updateSession({ 
+    updateSession({
       obsidianVaultPath: undefined,
       obsidianVaultName: undefined
     })
-    
-    // Reset component state
+
     setVault(null)
     setSearchQuery('')
     setDebouncedSearchQuery('')
@@ -746,8 +644,6 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
     setError(null)
     setHasLoadedOnce(false)
     setIsLoadingVault(false)
-    
-    console.log('🔧 Vault disconnected successfully')
   }
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -841,24 +737,19 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
           <h3>Load Obsidian Vault</h3>
           <p>Choose how you'd like to load your Obsidian vault:</p>
           <div className="vault-options">
-            <button 
-              onClick={() => {
-                console.log('📁 Select Folder button clicked')
-                handleFolderPicker()
-              }} 
+            <button
+              onClick={handleFolderPicker}
               className="load-vault-button primary"
             >
               📁 Select Folder
             </button>
-            <button 
+            <button
               onClick={() => {
-                console.log('📝 Enter Path button clicked')
-                // Pre-populate with session vault path if available
                 if (session.obsidianVaultPath && session.obsidianVaultPath !== 'folder-selected') {
                   setVaultPath(session.obsidianVaultPath)
                 }
                 setShowVaultInput(true)
-              }} 
+              }}
               className="load-vault-button secondary"
             >
               📝 Enter Path
