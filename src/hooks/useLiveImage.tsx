@@ -7,6 +7,7 @@
 import React, { createContext, useContext, useEffect, useRef, useCallback, useState } from 'react'
 import { Editor, TLShapeId, Box, exportToBlob } from 'tldraw'
 import { fal } from '@fal-ai/client'
+import { getFalConfig } from '@/lib/clientConfig'
 
 // Fal.ai model endpoints
 const FAL_MODEL_LCM = 'fal-ai/lcm-sd15-i2i' // Fast, real-time (~150ms)
@@ -29,8 +30,12 @@ interface LiveImageProviderProps {
  * Provider component that manages Fal.ai connection
  */
 export function LiveImageProvider({ children, apiKey: initialApiKey }: LiveImageProviderProps) {
+  // Get default FAL key from clientConfig (includes the hardcoded default)
+  const falConfig = getFalConfig()
+  const defaultApiKey = falConfig?.apiKey || null
+
   const [apiKey, setApiKeyState] = useState<string | null>(
-    initialApiKey || import.meta.env.VITE_FAL_API_KEY || null
+    initialApiKey || import.meta.env.VITE_FAL_API_KEY || defaultApiKey
   )
   const [isConnected, setIsConnected] = useState(false)
 
@@ -39,7 +44,7 @@ export function LiveImageProvider({ children, apiKey: initialApiKey }: LiveImage
     if (apiKey) {
       fal.config({ credentials: apiKey })
       setIsConnected(true)
-      console.log('LiveImage: Fal.ai client configured')
+      console.log('LiveImage: Fal.ai client configured with default key')
     } else {
       setIsConnected(false)
     }
@@ -51,15 +56,18 @@ export function LiveImageProvider({ children, apiKey: initialApiKey }: LiveImage
     localStorage.setItem('fal_api_key', key)
   }, [])
 
-  // Try to load API key from localStorage on mount
+  // Try to load API key from localStorage on mount (but only if no default key)
   useEffect(() => {
     if (!apiKey) {
       const storedKey = localStorage.getItem('fal_api_key')
       if (storedKey) {
         setApiKeyState(storedKey)
+      } else if (defaultApiKey) {
+        // Use default key from config
+        setApiKeyState(defaultApiKey)
       }
     }
-  }, [])
+  }, [defaultApiKey])
 
   return (
     <LiveImageContext.Provider value={{ isConnected, apiKey, setApiKey }}>
