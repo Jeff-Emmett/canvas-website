@@ -757,7 +757,6 @@ export function CustomToolbar() {
                 isSelected={tools["ImageGen"].id === editor.getCurrentToolId()}
               />
             )}
-            {/* VideoGen - temporarily hidden until in better working state
             {tools["VideoGen"] && (
               <TldrawUiMenuItem
                 {...tools["VideoGen"]}
@@ -766,7 +765,6 @@ export function CustomToolbar() {
                 isSelected={tools["VideoGen"].id === editor.getCurrentToolId()}
               />
             )}
-            */}
             {/* Terminal (Multmux) - temporarily hidden until in better working state
             {tools["Multmux"] && (
               <TldrawUiMenuItem
