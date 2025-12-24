@@ -695,6 +695,7 @@ export function CustomToolbar() {
                 isSelected={tools["Markdown"].id === editor.getCurrentToolId()}
               />
             )}
+            {/* MycroZine Generator temporarily disabled for debugging
             {tools["MycroZineGenerator"] && (
               <TldrawUiMenuItem
                 {...tools["MycroZineGenerator"]}
@@ -705,6 +706,7 @@ export function CustomToolbar() {
                 }
               />
             )}
+            */}
             {tools["Prompt"] && (
               <TldrawUiMenuItem
                 {...tools["Prompt"]}
@@ -729,6 +731,7 @@ export function CustomToolbar() {
                 isSelected={tools["Transcription"].id === editor.getCurrentToolId()}
               />
             )}
+            {/* Holon - temporarily hidden until in better working state
             {tools["Holon"] && (
               <TldrawUiMenuItem
                 {...tools["Holon"]}
@@ -737,6 +740,7 @@ export function CustomToolbar() {
                 isSelected={tools["Holon"].id === editor.getCurrentToolId()}
               />
             )}
+            */}
             {tools["FathomMeetings"] && (
               <TldrawUiMenuItem
                 {...tools["FathomMeetings"]}
@@ -761,6 +765,7 @@ export function CustomToolbar() {
                 isSelected={tools["VideoGen"].id === editor.getCurrentToolId()}
               />
             )}
+            {/* Terminal (Multmux) - temporarily hidden until in better working state
             {tools["Multmux"] && (
               <TldrawUiMenuItem
                 {...tools["Multmux"]}
@@ -769,6 +774,7 @@ export function CustomToolbar() {
                 isSelected={tools["Multmux"].id === editor.getCurrentToolId()}
               />
             )}
+            */}
             {tools["Map"] && (
               <TldrawUiMenuItem
                 {...tools["Map"]}
