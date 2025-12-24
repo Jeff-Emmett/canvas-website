@@ -695,6 +695,7 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
                 <video
                   key={videoUrl.substring(0, 100)} // Force reload when URL changes
                   src={videoUrl}
+                  crossOrigin="anonymous"
                   controls
                   autoPlay
                   loop
