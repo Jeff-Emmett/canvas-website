@@ -4,7 +4,7 @@ title: Implement proper Automerge CRDT sync for offline-first support
 status: In Progress
 assignee: []
 created_date: '2025-12-04 21:06'
-updated_date: '2025-12-06 06:55'
+updated_date: '2025-12-25 23:38'
 labels:
   - offline-sync
   - crdt
@@ -87,4 +87,27 @@ Added safety mitigations for Automerge format conversion (commit f8092d8 on feat
 Fixed persistence issue: Modified handlePeerDisconnect to flush pending saves and updated client-side merge strategy in useAutomergeSyncRepo.ts to properly bootstrap from server when local is empty while preserving offline changes
 
 Fixed TypeScript errors in networking module: corrected useSession->useAuth import, added myConnections to NetworkGraph type, fixed GraphEdge type alignment between client and worker
+
+## Investigation Summary (2025-12-25)
+
+**Current Architecture:**
+- Worker: CRDT sync enabled with SyncManager
+- Client: CloudflareNetworkAdapter with binary message support
+- Storage: IndexedDB for offline persistence
+
+**Issue:** Automerge Repo not generating sync messages when `handle.change()` is called. JSON sync workaround in use.
+
+**Suspected Root Cause:**
+The Automerge Repo requires proper peer discovery. The adapter emits `peer-candidate` for server, but Repo may not be establishing proper sync relationship.
+
+**Remaining ACs:**
+- #2 Client-server binary protocol (partially working - needs Repo to generate messages)
+- #3 Deletions persist (needs testing once binary sync works)
+- #4 Concurrent edits merge (needs testing)
+- #6 All functionality works (JSON workaround is functional)
+
+**Next Steps:**
+1. Add debug logging to adapter.send() to verify Repo calls
+2. Check sync states between local peer and server
+3. May need to manually trigger sync or fix Repo configuration
 <!-- SECTION:NOTES:END -->
