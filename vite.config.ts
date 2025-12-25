@@ -128,30 +128,71 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           // Manual chunk splitting for large libraries to improve load times
-          manualChunks: {
-            // Core React libraries
-            'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          manualChunks(id) {
+            // Core React libraries - load first
+            if (id.includes('node_modules/react') ||
+                id.includes('node_modules/react-dom') ||
+                id.includes('node_modules/react-router')) {
+              return 'react-vendor';
+            }
 
-            // tldraw - large drawing library (split into separate chunk)
-            'tldraw': ['tldraw', '@tldraw/tldraw', '@tldraw/tlschema'],
+            // tldraw core - split from shapes
+            if (id.includes('node_modules/tldraw') ||
+                id.includes('node_modules/@tldraw')) {
+              return 'tldraw';
+            }
 
             // Automerge - CRDT sync library
-            'automerge': [
-              '@automerge/automerge',
-              '@automerge/automerge-repo',
-              '@automerge/automerge-repo-react-hooks'
-            ],
+            if (id.includes('node_modules/@automerge')) {
+              return 'automerge';
+            }
 
             // AI SDKs (lazy load)
-            'ai-sdks': ['@anthropic-ai/sdk', 'openai', 'ai'],
+            if (id.includes('node_modules/@anthropic-ai') ||
+                id.includes('node_modules/openai') ||
+                id.includes('node_modules/ai/')) {
+              return 'ai-sdks';
+            }
 
             // ML/transformers (VERY large, lazy loaded)
-            'ml-libs': ['@xenova/transformers'],
+            if (id.includes('node_modules/@xenova')) {
+              return 'ml-libs';
+            }
 
             // Markdown editors
-            'markdown': ['@uiw/react-md-editor', 'cherry-markdown', 'marked', 'react-markdown'],
+            if (id.includes('node_modules/@uiw/react-md-editor') ||
+                id.includes('node_modules/cherry-markdown') ||
+                id.includes('node_modules/marked') ||
+                id.includes('node_modules/react-markdown')) {
+              return 'markdown';
+            }
 
-            // Note: gun, webnative, holosphere removed - stubbed for future Nostr integration
+            // CodeMirror (used by markdown editors)
+            if (id.includes('node_modules/@codemirror') ||
+                id.includes('node_modules/codemirror')) {
+              return 'codemirror';
+            }
+
+            // Daily video chat
+            if (id.includes('node_modules/@daily-co')) {
+              return 'daily-video';
+            }
+
+            // html2canvas (screenshots)
+            if (id.includes('node_modules/html2canvas')) {
+              return 'html2canvas';
+            }
+
+            // ONNX runtime (ML inference)
+            if (id.includes('node_modules/onnxruntime')) {
+              return 'onnx';
+            }
+
+            // DOMPurify and sanitizers
+            if (id.includes('node_modules/dompurify') ||
+                id.includes('node_modules/isomorphic-dompurify')) {
+              return 'sanitizers';
+            }
           },
         },
       },
