@@ -8,7 +8,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        - VITE_TLDRAW_WORKER_URL=https://jeffemmett-canvas.jeffemmett.workers.dev
+        - VITE_WORKER_ENV=staging
     container_name: canvas-dev
     restart: unless-stopped
     labels:
