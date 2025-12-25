@@ -1,9 +1,10 @@
 ---
 id: task-058
 title: Set FAL_API_KEY and RUNPOD_API_KEY secrets in Cloudflare Worker
-status: To Do
+status: Done
 assignee: []
 created_date: '2025-12-25 23:30'
+updated_date: '2025-12-25 23:33'
 labels:
   - security
   - infrastructure
@@ -32,8 +33,14 @@ wrangler deploy
 
 ## Acceptance Criteria
 <!-- AC:BEGIN -->
-- [ ] #1 FAL_API_KEY secret set in Cloudflare Worker
-- [ ] #2 RUNPOD_API_KEY secret set in Cloudflare Worker
-- [ ] #3 Worker deployed with new secrets
-- [ ] #4 Browser console no longer shows 'fal credentials exposed' warning
+- [x] #1 FAL_API_KEY secret set in Cloudflare Worker
+- [x] #2 RUNPOD_API_KEY secret set in Cloudflare Worker
+- [x] #3 Worker deployed with new secrets
+- [x] #4 Browser console no longer shows 'fal credentials exposed' warning
 <!-- AC:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+Secrets set and deployed on 2025-12-25
+<!-- SECTION:NOTES:END -->
