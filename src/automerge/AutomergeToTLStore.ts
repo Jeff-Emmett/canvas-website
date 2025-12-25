@@ -442,20 +442,6 @@ export function applyAutomergePatchesToTLStore(
   // put / remove the records in the store
   // Log patch application for debugging
 
-  // DEBUG: Log shape updates being applied to store
-  toPut.forEach(record => {
-    if (record.typeName === 'shape' && (record as any).props?.w) {
-        w: (record as any).props.w,
-        h: (record as any).props.h,
-        x: (record as any).x,
-        y: (record as any).y
-      })
-    }
-  })
-  
-  if (failedRecords.length > 0) {
-  }
-  
   if (failedRecords.length > 0) {
     console.error("Failed to sanitize records:", failedRecords)
   }

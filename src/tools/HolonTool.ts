@@ -179,24 +179,9 @@ export class HolonIdle extends StateNode {
       
       // ALWAYS use click position directly when provided - user clicked where they want it
       // Skip collision detection entirely for user clicks to ensure it appears exactly where clicked
-      let finalX = baseX
-      let finalY = baseY
-      
-      if (clickX !== undefined && clickY !== undefined) {
-        // User clicked - ALWAYS use that exact position, no collision detection
-        // This ensures the shape appears exactly where the user clicked
-        finalX = baseX
-        finalY = baseY
-          clickPosition: { x: clickX, y: clickY }, 
-          shapePosition: { x: finalX, y: finalY },
-          shapeSize: { w: shapeWidth, h: shapeHeight }
-        })
-      } else {
-        // For fallback (no click), use base position directly
-        finalX = baseX
-        finalY = baseY
-      }
-      
+      const finalX = baseX
+      const finalY = baseY
+
       // Default coordinates (can be changed by user)
       const defaultLat = 40.7128 // NYC
       const defaultLng = -74.0060

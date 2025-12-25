@@ -158,19 +158,6 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
     const deletedRecordIds = data.deleted || []
     const deletedShapes = deletedRecordIds.filter(id => id.startsWith('shape:'))
 
-    // Log incoming sync data for debugging
-    if (shapeRecords.length > 0) {
-      shapeRecords.forEach((shape: any) => {
-          x: shape.x,
-          y: shape.y,
-          w: shape.props?.w,
-          h: shape.props?.h
-        })
-      })
-    }
-    if (deletedShapes.length > 0) {
-    }
-
     // Apply changes to the Automerge document
     // This will trigger patches which will update the TLDraw store
     // NOTE: We do NOT increment pendingLocalChanges here because these are REMOTE changes
@@ -621,17 +608,6 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
         return
       }
 
-      // Log significant changes for debugging
-      const shapePatches = payload.patches.filter((p: any) => {
-        const id = p.path?.[1]
-        return id && typeof id === 'string' && id.startsWith('shape:')
-      })
-
-      if (shapePatches.length > 0) {
-          patchCount: patchCount,
-          shapePatches: shapePatches.length
-        })
-      }
     }
 
     handle.on('change', changeHandler)

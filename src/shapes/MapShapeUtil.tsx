@@ -656,14 +656,6 @@ function MapComponent({ shape, editor, isSelected }: { shape: IMapShape; editor:
     );
     const currentCollaboratorIds = new Set(collaboratorsWithLocation.map((c: CollaboratorPresence) => c.id));
 
-    // Debug logging
-    if (collaboratorsWithLocation.length > 0) {
-        total: allCollaborators.length,
-        withLocation: collaboratorsWithLocation.length,
-        users: collaboratorsWithLocation.map(c => ({ id: c.id.slice(0, 8), name: c.name, loc: c.location })),
-      });
-    }
-
     // Remove old collaborator markers that are no longer sharing
     collaboratorMarkersRef.current.forEach((marker, id) => {
       if (!currentCollaboratorIds.has(id)) {

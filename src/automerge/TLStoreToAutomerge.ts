@@ -462,44 +462,6 @@ export function applyTLStoreChangesToAutomerge(
         originalX = (record as any).x
         originalY = (record as any).y
       }
-      // DEBUG: Log richText, meta.text, and Obsidian note properties before sanitization
-      if (record.typeName === 'shape') {
-        if (record.type === 'geo' && (record.props as any)?.richText) {
-            hasRichText: !!(record.props as any).richText,
-            richTextType: typeof (record.props as any).richText,
-            richTextContent: Array.isArray((record.props as any).richText) ? 'array' : (record.props as any).richText?.content ? 'object with content' : 'object without content'
-          })
-        }
-        if (record.type === 'geo' && (record.meta as any)?.text !== undefined) {
-            hasMetaText: !!(record.meta as any).text,
-            metaTextValue: (record.meta as any).text,
-            metaTextType: typeof (record.meta as any).text
-          })
-        }
-        if (record.type === 'note' && (record.props as any)?.richText) {
-            hasRichText: !!(record.props as any).richText,
-            richTextType: typeof (record.props as any).richText,
-            richTextContent: Array.isArray((record.props as any).richText) ? 'array' : (record.props as any).richText?.content ? 'object with content' : 'object without content',
-            richTextContentLength: Array.isArray((record.props as any).richText?.content) ? (record.props as any).richText.content.length : 'not array'
-          })
-        }
-        if (record.type === 'arrow' && (record.props as any)?.text !== undefined) {
-            hasText: !!(record.props as any).text,
-            textValue: (record.props as any).text,
-            textType: typeof (record.props as any).text
-          })
-        }
-        if (record.type === 'ObsNote') {
-            hasTitle: !!(record.props as any).title,
-            hasContent: !!(record.props as any).content,
-            hasTags: Array.isArray((record.props as any).tags),
-            title: (record.props as any).title,
-            contentLength: (record.props as any).content?.length || 0,
-            tagsCount: Array.isArray((record.props as any).tags) ? (record.props as any).tags.length : 0
-          })
-        }
-      }
-      
       const sanitizedRecord = sanitizeRecord(record)
       
       // CRITICAL: Restore original coordinates if they were valid
@@ -513,88 +475,10 @@ export function applyTLStoreChangesToAutomerge(
         }
       }
       
-      // DEBUG: Log richText, meta.text, and Obsidian note properties after sanitization
-      if (sanitizedRecord.typeName === 'shape') {
-        if (sanitizedRecord.type === 'geo' && (sanitizedRecord.props as any)?.richText) {
-            hasRichText: !!(sanitizedRecord.props as any).richText,
-            richTextType: typeof (sanitizedRecord.props as any).richText,
-            richTextContent: Array.isArray((sanitizedRecord.props as any).richText) ? 'array' : (sanitizedRecord.props as any).richText?.content ? 'object with content' : 'object without content'
-          })
-        }
-        if (sanitizedRecord.type === 'geo' && (sanitizedRecord.meta as any)?.text !== undefined) {
-            hasMetaText: !!(sanitizedRecord.meta as any).text,
-            metaTextValue: (sanitizedRecord.meta as any).text,
-            metaTextType: typeof (sanitizedRecord.meta as any).text
-          })
-        }
-        if (sanitizedRecord.type === 'note' && (sanitizedRecord.props as any)?.richText) {
-            hasRichText: !!(sanitizedRecord.props as any).richText,
-            richTextType: typeof (sanitizedRecord.props as any).richText,
-            richTextContent: Array.isArray((sanitizedRecord.props as any).richText) ? 'array' : (sanitizedRecord.props as any).richText?.content ? 'object with content' : 'object without content',
-            richTextContentLength: Array.isArray((sanitizedRecord.props as any).richText?.content) ? (sanitizedRecord.props as any).richText.content.length : 'not array'
-          })
-        }
-        if (sanitizedRecord.type === 'arrow' && (sanitizedRecord.props as any)?.text !== undefined) {
-            hasText: !!(sanitizedRecord.props as any).text,
-            textValue: (sanitizedRecord.props as any).text,
-            textType: typeof (sanitizedRecord.props as any).text
-          })
-        }
-        if (sanitizedRecord.type === 'ObsNote') {
-            hasTitle: !!(sanitizedRecord.props as any).title,
-            hasContent: !!(sanitizedRecord.props as any).content,
-            hasTags: Array.isArray((sanitizedRecord.props as any).tags),
-            title: (sanitizedRecord.props as any).title,
-            contentLength: (sanitizedRecord.props as any).content?.length || 0,
-            tagsCount: Array.isArray((sanitizedRecord.props as any).tags) ? (sanitizedRecord.props as any).tags.length : 0
-          })
-        }
-      }
-      
       // CRITICAL: Create a deep copy to ensure all properties (including richText and text) are preserved
       // This prevents Automerge from treating the object as read-only
       // Note: sanitizedRecord.props is already a deep copy from sanitizeRecord, but we need to deep copy the entire record
       const recordToSave = JSON.parse(JSON.stringify(sanitizedRecord))
-      
-      // DEBUG: Log richText, meta.text, and Obsidian note properties after deep copy
-      if (recordToSave.typeName === 'shape') {
-        if (recordToSave.type === 'geo' && recordToSave.props?.richText) {
-            hasRichText: !!recordToSave.props.richText,
-            richTextType: typeof recordToSave.props.richText,
-            richTextContent: Array.isArray(recordToSave.props.richText) ? 'array' : recordToSave.props.richText?.content ? 'object with content' : 'object without content',
-            richTextContentLength: Array.isArray(recordToSave.props.richText?.content) ? recordToSave.props.richText.content.length : 'not array'
-          })
-        }
-        if (recordToSave.type === 'geo' && recordToSave.meta?.text !== undefined) {
-            hasMetaText: !!recordToSave.meta.text,
-            metaTextValue: recordToSave.meta.text,
-            metaTextType: typeof recordToSave.meta.text
-          })
-        }
-        if (recordToSave.type === 'note' && recordToSave.props?.richText) {
-            hasRichText: !!recordToSave.props.richText,
-            richTextType: typeof recordToSave.props.richText,
-            richTextContent: Array.isArray(recordToSave.props.richText) ? 'array' : recordToSave.props.richText?.content ? 'object with content' : 'object without content',
-            richTextContentLength: Array.isArray(recordToSave.props.richText?.content) ? recordToSave.props.richText.content.length : 'not array'
-          })
-        }
-        if (recordToSave.type === 'arrow' && recordToSave.props?.text !== undefined) {
-            hasText: !!recordToSave.props.text,
-            textValue: recordToSave.props.text,
-            textType: typeof recordToSave.props.text
-          })
-        }
-        if (recordToSave.type === 'ObsNote') {
-            hasTitle: !!recordToSave.props.title,
-            hasContent: !!recordToSave.props.content,
-            hasTags: Array.isArray(recordToSave.props.tags),
-            title: recordToSave.props.title,
-            contentLength: recordToSave.props.content?.length || 0,
-            tagsCount: Array.isArray(recordToSave.props.tags) ? recordToSave.props.tags.length : 0,
-            allPropsKeys: Object.keys(recordToSave.props || {})
-          })
-        }
-      }
       
       // Replace the entire record - Automerge will handle merging with concurrent changes
       doc.store[record.id] = recordToSave

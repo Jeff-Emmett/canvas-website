@@ -106,13 +106,6 @@ export class FathomMeetingsBrowserShape extends BaseBoxShapeUtil<IFathomMeetings
             return
           }
           
-          // Log to verify the correct meeting is being received
-            recording_id: meetingRecordingId,
-            title: meetingTitle,
-            options,
-            fullMeetingObject: meeting
-          })
-          
           // Get API key from user identity
           const apiKey = getFathomApiKey(session.username)
           if (!apiKey) {

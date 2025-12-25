@@ -40,13 +40,7 @@ export class QuartzSync {
     try {
       const { githubToken, githubRepo } = this.config
       const [owner, repo] = githubRepo.split('/')
-      
-        owner,
-        repo,
-        noteTitle: note.title,
-        noteFilePath: note.filePath
-      })
-      
+
       // Get the current file content to check if it exists
       const filePath = `content/${note.filePath}`
       let sha: string | undefined
@@ -225,13 +219,6 @@ ${note.content}`
    * Prioritizes GitHub integration for Quartz sites
    */
   async smartSync(note: QuartzNote): Promise<boolean> {
-      hasGitHubToken: !!this.config.githubToken,
-      hasGitHubRepo: !!this.config.githubRepo,
-      hasCloudflareApiKey: !!this.config.cloudflareApiKey,
-      hasCloudflareAccountId: !!this.config.cloudflareAccountId,
-      hasQuartzUrl: !!this.config.quartzUrl
-    })
-    
     // Check if GitHub integration is available and preferred
     if (this.config.githubToken && this.config.githubRepo) {
       try {
@@ -241,12 +228,7 @@ ${note.content}`
         }
       } catch (error) {
         console.warn('⚠️ GitHub sync failed, trying other methods:', error)
-        console.warn('⚠️ GitHub sync error details:', {
-          message: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : 'No stack trace'
-        })
       }
-    } else {
     }
 
     // Fallback to other methods

@@ -35,8 +35,8 @@ export class DrawfastShape extends BaseBoxShapeUtil<IDrawfastShape> {
 
   getDefaultProps(): IDrawfastShape["props"] {
     return {
-      w: 512,
-      h: 512,
+      w: 900,
+      h: 500,
       prompt: "",
       generatedImageUrl: null,
       overlayMode: true,
@@ -156,16 +156,6 @@ export class DrawfastShape extends BaseBoxShapeUtil<IDrawfastShape> {
         type: 'Drawfast',
         props: {
           prompt: localPrompt,
-        },
-      })
-    }
-
-    const handleToggleOverlay = () => {
-      editor.updateShape<IDrawfastShape>({
-        id: shape.id,
-        type: 'Drawfast',
-        props: {
-          overlayMode: !shape.props.overlayMode,
         },
       })
     }
@@ -361,107 +351,151 @@ export class DrawfastShape extends BaseBoxShapeUtil<IDrawfastShape> {
             backgroundColor: '#1a1a2e',
             overflow: 'hidden',
           }}>
-            {/* Drawing Area / Result Display */}
+            {/* Main content area - INPUT and OUTPUT side by side */}
             <div style={{
               flex: 1,
-              position: 'relative',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: '#fff',
+              flexDirection: 'row',
               overflow: 'hidden',
             }}>
-              {/* Generated Image (if available and overlay mode) */}
-              {shape.props.generatedImageUrl && shape.props.overlayMode && (
-                <img
-                  src={shape.props.generatedImageUrl}
-                  alt="AI Generated"
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                    pointerEvents: 'none',
-                    opacity: 0.9,
-                    zIndex: 10,
-                  }}
-                />
-              )}
-
-              {/* Instructions when empty */}
-              {!shape.props.generatedImageUrl && (
+              {/* INPUT - Drawing Area (Left Side) */}
+              <div style={{
+                flex: 1,
+                position: 'relative',
+                display: 'flex',
+                flexDirection: 'column',
+                backgroundColor: '#fff',
+                overflow: 'hidden',
+                borderRight: '2px solid #333',
+              }}>
+                {/* INPUT Label */}
                 <div style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  textAlign: 'center',
-                  color: '#666',
-                  fontSize: '14px',
-                  padding: '20px',
-                  pointerEvents: 'none',
-                  zIndex: 5,
+                  padding: '4px 8px',
+                  backgroundColor: '#2a2a3e',
+                  color: '#888',
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  borderBottom: '1px solid #333',
                 }}>
-                  <div style={{ fontSize: '32px', marginBottom: '8px' }}>✏️</div>
-                  <div>Draw inside this frame</div>
-                  <div style={{ fontSize: '12px', marginTop: '4px', color: '#999' }}>
-                    Use the pencil, pen, or other tools to sketch
-                  </div>
+                  📝 Input (Draw Here)
                 </div>
-              )}
 
-              {/* Loading indicator */}
-              {(shape.props.isGenerating || liveImageState.isGenerating) && (
+                {/* Drawing canvas area */}
                 <div style={{
-                  position: 'absolute',
-                  top: '50%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  zIndex: 20,
-                  backgroundColor: 'rgba(0,0,0,0.7)',
-                  padding: '16px 24px',
-                  borderRadius: '8px',
-                  color: 'white',
+                  flex: 1,
+                  position: 'relative',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '12px',
+                  justifyContent: 'center',
                 }}>
+                  {/* Instructions when empty */}
                   <div style={{
-                    width: 24,
-                    height: 24,
-                    border: '3px solid rgba(255,255,255,0.3)',
-                    borderTopColor: DrawfastShape.PRIMARY_COLOR,
-                    borderRadius: '50%',
-                    animation: 'spin 1s linear infinite',
-                  }} />
-                  Generating...
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    textAlign: 'center',
+                    color: '#666',
+                    fontSize: '14px',
+                    padding: '20px',
+                    pointerEvents: 'none',
+                    zIndex: 5,
+                  }}>
+                    <div style={{ fontSize: '32px', marginBottom: '8px' }}>✏️</div>
+                    <div>Draw inside this frame</div>
+                    <div style={{ fontSize: '12px', marginTop: '4px', color: '#999' }}>
+                      Use the pencil, pen, or other tools to sketch
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
-
-            {/* Side-by-side result (when not overlay mode) */}
-            {shape.props.generatedImageUrl && !shape.props.overlayMode && (
-              <div style={{
-                height: '40%',
-                borderTop: '2px solid #333',
-                backgroundColor: '#111',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-                <img
-                  src={shape.props.generatedImageUrl}
-                  alt="AI Generated"
-                  style={{
-                    maxWidth: '100%',
-                    maxHeight: '100%',
-                    objectFit: 'contain',
-                  }}
-                />
               </div>
-            )}
+
+              {/* OUTPUT - Generated Image (Right Side) */}
+              <div style={{
+                flex: 1,
+                position: 'relative',
+                display: 'flex',
+                flexDirection: 'column',
+                backgroundColor: '#111',
+                overflow: 'hidden',
+              }}>
+                {/* OUTPUT Label */}
+                <div style={{
+                  padding: '4px 8px',
+                  backgroundColor: '#2a2a3e',
+                  color: '#888',
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  borderBottom: '1px solid #333',
+                }}>
+                  ✨ Output (AI Generated)
+                </div>
+
+                {/* Output content area */}
+                <div style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  position: 'relative',
+                }}>
+                  {/* Generated Image */}
+                  {shape.props.generatedImageUrl ? (
+                    <img
+                      src={shape.props.generatedImageUrl}
+                      alt="AI Generated"
+                      style={{
+                        maxWidth: '100%',
+                        maxHeight: '100%',
+                        objectFit: 'contain',
+                      }}
+                    />
+                  ) : (
+                    <div style={{
+                      textAlign: 'center',
+                      color: '#555',
+                      fontSize: '12px',
+                      padding: '20px',
+                    }}>
+                      <div style={{ fontSize: '24px', marginBottom: '8px', opacity: 0.5 }}>🖼️</div>
+                      <div>Generated image will appear here</div>
+                    </div>
+                  )}
+
+                  {/* Loading indicator */}
+                  {(shape.props.isGenerating || liveImageState.isGenerating) && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      zIndex: 20,
+                      backgroundColor: 'rgba(0,0,0,0.8)',
+                      padding: '16px 24px',
+                      borderRadius: '8px',
+                      color: 'white',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                    }}>
+                      <div style={{
+                        width: 24,
+                        height: 24,
+                        border: '3px solid rgba(255,255,255,0.3)',
+                        borderTopColor: DrawfastShape.PRIMARY_COLOR,
+                        borderRadius: '50%',
+                        animation: 'spin 1s linear infinite',
+                      }} />
+                      Generating...
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
 
             {/* Controls */}
             <div style={{
@@ -597,23 +631,6 @@ export class DrawfastShape extends BaseBoxShapeUtil<IDrawfastShape> {
                   />
                   Real-time
                 </label>
-
-                {/* Overlay toggle */}
-                <button
-                  onClick={handleToggleOverlay}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  style={{
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    border: '1px solid #444',
-                    backgroundColor: shape.props.overlayMode ? DrawfastShape.PRIMARY_COLOR : '#2a2a3e',
-                    color: '#fff',
-                    fontSize: '10px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  {shape.props.overlayMode ? 'Overlay' : 'Side-by-side'}
-                </button>
               </div>
             </div>
           </div>

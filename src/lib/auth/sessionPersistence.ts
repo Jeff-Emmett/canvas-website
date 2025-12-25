@@ -59,10 +59,6 @@ export const loadSession = (): StoredSession | null => {
     }
 
     const parsed = JSON.parse(stored) as StoredSession;
-      username: parsed.username,
-      authed: parsed.authed,
-      timestamp: new Date(parsed.timestamp).toISOString()
-    });
 
     // Check if session is not too old (7 days)
     const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds

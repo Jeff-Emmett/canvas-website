@@ -480,7 +480,7 @@ export const overrides: TLUiOverrides = {
         onSelect: async () => {
           try {
             // Create a simple modal/prompt for AI response
-            const answer = await askCanvasAI(editor, undefined, (partial, done) => {
+            const answer = await askCanvasAI(editor, undefined, (_partial, done) => {
               // Log streaming response to console for now
               if (!done) {
               }
@@ -500,7 +500,7 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: async () => {
           try {
-            await indexCanvasForSearch(editor, (progress) => {
+            await indexCanvasForSearch(editor, (_progress) => {
             })
           } catch (error) {
             console.error("Canvas indexing error:", error)
@@ -514,7 +514,7 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: async () => {
           try {
-            await explainViewport(editor, (partial, done) => {
+            await explainViewport(editor, (_partial, done) => {
               if (!done) {
               }
             })

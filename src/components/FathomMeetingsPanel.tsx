@@ -149,12 +149,6 @@ export function FathomMeetingsPanel({ onClose, onMeetingSelect, shapeMode = fals
 
   // Handler for individual data type buttons - creates shapes directly
   const handleDataButtonClick = async (meeting: FathomMeeting, dataType: 'summary' | 'transcript' | 'actionItems' | 'video') => {
-    // Log to verify the correct meeting is being used
-      recording_id: meeting.recording_id,
-      title: meeting.title,
-      dataType
-    })
-    
     if (!onMeetingSelect) {
       // Fallback for non-browser mode
       const options = {

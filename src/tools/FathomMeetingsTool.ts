@@ -231,12 +231,7 @@ export class FathomMeetingsIdle extends StateNode {
       // This ensures the shape appears exactly where the user clicked
       const finalX = baseX
       const finalY = baseY
-        clickPosition: { x: clickX, y: clickY }, 
-        shapePosition: { x: finalX, y: finalY },
-        shapeSize: { w: shapeWidth, h: shapeHeight }
-      })
 
-      
       const browserShape = this.editor.createShape({
         type: 'FathomMeetingsBrowser',
         x: finalX,

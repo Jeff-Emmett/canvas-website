@@ -376,25 +376,6 @@ export function Board() {
     ? false  // Don't restrict while loading/transitioning - assume can edit
     : permission === 'view'  // Only restrict if explicitly view (protected board)
 
-  // Debug logging for permission issues
-    permission,
-    permissionLoading,
-    sessionAuthed: session.authed,
-    sessionLoading: session.loading,
-    sessionUsername: session.username,
-    authJustChanged,
-    isReadOnly,
-    reason: session.loading
-      ? 'auth loading - allowing edit temporarily'
-      : authJustChanged
-        ? 'auth just changed - allowing edit until effects run'
-        : permissionLoading
-          ? 'permission loading - allowing edit temporarily'
-          : permission === 'view'
-            ? 'protected board - user not an editor (view-only)'
-            : 'open board or user is editor (can edit)'
-  })
-
   // Handler for when user tries to edit in read-only mode
   const handleEditAttempt = () => {
     if (isReadOnly) {
@@ -681,29 +662,6 @@ export function Board() {
       // Debug: Log page information
       const allPages = store.store.allRecords().filter((r: any) => r.typeName === 'page')
       
-      // CRITICAL DEBUG: Check if shapes exist in editor but aren't returned by getCurrentPageShapes
-      if (storeShapesOnCurrentPage.length > 0 && editorShapes.length === 0) {
-        const sampleShape = storeShapesOnCurrentPage[0]
-        const shapeInEditor = editor.getShape(sampleShape.id as TLShapeId)
-        if (shapeInEditor) {
-            id: shapeInEditor.id,
-            type: shapeInEditor.type,
-            parentId: shapeInEditor.parentId,
-            pageId: editor.getCurrentPageId(),
-            matches: shapeInEditor.parentId === editor.getCurrentPageId()
-          })
-        }
-      }
-      
-      // Debug: Log shape parent IDs to see if there's a mismatch
-      if (storeShapes.length > 0 && editorShapes.length === 0) {
-        const parentIdCounts = new Map<string, number>()
-        storeShapes.forEach((s: any) => {
-          const pid = s.parentId || 'no-parent'
-          parentIdCounts.set(pid, (parentIdCounts.get(pid) || 0) + 1)
-        })
-      }
-      
       // REMOVED: Aggressive force refresh that was causing coordinate loss
       // If shapes are in store but editor doesn't see them, it's likely a different issue
       // Forcing refresh by re-putting was resetting coordinates to 0,0
@@ -929,11 +887,6 @@ export function Board() {
           } catch (error) {
             console.error(`❌ Board: Error switching to page ${pageWithMostShapes}:`, error)
           }
-        } else if (pageWithMostShapes) {
-            pageId,
-            shapeCount: count,
-            isCurrent: pageId === currentPageId
-          })))
         }
       }
     }
@@ -1428,8 +1381,6 @@ export function Board() {
             const isAuthenticated = checkAuthFromStorage();
             const initialReadOnly = !isAuthenticated;
             editor.updateInstanceState({ isReadonly: initialReadOnly })
-              ? '🔒 Board is in read-only mode (not authenticated)'
-              : '🔓 Board is editable (authenticated)')
 
             // Also ensure the current tool is appropriate for the mode
             if (!initialReadOnly) {

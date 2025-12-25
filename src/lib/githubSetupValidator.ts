@@ -102,20 +102,4 @@ export function logGitHubSetupStatus(): void {
   const status = validateGitHubSetup()
   
   
-  if (status.isValid) {
-  } else {
-    status.issues.forEach(issue => {})
-  }
-  
-  if (status.warnings.length > 0) {
-    status.warnings.forEach(warning => {})
-  }
-  
-  if (status.suggestions.length > 0) {
-    status.suggestions.forEach(suggestion => {})
-  }
-  
-  if (!status.isValid) {
-    getGitHubSetupInstructions().forEach(instruction => {})
-  }
 }

@@ -296,7 +296,7 @@ export function NetworkGraphPanel({ onExpand }: NetworkGraphPanelProps) {
   }, [disconnect]);
 
   // Handle node click
-  const handleNodeClick = useCallback((node: any) => {
+  const handleNodeClick = useCallback((_node: any) => {
     // Could open a profile modal or navigate to user
   }, []);
 

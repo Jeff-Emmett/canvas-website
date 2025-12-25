@@ -74,13 +74,13 @@ export function useCollaboration({
     };
   }, [sessionId, serverUrl]);
 
-  const createSession = useCallback(async (name: string): Promise<string> => {
+  const createSession = useCallback(async (_name: string): Promise<string> => {
     // TODO: Create new Y.js document and return session ID
     const newSessionId = `session-${Date.now()}`;
     return newSessionId;
   }, []);
 
-  const joinSession = useCallback(async (sessionIdToJoin: string): Promise<void> => {
+  const joinSession = useCallback(async (_sessionIdToJoin: string): Promise<void> => {
     // TODO: Join existing Y.js session
   }, []);
 
@@ -96,15 +96,15 @@ export function useCollaboration({
     // awareness.setLocalStateField('cursor', coordinate);
   }, []);
 
-  const broadcastRouteChange = useCallback((route: Route) => {
+  const broadcastRouteChange = useCallback((_route: Route) => {
     // TODO: Update Y.js shared route array
   }, []);
 
-  const broadcastWaypointChange = useCallback((waypoint: Waypoint) => {
+  const broadcastWaypointChange = useCallback((_waypoint: Waypoint) => {
     // TODO: Update Y.js shared waypoint array
   }, []);
 
-  const broadcastLayerChange = useCallback((layer: MapLayer) => {
+  const broadcastLayerChange = useCallback((_layer: MapLayer) => {
     // TODO: Update Y.js shared layer array
   }, []);
 
