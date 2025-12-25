@@ -124,7 +124,10 @@ const CryptIDDropdown: React.FC<CryptIDDropdownProps> = ({ isDarkMode = false })
         const myConnections = await getMyConnections();
         setConnections(myConnections as UserConnectionWithProfile[]);
       } catch (error) {
-        console.error('Failed to load connections:', error);
+        // Don't log as error - this is expected when worker isn't running
+        if (import.meta.env.DEV) {
+          console.warn('Connections API unavailable (worker may not be running)');
+        }
         setConnections([]); // Clear on error too
       } finally {
         setConnectionsLoading(false);

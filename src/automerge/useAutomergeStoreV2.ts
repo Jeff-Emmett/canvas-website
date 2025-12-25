@@ -134,8 +134,14 @@ import { MycelialIntelligenceShape } from "@/shapes/MycelialIntelligenceShapeUti
 import { MapShape } from "@/shapes/MapShapeUtil"
 // Calendar shape for calendar functionality
 import { CalendarShape } from "@/shapes/CalendarShapeUtil"
+import { CalendarEventShape } from "@/shapes/CalendarEventShapeUtil"
 // Drawfast shape for quick drawing/sketching
 import { DrawfastShape } from "@/shapes/DrawfastShapeUtil"
+// Additional shapes from Board.tsx
+import { HolonBrowserShape } from "@/shapes/HolonBrowserShapeUtil"
+import { PrivateWorkspaceShape } from "@/shapes/PrivateWorkspaceShapeUtil"
+import { GoogleItemShape } from "@/shapes/GoogleItemShapeUtil"
+import { WorkflowBlockShape } from "@/shapes/WorkflowBlockShapeUtil"
 
 export function useAutomergeStoreV2({
   handle,
@@ -174,7 +180,12 @@ export function useAutomergeStoreV2({
       MycelialIntelligenceShape, // Deprecated - kept for backwards compatibility
       MapShape, // Open Mapping - OSM map shape
       CalendarShape, // Calendar with view switching
+      CalendarEventShape, // Calendar individual events
       DrawfastShape, // Drawfast quick sketching
+      HolonBrowserShape, // Holon browser
+      PrivateWorkspaceShape, // Private workspace for Google Export
+      GoogleItemShape, // Individual Google items
+      WorkflowBlockShape, // Workflow builder blocks
     ]
 
     // CRITICAL: Explicitly list ALL custom shape types to ensure they're registered
@@ -200,7 +211,12 @@ export function useAutomergeStoreV2({
       'MycelialIntelligence', // Deprecated - kept for backwards compatibility
       'Map', // Open Mapping - OSM map shape
       'Calendar', // Calendar with view switching
+      'CalendarEvent', // Calendar individual events
       'Drawfast', // Drawfast quick sketching
+      'HolonBrowser', // Holon browser
+      'PrivateWorkspace', // Private workspace for Google Export
+      'GoogleItem', // Individual Google items
+      'WorkflowBlock', // Workflow builder blocks
     ]
 
     // Build schema with explicit entries for all custom shapes

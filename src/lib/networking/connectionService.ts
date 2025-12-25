@@ -68,9 +68,22 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
     headers,
   });
 
+  // Check content type to ensure we're getting JSON
+  const contentType = response.headers.get('content-type') || '';
+  const isJson = contentType.includes('application/json');
+
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ message: response.statusText })) as { message?: string };
-    throw new Error(errorData.message || `HTTP ${response.status}`);
+    if (isJson) {
+      const errorData = await response.json().catch(() => ({ message: response.statusText })) as { message?: string };
+      throw new Error(errorData.message || `HTTP ${response.status}`);
+    }
+    // If we got HTML (like a 404 page), throw a more descriptive error
+    throw new Error(`API unavailable (HTTP ${response.status}). Is the worker running?`);
+  }
+
+  // Ensure we're getting JSON before parsing
+  if (!isJson) {
+    throw new Error('API returned non-JSON response. Is the worker running on port 5172?');
   }
 
   return response.json();

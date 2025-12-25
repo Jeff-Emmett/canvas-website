@@ -8,21 +8,9 @@ export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
   // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
   const env = loadEnv(mode, process.cwd(), '')
-  
-  // Debug: Log what we're getting
-  console.log('🔧 Vite config - Environment variables:')
-  console.log('Mode:', mode)
-  console.log('WSL2_IP from env:', process.env.WSL2_IP)
-  console.log('process.env.VITE_TLDRAW_WORKER_URL:', process.env.VITE_TLDRAW_WORKER_URL)
-  console.log('env.VITE_TLDRAW_WORKER_URL:', env.VITE_TLDRAW_WORKER_URL)
 
-  // Get the WSL2 IP for HMR configuration
-  const wslIp = process.env.WSL2_IP || '172.22.168.84'
-  
   // Set the worker URL to localhost for local development
-  const workerUrl = 'http://localhost:5172'
-  process.env.VITE_TLDRAW_WORKER_URL = workerUrl
-  console.log('🌐 Setting worker URL to:', workerUrl)
+  process.env.VITE_TLDRAW_WORKER_URL = 'http://localhost:5172'
 
   return {
     envPrefix: ["VITE_"],
