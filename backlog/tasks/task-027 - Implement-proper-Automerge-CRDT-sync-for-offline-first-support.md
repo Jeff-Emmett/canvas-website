@@ -4,7 +4,7 @@ title: Implement proper Automerge CRDT sync for offline-first support
 status: In Progress
 assignee: []
 created_date: '2025-12-04 21:06'
-updated_date: '2025-12-25 23:38'
+updated_date: '2025-12-25 23:59'
 labels:
   - offline-sync
   - crdt
@@ -110,4 +110,10 @@ The Automerge Repo requires proper peer discovery. The adapter emits `peer-candi
 1. Add debug logging to adapter.send() to verify Repo calls
 2. Check sync states between local peer and server
 3. May need to manually trigger sync or fix Repo configuration
+
+Dec 25: Added debug logging and peer-candidate re-emission fix to CloudflareAdapter.ts
+
+Key fix: Re-emit peer-candidate after documentId is set to trigger Repo sync (timing issue)
+
+Committed and pushed to dev branch - needs testing to verify binary sync is now working
 <!-- SECTION:NOTES:END -->
