@@ -1159,6 +1159,37 @@ export function sanitizeRecord(record: any): TLRecord {
     
     // CRITICAL: Fix richText structure for text shapes - REQUIRED field
     if (sanitized.type === 'text') {
+      // CRITICAL: Convert props.text to props.richText for text shapes (fixes sync issue)
+      // Text shapes may arrive from other clients with props.text instead of props.richText
+      // We must convert BEFORE initializing richText to empty, otherwise content is lost
+      if ('text' in sanitized.props && typeof sanitized.props.text === 'string' && sanitized.props.text.trim()) {
+        const textContent = sanitized.props.text
+        // Only use text content if richText is missing or empty
+        const hasRichTextContent = sanitized.props.richText &&
+          typeof sanitized.props.richText === 'object' &&
+          sanitized.props.richText.content &&
+          Array.isArray(sanitized.props.richText.content) &&
+          sanitized.props.richText.content.length > 0
+
+        if (!hasRichTextContent) {
+          // Convert text string to richText format for tldraw
+          sanitized.props.richText = {
+            type: 'doc',
+            content: [{
+              type: 'paragraph',
+              content: [{
+                type: 'text',
+                text: textContent
+              }]
+            }]
+          }
+          console.log(`🔧 AutomergeToTLStore: Converted props.text to richText for text shape ${sanitized.id}`)
+        }
+        // Preserve original text in meta for backward compatibility
+        if (!sanitized.meta) sanitized.meta = {}
+        sanitized.meta.text = textContent
+      }
+
       // Text shapes MUST have props.richText as an object - initialize if missing
       if (!sanitized.props.richText || typeof sanitized.props.richText !== 'object' || sanitized.props.richText === null) {
         sanitized.props.richText = { content: [], type: 'doc' }
