@@ -14,6 +14,11 @@ import { TLUiContextMenuProps, useEditor } from "tldraw"
 import {
   cameraHistory,
 } from "./cameraUtils"
+
+// Feature flags - disable experimental features in production
+const IS_PRODUCTION = import.meta.env.PROD
+const ENABLE_DRAWFAST = false // Drawfast disabled everywhere - needs debugging
+const ENABLE_CALENDAR = !IS_PRODUCTION // Calendar - dev only
 import { useState, useEffect } from "react"
 import { saveToPdf } from "../utils/pdfUtils"
 import { TLFrameShape } from "tldraw"
@@ -129,7 +134,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           <TldrawUiMenuItem {...tools.ChatBox} />
           <TldrawUiMenuItem {...tools.ImageGen} />
           <TldrawUiMenuItem {...tools.VideoGen} />
-          <TldrawUiMenuItem {...tools.Drawfast} />
+          {ENABLE_DRAWFAST && <TldrawUiMenuItem {...tools.Drawfast} />}
           <TldrawUiMenuItem {...tools.Markdown} />
           <TldrawUiMenuItem {...tools.ObsidianNote} />
           <TldrawUiMenuItem {...tools.Transcription} />
@@ -141,7 +146,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           <TldrawUiMenuItem {...tools.Multmux} />
           */}
           <TldrawUiMenuItem {...tools.Map} />
-          <TldrawUiMenuItem {...tools.calendar} />
+          {ENABLE_CALENDAR && <TldrawUiMenuItem {...tools.calendar} />}
           <TldrawUiMenuItem {...tools.SlideShape} />
           <TldrawUiMenuItem {...tools.VideoChat} />
           <TldrawUiMenuItem {...tools.FathomMeetings} />
