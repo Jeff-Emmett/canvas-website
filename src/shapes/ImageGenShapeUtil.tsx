@@ -6,35 +6,22 @@ import {
   TLBaseShape,
 } from "tldraw"
 import React, { useState } from "react"
-import { getRunPodProxyConfig } from "@/lib/clientConfig"
-import { aiOrchestrator, isAIOrchestratorAvailable } from "@/lib/aiOrchestrator"
+import { getFalProxyConfig, getWorkerApiUrl } from "@/lib/clientConfig"
 import { StandardizedToolWrapper } from "@/components/StandardizedToolWrapper"
 import { usePinnedToView } from "@/hooks/usePinnedToView"
 import { useMaximize } from "@/hooks/useMaximize"
 
-// Feature flag: Set to false when AI Orchestrator or RunPod API is ready for production
+// Feature flag: Set to false when fal.ai API is ready for production
 const USE_MOCK_API = false
 
-// Type definition for RunPod API responses
-interface RunPodJobResponse {
-  id?: string
-  status?: 'IN_QUEUE' | 'IN_PROGRESS' | 'STARTING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
-  output?: string | {
-    image?: string
-    url?: string
-    images?: Array<{ data?: string; url?: string; filename?: string; type?: string }>
-    result?: string
-    [key: string]: any
-  }
+// fal.ai model to use for image generation
+const FAL_IMAGE_MODEL = "fal-ai/flux/dev"
+
+// Type definition for fal.ai API responses
+interface FalImageResponse {
+  images?: Array<{ url: string; width?: number; height?: number; content_type?: string }>
   error?: string
-  image?: string
-  url?: string
-  result?: string | {
-    image?: string
-    url?: string
-    [key: string]: any
-  }
-  [key: string]: any
+  detail?: string
 }
 
 // Individual image entry in the history
@@ -60,213 +47,6 @@ type IImageGen = TLBaseShape<
     pinnedToView: boolean
   }
 >
-
-// Helper function to poll RunPod job status until completion
-async function pollRunPodJob(
-  jobId: string,
-  apiKey: string,
-  endpointId: string,
-  maxAttempts: number = 60,
-  pollInterval: number = 2000
-): Promise<string> {
-  const statusUrl = `https://api.runpod.ai/v2/${endpointId}/status/${jobId}`
-  
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    try {
-      const response = await fetch(statusUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`
-        }
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error(`❌ ImageGen: Poll error (attempt ${attempt + 1}/${maxAttempts}):`, response.status, errorText)
-        throw new Error(`Failed to check job status: ${response.status} - ${errorText}`)
-      }
-
-      const data = await response.json() as RunPodJobResponse
-      
-      if (data.status === 'COMPLETED') {
-        
-        // Extract image URL from various possible response formats
-        let imageUrl = ''
-        
-        // Check if output exists at all
-        if (!data.output) {
-          // Only retry 2-3 times, then proceed to check alternatives
-          if (attempt < 3) {
-            await new Promise(resolve => setTimeout(resolve, 500))
-            continue
-          }
-          
-          // Try alternative ways to get the output - maybe it's at the top level
-          
-          // Check if image data is at top level
-          if (data.image) {
-            imageUrl = data.image
-          } else if (data.url) {
-            imageUrl = data.url
-          } else if (data.result) {
-            // Some endpoints return result instead of output
-            if (typeof data.result === 'string') {
-              imageUrl = data.result
-            } else if (data.result.image) {
-              imageUrl = data.result.image
-            } else if (data.result.url) {
-              imageUrl = data.result.url
-            }
-          } else {
-            // Last resort: try to fetch output via stream endpoint (some RunPod endpoints use this)
-            try {
-              const streamUrl = `https://api.runpod.ai/v2/${endpointId}/stream/${jobId}`
-              const streamResponse = await fetch(streamUrl, {
-                method: 'GET',
-                headers: {
-                  'Authorization': `Bearer ${apiKey}`
-                }
-              })
-              
-              if (streamResponse.ok) {
-                const streamData = await streamResponse.json() as RunPodJobResponse
-                
-                if (streamData.output) {
-                  if (typeof streamData.output === 'string') {
-                    imageUrl = streamData.output
-                  } else if (streamData.output.image) {
-                    imageUrl = streamData.output.image
-                  } else if (streamData.output.url) {
-                    imageUrl = streamData.output.url
-                  } else if (Array.isArray(streamData.output.images) && streamData.output.images.length > 0) {
-                    const firstImage = streamData.output.images[0]
-                    if (firstImage.data) {
-                      imageUrl = firstImage.data.startsWith('data:') ? firstImage.data : `data:image/${firstImage.type || 'png'};base64,${firstImage.data}`
-                    } else if (firstImage.url) {
-                      imageUrl = firstImage.url
-                    }
-                  }
-                  
-                  if (imageUrl) {
-                    return imageUrl
-                  }
-                }
-              }
-            } catch (streamError) {
-            }
-            
-            console.error('❌ ImageGen: Job completed but no output field in response after retries:', JSON.stringify(data, null, 2))
-            throw new Error(
-              'Job completed but no output data found.\n\n' +
-              'Possible issues:\n' +
-              '1. The RunPod endpoint handler may not be returning output correctly\n' +
-              '2. Check the endpoint handler logs in RunPod console\n' +
-              '3. Verify the handler returns: { output: { image: "url" } } or { output: "url" }\n' +
-              '4. For ComfyUI workers, ensure output.images array is returned\n' +
-              '5. The endpoint may need to be reconfigured\n\n' +
-              'Response received: ' + JSON.stringify(data, null, 2)
-            )
-          }
-        } else {
-          // Extract image URL from various possible response formats
-          if (typeof data.output === 'string') {
-            imageUrl = data.output
-          } else if (data.output?.image) {
-            imageUrl = data.output.image
-          } else if (data.output?.url) {
-            imageUrl = data.output.url
-          } else if (data.output?.output) {
-            // Handle nested output structure
-            if (typeof data.output.output === 'string') {
-              imageUrl = data.output.output
-            } else if (data.output.output?.image) {
-              imageUrl = data.output.output.image
-            } else if (data.output.output?.url) {
-              imageUrl = data.output.output.url
-            }
-          } else if (Array.isArray(data.output) && data.output.length > 0) {
-            // Handle array responses
-            const firstItem = data.output[0]
-            if (typeof firstItem === 'string') {
-              imageUrl = firstItem
-            } else if (firstItem.image) {
-              imageUrl = firstItem.image
-            } else if (firstItem.url) {
-              imageUrl = firstItem.url
-            }
-          } else if (!Array.isArray(data.output) && data.output?.result) {
-            // Some formats nest result inside output
-            const outputObj = data.output as { result?: string | { image?: string; url?: string } }
-            if (typeof outputObj.result === 'string') {
-              imageUrl = outputObj.result
-            } else if (outputObj.result?.image) {
-              imageUrl = outputObj.result.image
-            } else if (outputObj.result?.url) {
-              imageUrl = outputObj.result.url
-            }
-          } else if (!Array.isArray(data.output) && data.output?.images && Array.isArray(data.output.images) && data.output.images.length > 0) {
-            // ComfyUI worker format: { output: { images: [{ filename, type, data }] } }
-            const outputObj = data.output as { images: Array<{ data?: string; url?: string; type?: string; filename?: string }> }
-            const firstImage = outputObj.images[0]
-            if (firstImage.data) {
-              // Base64 encoded image
-              if (firstImage.data.startsWith('data:image')) {
-                imageUrl = firstImage.data
-              } else if (firstImage.data.startsWith('http')) {
-                imageUrl = firstImage.data
-              } else {
-                // Assume base64 without prefix
-                imageUrl = `data:image/${firstImage.type || 'png'};base64,${firstImage.data}`
-              }
-            } else if (firstImage.url) {
-              imageUrl = firstImage.url
-            } else if (firstImage.filename) {
-              // Try to construct URL from filename (may need endpoint-specific handling)
-            }
-          }
-        }
-        
-        if (!imageUrl || imageUrl.trim() === '') {
-          console.error('❌ ImageGen: No image URL found in response:', JSON.stringify(data, null, 2))
-          throw new Error(
-            'Job completed but no image URL found in output.\n\n' +
-            'Expected formats:\n' +
-            '- { output: "https://..." }\n' +
-            '- { output: { image: "https://..." } }\n' +
-            '- { output: { url: "https://..." } }\n' +
-            '- { output: ["https://..."] }\n\n' +
-            'Received: ' + JSON.stringify(data, null, 2)
-          )
-        }
-        
-        return imageUrl
-      }
-      
-      if (data.status === 'FAILED') {
-        console.error('❌ ImageGen: Job failed:', data.error || 'Unknown error')
-        throw new Error(`Job failed: ${data.error || 'Unknown error'}`)
-      }
-      
-      // Wait before next poll
-      await new Promise(resolve => setTimeout(resolve, pollInterval))
-    } catch (error) {
-      // If we get COMPLETED status without output, don't retry - fail immediately
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      if (errorMessage.includes('no output') || errorMessage.includes('no image URL')) {
-        console.error('❌ ImageGen: Stopping polling due to missing output data')
-        throw error
-      }
-      
-      // For other errors, retry up to maxAttempts
-      if (attempt === maxAttempts - 1) {
-        throw error
-      }
-      await new Promise(resolve => setTimeout(resolve, pollInterval))
-    }
-  }
-  
-  throw new Error('Job polling timed out')
-}
 
 export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
   static override type = "ImageGen" as const
@@ -341,24 +121,14 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
       })
 
       try {
-        // Get RunPod proxy configuration - API keys are now server-side
-        const { proxyUrl } = getRunPodProxyConfig('image')
-
-        // Mock API mode: Return placeholder image without calling RunPod
+        // Mock API mode: Return placeholder image for testing
         if (USE_MOCK_API) {
-
-          // Simulate API delay
           await new Promise(resolve => setTimeout(resolve, 1500))
-
-          // Use a placeholder image service
           const mockImageUrl = `https://via.placeholder.com/512x512/4F46E5/FFFFFF?text=${encodeURIComponent(prompt.substring(0, 30))}`
 
-
-          // Get current shape to access existing history
           const currentShape = editor.getShape<IImageGen>(shape.id)
           const currentHistory = currentShape?.props.imageHistory || []
 
-          // Create new image entry
           const newImage: GeneratedImage = {
             id: `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             prompt: prompt,
@@ -370,33 +140,32 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
             id: shape.id,
             type: "ImageGen",
             props: {
-              imageHistory: [newImage, ...currentHistory], // Prepend new image
+              imageHistory: [newImage, ...currentHistory],
               isLoading: false,
               loadingPrompt: null,
               error: null
             },
           })
-
           return
         }
 
-        // Real API mode: Use RunPod via proxy
-        // API key and endpoint ID are handled server-side
-
-        // Use runsync for synchronous execution - returns output directly without polling
-        const url = `${proxyUrl}/runsync`
-
+        // Real API mode: Use fal.ai via worker proxy
+        // fal.ai is faster and more reliable than RunPod for image generation
+        const workerUrl = getWorkerApiUrl()
+        const url = `${workerUrl}/api/fal/subscribe/${FAL_IMAGE_MODEL}`
 
         const response = await fetch(url, {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
-            // Authorization is handled by the proxy server-side
           },
           body: JSON.stringify({
-            input: {
-              prompt: prompt
-            }
+            prompt: prompt,
+            image_size: "square_hd",
+            num_inference_steps: 28,
+            guidance_scale: 3.5,
+            num_images: 1,
+            enable_safety_checker: true
           })
         })
 
@@ -406,108 +175,52 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
           throw new Error(`HTTP error! status: ${response.status} - ${errorText}`)
         }
 
-        const data = await response.json() as RunPodJobResponse
+        const data = await response.json() as FalImageResponse
 
-        // With runsync, we get the output directly (no polling needed)
-        if (data.output) {
-          let imageUrl = ''
+        // fal.ai returns { images: [{ url: "..." }] }
+        if (data.images && data.images.length > 0) {
+          const imageUrl = data.images[0].url
 
-          // Handle output.images array format (Automatic1111 endpoint format)
-          if (typeof data.output === 'object' && !Array.isArray(data.output) && data.output.images && Array.isArray(data.output.images) && data.output.images.length > 0) {
-            const outputObj = data.output as { images: Array<{ data?: string; url?: string } | string> }
-            const firstImage = outputObj.images[0]
-            // Base64 encoded image string
-            if (typeof firstImage === 'string') {
-              imageUrl = firstImage.startsWith('data:') ? firstImage : `data:image/png;base64,${firstImage}`
-            } else if (firstImage.data) {
-              imageUrl = firstImage.data.startsWith('data:') ? firstImage.data : `data:image/png;base64,${firstImage.data}`
-            } else if (firstImage.url) {
-              imageUrl = firstImage.url
-            }
-          } else if (typeof data.output === 'string') {
-            imageUrl = data.output
-          } else if (!Array.isArray(data.output) && data.output.image) {
-            imageUrl = data.output.image
-          } else if (!Array.isArray(data.output) && data.output.url) {
-            imageUrl = data.output.url
-          } else if (Array.isArray(data.output) && data.output.length > 0) {
-            const firstItem = data.output[0]
-            if (typeof firstItem === 'string') {
-              imageUrl = firstItem.startsWith('data:') ? firstItem : `data:image/png;base64,${firstItem}`
-            } else if (firstItem.image) {
-              imageUrl = firstItem.image
-            } else if (firstItem.url) {
-              imageUrl = firstItem.url
-            }
+          const currentShape = editor.getShape<IImageGen>(shape.id)
+          const currentHistory = currentShape?.props.imageHistory || []
+
+          const newImage: GeneratedImage = {
+            id: `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            prompt: prompt,
+            imageUrl: imageUrl,
+            timestamp: Date.now()
           }
 
-          if (imageUrl) {
-
-            // Get current shape to access existing history
-            const currentShape = editor.getShape<IImageGen>(shape.id)
-            const currentHistory = currentShape?.props.imageHistory || []
-
-            // Create new image entry
-            const newImage: GeneratedImage = {
-              id: `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-              prompt: prompt,
-              imageUrl: imageUrl,
-              timestamp: Date.now()
-            }
-
-            editor.updateShape<IImageGen>({
-              id: shape.id,
-              type: "ImageGen",
-              props: {
-                imageHistory: [newImage, ...currentHistory], // Prepend new image
-                isLoading: false,
-                loadingPrompt: null,
-                error: null
-              },
-            })
-          } else {
-            throw new Error("No image URL found in response output")
-          }
-        } else if (data.error) {
-          throw new Error(`RunPod API error: ${data.error}`)
-        } else if (data.status) {
-          // Handle RunPod status responses (no output yet)
-          const status = data.status.toUpperCase()
-          if (status === 'IN_PROGRESS' || status === 'IN_QUEUE') {
-            throw new Error(`Image generation timed out (status: ${data.status}). The GPU may be experiencing a cold start. Please try again in a moment.`)
-          } else if (status === 'FAILED') {
-            throw new Error(`RunPod job failed: ${data.error || 'Unknown error'}`)
-          } else if (status === 'CANCELLED') {
-            throw new Error('Image generation was cancelled')
-          } else {
-            throw new Error(`Unexpected RunPod status: ${data.status}`)
-          }
+          editor.updateShape<IImageGen>({
+            id: shape.id,
+            type: "ImageGen",
+            props: {
+              imageHistory: [newImage, ...currentHistory],
+              isLoading: false,
+              loadingPrompt: null,
+              error: null
+            },
+          })
+        } else if (data.error || data.detail) {
+          throw new Error(`fal.ai API error: ${data.error || data.detail}`)
         } else {
-          // Log full response for debugging
           console.error("❌ ImageGen: Unexpected response structure:", JSON.stringify(data, null, 2))
-          throw new Error("No valid response from RunPod API - missing output field. Check console for details.")
+          throw new Error("No images returned from fal.ai API")
         }
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         console.error("❌ ImageGen: Error:", errorMessage)
-        
+
         let userFriendlyError = ''
-        
-        if (errorMessage.includes('API key not configured')) {
-          userFriendlyError = '❌ RunPod API key not configured. Please set VITE_RUNPOD_API_KEY environment variable.'
+
+        if (errorMessage.includes('FAL_API_KEY not configured')) {
+          userFriendlyError = '❌ fal.ai API key not configured on server.'
         } else if (errorMessage.includes('401') || errorMessage.includes('403') || errorMessage.includes('Unauthorized')) {
-          userFriendlyError = '❌ API key authentication failed. Please check your RunPod API key.'
+          userFriendlyError = '❌ API key authentication failed.'
         } else if (errorMessage.includes('404')) {
-          userFriendlyError = '❌ Endpoint not found. Please check your endpoint ID.'
-        } else if (errorMessage.includes('no output data found') || errorMessage.includes('no image URL found')) {
-          // For multi-line error messages, show a concise version in the UI
-          // The full details are already in the console
-          userFriendlyError = '❌ Image generation completed but no image data was returned.\n\n' +
-            'This usually means the RunPod endpoint handler is not configured correctly.\n\n' +
-            'Please check:\n' +
-            '1. RunPod endpoint handler logs\n' +
-            '2. Handler returns: { output: { image: "url" } }\n' +
-            '3. See browser console for full details'
+          userFriendlyError = '❌ API endpoint not found.'
+        } else if (errorMessage.includes('No images returned')) {
+          userFriendlyError = '❌ Image generation completed but no image was returned.'
         } else {
           // Truncate very long error messages for UI display
           const maxLength = 500

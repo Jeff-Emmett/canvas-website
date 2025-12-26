@@ -47,8 +47,9 @@ import { ImageGenShape } from "@/shapes/ImageGenShapeUtil"
 import { ImageGenTool } from "@/tools/ImageGenTool"
 import { VideoGenShape } from "@/shapes/VideoGenShapeUtil"
 import { VideoGenTool } from "@/tools/VideoGenTool"
-import { DrawfastShape } from "@/shapes/DrawfastShapeUtil"
-import { DrawfastTool } from "@/tools/DrawfastTool"
+// DISABLED: Drawfast tool needs debugging - see task-059
+// import { DrawfastShape } from "@/shapes/DrawfastShapeUtil"
+// import { DrawfastTool } from "@/tools/DrawfastTool"
 import { LiveImageProvider } from "@/hooks/useLiveImage"
 import { MultmuxTool } from "@/tools/MultmuxTool"
 import { MultmuxShape } from "@/shapes/MultmuxShapeUtil"
@@ -169,7 +170,7 @@ const customShapeUtils = [
   FathomNoteShape, // Individual Fathom meeting notes created from FathomMeetingsBrowser
   ImageGenShape,
   VideoGenShape,
-  DrawfastShape,
+  // DrawfastShape, // DISABLED - see task-059
   MultmuxShape,
   MycelialIntelligenceShape, // AI-powered collaborative intelligence shape
   PrivateWorkspaceShape, // Private zone for Google Export data sovereignty
@@ -195,7 +196,7 @@ const customTools = [
   FathomMeetingsTool,
   ImageGenTool,
   VideoGenTool,
-  DrawfastTool,
+  // DrawfastTool, // DISABLED - see task-059
   MultmuxTool,
   PrivateWorkspaceTool,
   GoogleItemTool,
