@@ -254,6 +254,13 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("calendar"),
       },
+      WorkflowBlock: {
+        id: "WorkflowBlock",
+        icon: "sticker",
+        label: "Workflow Block",
+        readonlyOk: true,
+        onSelect: () => editor.setCurrentTool("WorkflowBlock"),
+      },
       // MycelialIntelligence removed - now a permanent UI bar (MycelialIntelligenceBar.tsx)
       hand: {
         ...tools.hand,

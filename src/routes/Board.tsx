@@ -47,14 +47,15 @@ import { ImageGenShape } from "@/shapes/ImageGenShapeUtil"
 import { ImageGenTool } from "@/tools/ImageGenTool"
 import { VideoGenShape } from "@/shapes/VideoGenShapeUtil"
 import { VideoGenTool } from "@/tools/VideoGenTool"
-// DISABLED: Drawfast tool needs debugging - see task-059
-// import { DrawfastShape } from "@/shapes/DrawfastShapeUtil"
-// import { DrawfastTool } from "@/tools/DrawfastTool"
+// Drawfast - dev only
+import { DrawfastShape } from "@/shapes/DrawfastShapeUtil"
+import { DrawfastTool } from "@/tools/DrawfastTool"
 
 // Feature flags - disable experimental features in production
 const IS_PRODUCTION = import.meta.env.PROD
 const ENABLE_WORKFLOW = !IS_PRODUCTION // Workflow blocks - dev only
 const ENABLE_CALENDAR = !IS_PRODUCTION // Calendar - dev only
+const ENABLE_DRAWFAST = !IS_PRODUCTION // Drawfast - dev only
 import { LiveImageProvider } from "@/hooks/useLiveImage"
 import { MultmuxTool } from "@/tools/MultmuxTool"
 import { MultmuxShape } from "@/shapes/MultmuxShapeUtil"
@@ -175,7 +176,7 @@ const customShapeUtils = [
   FathomNoteShape, // Individual Fathom meeting notes created from FathomMeetingsBrowser
   ImageGenShape,
   VideoGenShape,
-  // DrawfastShape, // DISABLED - see task-059
+  ...(ENABLE_DRAWFAST ? [DrawfastShape] : []), // Drawfast - dev only
   MultmuxShape,
   MycelialIntelligenceShape, // AI-powered collaborative intelligence shape
   PrivateWorkspaceShape, // Private zone for Google Export data sovereignty
@@ -201,7 +202,7 @@ const customTools = [
   FathomMeetingsTool,
   ImageGenTool,
   VideoGenTool,
-  // DrawfastTool, // DISABLED - see task-059
+  ...(ENABLE_DRAWFAST ? [DrawfastTool] : []), // Drawfast - dev only
   MultmuxTool,
   PrivateWorkspaceTool,
   GoogleItemTool,

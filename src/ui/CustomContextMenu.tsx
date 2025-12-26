@@ -17,8 +17,9 @@ import {
 
 // Feature flags - disable experimental features in production
 const IS_PRODUCTION = import.meta.env.PROD
-const ENABLE_DRAWFAST = false // Drawfast disabled everywhere - needs debugging
+const ENABLE_DRAWFAST = !IS_PRODUCTION // Drawfast - dev only
 const ENABLE_CALENDAR = !IS_PRODUCTION // Calendar - dev only
+const ENABLE_WORKFLOW = !IS_PRODUCTION // Workflow - dev only
 import { useState, useEffect } from "react"
 import { saveToPdf } from "../utils/pdfUtils"
 import { TLFrameShape } from "tldraw"
@@ -147,6 +148,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           */}
           <TldrawUiMenuItem {...tools.Map} />
           {ENABLE_CALENDAR && <TldrawUiMenuItem {...tools.calendar} />}
+          {ENABLE_WORKFLOW && <TldrawUiMenuItem {...tools.WorkflowBlock} />}
           <TldrawUiMenuItem {...tools.SlideShape} />
           <TldrawUiMenuItem {...tools.VideoChat} />
           <TldrawUiMenuItem {...tools.FathomMeetings} />
