@@ -143,7 +143,9 @@ export default defineConfig(({ mode }) => {
             }
 
             // Automerge - CRDT sync library
-            if (id.includes('node_modules/@automerge')) {
+            // Note: automerge-repo-react-hooks must NOT be in this chunk as it depends on React
+            if (id.includes('node_modules/@automerge') &&
+                !id.includes('automerge-repo-react-hooks')) {
               return 'automerge';
             }
 
