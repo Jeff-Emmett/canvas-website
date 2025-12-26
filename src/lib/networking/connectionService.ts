@@ -19,12 +19,13 @@ import type {
   GraphEdge,
   TrustLevel,
 } from './types';
+import { WORKER_URL } from '../../constants/workerUrl';
 
 // =============================================================================
 // Configuration
 // =============================================================================
 
-const API_BASE = '/api/networking';
+const API_BASE = `${WORKER_URL}/api/networking`;
 
 // =============================================================================
 // Helper Functions
