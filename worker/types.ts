@@ -15,6 +15,14 @@ export interface Environment {
 	APP_URL?: string;
 	// Admin secret for protected endpoints
 	ADMIN_SECRET?: string;
+	// AI Service API keys (stored as secrets, never exposed to client)
+	FAL_API_KEY?: string;
+	RUNPOD_API_KEY?: string;
+	// RunPod endpoint IDs (not secrets, but kept server-side for flexibility)
+	RUNPOD_IMAGE_ENDPOINT_ID?: string;
+	RUNPOD_VIDEO_ENDPOINT_ID?: string;
+	RUNPOD_TEXT_ENDPOINT_ID?: string;
+	RUNPOD_WHISPER_ENDPOINT_ID?: string;
 }
 
 // CryptID types for auth

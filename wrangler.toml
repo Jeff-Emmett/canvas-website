@@ -108,4 +108,11 @@ crons = ["0 0 * * *"] # Run at midnight UTC every day
 # DO NOT put these directly in wrangler.toml:
 # - DAILY_API_KEY
 # - CLOUDFLARE_API_TOKEN
-# etc.
+# - FAL_API_KEY        # For fal.ai image/video generation proxy
+# - RUNPOD_API_KEY     # For RunPod AI endpoints proxy
+# - RESEND_API_KEY     # For email sending
+# - ADMIN_SECRET       # For admin-only endpoints
+#
+# To set secrets:
+#   wrangler secret put FAL_API_KEY
+#   wrangler secret put RUNPOD_API_KEY

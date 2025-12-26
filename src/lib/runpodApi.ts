@@ -1,9 +1,12 @@
 /**
  * RunPod API utility functions
  * Handles communication with RunPod WhisperX endpoints
+ *
+ * SECURITY: All RunPod calls go through the Cloudflare Worker proxy
+ * API keys are stored server-side, never exposed to the browser
  */
 
-import { getRunPodConfig } from './clientConfig'
+import { getRunPodProxyConfig } from './clientConfig'
 
 export interface RunPodTranscriptionResponse {
   id?: string
@@ -40,18 +43,14 @@ export async function blobToBase64(blob: Blob): Promise<string> {
 }
 
 /**
- * Send transcription request to RunPod endpoint
+ * Send transcription request to RunPod endpoint via proxy
  * Handles both synchronous and asynchronous job patterns
  */
 export async function transcribeWithRunPod(
   audioBlob: Blob,
   language?: string
 ): Promise<string> {
-  const config = getRunPodConfig()
-  
-  if (!config) {
-    throw new Error('RunPod API key or endpoint ID not configured. Please set VITE_RUNPOD_API_KEY and VITE_RUNPOD_ENDPOINT_ID environment variables.')
-  }
+  const { proxyUrl } = getRunPodProxyConfig('whisper')
 
   // Check audio blob size (limit to ~10MB to prevent issues)
   const maxSize = 10 * 1024 * 1024 // 10MB
@@ -61,12 +60,13 @@ export async function transcribeWithRunPod(
 
   // Convert audio blob to base64
   const audioBase64 = await blobToBase64(audioBlob)
-  
+
   // Detect audio format from blob type
   const audioFormat = audioBlob.type || 'audio/wav'
-  
-  const url = `https://api.runpod.ai/v2/${config.endpointId}/run`
-  
+
+  // Use proxy endpoint - API key and endpoint ID are handled server-side
+  const url = `${proxyUrl}/run`
+
   // Prepare the request payload
   // WhisperX typically expects audio as base64 or file URL
   // The exact format may vary based on your WhisperX endpoint implementation
@@ -89,8 +89,8 @@ export async function transcribeWithRunPod(
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.apiKey}`
+        'Content-Type': 'application/json'
+        // Authorization is handled by the proxy server-side
       },
       body: JSON.stringify(requestBody),
       signal: controller.signal
@@ -99,43 +99,43 @@ export async function transcribeWithRunPod(
     clearTimeout(timeoutId)
 
     if (!response.ok) {
-      const errorText = await response.text()
+      const errorData = await response.json().catch(() => ({ error: response.statusText })) as { error?: string; details?: string }
       console.error('RunPod API error response:', {
         status: response.status,
         statusText: response.statusText,
-        body: errorText
+        error: errorData
       })
-      throw new Error(`RunPod API error: ${response.status} - ${errorText}`)
+      throw new Error(`RunPod API error: ${response.status} - ${errorData.error || errorData.details || 'Unknown error'}`)
     }
 
     const data: RunPodTranscriptionResponse = await response.json()
-    
-    
+
+
     // Handle async job pattern (RunPod often returns job IDs)
     if (data.id && (data.status === 'IN_QUEUE' || data.status === 'IN_PROGRESS')) {
-      return await pollRunPodJob(data.id, config.apiKey, config.endpointId)
+      return await pollRunPodJob(data.id, proxyUrl)
     }
-    
+
     // Handle direct response
     if (data.output?.text) {
       return data.output.text.trim()
     }
-    
+
     // Handle error response
     if (data.error) {
       throw new Error(`RunPod transcription error: ${data.error}`)
     }
-    
+
     // Fallback: try to extract text from segments
     if (data.output?.segments && data.output.segments.length > 0) {
       return data.output.segments.map(seg => seg.text).join(' ').trim()
     }
-    
+
     // Check if response has unexpected structure
     console.warn('Unexpected RunPod response structure:', data)
     throw new Error('No transcription text found in RunPod response. Check endpoint response format.')
-  } catch (error: any) {
-    if (error.name === 'AbortError') {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('RunPod request timed out after 30 seconds')
     }
     console.error('RunPod transcription error:', error)
@@ -144,18 +144,18 @@ export async function transcribeWithRunPod(
 }
 
 /**
- * Poll RunPod job status until completion
+ * Poll RunPod job status until completion via proxy
  */
 async function pollRunPodJob(
   jobId: string,
-  apiKey: string,
-  endpointId: string,
+  proxyUrl: string,
   maxAttempts: number = 120, // Increased to 120 attempts (2 minutes at 1s intervals)
   pollInterval: number = 1000
 ): Promise<string> {
-  const statusUrl = `https://api.runpod.ai/v2/${endpointId}/status/${jobId}`
-  
-  
+  // Use proxy endpoint for status checks
+  const statusUrl = `${proxyUrl}/status/${jobId}`
+
+
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       // Add timeout for each status check (5 seconds)
@@ -164,60 +164,58 @@ async function pollRunPodJob(
 
       const response = await fetch(statusUrl, {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`
-        },
+        // Authorization is handled by the proxy server-side
         signal: controller.signal
       })
 
       clearTimeout(timeoutId)
 
       if (!response.ok) {
-        const errorText = await response.text()
+        const errorData = await response.json().catch(() => ({ error: response.statusText })) as { error?: string; details?: string }
         console.error(`Job status check failed (attempt ${attempt + 1}/${maxAttempts}):`, {
           status: response.status,
           statusText: response.statusText,
-          body: errorText
+          error: errorData
         })
-        
+
         // Don't fail immediately on 404 - job might still be processing
         if (response.status === 404 && attempt < maxAttempts - 1) {
           await new Promise(resolve => setTimeout(resolve, pollInterval))
           continue
         }
-        
-        throw new Error(`Failed to check job status: ${response.status} - ${errorText}`)
+
+        throw new Error(`Failed to check job status: ${response.status} - ${errorData.error || errorData.details || 'Unknown error'}`)
       }
 
       const data: RunPodTranscriptionResponse = await response.json()
-      
-      
+
+
       if (data.status === 'COMPLETED') {
-        
+
         if (data.output?.text) {
           return data.output.text.trim()
         }
         if (data.output?.segments && data.output.segments.length > 0) {
           return data.output.segments.map(seg => seg.text).join(' ').trim()
         }
-        
+
         // Log the full response for debugging
         console.error('Job completed but no transcription found. Full response:', JSON.stringify(data, null, 2))
         throw new Error('Job completed but no transcription text found in response')
       }
-      
+
       if (data.status === 'FAILED') {
         const errorMsg = data.error || 'Unknown error'
         console.error('Job failed:', errorMsg)
         throw new Error(`Job failed: ${errorMsg}`)
       }
-      
+
       // Job still in progress, wait and retry
       if (attempt % 10 === 0) {
       }
       await new Promise(resolve => setTimeout(resolve, pollInterval))
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
+    } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'AbortError') {
         console.warn(`Status check timed out (attempt ${attempt + 1}/${maxAttempts})`)
         if (attempt < maxAttempts - 1) {
           await new Promise(resolve => setTimeout(resolve, pollInterval))
@@ -225,7 +223,7 @@ async function pollRunPodJob(
         }
         throw new Error('Status check timed out multiple times')
       }
-      
+
       if (attempt === maxAttempts - 1) {
         throw error
       }
@@ -233,7 +231,6 @@ async function pollRunPodJob(
       await new Promise(resolve => setTimeout(resolve, pollInterval))
     }
   }
-  
+
   throw new Error(`Job polling timeout after ${maxAttempts} attempts (${(maxAttempts * pollInterval / 1000).toFixed(0)} seconds)`)
 }
-

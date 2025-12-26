@@ -2,12 +2,14 @@
  * useLiveImage Hook
  * Captures drawings within a frame shape and sends them to Fal.ai for AI enhancement
  * Based on draw-fast implementation, adapted for canvas-website with Automerge sync
+ *
+ * SECURITY: All fal.ai API calls go through the Cloudflare Worker proxy
+ * API keys are stored server-side, never exposed to the browser
  */
 
 import React, { createContext, useContext, useEffect, useRef, useCallback, useState } from 'react'
 import { Editor, TLShapeId, Box, exportToBlob } from 'tldraw'
-import { fal } from '@fal-ai/client'
-import { getFalConfig } from '@/lib/clientConfig'
+import { getFalProxyConfig } from '@/lib/clientConfig'
 
 // Fal.ai model endpoints
 const FAL_MODEL_LCM = 'fal-ai/lcm-sd15-i2i' // Fast, real-time (~150ms)
@@ -15,7 +17,7 @@ const FAL_MODEL_FLUX_CANNY = 'fal-ai/flux-control-lora-canny/image-to-image' // 
 
 interface LiveImageContextValue {
   isConnected: boolean
-  apiKey: string | null
+  // Note: apiKey is no longer exposed to the browser
   setApiKey: (key: string) => void
 }
 
@@ -23,53 +25,31 @@ const LiveImageContext = createContext<LiveImageContextValue | null>(null)
 
 interface LiveImageProviderProps {
   children: React.ReactNode
-  apiKey?: string
+  apiKey?: string  // Deprecated - API keys are now server-side
 }
 
 /**
  * Provider component that manages Fal.ai connection
+ * API keys are now stored server-side and proxied through Cloudflare Worker
  */
-export function LiveImageProvider({ children, apiKey: initialApiKey }: LiveImageProviderProps) {
-  // Get default FAL key from clientConfig (includes the hardcoded default)
-  const falConfig = getFalConfig()
-  const defaultApiKey = falConfig?.apiKey || null
+export function LiveImageProvider({ children }: LiveImageProviderProps) {
+  // Fal.ai is always "connected" via the proxy - actual auth happens server-side
+  const [isConnected, setIsConnected] = useState(true)
 
-  const [apiKey, setApiKeyState] = useState<string | null>(
-    initialApiKey || import.meta.env.VITE_FAL_API_KEY || defaultApiKey
-  )
-  const [isConnected, setIsConnected] = useState(false)
-
-  // Configure Fal.ai client when API key is available
+  // Log that we're using the proxy
   useEffect(() => {
-    if (apiKey) {
-      fal.config({ credentials: apiKey })
-      setIsConnected(true)
-    } else {
-      setIsConnected(false)
-    }
-  }, [apiKey])
-
-  const setApiKey = useCallback((key: string) => {
-    setApiKeyState(key)
-    // Also save to localStorage for persistence
-    localStorage.setItem('fal_api_key', key)
+    const { proxyUrl } = getFalProxyConfig()
+    console.log('LiveImage: Using fal.ai proxy at', proxyUrl || '(same origin)')
   }, [])
 
-  // Try to load API key from localStorage on mount (but only if no default key)
-  useEffect(() => {
-    if (!apiKey) {
-      const storedKey = localStorage.getItem('fal_api_key')
-      if (storedKey) {
-        setApiKeyState(storedKey)
-      } else if (defaultApiKey) {
-        // Use default key from config
-        setApiKeyState(defaultApiKey)
-      }
-    }
-  }, [defaultApiKey])
+  // setApiKey is now a no-op since keys are server-side
+  // Kept for backward compatibility with any code that tries to set a key
+  const setApiKey = useCallback((_key: string) => {
+    console.warn('LiveImage: setApiKey is deprecated. API keys are now stored server-side.')
+  }, [])
 
   return (
-    <LiveImageContext.Provider value={{ isConnected, apiKey, setApiKey }}>
+    <LiveImageContext.Provider value={{ isConnected, setApiKey }}>
       {children}
     </LiveImageContext.Provider>
   )
@@ -177,7 +157,7 @@ export function useLiveImage({
     }
   }, [editor, getChildShapes])
 
-  // Generate AI image from the sketch
+  // Generate AI image from the sketch via proxy
   const generateImage = useCallback(async () => {
     if (!context?.isConnected || !enabled) {
       return
@@ -206,9 +186,13 @@ export function useLiveImage({
         ? `${prompt}, hd, award-winning, impressive, detailed`
         : 'hd, award-winning, impressive, detailed illustration'
 
+      // Use the proxy endpoint instead of calling fal.ai directly
+      const { proxyUrl } = getFalProxyConfig()
 
-      const result = await fal.subscribe(modelEndpoint, {
-        input: {
+      const response = await fetch(`${proxyUrl}/subscribe/${modelEndpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           prompt: fullPrompt,
           image_url: imageDataUrl,
           strength: strength,
@@ -217,10 +201,19 @@ export function useLiveImage({
           num_inference_steps: model === 'lcm' ? 4 : 20,
           guidance_scale: model === 'lcm' ? 1 : 7.5,
           enable_safety_checks: false,
-        },
-        pollInterval: 1000,
-        logs: true,
+        })
       })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: response.statusText })) as { error?: string }
+        throw new Error(errorData.error || `Proxy error: ${response.status}`)
+      }
+
+      const data = await response.json() as {
+        images?: Array<{ url?: string } | string>
+        image?: { url?: string } | string
+        output?: { url?: string } | string
+      }
 
       // Check if this result is still relevant
       if (currentVersion !== requestVersionRef.current) {
@@ -230,15 +223,13 @@ export function useLiveImage({
       // Extract image URL from result
       let imageUrl: string | null = null
 
-      if (result.data) {
-        const data = result.data as any
-        if (data.images && Array.isArray(data.images) && data.images.length > 0) {
-          imageUrl = data.images[0].url || data.images[0]
-        } else if (data.image) {
-          imageUrl = data.image.url || data.image
-        } else if (data.output) {
-          imageUrl = typeof data.output === 'string' ? data.output : data.output.url
-        }
+      if (data.images && Array.isArray(data.images) && data.images.length > 0) {
+        const firstImage = data.images[0]
+        imageUrl = typeof firstImage === 'string' ? firstImage : firstImage?.url || null
+      } else if (data.image) {
+        imageUrl = typeof data.image === 'string' ? data.image : data.image?.url || null
+      } else if (data.output) {
+        imageUrl = typeof data.output === 'string' ? data.output : data.output?.url || null
       }
 
       if (imageUrl) {

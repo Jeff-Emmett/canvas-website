@@ -64,14 +64,27 @@ export class AutomergeSyncManager {
 
     // Try to load existing document from R2
     let doc = await this.storage.loadDocument(this.roomId)
+    const automergeShapeCount = doc?.store
+      ? Object.values(doc.store).filter((r: any) => r?.typeName === 'shape').length
+      : 0
 
-    if (!doc) {
-      // Check if there's a legacy JSON document to migrate
-      const legacyDoc = await this.loadLegacyJsonDocument()
-      if (legacyDoc) {
-        console.log(`🔄 Found legacy JSON document, migrating to Automerge format`)
-        doc = await this.storage.migrateFromJson(this.roomId, legacyDoc)
-      }
+    // Always check legacy JSON and compare - this prevents data loss if automerge.bin
+    // was created with fewer shapes than the legacy JSON
+    const legacyDoc = await this.loadLegacyJsonDocument()
+    const legacyShapeCount = legacyDoc?.store
+      ? Object.values(legacyDoc.store).filter((r: any) => r?.typeName === 'shape').length
+      : 0
+
+    console.log(`📊 Document comparison: automerge.bin has ${automergeShapeCount} shapes, legacy JSON has ${legacyShapeCount} shapes`)
+
+    // Use legacy JSON if it has more shapes than the automerge binary
+    // This handles the case where an empty automerge.bin was created before migration
+    if (legacyDoc && legacyShapeCount > automergeShapeCount) {
+      console.log(`🔄 Legacy JSON has more shapes (${legacyShapeCount} vs ${automergeShapeCount}), migrating to Automerge format`)
+      doc = await this.storage.migrateFromJson(this.roomId, legacyDoc)
+    } else if (!doc && legacyDoc) {
+      console.log(`🔄 No automerge.bin found, migrating legacy JSON document`)
+      doc = await this.storage.migrateFromJson(this.roomId, legacyDoc)
     }
 
     if (!doc) {

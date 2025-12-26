@@ -99,118 +99,114 @@ export function getClientConfig(): ClientConfig {
   }
 }
 
-// Default fal.ai API key - shared for all users
-const DEFAULT_FAL_API_KEY = '(REDACTED-FAL-KEY)'
+// ============================================================================
+// IMPORTANT: API keys are now stored server-side only!
+// All AI service calls go through the Cloudflare Worker proxy at /api/fal/* and /api/runpod/*
+// This prevents exposing API keys in the browser
+// ============================================================================
 
-// Default RunPod API key - shared across all endpoints
-// This allows all users to access AI features without their own API keys
-const DEFAULT_RUNPOD_API_KEY = '(REDACTED-RUNPOD-KEY)'
+/**
+ * Get the worker API URL for proxied requests
+ * In production, this will be the same origin as the app
+ * In development, we need to use the worker's dev port
+ */
+export function getWorkerApiUrl(): string {
+  // Check for explicit worker URL override (useful for development)
+  const workerUrl = import.meta.env.VITE_WORKER_URL
+  if (workerUrl) {
+    return workerUrl
+  }
 
-// Default RunPod endpoint IDs (from CLAUDE.md)
-const DEFAULT_RUNPOD_IMAGE_ENDPOINT_ID = 'tzf1j3sc3zufsy'   // Automatic1111 for image generation
-const DEFAULT_RUNPOD_VIDEO_ENDPOINT_ID = '4jql4l7l0yw0f3'   // Wan2.2 for video generation
-const DEFAULT_RUNPOD_TEXT_ENDPOINT_ID = '03g5hz3hlo8gr2'    // vLLM for text generation
-const DEFAULT_RUNPOD_WHISPER_ENDPOINT_ID = 'lrtisuv8ixbtub' // Whisper for transcription
+  // In production, use same origin (worker is served from same domain)
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    return ''  // Empty string = same origin
+  }
+
+  // In development, use the worker dev server
+  // Default to port 5172 as configured in wrangler.toml
+  return 'http://localhost:5172'
+}
+
+/**
+ * Get RunPod proxy configuration
+ * All RunPod calls now go through the Cloudflare Worker proxy
+ * API keys are stored server-side, never exposed to the browser
+ */
+export function getRunPodProxyConfig(type: 'image' | 'video' | 'text' | 'whisper' = 'image'): {
+  proxyUrl: string
+  endpointType: string
+} {
+  const workerUrl = getWorkerApiUrl()
+  return {
+    proxyUrl: `${workerUrl}/api/runpod/${type}`,
+    endpointType: type
+  }
+}
 
 /**
  * Get RunPod configuration for API calls (defaults to image endpoint)
- * Falls back to pre-configured endpoints if not set via environment
+ * @deprecated Use getRunPodProxyConfig() instead - API keys are now server-side
  */
-export function getRunPodConfig(): { apiKey: string; endpointId: string } | null {
-  const config = getClientConfig()
-
-  const apiKey = config.runpodApiKey || DEFAULT_RUNPOD_API_KEY
-  const endpointId = config.runpodEndpointId || config.runpodImageEndpointId || DEFAULT_RUNPOD_IMAGE_ENDPOINT_ID
-
-  return {
-    apiKey: apiKey,
-    endpointId: endpointId
-  }
+export function getRunPodConfig(): { proxyUrl: string } {
+  return { proxyUrl: `${getWorkerApiUrl()}/api/runpod/image` }
 }
 
 /**
  * Get RunPod configuration for image generation
- * Falls back to pre-configured Automatic1111 endpoint
+ * @deprecated Use getRunPodProxyConfig('image') instead
  */
-export function getRunPodImageConfig(): { apiKey: string; endpointId: string } | null {
-  const config = getClientConfig()
-
-  const apiKey = config.runpodApiKey || DEFAULT_RUNPOD_API_KEY
-  const endpointId = config.runpodImageEndpointId || config.runpodEndpointId || DEFAULT_RUNPOD_IMAGE_ENDPOINT_ID
-
-  return {
-    apiKey: apiKey,
-    endpointId: endpointId
-  }
+export function getRunPodImageConfig(): { proxyUrl: string } {
+  return getRunPodProxyConfig('image')
 }
 
 /**
  * Get RunPod configuration for video generation
- * Falls back to pre-configured Wan2.2 endpoint
+ * @deprecated Use getRunPodProxyConfig('video') instead
  */
-export function getRunPodVideoConfig(): { apiKey: string; endpointId: string } | null {
-  const config = getClientConfig()
-
-  const apiKey = config.runpodApiKey || DEFAULT_RUNPOD_API_KEY
-  const endpointId = config.runpodVideoEndpointId || DEFAULT_RUNPOD_VIDEO_ENDPOINT_ID
-
-  return {
-    apiKey: apiKey,
-    endpointId: endpointId
-  }
+export function getRunPodVideoConfig(): { proxyUrl: string } {
+  return getRunPodProxyConfig('video')
 }
 
 /**
  * Get RunPod configuration for text generation (vLLM)
- * Falls back to pre-configured vLLM endpoint
+ * @deprecated Use getRunPodProxyConfig('text') instead
  */
-export function getRunPodTextConfig(): { apiKey: string; endpointId: string } | null {
-  const config = getClientConfig()
-
-  const apiKey = config.runpodApiKey || DEFAULT_RUNPOD_API_KEY
-  const endpointId = config.runpodTextEndpointId || DEFAULT_RUNPOD_TEXT_ENDPOINT_ID
-
-  return {
-    apiKey: apiKey,
-    endpointId: endpointId
-  }
+export function getRunPodTextConfig(): { proxyUrl: string } {
+  return getRunPodProxyConfig('text')
 }
 
 /**
  * Get RunPod configuration for Whisper transcription
- * Falls back to pre-configured Whisper endpoint
+ * @deprecated Use getRunPodProxyConfig('whisper') instead
  */
-export function getRunPodWhisperConfig(): { apiKey: string; endpointId: string } | null {
-  const config = getClientConfig()
+export function getRunPodWhisperConfig(): { proxyUrl: string } {
+  return getRunPodProxyConfig('whisper')
+}
 
-  const apiKey = config.runpodApiKey || DEFAULT_RUNPOD_API_KEY
-  const endpointId = config.runpodWhisperEndpointId || DEFAULT_RUNPOD_WHISPER_ENDPOINT_ID
-
-  return {
-    apiKey: apiKey,
-    endpointId: endpointId
-  }
+/**
+ * Get fal.ai proxy configuration
+ * All fal.ai calls now go through the Cloudflare Worker proxy
+ * API keys are stored server-side, never exposed to the browser
+ */
+export function getFalProxyConfig(): { proxyUrl: string } {
+  const workerUrl = getWorkerApiUrl()
+  return { proxyUrl: `${workerUrl}/api/fal` }
 }
 
 /**
  * Get fal.ai configuration for image and video generation
- * Falls back to pre-configured API key if not set
+ * @deprecated API keys are now server-side. Use getFalProxyConfig() for proxy URL.
  */
-export function getFalConfig(): { apiKey: string } | null {
-  const config = getClientConfig()
-  const apiKey = config.falApiKey || DEFAULT_FAL_API_KEY
-
-  return {
-    apiKey: apiKey
-  }
+export function getFalConfig(): { proxyUrl: string } {
+  return getFalProxyConfig()
 }
 
 /**
  * Check if fal.ai integration is configured
+ * Now always returns true since the proxy handles configuration
  */
 export function isFalConfigured(): boolean {
-  const config = getClientConfig()
-  return !!(config.falApiKey || DEFAULT_FAL_API_KEY)
+  return true // Proxy is always available, server-side config determines availability
 }
 
 /**
@@ -231,10 +227,10 @@ export function getOllamaConfig(): { url: string } | null {
 
 /**
  * Check if RunPod integration is configured
+ * Now always returns true since the proxy handles configuration
  */
 export function isRunPodConfigured(): boolean {
-  const config = getClientConfig()
-  return !!(config.runpodApiKey && config.runpodEndpointId)
+  return true // Proxy is always available, server-side config determines availability
 }
 
 /**

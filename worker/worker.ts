@@ -1029,6 +1029,366 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
   .get("/boards/:boardId/editors", (req, env) =>
     handleListEditors(req.params.boardId, req, env))
 
+  // =============================================================================
+  // AI Service Proxies (fal.ai, RunPod)
+  // These keep API keys server-side instead of exposing them to the browser
+  // =============================================================================
+
+  // Fal.ai proxy - submit job to queue
+  .post("/api/fal/queue/:endpoint(*)", async (req, env) => {
+    if (!env.FAL_API_KEY) {
+      return new Response(JSON.stringify({ error: 'FAL_API_KEY not configured' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      const endpoint = req.params.endpoint
+      const body = await req.json()
+
+      const response = await fetch(`https://queue.fal.run/${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Key ${env.FAL_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        return new Response(JSON.stringify({
+          error: `fal.ai API error: ${response.status}`,
+          details: errorText
+        }), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      const data = await response.json()
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('Fal.ai proxy error:', error)
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
+  // Fal.ai proxy - check job status
+  .get("/api/fal/queue/:endpoint(*)/status/:requestId", async (req, env) => {
+    if (!env.FAL_API_KEY) {
+      return new Response(JSON.stringify({ error: 'FAL_API_KEY not configured' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      const { endpoint, requestId } = req.params
+
+      const response = await fetch(`https://queue.fal.run/${endpoint}/requests/${requestId}/status`, {
+        headers: { 'Authorization': `Key ${env.FAL_API_KEY}` }
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        return new Response(JSON.stringify({
+          error: `fal.ai status error: ${response.status}`,
+          details: errorText
+        }), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      const data = await response.json()
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('Fal.ai status proxy error:', error)
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
+  // Fal.ai proxy - get job result
+  .get("/api/fal/queue/:endpoint(*)/result/:requestId", async (req, env) => {
+    if (!env.FAL_API_KEY) {
+      return new Response(JSON.stringify({ error: 'FAL_API_KEY not configured' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      const { endpoint, requestId } = req.params
+
+      const response = await fetch(`https://queue.fal.run/${endpoint}/requests/${requestId}`, {
+        headers: { 'Authorization': `Key ${env.FAL_API_KEY}` }
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        return new Response(JSON.stringify({
+          error: `fal.ai result error: ${response.status}`,
+          details: errorText
+        }), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      const data = await response.json()
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('Fal.ai result proxy error:', error)
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
+  // Fal.ai subscribe (synchronous generation) - used by LiveImage
+  .post("/api/fal/subscribe/:endpoint(*)", async (req, env) => {
+    if (!env.FAL_API_KEY) {
+      return new Response(JSON.stringify({ error: 'FAL_API_KEY not configured' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      const endpoint = req.params.endpoint
+      const body = await req.json()
+
+      // Use the direct endpoint for synchronous generation
+      const response = await fetch(`https://fal.run/${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Key ${env.FAL_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        return new Response(JSON.stringify({
+          error: `fal.ai API error: ${response.status}`,
+          details: errorText
+        }), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      const data = await response.json()
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('Fal.ai subscribe proxy error:', error)
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
+  // RunPod proxy - run sync (blocking)
+  .post("/api/runpod/:endpointType/runsync", async (req, env) => {
+    const endpointType = req.params.endpointType as 'image' | 'video' | 'text' | 'whisper'
+
+    // Get the appropriate endpoint ID
+    const endpointIds: Record<string, string | undefined> = {
+      'image': env.RUNPOD_IMAGE_ENDPOINT_ID || 'tzf1j3sc3zufsy',
+      'video': env.RUNPOD_VIDEO_ENDPOINT_ID || '4jql4l7l0yw0f3',
+      'text': env.RUNPOD_TEXT_ENDPOINT_ID || '03g5hz3hlo8gr2',
+      'whisper': env.RUNPOD_WHISPER_ENDPOINT_ID || 'lrtisuv8ixbtub'
+    }
+
+    const endpointId = endpointIds[endpointType]
+    if (!endpointId) {
+      return new Response(JSON.stringify({ error: `Unknown endpoint type: ${endpointType}` }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    if (!env.RUNPOD_API_KEY) {
+      return new Response(JSON.stringify({ error: 'RUNPOD_API_KEY not configured' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      const body = await req.json()
+
+      const response = await fetch(`https://api.runpod.ai/v2/${endpointId}/runsync`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.RUNPOD_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        return new Response(JSON.stringify({
+          error: `RunPod API error: ${response.status}`,
+          details: errorText
+        }), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      const data = await response.json()
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('RunPod runsync proxy error:', error)
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
+  // RunPod proxy - run async (non-blocking)
+  .post("/api/runpod/:endpointType/run", async (req, env) => {
+    const endpointType = req.params.endpointType as 'image' | 'video' | 'text' | 'whisper'
+
+    const endpointIds: Record<string, string | undefined> = {
+      'image': env.RUNPOD_IMAGE_ENDPOINT_ID || 'tzf1j3sc3zufsy',
+      'video': env.RUNPOD_VIDEO_ENDPOINT_ID || '4jql4l7l0yw0f3',
+      'text': env.RUNPOD_TEXT_ENDPOINT_ID || '03g5hz3hlo8gr2',
+      'whisper': env.RUNPOD_WHISPER_ENDPOINT_ID || 'lrtisuv8ixbtub'
+    }
+
+    const endpointId = endpointIds[endpointType]
+    if (!endpointId) {
+      return new Response(JSON.stringify({ error: `Unknown endpoint type: ${endpointType}` }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    if (!env.RUNPOD_API_KEY) {
+      return new Response(JSON.stringify({ error: 'RUNPOD_API_KEY not configured' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      const body = await req.json()
+
+      const response = await fetch(`https://api.runpod.ai/v2/${endpointId}/run`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.RUNPOD_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        return new Response(JSON.stringify({
+          error: `RunPod API error: ${response.status}`,
+          details: errorText
+        }), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      const data = await response.json()
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('RunPod run proxy error:', error)
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
+  // RunPod proxy - check job status
+  .get("/api/runpod/:endpointType/status/:jobId", async (req, env) => {
+    const endpointType = req.params.endpointType as 'image' | 'video' | 'text' | 'whisper'
+
+    const endpointIds: Record<string, string | undefined> = {
+      'image': env.RUNPOD_IMAGE_ENDPOINT_ID || 'tzf1j3sc3zufsy',
+      'video': env.RUNPOD_VIDEO_ENDPOINT_ID || '4jql4l7l0yw0f3',
+      'text': env.RUNPOD_TEXT_ENDPOINT_ID || '03g5hz3hlo8gr2',
+      'whisper': env.RUNPOD_WHISPER_ENDPOINT_ID || 'lrtisuv8ixbtub'
+    }
+
+    const endpointId = endpointIds[endpointType]
+    if (!endpointId) {
+      return new Response(JSON.stringify({ error: `Unknown endpoint type: ${endpointType}` }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    if (!env.RUNPOD_API_KEY) {
+      return new Response(JSON.stringify({ error: 'RUNPOD_API_KEY not configured' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      const { jobId } = req.params
+
+      const response = await fetch(`https://api.runpod.ai/v2/${endpointId}/status/${jobId}`, {
+        headers: { 'Authorization': `Bearer ${env.RUNPOD_API_KEY}` }
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        return new Response(JSON.stringify({
+          error: `RunPod status error: ${response.status}`,
+          details: errorText
+        }), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      const data = await response.json()
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('RunPod status proxy error:', error)
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
 /**
  * Compute SHA-256 hash of content for change detection
  */

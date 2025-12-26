@@ -6,7 +6,7 @@ import {
   TLBaseShape,
 } from "tldraw"
 import React, { useState, useRef, useEffect } from "react"
-import { getFalConfig } from "@/lib/clientConfig"
+import { getFalProxyConfig } from "@/lib/clientConfig"
 import { StandardizedToolWrapper } from "@/components/StandardizedToolWrapper"
 import { usePinnedToView } from "@/hooks/usePinnedToView"
 import { useMaximize } from "@/hooks/useMaximize"
@@ -166,16 +166,10 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
         }
       }
 
-      // Check fal.ai config
-      const falConfig = getFalConfig()
-      if (!falConfig) {
-        setError("fal.ai not configured. Please set VITE_FAL_API_KEY in your .env file.")
-        return
-      }
+      // Get fal.ai proxy config
+      const { proxyUrl } = getFalProxyConfig()
 
       const currentMode = (imageUrl.trim() || imageBase64) ? 'i2v' : 't2v'
-      if (currentMode === 'i2v') {
-      }
 
       // Clear any existing video and set loading state
       setIsGenerating(true)
@@ -198,13 +192,9 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
       }
 
       try {
-        const { apiKey } = falConfig
-
         // Choose fal.ai endpoint based on mode
         // WAN 2.1 models: fast startup, good quality
         const endpoint = currentMode === 'i2v' ? 'fal-ai/wan-i2v' : 'fal-ai/wan-t2v'
-
-        const submitUrl = `https://queue.fal.run/${endpoint}`
 
         // Build input payload for fal.ai
         const inputPayload: Record<string, any> = {
@@ -226,19 +216,16 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
           }
         }
 
-        // Submit to fal.ai queue
-        const response = await fetch(submitUrl, {
+        // Submit to fal.ai queue via proxy
+        const response = await fetch(`${proxyUrl}/queue/${endpoint}`, {
           method: 'POST',
-          headers: {
-            'Authorization': `Key ${apiKey}`,
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(inputPayload)
         })
 
         if (!response.ok) {
-          const errorText = await response.text()
-          throw new Error(`fal.ai API error: ${response.status} - ${errorText}`)
+          const errorData = await response.json().catch(() => ({ error: response.statusText })) as { error?: string; details?: string }
+          throw new Error(`fal.ai API error: ${response.status} - ${errorData.error || errorData.details || 'Unknown error'}`)
         }
 
         const jobData = await response.json() as FalQueueResponse
@@ -247,10 +234,9 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
           throw new Error('No request_id returned from fal.ai')
         }
 
-        // Poll for completion
+        // Poll for completion via proxy
         // fal.ai is generally faster than RunPod due to warm instances
         // Typical times: 30-90 seconds for video generation
-        const statusUrl = `https://queue.fal.run/${endpoint}/requests/${jobData.request_id}/status`
         let attempts = 0
         const maxAttempts = 120 // 4 minutes with 2s intervals
 
@@ -258,9 +244,7 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
           await new Promise(resolve => setTimeout(resolve, 2000))
           attempts++
 
-          const statusResponse = await fetch(statusUrl, {
-            headers: { 'Authorization': `Key ${apiKey}` }
-          })
+          const statusResponse = await fetch(`${proxyUrl}/queue/${endpoint}/status/${jobData.request_id}`)
 
           if (!statusResponse.ok) {
             console.warn(`🎬 VideoGen: Poll error (attempt ${attempts}):`, statusResponse.status)
@@ -270,11 +254,8 @@ export class VideoGenShape extends BaseBoxShapeUtil<IVideoGen> {
           const statusData = await statusResponse.json() as FalQueueResponse
 
           if (statusData.status === 'COMPLETED') {
-            // Fetch the result
-            const resultUrl = `https://queue.fal.run/${endpoint}/requests/${jobData.request_id}`
-            const resultResponse = await fetch(resultUrl, {
-              headers: { 'Authorization': `Key ${apiKey}` }
-            })
+            // Fetch the result via proxy
+            const resultResponse = await fetch(`${proxyUrl}/queue/${endpoint}/result/${jobData.request_id}`)
 
             if (!resultResponse.ok) {
               throw new Error(`Failed to fetch result: ${resultResponse.status}`)

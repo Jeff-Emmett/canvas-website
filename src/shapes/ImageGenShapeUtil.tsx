@@ -6,7 +6,7 @@ import {
   TLBaseShape,
 } from "tldraw"
 import React, { useState } from "react"
-import { getRunPodConfig } from "@/lib/clientConfig"
+import { getRunPodProxyConfig } from "@/lib/clientConfig"
 import { aiOrchestrator, isAIOrchestratorAvailable } from "@/lib/aiOrchestrator"
 import { StandardizedToolWrapper } from "@/components/StandardizedToolWrapper"
 import { usePinnedToView } from "@/hooks/usePinnedToView"
@@ -341,10 +341,8 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
       })
 
       try {
-        // Get RunPod configuration
-        const runpodConfig = getRunPodConfig()
-        const endpointId = shape.props.endpointId || runpodConfig?.endpointId || "tzf1j3sc3zufsy"
-        const apiKey = runpodConfig?.apiKey
+        // Get RunPod proxy configuration - API keys are now server-side
+        const { proxyUrl } = getRunPodProxyConfig('image')
 
         // Mock API mode: Return placeholder image without calling RunPod
         if (USE_MOCK_API) {
@@ -382,20 +380,18 @@ export class ImageGenShape extends BaseBoxShapeUtil<IImageGen> {
           return
         }
 
-        // Real API mode: Use RunPod
-        if (!apiKey) {
-          throw new Error("RunPod API key not configured. Please set VITE_RUNPOD_API_KEY environment variable.")
-        }
+        // Real API mode: Use RunPod via proxy
+        // API key and endpoint ID are handled server-side
 
         // Use runsync for synchronous execution - returns output directly without polling
-        const url = `https://api.runpod.ai/v2/${endpointId}/runsync`
+        const url = `${proxyUrl}/runsync`
 
 
         const response = await fetch(url, {
           method: "POST",
           headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${apiKey}`
+            "Content-Type": "application/json"
+            // Authorization is handled by the proxy server-side
           },
           body: JSON.stringify({
             input: {

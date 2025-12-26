@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { makeRealSettings, AI_PERSONALITIES } from "@/lib/settings";
-import { getRunPodConfig, getRunPodTextConfig, getOllamaConfig } from "@/lib/clientConfig";
+import { getRunPodProxyConfig, getOllamaConfig } from "@/lib/clientConfig";
 
 export async function llm(
 	userPrompt: string,
@@ -170,28 +170,15 @@ function getAvailableProviders(availableKeys: Record<string, string>, settings: 
 		});
 	}
 
-	// PRIORITY 1: Check for RunPod TEXT configuration from environment variables
+	// PRIORITY 1: Add RunPod via proxy - API keys are stored server-side
 	// RunPod vLLM text endpoint is used as fallback when Ollama is not available
-	const runpodTextConfig = getRunPodTextConfig();
-	if (runpodTextConfig && runpodTextConfig.apiKey && runpodTextConfig.endpointId) {
-		providers.push({
-			provider: 'runpod',
-			apiKey: runpodTextConfig.apiKey,
-			endpointId: runpodTextConfig.endpointId,
-			model: 'default' // RunPod vLLM endpoint
-		});
-	} else {
-		// Fallback to generic RunPod config if text endpoint not configured
-		const runpodConfig = getRunPodConfig();
-		if (runpodConfig && runpodConfig.apiKey && runpodConfig.endpointId) {
-			providers.push({
-				provider: 'runpod',
-				apiKey: runpodConfig.apiKey,
-				endpointId: runpodConfig.endpointId,
-				model: 'default'
-			});
-		}
-	}
+	const runpodProxyConfig = getRunPodProxyConfig('text');
+	// Always add RunPod as a provider - the proxy handles auth server-side
+	providers.push({
+		provider: 'runpod',
+		proxyUrl: runpodProxyConfig.proxyUrl,
+		model: 'default' // RunPod vLLM endpoint
+	});
 	
 	// PRIORITY 2: Then add user-configured keys (they will be tried after RunPod)
 	// First, try the preferred provider - support multiple keys if stored as comma-separated
@@ -503,7 +490,7 @@ async function callProviderAPI(
 	userPrompt: string,
 	onToken: (partialResponse: string, done?: boolean) => void,
 	settings?: any,
-	endpointId?: string,
+	_endpointId?: string, // Deprecated - RunPod now uses proxy with server-side endpoint config
 	customSystemPrompt?: string | null
 ) {
 	let partial = "";
@@ -571,37 +558,26 @@ async function callProviderAPI(
 			throw error;
 		}
 	} else if (provider === 'runpod') {
-		// RunPod API integration - uses environment variables for automatic setup
-		// Get endpointId from parameter or from config
-		let runpodEndpointId = endpointId;
-		if (!runpodEndpointId) {
-			const runpodConfig = getRunPodConfig();
-			if (runpodConfig) {
-				runpodEndpointId = runpodConfig.endpointId;
-			}
-		}
-		
-		if (!runpodEndpointId) {
-			throw new Error('RunPod endpoint ID not configured');
-		}
-		
+		// RunPod API integration via proxy - API keys are stored server-side
+		const { proxyUrl } = getRunPodProxyConfig('text');
+
 		// Try /runsync first for synchronous execution (returns output immediately)
 		// Fall back to /run + polling if /runsync is not available
-		const syncUrl = `https://api.runpod.ai/v2/${runpodEndpointId}/runsync`;
-		const asyncUrl = `https://api.runpod.ai/v2/${runpodEndpointId}/run`;
-		
+		const syncUrl = `${proxyUrl}/runsync`;
+		const asyncUrl = `${proxyUrl}/run`;
+
 		// vLLM endpoints typically expect OpenAI-compatible format with messages array
 		// But some endpoints might accept simple prompt format
 		// Try OpenAI-compatible format first, as it's more standard for vLLM
-		const messages = [];
+		const messages: Array<{ role: string; content: string }> = [];
 		if (systemPrompt) {
 			messages.push({ role: 'system', content: systemPrompt });
 		}
 		messages.push({ role: 'user', content: userPrompt });
-		
+
 		// Combine system prompt and user prompt for simple prompt format (fallback)
 		const fullPrompt = systemPrompt ? `${systemPrompt}\n\nUser: ${userPrompt}` : userPrompt;
-		
+
 		const requestBody = {
 			input: {
 				messages: messages,
@@ -615,8 +591,8 @@ async function callProviderAPI(
 				const syncResponse = await fetch(syncUrl, {
 					method: 'POST',
 					headers: {
-						'Content-Type': 'application/json',
-						'Authorization': `Bearer ${apiKey}`
+						'Content-Type': 'application/json'
+						// Authorization is handled by the proxy server-side
 					},
 					body: JSON.stringify(requestBody)
 				});
@@ -654,7 +630,7 @@ async function callProviderAPI(
 
 					// If sync endpoint returned a job ID, fall through to async polling
 					if (syncData.id && (syncData.status === 'IN_QUEUE' || syncData.status === 'IN_PROGRESS')) {
-						const result = await pollRunPodJob(syncData.id, apiKey, runpodEndpointId);
+						const result = await pollRunPodJob(syncData.id, proxyUrl);
 						partial = result;
 						onToken(partial, true);
 						return;
@@ -668,22 +644,22 @@ async function callProviderAPI(
 			const response = await fetch(asyncUrl, {
 				method: 'POST',
 				headers: {
-					'Content-Type': 'application/json',
-					'Authorization': `Bearer ${apiKey}`
+					'Content-Type': 'application/json'
+					// Authorization is handled by the proxy server-side
 				},
 				body: JSON.stringify(requestBody)
 			});
 
 			if (!response.ok) {
-				const errorText = await response.text();
-				throw new Error(`RunPod API error: ${response.status} - ${errorText}`);
+				const errorData = await response.json().catch(() => ({ error: response.statusText })) as { error?: string; details?: string };
+				throw new Error(`RunPod API error: ${response.status} - ${errorData.error || errorData.details || 'Unknown error'}`);
 			}
 
 			const data = await response.json() as Record<string, any>;
 
 			// Handle async job pattern (RunPod often returns job IDs)
 			if (data.id && (data.status === 'IN_QUEUE' || data.status === 'IN_PROGRESS')) {
-				const result = await pollRunPodJob(data.id, apiKey, runpodEndpointId);
+				const result = await pollRunPodJob(data.id, proxyUrl);
 				partial = result;
 				onToken(partial, true);
 				return;
@@ -835,28 +811,26 @@ async function callProviderAPI(
 	onToken(partial, true);
 }
 
-// Helper function to poll RunPod job status until completion
+// Helper function to poll RunPod job status until completion via proxy
 async function pollRunPodJob(
 	jobId: string,
-	apiKey: string,
-	endpointId: string,
+	proxyUrl: string,
 	maxAttempts: number = 60,
 	pollInterval: number = 1000
 ): Promise<string> {
-	const statusUrl = `https://api.runpod.ai/v2/${endpointId}/status/${jobId}`;
+	// Use proxy endpoint for status checks
+	const statusUrl = `${proxyUrl}/status/${jobId}`;
 
 	for (let attempt = 0; attempt < maxAttempts; attempt++) {
 		try {
 			const response = await fetch(statusUrl, {
-				method: 'GET',
-				headers: {
-					'Authorization': `Bearer ${apiKey}`
-				}
+				method: 'GET'
+				// Authorization is handled by the proxy server-side
 			});
 
 			if (!response.ok) {
-				const errorText = await response.text();
-				throw new Error(`Failed to check job status: ${response.status} - ${errorText}`);
+				const errorData = await response.json().catch(() => ({ error: response.statusText })) as { error?: string; details?: string };
+				throw new Error(`Failed to check job status: ${response.status} - ${errorData.error || errorData.details || 'Unknown error'}`);
 			}
 
 			const data = await response.json() as Record<string, any>;
@@ -872,12 +846,10 @@ async function pollRunPodJob(
 
 					// After a few retries, try the stream endpoint as fallback
 					try {
-						const streamUrl = `https://api.runpod.ai/v2/${endpointId}/stream/${jobId}`;
+						const streamUrl = `${proxyUrl}/stream/${jobId}`;
 						const streamResponse = await fetch(streamUrl, {
-							method: 'GET',
-							headers: {
-								'Authorization': `Bearer ${apiKey}`
-							}
+							method: 'GET'
+							// Authorization is handled by the proxy server-side
 						});
 
 						if (streamResponse.ok) {
