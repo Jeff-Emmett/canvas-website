@@ -17,6 +17,46 @@ import throttle from "lodash.throttle"
 import { applyAutomergePatchesToTLStore, sanitizeRecord } from "./AutomergeToTLStore.js"
 import { applyTLStoreChangesToAutomerge } from "./TLStoreToAutomerge.js"
 
+// Default tldraw shape types (built into the library)
+const DEFAULT_SHAPE_TYPES = [
+  'arrow', 'bookmark', 'draw', 'embed', 'frame', 'geo', 'group',
+  'highlight', 'image', 'line', 'note', 'text', 'video'
+]
+
+// Custom shape types registered in this application
+// IMPORTANT: Keep this in sync with shapeUtils array inside useAutomergeSync
+const CUSTOM_SHAPE_TYPES = [
+  'ChatBox',
+  'VideoChat',
+  'Embed',
+  'Markdown',
+  'MycrozineTemplate',
+  'MycroZineGenerator',
+  'Slide',
+  'Prompt',
+  'Transcription',
+  'ObsNote',
+  'FathomNote',
+  'Holon',
+  'ObsidianBrowser',
+  'FathomMeetingsBrowser',
+  'ImageGen',
+  'VideoGen',
+  'Multmux',
+  'MycelialIntelligence', // AI-powered collaborative intelligence shape
+  'Map', // Open Mapping - OSM map shape
+  'Calendar', // Calendar with view switching
+  'CalendarEvent', // Calendar individual events
+  'Drawfast', // Drawfast quick sketching
+  'HolonBrowser', // Holon browser
+  'PrivateWorkspace', // Private workspace for Google Export
+  'GoogleItem', // Individual Google items
+  'WorkflowBlock', // Workflow builder blocks
+]
+
+// Combined set of all known shape types for validation
+const KNOWN_SHAPE_TYPES = new Set([...DEFAULT_SHAPE_TYPES, ...CUSTOM_SHAPE_TYPES])
+
 // Helper function to safely extract plain objects from Automerge proxies
 // This handles cases where JSON.stringify fails due to functions or getters
 function safeExtractPlainObject(obj: any, visited = new WeakSet()): any {
@@ -177,7 +217,7 @@ export function useAutomergeStoreV2({
       ImageGenShape,
       VideoGenShape,
       MultmuxShape,
-      MycelialIntelligenceShape, // Deprecated - kept for backwards compatibility
+      MycelialIntelligenceShape, // AI-powered collaborative intelligence shape
       MapShape, // Open Mapping - OSM map shape
       CalendarShape, // Calendar with view switching
       CalendarEventShape, // Calendar individual events
@@ -188,36 +228,9 @@ export function useAutomergeStoreV2({
       WorkflowBlockShape, // Workflow builder blocks
     ]
 
-    // CRITICAL: Explicitly list ALL custom shape types to ensure they're registered
-    // This is a fallback in case dynamic extraction from shape utils fails
-    const knownCustomShapeTypes = [
-      'ChatBox',
-      'VideoChat',
-      'Embed',
-      'Markdown',
-      'MycrozineTemplate',
-      'MycroZineGenerator',
-      'Slide',
-      'Prompt',
-      'Transcription',
-      'ObsNote',
-      'FathomNote',
-      'Holon',
-      'ObsidianBrowser',
-      'FathomMeetingsBrowser',
-      'ImageGen',
-      'VideoGen',
-      'Multmux',
-      'MycelialIntelligence', // Deprecated - kept for backwards compatibility
-      'Map', // Open Mapping - OSM map shape
-      'Calendar', // Calendar with view switching
-      'CalendarEvent', // Calendar individual events
-      'Drawfast', // Drawfast quick sketching
-      'HolonBrowser', // Holon browser
-      'PrivateWorkspace', // Private workspace for Google Export
-      'GoogleItem', // Individual Google items
-      'WorkflowBlock', // Workflow builder blocks
-    ]
+    // Use the module-level CUSTOM_SHAPE_TYPES constant
+    // This ensures schema registration stays in sync with the filtering logic
+    const knownCustomShapeTypes = CUSTOM_SHAPE_TYPES
 
     // Build schema with explicit entries for all custom shapes
     const customShapeSchemas: Record<string, any> = {}
@@ -462,13 +475,29 @@ export function useAutomergeStoreV2({
             }
           })
           
-          // Filter out SharedPiano shapes since they're no longer supported
+          // Filter out unknown/unsupported shape types to prevent validation errors
+          // This keeps the board functional even if some shapes can't be loaded
+          const unknownShapeTypes: string[] = []
           const filteredRecords = allRecords.filter((record: any) => {
-            if (record.typeName === 'shape' && record.type === 'SharedPiano') {
-              return false
+            if (record.typeName === 'shape') {
+              const shapeType = record.type
+              if (!KNOWN_SHAPE_TYPES.has(shapeType)) {
+                // Track unknown types for error logging
+                if (!unknownShapeTypes.includes(shapeType)) {
+                  unknownShapeTypes.push(shapeType)
+                }
+                return false
+              }
             }
             return true
           })
+
+          // Log errors for any unknown shape types that were filtered out
+          if (unknownShapeTypes.length > 0) {
+            console.error(`❌ Unknown shape types filtered out (shapes not loaded):`, unknownShapeTypes)
+            console.error(`   These shapes exist in the document but are not registered in KNOWN_SHAPE_TYPES.`)
+            console.error(`   To fix: Add these types to CUSTOM_SHAPE_TYPES in useAutomergeStoreV2.ts`)
+          }
           
           if (filteredRecords.length > 0) {
             store.mergeRemoteChanges(() => {

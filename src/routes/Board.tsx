@@ -171,7 +171,7 @@ const customShapeUtils = [
   VideoGenShape,
   DrawfastShape,
   MultmuxShape,
-  MycelialIntelligenceShape, // Deprecated - kept for backwards compatibility
+  MycelialIntelligenceShape, // AI-powered collaborative intelligence shape
   PrivateWorkspaceShape, // Private zone for Google Export data sovereignty
   GoogleItemShape, // Individual items from Google Export with privacy badges
   MapShape, // Open Mapping - OSM map shape
