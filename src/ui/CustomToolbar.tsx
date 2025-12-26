@@ -21,6 +21,7 @@ import WorkflowPalette from "../components/workflow/WorkflowPalette"
 const IS_PRODUCTION = import.meta.env.PROD
 const ENABLE_WORKFLOW = !IS_PRODUCTION // Workflow blocks - dev only
 const ENABLE_CALENDAR = !IS_PRODUCTION // Calendar - dev only
+const ENABLE_DRAWFAST = !IS_PRODUCTION // Drawfast - dev only
 import { getFathomApiKey, saveFathomApiKey, removeFathomApiKey, isFathomApiKeyConfigured } from "../lib/fathomApiKey"
 import { getMyConnections, updateEdgeMetadata, createConnection, removeConnection, updateTrustLevel } from "../lib/networking/connectionService"
 import { TRUST_LEVEL_COLORS, type TrustLevel, type UserConnectionWithProfile, type EdgeMetadata } from "../lib/networking/types"
@@ -768,6 +769,14 @@ export function CustomToolbar() {
                 icon="video"
                 label="Video Generation"
                 isSelected={tools["VideoGen"].id === editor.getCurrentToolId()}
+              />
+            )}
+            {ENABLE_DRAWFAST && tools["Drawfast"] && (
+              <TldrawUiMenuItem
+                {...tools["Drawfast"]}
+                icon="blob"
+                label="Drawfast (AI Sketch)"
+                isSelected={tools["Drawfast"].id === editor.getCurrentToolId()}
               />
             )}
             {/* Terminal (Multmux) - temporarily hidden until in better working state
