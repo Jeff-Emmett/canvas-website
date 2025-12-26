@@ -16,6 +16,11 @@ import { HolonData } from "../lib/HoloSphereService"
 import { FathomMeetingsPanel } from "../components/FathomMeetingsPanel"
 // Workflow Builder palette
 import WorkflowPalette from "../components/workflow/WorkflowPalette"
+
+// Feature flags - disable experimental features in production
+const IS_PRODUCTION = import.meta.env.PROD
+const ENABLE_WORKFLOW = !IS_PRODUCTION // Workflow blocks - dev only
+const ENABLE_CALENDAR = !IS_PRODUCTION // Calendar - dev only
 import { getFathomApiKey, saveFathomApiKey, removeFathomApiKey, isFathomApiKeyConfigured } from "../lib/fathomApiKey"
 import { getMyConnections, updateEdgeMetadata, createConnection, removeConnection, updateTrustLevel } from "../lib/networking/connectionService"
 import { TRUST_LEVEL_COLORS, type TrustLevel, type UserConnectionWithProfile, type EdgeMetadata } from "../lib/networking/types"
@@ -783,7 +788,7 @@ export function CustomToolbar() {
                 isSelected={tools["Map"].id === editor.getCurrentToolId()}
               />
             )}
-            {tools["calendar"] && (
+            {ENABLE_CALENDAR && tools["calendar"] && (
               <TldrawUiMenuItem
                 {...tools["calendar"]}
                 icon="calendar"
@@ -791,13 +796,15 @@ export function CustomToolbar() {
                 isSelected={tools["calendar"].id === editor.getCurrentToolId()}
               />
             )}
-            {/* Workflow Builder - Toggle Palette */}
-            <TldrawUiMenuItem
-              id="workflow-palette"
-              icon="sticker"
-              label="Workflow Blocks"
-              onSelect={() => setShowWorkflowPalette(!showWorkflowPalette)}
-            />
+            {/* Workflow Builder - Toggle Palette (dev only) */}
+            {ENABLE_WORKFLOW && (
+              <TldrawUiMenuItem
+                id="workflow-palette"
+                icon="sticker"
+                label="Workflow Blocks"
+                onSelect={() => setShowWorkflowPalette(!showWorkflowPalette)}
+              />
+            )}
             {/* Refresh All ObsNotes Button */}
             {(() => {
               const allShapes = editor.getCurrentPageShapes()
@@ -825,12 +832,14 @@ export function CustomToolbar() {
         />
       )}
 
-      {/* Workflow Builder Palette */}
-      <WorkflowPalette
-        editor={editor}
-        isOpen={showWorkflowPalette}
-        onClose={() => setShowWorkflowPalette(false)}
-      />
+      {/* Workflow Builder Palette (dev only) */}
+      {ENABLE_WORKFLOW && (
+        <WorkflowPalette
+          editor={editor}
+          isOpen={showWorkflowPalette}
+          onClose={() => setShowWorkflowPalette(false)}
+        />
+      )}
     </>
   )
 }

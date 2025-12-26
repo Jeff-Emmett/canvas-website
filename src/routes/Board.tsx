@@ -50,6 +50,11 @@ import { VideoGenTool } from "@/tools/VideoGenTool"
 // DISABLED: Drawfast tool needs debugging - see task-059
 // import { DrawfastShape } from "@/shapes/DrawfastShapeUtil"
 // import { DrawfastTool } from "@/tools/DrawfastTool"
+
+// Feature flags - disable experimental features in production
+const IS_PRODUCTION = import.meta.env.PROD
+const ENABLE_WORKFLOW = !IS_PRODUCTION // Workflow blocks - dev only
+const ENABLE_CALENDAR = !IS_PRODUCTION // Calendar - dev only
 import { LiveImageProvider } from "@/hooks/useLiveImage"
 import { MultmuxTool } from "@/tools/MultmuxTool"
 import { MultmuxShape } from "@/shapes/MultmuxShapeUtil"
@@ -176,9 +181,9 @@ const customShapeUtils = [
   PrivateWorkspaceShape, // Private zone for Google Export data sovereignty
   GoogleItemShape, // Individual items from Google Export with privacy badges
   MapShape, // Open Mapping - OSM map shape
-  WorkflowBlockShape, // Workflow Builder - Flowy-like blocks
-  CalendarShape, // Calendar - Unified with view switching (browser/widget/year)
-  CalendarEventShape, // Calendar - Individual event cards
+  // Conditionally included based on feature flags:
+  ...(ENABLE_WORKFLOW ? [WorkflowBlockShape] : []), // Workflow Builder - dev only
+  ...(ENABLE_CALENDAR ? [CalendarShape, CalendarEventShape] : []), // Calendar - dev only
 ]
 const customTools = [
   ChatBoxTool,
@@ -201,8 +206,9 @@ const customTools = [
   PrivateWorkspaceTool,
   GoogleItemTool,
   MapTool, // Open Mapping - OSM map tool
-  WorkflowBlockTool, // Workflow Builder - click-to-place
-  CalendarTool, // Calendar - Unified with view switching
+  // Conditionally included based on feature flags:
+  ...(ENABLE_WORKFLOW ? [WorkflowBlockTool] : []), // Workflow Builder - dev only
+  ...(ENABLE_CALENDAR ? [CalendarTool] : []), // Calendar - dev only
 ]
 
 // Debug: Log tool and shape registration info
