@@ -80,7 +80,7 @@ export function TourTooltip({
   isLastStep
 }: TourTooltipProps) {
   const tooltipWidth = 320
-  const tooltipHeight = 200 // Approximate, will auto-size
+  const tooltipHeight = 300 // Approximate height to ensure buttons stay visible
   const highlightPadding = step.highlightPadding || 8
   const gap = 12
 
