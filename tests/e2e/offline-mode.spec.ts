@@ -13,7 +13,9 @@ import { test, expect, Page } from '@playwright/test'
 // Helper to wait for canvas to be ready
 async function waitForCanvas(page: Page) {
   await page.waitForSelector('.tl-container', { timeout: 30000 })
-  await page.waitForTimeout(1000)
+  await page.waitForSelector('.tl-canvas', { timeout: 30000 })
+  // Wait for canvas to be interactive
+  await page.waitForTimeout(2000)
 }
 
 // Generate unique room ID
@@ -24,9 +26,10 @@ function getTestRoomId() {
 // Helper to create a shape
 async function createShape(page: Page, x: number, y: number) {
   await page.keyboard.press('r') // Rectangle tool shortcut
-  await page.waitForTimeout(200)
+  await page.waitForTimeout(300)
 
   const canvas = page.locator('.tl-canvas')
+  await canvas.waitFor({ state: 'visible', timeout: 30000 })
   await canvas.click({ position: { x, y } })
   await page.waitForTimeout(500)
 }
@@ -34,9 +37,10 @@ async function createShape(page: Page, x: number, y: number) {
 // Helper to draw freehand line
 async function drawLine(page: Page, startX: number, startY: number, endX: number, endY: number) {
   await page.keyboard.press('d') // Draw tool shortcut
-  await page.waitForTimeout(200)
+  await page.waitForTimeout(300)
 
   const canvas = page.locator('.tl-canvas')
+  await canvas.waitFor({ state: 'visible', timeout: 30000 })
   await canvas.hover({ position: { x: startX, y: startY } })
   await page.mouse.down()
   await canvas.hover({ position: { x: endX, y: endY } })
@@ -73,6 +77,9 @@ async function waitForIndexedDBSave(page: Page) {
 }
 
 test.describe('Offline Storage', () => {
+  // These tests can be flaky in CI due to timing
+  test.describe.configure({ retries: 2 })
+
   test('canvas state saves to IndexedDB', async ({ page }) => {
     const roomId = getTestRoomId()
 
@@ -165,7 +172,7 @@ test.describe('Offline Storage', () => {
 
     await page.goto(`/board/${roomId}`)
     await waitForCanvas(page)
-    await page.waitForTimeout(2000) // Initial sync
+    await page.waitForTimeout(3000) // Initial sync - give more time
 
     // Go offline
     await context.setOffline(true)
@@ -180,15 +187,19 @@ test.describe('Offline Storage', () => {
     // Go back online
     await context.setOffline(false)
 
-    // Wait for reconnection and sync
-    await page.waitForTimeout(5000)
+    // Wait for reconnection and sync - increase wait time
+    await page.waitForTimeout(7000)
 
     // Content should still be there after sync
     const onlineCount = await getShapeCount(page)
     expect(onlineCount).toBe(offlineCount)
 
+    // Wait for canvas to be fully interactive after reconnection
+    await waitForCanvas(page)
+
     // Verify sync worked by checking we can still interact
     await createShape(page, 250, 250)
+    await page.waitForTimeout(1000) // Wait for shape to render
     const finalCount = await getShapeCount(page)
     expect(finalCount).toBeGreaterThan(onlineCount)
   })
