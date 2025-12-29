@@ -58,11 +58,6 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 
   async generateMeetingToken(roomName: string) {
     const workerUrl = WORKER_URL;
-    const apiKey = import.meta.env.VITE_DAILY_API_KEY;
-
-    if (!apiKey) {
-      throw new Error('Daily.co API key not configured');
-    }
 
     if (!workerUrl) {
       throw new Error('Worker URL is not configured');
@@ -138,11 +133,6 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 
     try {
         const workerUrl = WORKER_URL;
-        const apiKey = import.meta.env.VITE_DAILY_API_KEY;
-
-        if (!apiKey) {
-            throw new Error('Daily.co API key not configured');
-        }
 
         if (!workerUrl) {
             throw new Error('Worker URL is not configured');
@@ -154,11 +144,11 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         const cleanId = shortId.replace(/[^A-Za-z0-9]/g, '');
         const roomName = `canvas-${cleanId}`;
 
+        // Worker uses server-side API key, no need to send it from client
         const response = await fetch(`${workerUrl}/daily/rooms`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
           },
           body: JSON.stringify({
             name: roomName,
@@ -181,12 +171,12 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
           if (response.status === 400 && error.info && error.info.includes('already exists')) {
             isNewRoom = false;
 
-            // Try to get the existing room info from Daily.co API
+            // Try to get the existing room info via worker (API key is server-side)
             try {
-              const getRoomResponse = await fetch(`https://api.daily.co/v1/rooms/${roomName}`, {
+              const getRoomResponse = await fetch(`${workerUrl}/daily/rooms/${roomName}`, {
                 method: 'GET',
                 headers: {
-                  'Authorization': `Bearer ${apiKey}`
+                  'Content-Type': 'application/json'
                 }
               });
 
@@ -239,9 +229,8 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
 
   async startRecording(shape: IVideoChatShape) {
     if (!shape.props.roomUrl) return;
-    
-          const workerUrl = WORKER_URL;
-      const apiKey = import.meta.env.VITE_DAILY_API_KEY;
+
+    const workerUrl = WORKER_URL;
 
     try {
       // Extract room name from URL (same as transcription methods)
@@ -250,10 +239,10 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
         throw new Error('Could not extract room name from URL');
       }
 
+      // Worker uses server-side API key, no need to send it from client
       const response = await fetch(`${workerUrl}/daily/recordings/start`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -287,13 +276,13 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     if (!shape.props.recordingId) return;
 
     const workerUrl = WORKER_URL;
-    const apiKey = import.meta.env.VITE_DAILY_API_KEY;
 
     try {
+      // Worker uses server-side API key, no need to send it from client
       await fetch(`${workerUrl}/daily/recordings/${shape.props.recordingId}/stop`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiKey}`
+          'Content-Type': 'application/json'
         }
       });
 

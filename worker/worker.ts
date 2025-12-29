@@ -313,12 +313,13 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     })
   })
 
-  .post("/daily/rooms", async (req) => {
-    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
-    
+  .post("/daily/rooms", async (req, env) => {
+    // Use server-side API key - never expose to client
+    const apiKey = env.DAILY_API_KEY
+
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'No API key provided' }), {
-        status: 401,
+      return new Response(JSON.stringify({ error: 'Daily.co API key not configured on server' }), {
+        status: 500,
         headers: { 'Content-Type': 'application/json' }
       })
     }
@@ -326,7 +327,7 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     try {
       // Get the request body from the client
       const body = await req.json()
-      
+
       const response = await fetch('https://api.daily.co/v1/rooms', {
         method: 'POST',
         headers: {
@@ -356,12 +357,55 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     }
   })
 
-  .post("/daily/tokens", async (req) => {
-    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
-    
+  // Get room info by name
+  .get("/daily/rooms/:roomName", async (req, env) => {
+    // Use server-side API key - never expose to client
+    const apiKey = env.DAILY_API_KEY
+    const { roomName } = req.params
+
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'No API key provided' }), {
-        status: 401,
+      return new Response(JSON.stringify({ error: 'Daily.co API key not configured on server' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      const response = await fetch(`https://api.daily.co/v1/rooms/${roomName}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        return new Response(JSON.stringify(error), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      const data = await response.json()
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
+  .post("/daily/tokens", async (req, env) => {
+    // Use server-side API key - never expose to client
+    const apiKey = env.DAILY_API_KEY
+
+    if (!apiKey) {
+      return new Response(JSON.stringify({ error: 'Daily.co API key not configured on server' }), {
+        status: 500,
         headers: { 'Content-Type': 'application/json' }
       })
     }
@@ -401,13 +445,14 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
   })
 
   // Add new transcription endpoints
-  .post("/daily/rooms/:roomName/start-transcription", async (req) => {
-    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+  .post("/daily/rooms/:roomName/start-transcription", async (req, env) => {
+    // Use server-side API key - never expose to client
+    const apiKey = env.DAILY_API_KEY
     const { roomName } = req.params
-    
+
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'No API key provided' }), {
-        status: 401,
+      return new Response(JSON.stringify({ error: 'Daily.co API key not configured on server' }), {
+        status: 500,
         headers: { 'Content-Type': 'application/json' }
       })
     }
@@ -441,13 +486,14 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     }
   })
 
-  .post("/daily/rooms/:roomName/stop-transcription", async (req) => {
-    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+  .post("/daily/rooms/:roomName/stop-transcription", async (req, env) => {
+    // Use server-side API key - never expose to client
+    const apiKey = env.DAILY_API_KEY
     const { roomName } = req.params
-    
+
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'No API key provided' }), {
-        status: 401,
+      return new Response(JSON.stringify({ error: 'Daily.co API key not configured on server' }), {
+        status: 500,
         headers: { 'Content-Type': 'application/json' }
       })
     }
@@ -482,13 +528,14 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
   })
 
   // Add endpoint to get transcript access link
-  .get("/daily/transcript/:transcriptId/access-link", async (req) => {
-    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+  .get("/daily/transcript/:transcriptId/access-link", async (req, env) => {
+    // Use server-side API key - never expose to client
+    const apiKey = env.DAILY_API_KEY
     const { transcriptId } = req.params
-    
+
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'No API key provided' }), {
-        status: 401,
+      return new Response(JSON.stringify({ error: 'Daily.co API key not configured on server' }), {
+        status: 500,
         headers: { 'Content-Type': 'application/json' }
       })
     }
@@ -523,13 +570,14 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
   })
 
   // Add endpoint to get transcript text
-  .get("/daily/transcript/:transcriptId", async (req) => {
-    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+  .get("/daily/transcript/:transcriptId", async (req, env) => {
+    // Use server-side API key - never expose to client
+    const apiKey = env.DAILY_API_KEY
     const { transcriptId } = req.params
-    
+
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'No API key provided' }), {
-        status: 401,
+      return new Response(JSON.stringify({ error: 'Daily.co API key not configured on server' }), {
+        status: 500,
         headers: { 'Content-Type': 'application/json' }
       })
     }
@@ -564,12 +612,13 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
   })
 
   // Recording endpoints
-  .post("/daily/recordings/start", async (req) => {
-    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
-    
+  .post("/daily/recordings/start", async (req, env) => {
+    // Use server-side API key - never expose to client
+    const apiKey = env.DAILY_API_KEY
+
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'No API key provided' }), {
-        status: 401,
+      return new Response(JSON.stringify({ error: 'Daily.co API key not configured on server' }), {
+        status: 500,
         headers: { 'Content-Type': 'application/json' }
       })
     }
@@ -605,13 +654,14 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     }
   })
 
-  .post("/daily/recordings/:recordingId/stop", async (req) => {
-    const apiKey = req.headers.get('Authorization')?.split('Bearer ')[1]
+  .post("/daily/recordings/:recordingId/stop", async (req, env) => {
+    // Use server-side API key - never expose to client
+    const apiKey = env.DAILY_API_KEY
     const { recordingId } = req.params
-    
+
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'No API key provided' }), {
-        status: 401,
+      return new Response(JSON.stringify({ error: 'Daily.co API key not configured on server' }), {
+        status: 500,
         headers: { 'Content-Type': 'application/json' }
       })
     }
