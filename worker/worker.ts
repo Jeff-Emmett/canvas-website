@@ -1439,6 +1439,95 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     }
   })
 
+  // =============================================================================
+  // Blender 3D Render API
+  // Proxies render requests to blender-automation server on Netcup RS 8000
+  // =============================================================================
+
+  .post("/api/blender/render", async (req, env) => {
+    // Blender render server URL - hosted on Netcup RS 8000
+    const BLENDER_API_URL = env.BLENDER_API_URL || 'https://blender.jeffemmett.com'
+
+    try {
+      const body = await req.json() as {
+        preset: string
+        text?: string
+        complexity?: number
+        seed?: number
+        resolution?: string
+        samples?: number
+      }
+
+      console.log('Blender render request:', body)
+
+      const response = await fetch(`${BLENDER_API_URL}/render`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(body)
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Blender API error:', response.status, errorText)
+        return new Response(JSON.stringify({
+          error: `Blender API error: ${response.status}`,
+          details: errorText
+        }), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      const data = await response.json()
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('Blender render proxy error:', error)
+      return new Response(JSON.stringify({
+        error: 'Blender render failed',
+        details: (error as Error).message
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
+  // Get render job status
+  .get("/api/blender/status/:jobId", async (req, env) => {
+    const BLENDER_API_URL = env.BLENDER_API_URL || 'https://blender.jeffemmett.com'
+    const { jobId } = req.params
+
+    try {
+      const response = await fetch(`${BLENDER_API_URL}/status/${jobId}`)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        return new Response(JSON.stringify({
+          error: `Blender status error: ${response.status}`,
+          details: errorText
+        }), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      const data = await response.json()
+      return new Response(JSON.stringify(data), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('Blender status proxy error:', error)
+      return new Response(JSON.stringify({ error: (error as Error).message }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
 /**
  * Compute SHA-256 hash of content for change detection
  */

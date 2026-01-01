@@ -47,6 +47,9 @@ import { ImageGenShape } from "@/shapes/ImageGenShapeUtil"
 import { ImageGenTool } from "@/tools/ImageGenTool"
 import { VideoGenShape } from "@/shapes/VideoGenShapeUtil"
 import { VideoGenTool } from "@/tools/VideoGenTool"
+// Blender 3D generation
+import { BlenderGenShape } from "@/shapes/BlenderGenShapeUtil"
+import { BlenderGenTool } from "@/tools/BlenderGenTool"
 // Drawfast - dev only
 import { DrawfastShape } from "@/shapes/DrawfastShapeUtil"
 import { DrawfastTool } from "@/tools/DrawfastTool"
@@ -176,6 +179,7 @@ const customShapeUtils = [
   FathomNoteShape, // Individual Fathom meeting notes created from FathomMeetingsBrowser
   ImageGenShape,
   VideoGenShape,
+  BlenderGenShape, // Blender 3D procedural generation
   ...(ENABLE_DRAWFAST ? [DrawfastShape] : []), // Drawfast - dev only
   MultmuxShape,
   MycelialIntelligenceShape, // AI-powered collaborative intelligence shape
@@ -202,6 +206,7 @@ const customTools = [
   FathomMeetingsTool,
   ImageGenTool,
   VideoGenTool,
+  BlenderGenTool, // Blender 3D procedural generation
   ...(ENABLE_DRAWFAST ? [DrawfastTool] : []), // Drawfast - dev only
   MultmuxTool,
   PrivateWorkspaceTool,

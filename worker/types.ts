@@ -23,6 +23,8 @@ export interface Environment {
 	RUNPOD_VIDEO_ENDPOINT_ID?: string;
 	RUNPOD_TEXT_ENDPOINT_ID?: string;
 	RUNPOD_WHISPER_ENDPOINT_ID?: string;
+	// Blender render server URL
+	BLENDER_API_URL?: string;
 }
 
 // CryptID types for auth
