@@ -38,7 +38,9 @@ if (hasValidWalletConnectId) {
   connectors.push(
     walletConnect({
       projectId: WALLETCONNECT_PROJECT_ID,
-      showQrModal: true,
+      // Disable QR modal - web3modal has issues with project ID propagation
+      // Users can still connect via injected wallets (MetaMask, etc.)
+      showQrModal: false,
       metadata: {
         name: 'Canvas',
         description: 'Collaborative Canvas with Web3 Integration',
@@ -47,6 +49,10 @@ if (hasValidWalletConnectId) {
       },
     })
   );
+
+  if (import.meta.env.DEV) {
+    console.log('[Web3Provider] WalletConnect enabled with project ID:', WALLETCONNECT_PROJECT_ID.slice(0, 8) + '...');
+  }
 } else if (import.meta.env.DEV) {
   console.warn(
     '[Web3Provider] WalletConnect disabled - no valid VITE_WALLETCONNECT_PROJECT_ID set.\n' +

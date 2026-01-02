@@ -30,6 +30,11 @@ import { ISlideShape } from "@/shapes/SlideShapeUtil"
 import { getEdge } from "@/propagators/tlgraph"
 import { llm, getApiKey } from "@/utils/llmUtils"
 
+// Feature flags - must match Board.tsx to prevent tool registration mismatch
+const IS_PRODUCTION = import.meta.env.PROD
+const ENABLE_WORKFLOW = !IS_PRODUCTION // Workflow blocks - dev only
+const ENABLE_CALENDAR = !IS_PRODUCTION // Calendar - dev only
+
 export const overrides: TLUiOverrides = {
   tools(editor, tools) {
     return {
@@ -246,21 +251,27 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("map"),
       },
-      calendar: {
-        id: "calendar",
-        icon: "calendar",
-        label: "Calendar",
-        kbd: "ctrl+alt+k",
-        readonlyOk: true,
-        onSelect: () => editor.setCurrentTool("calendar"),
-      },
-      WorkflowBlock: {
-        id: "WorkflowBlock",
-        icon: "sticker",
-        label: "Workflow Block",
-        readonlyOk: true,
-        onSelect: () => editor.setCurrentTool("WorkflowBlock"),
-      },
+      // Calendar - only available in dev (must match ENABLE_CALENDAR flag in Board.tsx)
+      ...(ENABLE_CALENDAR ? {
+        calendar: {
+          id: "calendar",
+          icon: "calendar",
+          label: "Calendar",
+          kbd: "ctrl+alt+k",
+          readonlyOk: true,
+          onSelect: () => editor.setCurrentTool("calendar"),
+        },
+      } : {}),
+      // WorkflowBlock - only available in dev (must match ENABLE_WORKFLOW flag in Board.tsx)
+      ...(ENABLE_WORKFLOW ? {
+        WorkflowBlock: {
+          id: "WorkflowBlock",
+          icon: "sticker",
+          label: "Workflow Block",
+          readonlyOk: true,
+          onSelect: () => editor.setCurrentTool("WorkflowBlock"),
+        },
+      } : {}),
       // MycelialIntelligence removed - now a permanent UI bar (MycelialIntelligenceBar.tsx)
       hand: {
         ...tools.hand,
