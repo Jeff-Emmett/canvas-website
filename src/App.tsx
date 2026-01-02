@@ -28,6 +28,9 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import CryptID from './components/auth/CryptID';
 import CryptoDebug from './components/auth/CryptoDebug';
 
+// Import Web3 provider for wallet integration
+import { Web3Provider } from './providers/Web3Provider';
+
 // Import Google Data test component
 import { GoogleDataTest } from './components/GoogleDataTest';
 
@@ -117,6 +120,15 @@ const RedirectBoardSlug = () => {
 };
 
 /**
+ * Component to redirect direct slug URLs to board URLs
+ * Handles canvas.jeffemmett.com/ccc → /board/ccc/
+ */
+const RedirectDirectSlug = () => {
+  const { slug } = useParams<{ slug: string }>();
+  return <Navigate to={`/board/${slug}/`} replace />;
+};
+
+/**
  * Main App with context providers
  */
 const AppWithProviders = () => {
@@ -142,11 +154,12 @@ const AppWithProviders = () => {
     return (
     <ErrorBoundary>
       <AuthProvider>
-        <FileSystemProvider>
-          <NotificationProvider>
-            <Suspense fallback={<LoadingSpinner />}>
-              <DailyProvider callObject={null}>
-                <BrowserRouter>
+        <Web3Provider>
+          <FileSystemProvider>
+            <NotificationProvider>
+              <Suspense fallback={<LoadingSpinner />}>
+                <DailyProvider callObject={null}>
+                  <BrowserRouter>
                   {/* Display notifications */}
                   <NotificationsDisplay />
 
@@ -209,13 +222,20 @@ const AppWithProviders = () => {
                       {/* Google Data routes */}
                       <Route path="/google" element={<GoogleDataTest />} />
                       <Route path="/oauth/google/callback" element={<GoogleDataTest />} />
+
+                      {/* Catch-all: Direct slug URLs redirect to board URLs */}
+                      {/* e.g., canvas.jeffemmett.com/ccc → /board/ccc/ */}
+                      {/* Must be LAST to not interfere with other routes */}
+                      <Route path="/:slug" element={<RedirectDirectSlug />} />
+                      <Route path="/:slug/" element={<RedirectDirectSlug />} />
                     </Routes>
                   </Suspense>
-                </BrowserRouter>
-              </DailyProvider>
-            </Suspense>
-          </NotificationProvider>
-        </FileSystemProvider>
+                  </BrowserRouter>
+                </DailyProvider>
+              </Suspense>
+            </NotificationProvider>
+          </FileSystemProvider>
+        </Web3Provider>
       </AuthProvider>
     </ErrorBoundary>
   );
