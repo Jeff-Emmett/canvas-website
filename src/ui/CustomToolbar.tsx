@@ -771,6 +771,14 @@ export function CustomToolbar() {
                 isSelected={tools["VideoGen"].id === editor.getCurrentToolId()}
               />
             )}
+            {tools["BlenderGen"] && (
+              <TldrawUiMenuItem
+                {...tools["BlenderGen"]}
+                icon="box"
+                label="Blender 3D"
+                isSelected={tools["BlenderGen"].id === editor.getCurrentToolId()}
+              />
+            )}
             {ENABLE_DRAWFAST && tools["Drawfast"] && (
               <TldrawUiMenuItem
                 {...tools["Drawfast"]}
