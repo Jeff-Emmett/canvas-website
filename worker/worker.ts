@@ -1085,7 +1085,8 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
   // =============================================================================
 
   // Fal.ai proxy - submit job to queue
-  .post("/api/fal/queue/:endpoint(*)", async (req, env) => {
+  // Use :endpoint+ for greedy named wildcard that captures multiple path segments
+  .post("/api/fal/queue/:endpoint+", async (req, env) => {
     if (!env.FAL_API_KEY) {
       return new Response(JSON.stringify({ error: 'FAL_API_KEY not configured' }), {
         status: 500,
@@ -1131,7 +1132,7 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
   })
 
   // Fal.ai proxy - check job status
-  .get("/api/fal/queue/:endpoint(*)/status/:requestId", async (req, env) => {
+  .get("/api/fal/queue/:endpoint+/status/:requestId", async (req, env) => {
     if (!env.FAL_API_KEY) {
       return new Response(JSON.stringify({ error: 'FAL_API_KEY not configured' }), {
         status: 500,
@@ -1171,7 +1172,7 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
   })
 
   // Fal.ai proxy - get job result
-  .get("/api/fal/queue/:endpoint(*)/result/:requestId", async (req, env) => {
+  .get("/api/fal/queue/:endpoint+/result/:requestId", async (req, env) => {
     if (!env.FAL_API_KEY) {
       return new Response(JSON.stringify({ error: 'FAL_API_KEY not configured' }), {
         status: 500,
@@ -1211,7 +1212,7 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
   })
 
   // Fal.ai subscribe (synchronous generation) - used by LiveImage
-  .post("/api/fal/subscribe/:endpoint(*)", async (req, env) => {
+  .post("/api/fal/subscribe/:endpoint+", async (req, env) => {
     if (!env.FAL_API_KEY) {
       return new Response(JSON.stringify({ error: 'FAL_API_KEY not configured' }), {
         status: 500,

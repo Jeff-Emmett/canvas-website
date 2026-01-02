@@ -107,8 +107,11 @@ export function getClientConfig(): ClientConfig {
 
 /**
  * Get the worker API URL for proxied requests
- * In production, this will be the same origin as the app
- * In development, we need to use the worker's dev port
+ * Uses centralized WORKER_URL configuration based on VITE_WORKER_ENV:
+ * - local: localhost:5172
+ * - dev: jeffemmett-canvas-dev.jeffemmett.workers.dev
+ * - staging: jeffemmett-canvas-dev.jeffemmett.workers.dev
+ * - production: jeffemmett-canvas.jeffemmett.workers.dev
  */
 export function getWorkerApiUrl(): string {
   // Check for explicit worker URL override (useful for development)
@@ -117,14 +120,18 @@ export function getWorkerApiUrl(): string {
     return workerUrl
   }
 
-  // In production, use same origin (worker is served from same domain)
-  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-    return ''  // Empty string = same origin
+  // Determine worker URL based on VITE_WORKER_ENV
+  // This mirrors the logic in src/constants/workerUrl.ts
+  const workerEnv = import.meta.env.VITE_WORKER_ENV || 'production'
+
+  const workerUrls: Record<string, string> = {
+    local: typeof window !== 'undefined' ? `http://${window.location.hostname}:5172` : 'http://localhost:5172',
+    dev: 'https://jeffemmett-canvas-automerge-dev.jeffemmett.workers.dev',
+    staging: 'https://jeffemmett-canvas-automerge-dev.jeffemmett.workers.dev',
+    production: 'https://jeffemmett-canvas.jeffemmett.workers.dev'
   }
 
-  // In development, use the worker dev server
-  // Default to port 5172 as configured in wrangler.toml
-  return 'http://localhost:5172'
+  return workerUrls[workerEnv] || workerUrls.production
 }
 
 /**
