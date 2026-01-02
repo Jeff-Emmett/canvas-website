@@ -112,11 +112,11 @@ const OptionalAuthRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 /**
- * Component to redirect board URLs without trailing slashes
+ * Component to redirect old /board/:slug URLs to clean /:slug/ URLs
  */
 const RedirectBoardSlug = () => {
   const { slug } = useParams<{ slug: string }>();
-  return <Navigate to={`/board/${slug}/`} replace />;
+  return <Navigate to={`/${slug}/`} replace />;
 };
 
 
@@ -181,11 +181,7 @@ const AppWithProviders = () => {
                           <Contact />
                         </OptionalAuthRoute>
                       } />
-                      <Route path="/board/:slug/" element={
-                        <OptionalAuthRoute>
-                          <Board />
-                        </OptionalAuthRoute>
-                      } />
+                      <Route path="/board/:slug/" element={<RedirectBoardSlug />} />
                       <Route path="/inbox/" element={
                         <OptionalAuthRoute>
                           <Inbox />
