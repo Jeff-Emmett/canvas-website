@@ -153,7 +153,7 @@ export class BlenderGenShape extends BaseBoxShapeUtil<IBlenderGen> {
           throw new Error(`HTTP error! status: ${response.status} - ${errorText}`)
         }
 
-        const data = await response.json()
+        const data = await response.json() as { imageUrl?: string; renderTime?: number; seed?: number; error?: string }
 
         if (data.imageUrl) {
           const currentShape = editor.getShape<IBlenderGen>(shape.id)
