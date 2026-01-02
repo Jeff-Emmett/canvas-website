@@ -32,7 +32,7 @@ async function sendEmail(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: env.CRYPTID_EMAIL_FROM || 'CryptID <noreply@jeffemmett.com>',
+        from: env.CRYPTID_EMAIL_FROM || 'enCryptID <noreply@jeffemmett.com>',
         to: [to],
         subject,
         html: htmlContent,
@@ -115,7 +115,7 @@ export async function handleLinkEmail(
 
     if (existingUser && existingUser.cryptid_username !== cryptidUsername) {
       return new Response(JSON.stringify({
-        error: 'Email already linked to a different CryptID account'
+        error: 'Email already linked to a different enCryptID account'
       }), {
         status: 409,
         headers: { 'Content-Type': 'application/json' },
@@ -175,10 +175,10 @@ export async function handleLinkEmail(
       const emailSent = await sendEmail(
         env,
         email,
-        'Verify your CryptID email',
+        'Verify your enCryptID email',
         `
-        <h2>Verify your CryptID email</h2>
-        <p>Click the link below to verify your email address for CryptID: <strong>${cryptidUsername}</strong></p>
+        <h2>Verify your enCryptID email</h2>
+        <p>Click the link below to verify your email address for enCryptID: <strong>${cryptidUsername}</strong></p>
         <p><a href="${verifyUrl}" style="display: inline-block; padding: 12px 24px; background: #4f46e5; color: white; text-decoration: none; border-radius: 6px;">Verify Email</a></p>
         <p>Or copy this link: ${verifyUrl}</p>
         <p>This link expires in 24 hours.</p>
@@ -310,7 +310,7 @@ export async function handleRequestDeviceLink(
 
     if (!user) {
       return new Response(JSON.stringify({
-        error: 'No verified CryptID account found for this email'
+        error: 'No verified enCryptID account found for this email'
       }), {
         status: 404,
         headers: { 'Content-Type': 'application/json' },
@@ -351,10 +351,10 @@ export async function handleRequestDeviceLink(
     const emailSent = await sendEmail(
       env,
       email,
-      'Link new device to your CryptID',
+      'Link new device to your enCryptID',
       `
       <h2>New Device Link Request</h2>
-      <p>Someone is trying to link a new device to your CryptID: <strong>${user.cryptid_username}</strong></p>
+      <p>Someone is trying to link a new device to your enCryptID: <strong>${user.cryptid_username}</strong></p>
       <p><strong>Device:</strong> ${deviceName || 'New Device'}</p>
       <p>If this was you, click the button below to approve:</p>
       <p><a href="${linkUrl}" style="display: inline-block; padding: 12px 24px; background: #4f46e5; color: white; text-decoration: none; border-radius: 6px;">Approve Device</a></p>
@@ -527,7 +527,7 @@ export async function handleSendBackupEmail(
     const emailSent = await sendEmail(
       env,
       email,
-      `Set up CryptID "${username}" on another device`,
+      `Set up enCryptID "${username}" on another device`,
       `
       <!DOCTYPE html>
       <html>
@@ -549,13 +549,13 @@ export async function handleSendBackupEmail(
       <body>
         <div class="header">
           <div class="icon">🔐</div>
-          <h1>Welcome to CryptID</h1>
+          <h1>Welcome to enCryptID</h1>
           <p>Your passwordless account is ready!</p>
         </div>
 
         <p>Hi <strong>${username}</strong>,</p>
 
-        <p>Your CryptID account has been created on your current device. To access your account from another device (like your phone), follow these steps:</p>
+        <p>Your enCryptID account has been created on your current device. To access your account from another device (like your phone), follow these steps:</p>
 
         <div class="card">
           <div class="step">
@@ -590,9 +590,9 @@ export async function handleSendBackupEmail(
         </div>
 
         <div class="footer">
-          <p>This email was sent because you created a CryptID account and opted for multi-device backup.</p>
+          <p>This email was sent because you created an enCryptID account and opted for multi-device backup.</p>
           <p>If you didn't request this, you can safely ignore this email.</p>
-          <p style="margin-top: 16px;">CryptID by <a href="${appUrl}" style="color: #8b5cf6;">jeffemmett.com</a></p>
+          <p style="margin-top: 16px;">enCryptID by <a href="${appUrl}" style="color: #8b5cf6;">jeffemmett.com</a></p>
         </div>
       </body>
       </html>

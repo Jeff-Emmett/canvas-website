@@ -34,7 +34,7 @@ export const TOUR_STEPS: TourStep[] = [
   {
     id: 'cryptid-login',
     title: 'Encrypted Identity',
-    content: 'Sign in with CryptID for end-to-end encrypted sync across devices. Your password never leaves your browser - we use cryptographic keys instead.',
+    content: 'Sign in with enCryptID for end-to-end encrypted sync across devices. Your password never leaves your browser - we use cryptographic keys instead.',
     targetSelector: '.cryptid-dropdown-trigger',
     fallbackPosition: { top: 60, left: window.innerWidth - 200 },
     placement: 'bottom-left',

@@ -41,7 +41,7 @@ export function generateLinkMessage(
   timestamp: string,
   nonce: string
 ): string {
-  return `Link wallet to CryptID
+  return `Link wallet to enCryptID
 
 Account: ${username}
 Wallet: ${address}

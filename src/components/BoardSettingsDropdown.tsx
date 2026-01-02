@@ -325,44 +325,74 @@ const BoardSettingsDropdown: React.FC<BoardSettingsDropdownProps> = ({ className
               Loading...
             </div>
           ) : (
-            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
 
-              {/* Board Info */}
-              <div>
-                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-3)', marginBottom: '8px', textTransform: 'uppercase' }}>
+              {/* Board Info Section */}
+              <div style={{ padding: '14px', background: 'var(--color-muted-2)', borderBottom: '1px solid var(--color-panel-contrast)' }}>
+                <div style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  color: 'var(--color-text)',
+                  marginBottom: '10px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="16" x2="12" y2="12"/>
+                    <line x1="12" y1="8" x2="12.01" y2="8"/>
+                  </svg>
                   Board Info
                 </div>
-                <div style={{ fontSize: '12px', color: 'var(--color-text)' }}>
-                  <div style={{ marginBottom: '4px' }}>
-                    <strong>ID:</strong> {boardId}
+                <div style={{ fontSize: '12px', color: 'var(--color-text-1)' }}>
+                  <div style={{ marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ color: 'var(--color-text-3)', minWidth: '50px' }}>ID:</span>
+                    <span style={{ fontFamily: 'monospace', fontSize: '11px' }}>{boardId}</span>
                   </div>
                   {boardInfo?.ownerUsername && (
-                    <div style={{ marginBottom: '4px' }}>
-                      <strong>Owner:</strong> @{boardInfo.ownerUsername}
+                    <div style={{ marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ color: 'var(--color-text-3)', minWidth: '50px' }}>Owner:</span>
+                      <span>@{boardInfo.ownerUsername}</span>
                     </div>
                   )}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <strong>Status:</strong>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ color: 'var(--color-text-3)', minWidth: '50px' }}>Status:</span>
                     <span style={{
-                      padding: '2px 8px',
+                      padding: '3px 10px',
                       borderRadius: '4px',
                       fontSize: '11px',
                       fontWeight: 500,
                       background: boardInfo?.isProtected ? '#fef3c7' : '#d1fae5',
                       color: boardInfo?.isProtected ? '#92400e' : '#065f46',
                     }}>
-                      {boardInfo?.isProtected ? 'Protected (View-only)' : 'Open (Anyone can edit)'}
+                      {boardInfo?.isProtected ? 'Protected' : 'Open'}
                     </span>
                   </div>
                 </div>
               </div>
 
-              {/* Admin Section */}
+              {/* Admin Section - Protection Settings */}
               {isAdmin && (
                 <>
-                  <div style={{ borderTop: '1px solid var(--color-panel-contrast)', paddingTop: '12px' }}>
-                    <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-3)', marginBottom: '8px', textTransform: 'uppercase' }}>
-                      Protection Settings {isGlobalAdmin && <span style={{ color: '#3b82f6' }}>(Global Admin)</span>}
+                  <div style={{ padding: '14px', background: 'var(--color-panel)', borderBottom: '1px solid var(--color-panel-contrast)' }}>
+                    <div style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: 'var(--color-text)',
+                      marginBottom: '10px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                      </svg>
+                      Protection {isGlobalAdmin && <span style={{ color: '#3b82f6', fontWeight: 500, fontSize: '10px' }}>(Global Admin)</span>}
                     </div>
 
                     {/* Protection Toggle */}
@@ -413,8 +443,24 @@ const BoardSettingsDropdown: React.FC<BoardSettingsDropdownProps> = ({ className
 
                   {/* Editor Management (only when protected) */}
                   {boardInfo?.isProtected && (
-                    <div>
-                      <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-3)', marginBottom: '8px', textTransform: 'uppercase' }}>
+                    <div style={{ padding: '14px', background: 'var(--color-muted-2)', borderBottom: '1px solid var(--color-panel-contrast)' }}>
+                      <div style={{
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        color: 'var(--color-text)',
+                        marginBottom: '10px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                          <circle cx="9" cy="7" r="4"/>
+                          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
                         Editors ({editors.length})
                       </div>
 
@@ -475,10 +521,10 @@ const BoardSettingsDropdown: React.FC<BoardSettingsDropdownProps> = ({ className
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'space-between',
-                                padding: '8px',
+                                padding: '8px 10px',
                                 borderRadius: '6px',
                                 marginBottom: '4px',
-                                background: 'var(--color-muted-2)',
+                                background: 'var(--color-panel)',
                               }}
                             >
                               <div>
@@ -514,7 +560,26 @@ const BoardSettingsDropdown: React.FC<BoardSettingsDropdownProps> = ({ className
 
               {/* Request Admin Access (for non-admins) */}
               {!isAdmin && session.authed && (
-                <div style={{ borderTop: '1px solid var(--color-panel-contrast)', paddingTop: '12px' }}>
+                <div style={{ padding: '14px', background: 'var(--color-panel)', borderBottom: '1px solid var(--color-panel-contrast)' }}>
+                  <div style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    color: 'var(--color-text)',
+                    marginBottom: '10px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                      <circle cx="8.5" cy="7" r="4"/>
+                      <line x1="20" y1="8" x2="20" y2="14"/>
+                      <line x1="23" y1="11" x2="17" y2="11"/>
+                    </svg>
+                    Admin Access
+                  </div>
                   <button
                     onClick={requestAdminAccess}
                     disabled={requestingAdmin || adminRequestSent}
@@ -546,8 +611,10 @@ const BoardSettingsDropdown: React.FC<BoardSettingsDropdownProps> = ({ className
 
               {/* Sign in prompt for anonymous users */}
               {!session.authed && (
-                <div style={{ fontSize: '11px', color: 'var(--color-text-3)', textAlign: 'center', padding: '10px' }}>
-                  Sign in to access board settings
+                <div style={{ padding: '14px', background: 'var(--color-muted-2)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--color-text-3)' }}>
+                    Sign in to access board settings
+                  </div>
                 </div>
               )}
             </div>

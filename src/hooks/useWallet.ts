@@ -3,7 +3,7 @@
  *
  * Provides functionality for:
  * - Connecting/disconnecting wallets
- * - Linking wallets to CryptID accounts
+ * - Linking wallets to enCryptID accounts
  * - Managing linked wallets
  */
 
@@ -59,7 +59,7 @@ function generateLinkMessage(
   timestamp: string,
   nonce: string
 ): string {
-  return `Link wallet to CryptID
+  return `Link wallet to enCryptID
 
 Account: ${username}
 Wallet: ${address}
@@ -120,7 +120,7 @@ export function useWalletConnection() {
 }
 
 // =============================================================================
-// useWalletLink - Link wallet to CryptID
+// useWalletLink - Link wallet to enCryptID
 // =============================================================================
 
 export function useWalletLink() {
@@ -136,7 +136,7 @@ export function useWalletLink() {
     }
 
     if (!session.authed || !session.username) {
-      return { success: false, error: 'Not authenticated with CryptID' };
+      return { success: false, error: 'Not authenticated with enCryptID' };
     }
 
     setIsLinking(true);
@@ -159,7 +159,7 @@ export function useWalletLink() {
       // Get public key for auth header
       const publicKey = crypto.getPublicKey(session.username);
       if (!publicKey) {
-        throw new Error('Could not get CryptID public key');
+        throw new Error('Could not get enCryptID public key');
       }
 
       // Send to backend for verification
@@ -227,7 +227,7 @@ export function useLinkedWallets() {
 
     const publicKey = crypto.getPublicKey(session.username);
     if (!publicKey) {
-      setError('Could not get CryptID public key');
+      setError('Could not get enCryptID public key');
       return;
     }
 

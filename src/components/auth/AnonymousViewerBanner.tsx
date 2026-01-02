@@ -98,7 +98,7 @@ const AnonymousViewerBanner: React.FC<AnonymousViewerBannerProps> = ({
               </p>
             )}
             <p className="banner-summary">
-              Sign in with CryptID to edit
+              Sign in with enCryptID to edit
             </p>
           </div>
         </div>

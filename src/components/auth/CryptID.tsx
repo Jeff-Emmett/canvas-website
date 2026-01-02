@@ -14,7 +14,7 @@ interface CryptIDProps {
 type RegistrationStep = 'welcome' | 'username' | 'email' | 'success';
 
 /**
- * CryptID - WebCryptoAPI-based authentication component
+ * enCryptID - WebCryptoAPI-based authentication component
  * Enhanced with multi-step registration and email backup
  */
 const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
@@ -235,7 +235,7 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
           <p style={styles.description}>
             {!browserSupport.supported
               ? 'Your browser does not support the required features for cryptographic authentication. Please use a modern browser.'
-              : 'CryptID requires a secure connection (HTTPS) to protect your cryptographic keys.'}
+              : 'enCryptID requires a secure connection (HTTPS) to protect your cryptographic keys.'}
           </p>
           {onCancel && (
             <button onClick={onCancel} style={styles.secondaryButton}>
@@ -272,7 +272,7 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
         {registrationStep === 'welcome' && (
           <div style={styles.card}>
             <div style={styles.iconLarge}>🔐</div>
-            <h2 style={styles.title}>Welcome to CryptID</h2>
+            <h2 style={styles.title}>Welcome to enCryptID</h2>
             <p style={styles.subtitle}>Passwordless, secure authentication</p>
 
             <div style={styles.explainerBox}>
@@ -531,7 +531,7 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
           <div style={styles.card}>
             <div style={styles.successIcon}>✓</div>
             <h2 style={styles.title}>Welcome, {username}!</h2>
-            <p style={styles.subtitle}>Your CryptID account is ready</p>
+            <p style={styles.subtitle}>Your enCryptID account is ready</p>
 
             <div style={styles.successBox}>
               <div style={styles.successItem}>
@@ -578,7 +578,7 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
     <div style={styles.container}>
       <div style={styles.card}>
         <div style={styles.iconLarge}>🔐</div>
-        <h2 style={styles.title}>Sign In with CryptID</h2>
+        <h2 style={styles.title}>Sign In with enCryptID</h2>
 
         {existingUsers.length > 0 ? (
           <>
@@ -624,7 +624,7 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
               No accounts found on this device.
             </p>
             <p style={{ ...styles.hint, marginBottom: '20px' }}>
-              Create a new CryptID or use a backup link from another device to sign in here.
+              Create a new enCryptID or use a backup link from another device to sign in here.
             </p>
           </div>
         )}
@@ -639,7 +639,7 @@ const CryptID: React.FC<CryptIDProps> = ({ onSuccess, onCancel }) => {
           style={existingUsers.length > 0 ? { ...styles.linkButton, marginTop: '20px' } : styles.primaryButton}
           disabled={isLoading}
         >
-          {existingUsers.length > 0 ? 'Need an account? Create one' : 'Create a CryptID'}
+          {existingUsers.length > 0 ? 'Need an account? Create one' : 'Create an enCryptID'}
         </button>
       </div>
     </div>

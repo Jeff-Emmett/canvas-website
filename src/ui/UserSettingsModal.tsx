@@ -412,9 +412,9 @@ export function UserSettingsModal({ onClose, isDarkMode, onToggleDarkMode }: Use
 
               <div className="settings-divider" />
 
-              {/* CryptID Account Section */}
+              {/* enCryptID Account Section */}
               <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', color: colors.text }}>
-                CryptID Account
+                enCryptID Account
               </h3>
 
               {session.authed && session.username ? (
@@ -433,7 +433,7 @@ export function UserSettingsModal({ onClose, isDarkMode, onToggleDarkMode }: Use
                         {session.username}
                       </span>
                       <p style={{ fontSize: '11px', color: colors.textMuted, marginTop: '2px' }}>
-                        Your CryptID username - cryptographically secured
+                        Your enCryptID username - cryptographically secured
                       </p>
                     </div>
                   </div>
@@ -541,7 +541,7 @@ export function UserSettingsModal({ onClose, isDarkMode, onToggleDarkMode }: Use
                   }}
                 >
                   <p style={{ fontSize: '12px', color: colors.warningText }}>
-                    Sign in to manage your CryptID account settings
+                    Sign in to manage your enCryptID account settings
                   </p>
                 </div>
               )}

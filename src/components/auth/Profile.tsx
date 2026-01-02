@@ -62,7 +62,7 @@ export const Profile: React.FC<ProfileProps> = ({ onLogout, onOpenVaultBrowser }
   return (
     <div className="profile-container">
       <div className="profile-header">
-        <h3>CryptID: {session.username}</h3>
+        <h3>enCryptID: {session.username}</h3>
       </div>
       
       <div className="profile-settings">

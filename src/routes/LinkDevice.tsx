@@ -30,7 +30,7 @@ export const LinkDevice: React.FC = () => {
       if (result.success) {
         setStatus('success');
         setCryptidUsername(result.cryptidUsername || '');
-        setMessage('This device has been linked to your CryptID account!');
+        setMessage('This device has been linked to your enCryptID account!');
 
         // Set the session - user is now logged in
         if (result.cryptidUsername) {

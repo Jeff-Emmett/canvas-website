@@ -8,6 +8,7 @@ import { GoogleExportBrowser } from '../GoogleExportBrowser';
 import { getFathomApiKey, saveFathomApiKey, removeFathomApiKey, isFathomApiKeyConfigured } from '../../lib/fathomApiKey';
 import { isMiroApiKeyConfigured } from '../../lib/miroApiKey';
 import { MiroIntegrationModal } from '../MiroIntegrationModal';
+import { WalletLinkPanel } from '../WalletLinkPanel';
 import { getMyConnections, createConnection, removeConnection, updateTrustLevel, updateEdgeMetadata } from '../../lib/networking/connectionService';
 import { TRUST_LEVEL_COLORS, type TrustLevel, type UserConnectionWithProfile, type EdgeMetadata } from '../../lib/networking/types';
 
@@ -26,6 +27,7 @@ const CryptIDDropdown: React.FC<CryptIDDropdownProps> = ({ isDarkMode = false })
   const [showGoogleBrowser, setShowGoogleBrowser] = useState(false);
   const [showObsidianModal, setShowObsidianModal] = useState(false);
   const [showMiroModal, setShowMiroModal] = useState(false);
+  const [showWalletModal, setShowWalletModal] = useState(false);
   const [obsidianVaultUrl, setObsidianVaultUrl] = useState('');
   const [googleConnected, setGoogleConnected] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -335,7 +337,7 @@ const CryptIDDropdown: React.FC<CryptIDDropdownProps> = ({ isDarkMode = false })
           transition: 'background 0.15s',
           pointerEvents: 'all',
         }}
-        title={session.authed ? session.username : 'Sign in with CryptID'}
+        title={session.authed ? session.username : 'Sign in with enCryptID'}
       >
         {session.authed ? (
           <>
@@ -429,7 +431,7 @@ const CryptIDDropdown: React.FC<CryptIDDropdownProps> = ({ isDarkMode = false })
                         <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                         <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                       </svg>
-                      CryptID secured
+                      enCryptID secured
                     </div>
                   </div>
                 </div>
@@ -812,6 +814,63 @@ const CryptIDDropdown: React.FC<CryptIDDropdownProps> = ({ isDarkMode = false })
                   )}
                 </div>
 
+                {/* Web3 Wallet */}
+                <div style={{ padding: '6px 10px', borderTop: '1px solid var(--color-grid)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <div style={{
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '4px',
+                      background: 'linear-gradient(135deg, #627eea 0%, #3b82f6 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '12px',
+                    }}>
+                      👛
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text)' }}>
+                        Web3 Wallet
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-2)' }}>
+                        Link wallet to enCryptID
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowWalletModal(true);
+                      setShowDropdown(false);
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    style={{
+                      width: '100%',
+                      padding: '6px 12px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      borderRadius: '4px',
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #627eea 0%, #3b82f6 100%)',
+                      color: 'white',
+                      cursor: 'pointer',
+                      pointerEvents: 'all',
+                      transition: 'all 0.15s',
+                      boxShadow: '0 2px 4px rgba(99, 102, 241, 0.3)',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'linear-gradient(135deg, #4f46e5 0%, #2563eb 100%)';
+                      e.currentTarget.style.boxShadow = '0 4px 8px rgba(99, 102, 241, 0.4)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'linear-gradient(135deg, #627eea 0%, #3b82f6 100%)';
+                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(99, 102, 241, 0.3)';
+                    }}
+                  >
+                    Manage Wallets
+                  </button>
+                </div>
+
                 {/* Miro Board Import - Coming Soon */}
                 <div style={{ padding: '6px 10px', borderTop: '1px solid var(--color-grid)', opacity: 0.6 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
@@ -1157,6 +1216,107 @@ const CryptIDDropdown: React.FC<CryptIDDropdownProps> = ({ isDarkMode = false })
           onClose={() => setShowMiroModal(false)}
           username={session.username}
         />,
+        document.body
+      )}
+
+      {/* Web3 Wallet Modal */}
+      {showWalletModal && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100001,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowWalletModal(false);
+            }
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: isDarkMode ? '#1f1f1f' : '#ffffff',
+              borderRadius: '16px',
+              padding: '0',
+              width: '420px',
+              maxWidth: '95vw',
+              maxHeight: '90vh',
+              boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+              overflow: 'auto',
+              position: 'relative',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '16px 20px',
+              borderBottom: `1px solid ${isDarkMode ? '#333' : '#e5e7eb'}`,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #627eea 0%, #3b82f6 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '18px',
+                }}>
+                  👛
+                </div>
+                <div>
+                  <h3 style={{
+                    margin: 0,
+                    fontSize: '16px',
+                    fontWeight: 600,
+                    color: isDarkMode ? '#f4f4f5' : '#1f2937',
+                  }}>
+                    Web3 Wallet
+                  </h3>
+                  <p style={{
+                    margin: 0,
+                    fontSize: '12px',
+                    color: isDarkMode ? '#a1a1aa' : '#6b7280',
+                  }}>
+                    Connect & link to enCryptID
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowWalletModal(false)}
+                style={{
+                  background: isDarkMode ? '#333' : '#f3f4f6',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '32px',
+                  height: '32px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: isDarkMode ? '#a1a1aa' : '#6b7280',
+                  fontSize: '18px',
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* WalletLinkPanel content */}
+            <WalletLinkPanel />
+          </div>
+        </div>,
         document.body
       )}
 

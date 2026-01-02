@@ -1,9 +1,9 @@
 /**
- * WalletLinkPanel - UI for connecting and linking Web3 wallets to CryptID
+ * WalletLinkPanel - UI for connecting and linking Web3 wallets to enCryptID
  *
  * Features:
  * - Connect wallet (MetaMask, WalletConnect, etc.)
- * - Link wallet to CryptID account via signature
+ * - Link wallet to enCryptID account via signature
  * - View and manage linked wallets
  * - Set primary wallet
  * - Unlink wallets
@@ -270,9 +270,9 @@ function LinkWalletSection({
   if (!isAuthenticated) {
     return (
       <div style={styles.section}>
-        <div style={styles.sectionTitle}>Link to CryptID</div>
+        <div style={styles.sectionTitle}>Link to enCryptID</div>
         <div style={{ ...styles.card, color: '#6b7280' }}>
-          Please sign in with CryptID to link your wallet.
+          Please sign in with enCryptID to link your wallet.
         </div>
       </div>
     );
@@ -280,10 +280,10 @@ function LinkWalletSection({
 
   return (
     <div style={styles.section}>
-      <div style={styles.sectionTitle}>Link to CryptID</div>
+      <div style={styles.sectionTitle}>Link to enCryptID</div>
       <div style={styles.card}>
         <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '12px' }}>
-          Link this wallet to your CryptID account. You'll be asked to sign a message
+          Link this wallet to your enCryptID account. You'll be asked to sign a message
           to prove ownership.
         </p>
         <input
