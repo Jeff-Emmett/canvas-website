@@ -119,14 +119,6 @@ const RedirectBoardSlug = () => {
   return <Navigate to={`/board/${slug}/`} replace />;
 };
 
-/**
- * Component to redirect direct slug URLs to board URLs
- * Handles canvas.jeffemmett.com/ccc → /board/ccc/
- */
-const RedirectDirectSlug = () => {
-  const { slug } = useParams<{ slug: string }>();
-  return <Navigate to={`/board/${slug}/`} replace />;
-};
 
 /**
  * Main App with context providers
@@ -223,11 +215,19 @@ const AppWithProviders = () => {
                       <Route path="/google" element={<GoogleDataTest />} />
                       <Route path="/oauth/google/callback" element={<GoogleDataTest />} />
 
-                      {/* Catch-all: Direct slug URLs redirect to board URLs */}
-                      {/* e.g., canvas.jeffemmett.com/ccc → /board/ccc/ */}
+                      {/* Catch-all: Direct slug URLs serve board directly */}
+                      {/* e.g., canvas.jeffemmett.com/ccc → shows board "ccc" */}
                       {/* Must be LAST to not interfere with other routes */}
-                      <Route path="/:slug" element={<RedirectDirectSlug />} />
-                      <Route path="/:slug/" element={<RedirectDirectSlug />} />
+                      <Route path="/:slug" element={
+                        <OptionalAuthRoute>
+                          <Board />
+                        </OptionalAuthRoute>
+                      } />
+                      <Route path="/:slug/" element={
+                        <OptionalAuthRoute>
+                          <Board />
+                        </OptionalAuthRoute>
+                      } />
                     </Routes>
                   </Suspense>
                   </BrowserRouter>
