@@ -16,21 +16,26 @@ import { injected, walletConnect } from 'wagmi/connectors';
 // =============================================================================
 
 // WalletConnect Project ID - get one at https://cloud.walletconnect.com/
-// For development, we'll use a placeholder that will show a warning
-const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'YOUR_PROJECT_ID';
+// Only include WalletConnect if a valid project ID is provided
+const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID;
+const hasValidWalletConnectId = WALLETCONNECT_PROJECT_ID &&
+  WALLETCONNECT_PROJECT_ID !== 'YOUR_PROJECT_ID' &&
+  WALLETCONNECT_PROJECT_ID.length > 10;
 
 // Supported chains
 const chains = [mainnet, optimism, arbitrum, base, polygon] as const;
 
-// Create wagmi config
-const config = createConfig({
-  chains,
-  connectors: [
-    // Injected wallets (MetaMask, Coinbase Wallet, etc.)
-    injected({
-      shimDisconnect: true,
-    }),
-    // WalletConnect v2 (for mobile wallets)
+// Build connectors array - always include injected, optionally include WalletConnect
+const connectors = [
+  // Injected wallets (MetaMask, Coinbase Wallet, etc.) - always available
+  injected({
+    shimDisconnect: true,
+  }),
+];
+
+// Only add WalletConnect if we have a valid project ID
+if (hasValidWalletConnectId) {
+  connectors.push(
     walletConnect({
       projectId: WALLETCONNECT_PROJECT_ID,
       showQrModal: true,
@@ -40,8 +45,19 @@ const config = createConfig({
         url: typeof window !== 'undefined' ? window.location.origin : 'https://jeffemmett.com',
         icons: ['https://jeffemmett.com/favicon.ico'],
       },
-    }),
-  ],
+    })
+  );
+} else if (import.meta.env.DEV) {
+  console.warn(
+    '[Web3Provider] WalletConnect disabled - no valid VITE_WALLETCONNECT_PROJECT_ID set.\n' +
+    'Get a project ID at https://cloud.walletconnect.com/ to enable mobile wallet support.'
+  );
+}
+
+// Create wagmi config
+const config = createConfig({
+  chains,
+  connectors,
   transports: {
     [mainnet.id]: http(),
     [optimism.id]: http(),
