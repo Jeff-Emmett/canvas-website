@@ -1,10 +1,10 @@
 ---
 id: task-007
 title: Web3 Wallet Linking & Blockchain Integration
-status: To Do
+status: In Progress
 assignee: []
 created_date: '2025-12-03'
-updated_date: '2026-01-02 16:08'
+updated_date: '2026-01-02 16:14'
 labels:
   - feature
   - web3
