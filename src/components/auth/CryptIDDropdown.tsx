@@ -379,9 +379,9 @@ const CryptIDDropdown: React.FC<CryptIDDropdownProps> = ({ isDarkMode = false })
             maxHeight: 'calc(100vh - 100px)',
             background: 'var(--color-background, #ffffff)',
             backgroundColor: 'var(--color-background, #ffffff)',
-            border: '1px solid var(--color-grid)',
-            borderRadius: '8px',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.08)',
+            border: '2px solid #22c55e',
+            borderRadius: '12px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.15), 0 0 0 1px rgba(34, 197, 94, 0.2), 0 0 20px rgba(34, 197, 94, 0.1)',
             zIndex: 100000,
             overflowY: 'auto',
             overflowX: 'hidden',
@@ -403,6 +403,39 @@ const CryptIDDropdown: React.FC<CryptIDDropdownProps> = ({ isDarkMode = false })
         >
           {session.authed ? (
             <>
+              {/* Security header with lock icon */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  padding: '8px 14px',
+                  background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(34, 197, 94, 0.05) 100%)',
+                  borderBottom: '1px solid rgba(34, 197, 94, 0.2)',
+                  cursor: 'help',
+                }}
+                title="All data in this menu is protected with end-to-end encryption. Your keys never leave your browser - only you can decrypt your data."
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="#22c55e" stroke="#22c55e" strokeWidth="1.5">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" fill="none"/>
+                </svg>
+                <span style={{
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: '#22c55e',
+                  letterSpacing: '0.3px',
+                }}>
+                  ENCRYPTED & SECURE
+                </span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" style={{ opacity: 0.7 }}>
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 16v-4"/>
+                  <path d="M12 8h.01"/>
+                </svg>
+              </div>
+
               {/* Account section */}
               <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--color-grid)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -493,8 +526,65 @@ const CryptIDDropdown: React.FC<CryptIDDropdownProps> = ({ isDarkMode = false })
                   Integrations
                 </div>
 
+                {/* Web3 Wallet - First integration */}
+                <div style={{ padding: '6px 10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <div style={{
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '4px',
+                      background: 'linear-gradient(135deg, #627eea 0%, #3b82f6 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '12px',
+                    }}>
+                      👛
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text)' }}>
+                        Web3 Wallet
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-2)' }}>
+                        Link wallet to enCryptID
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowWalletModal(true);
+                      setShowDropdown(false);
+                    }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    style={{
+                      width: '100%',
+                      padding: '6px 12px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      borderRadius: '4px',
+                      border: 'none',
+                      background: 'linear-gradient(135deg, #627eea 0%, #3b82f6 100%)',
+                      color: 'white',
+                      cursor: 'pointer',
+                      pointerEvents: 'all',
+                      transition: 'all 0.15s',
+                      boxShadow: '0 2px 4px rgba(99, 102, 241, 0.3)',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'linear-gradient(135deg, #4f46e5 0%, #2563eb 100%)';
+                      e.currentTarget.style.boxShadow = '0 4px 8px rgba(99, 102, 241, 0.4)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'linear-gradient(135deg, #627eea 0%, #3b82f6 100%)';
+                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(99, 102, 241, 0.3)';
+                    }}
+                  >
+                    Manage Wallets
+                  </button>
+                </div>
+
                 {/* Google Workspace - Coming Soon */}
-                <div style={{ padding: '6px 10px', opacity: 0.6 }}>
+                <div style={{ padding: '6px 10px', borderTop: '1px solid var(--color-grid)', opacity: 0.6 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                     <div style={{
                       width: '24px',
@@ -812,63 +902,6 @@ const CryptIDDropdown: React.FC<CryptIDDropdownProps> = ({ isDarkMode = false })
                       )}
                     </div>
                   )}
-                </div>
-
-                {/* Web3 Wallet */}
-                <div style={{ padding: '6px 10px', borderTop: '1px solid var(--color-grid)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                    <div style={{
-                      width: '24px',
-                      height: '24px',
-                      borderRadius: '4px',
-                      background: 'linear-gradient(135deg, #627eea 0%, #3b82f6 100%)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '12px',
-                    }}>
-                      👛
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text)' }}>
-                        Web3 Wallet
-                      </div>
-                      <div style={{ fontSize: '11px', color: 'var(--color-text-2)' }}>
-                        Link wallet to enCryptID
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setShowWalletModal(true);
-                      setShowDropdown(false);
-                    }}
-                    onPointerDown={(e) => e.stopPropagation()}
-                    style={{
-                      width: '100%',
-                      padding: '6px 12px',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      borderRadius: '4px',
-                      border: 'none',
-                      background: 'linear-gradient(135deg, #627eea 0%, #3b82f6 100%)',
-                      color: 'white',
-                      cursor: 'pointer',
-                      pointerEvents: 'all',
-                      transition: 'all 0.15s',
-                      boxShadow: '0 2px 4px rgba(99, 102, 241, 0.3)',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'linear-gradient(135deg, #4f46e5 0%, #2563eb 100%)';
-                      e.currentTarget.style.boxShadow = '0 4px 8px rgba(99, 102, 241, 0.4)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'linear-gradient(135deg, #627eea 0%, #3b82f6 100%)';
-                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(99, 102, 241, 0.3)';
-                    }}
-                  >
-                    Manage Wallets
-                  </button>
                 </div>
 
                 {/* Miro Board Import - Coming Soon */}
