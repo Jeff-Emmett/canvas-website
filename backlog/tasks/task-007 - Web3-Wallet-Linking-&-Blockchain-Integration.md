@@ -4,7 +4,7 @@ title: Web3 Wallet Linking & Blockchain Integration
 status: To Do
 assignee: []
 created_date: '2025-12-03'
-updated_date: '2026-01-02 15:54'
+updated_date: '2026-01-02 16:08'
 labels:
   - feature
   - web3
@@ -114,3 +114,42 @@ Worker routes:
 - Integration tests for linking flow
 - E2E test for full wallet link journey
 <!-- SECTION:PLAN:END -->
+
+## Implementation Notes
+
+<!-- SECTION:NOTES:BEGIN -->
+## Planning Complete (2026-01-02)
+
+Comprehensive planning phase completed:
+
+### Created Architecture Document (doc-001)
+- Full technical architecture for wallet linking
+- Database schema design
+- API endpoint specifications  
+- Library comparison (wagmi/viem recommended)
+- Security considerations
+- Frontend component designs
+
+### Created Migration File
+- `worker/migrations/002_linked_wallets.sql`
+- Tables: linked_wallets, wallet_link_tokens, wallet_token_balances
+- Proper indexes and foreign keys
+
+### Created Follow-up Tasks
+- task-060: Snapshot Voting Integration
+- task-061: Safe Multisig Integration
+- task-062: Account Abstraction Exploration
+
+### Key Architecture Decisions
+1. **Wallet Linking** approach (not key reuse) due to P-256/secp256k1 incompatibility
+2. **wagmi v2 + viem** for frontend (React hooks, tree-shakeable)
+3. **viem** for worker (signature verification)
+4. **EIP-191 personal_sign** for EOA verification
+5. **ERC-1271** for Safe/contract wallet verification (future)
+
+### Next Steps
+1. Install dependencies: wagmi, viem, @tanstack/react-query, @web3modal/wagmi
+2. Run migration on D1
+3. Implement API endpoints in worker
+4. Build WalletLinkPanel UI component
+<!-- SECTION:NOTES:END -->
