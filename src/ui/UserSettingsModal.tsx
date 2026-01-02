@@ -6,6 +6,7 @@ import { getFathomApiKey, saveFathomApiKey, removeFathomApiKey, isFathomApiKeyCo
 import { linkEmailToAccount, checkEmailStatus, type LookupResult } from "../lib/auth/cryptidEmailService"
 import { GoogleDataService, type GoogleService, type ShareableItem } from "../lib/google"
 import { GoogleExportBrowser } from "../components/GoogleExportBrowser"
+import { WalletLinkPanel } from "../components/WalletLinkPanel"
 
 // AI tool model configurations
 const AI_TOOLS = [
@@ -975,6 +976,25 @@ export function UserSettingsModal({ onClose, isDarkMode, onToggleDarkMode }: Use
                     No data imported yet. Visit <a href="/google" style={{ color: colors.linkColor }}>/google</a> to import.
                   </p>
                 )}
+              </div>
+
+              <div className="settings-divider" />
+
+              {/* Web3 Wallet Section */}
+              <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '12px', marginTop: '8px', color: colors.text }}>
+                Web3 Wallets
+              </h3>
+
+              <div
+                style={{
+                  padding: '0',
+                  backgroundColor: colors.cardBg,
+                  borderRadius: '8px',
+                  border: `1px solid ${colors.cardBorder}`,
+                  overflow: 'hidden',
+                }}
+              >
+                <WalletLinkPanel />
               </div>
 
               {/* Future Integrations Placeholder */}

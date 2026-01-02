@@ -233,3 +233,94 @@ export interface NetworkGraph {
 	// Current user's connections (for filtering)
 	myConnections: string[];  // User IDs I'm connected to
 }
+
+// =============================================================================
+// Linked Wallet Types (Web3 Integration)
+// =============================================================================
+
+/**
+ * Wallet types supported for linking
+ * - 'eoa': Externally Owned Account (standard wallet)
+ * - 'safe': Safe (Gnosis Safe) multisig
+ * - 'hardware': Hardware wallet (via MetaMask bridge)
+ * - 'contract': Other smart contract wallet
+ */
+export type WalletType = 'eoa' | 'safe' | 'hardware' | 'contract';
+
+/**
+ * Linked wallet record in the database
+ */
+export interface LinkedWallet {
+	id: string;
+	user_id: string;
+	wallet_address: string;
+	wallet_type: WalletType;
+	chain_id: number;
+	label: string | null;
+	signature_message: string;
+	signature: string;
+	verified_at: string;
+	ens_name: string | null;
+	ens_avatar: string | null;
+	ens_resolved_at: string | null;
+	is_primary: number;  // SQLite boolean (0 or 1)
+	is_active: number;   // SQLite boolean (0 or 1)
+	created_at: string;
+	updated_at: string;
+	last_used_at: string | null;
+}
+
+/**
+ * Wallet link token for delayed verification (Safe/contract wallets)
+ */
+export interface WalletLinkToken {
+	id: string;
+	user_id: string;
+	wallet_address: string;
+	nonce: string;
+	token: string;
+	expires_at: string;
+	used: number;
+	created_at: string;
+}
+
+/**
+ * Cached token balance for a wallet
+ */
+export interface WalletTokenBalance {
+	id: string;
+	wallet_address: string;
+	token_address: string;
+	token_type: 'erc20' | 'erc721' | 'erc1155';
+	chain_id: number;
+	balance: string;  // String to handle big numbers
+	last_updated: string;
+}
+
+/**
+ * API response format for linked wallets
+ */
+export interface LinkedWalletResponse {
+	id: string;
+	address: string;
+	type: WalletType;
+	chainId: number;
+	label: string | null;
+	ensName: string | null;
+	ensAvatar: string | null;
+	isPrimary: boolean;
+	linkedAt: string;
+	lastUsedAt: string | null;
+}
+
+/**
+ * Request body for linking a wallet
+ */
+export interface WalletLinkRequest {
+	walletAddress: string;
+	signature: string;
+	message: string;
+	walletType?: WalletType;
+	chainId?: number;
+	label?: string;
+}

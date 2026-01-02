@@ -37,6 +37,14 @@ import {
   handleListAllUsers,
   handleCheckUsername,
 } from "./cryptidAuth"
+import {
+  handleLinkWallet,
+  handleListWallets,
+  handleGetWallet,
+  handleUpdateWallet,
+  handleUnlinkWallet,
+  handleVerifyWallet,
+} from "./walletAuth"
 
 // make sure our sync durable objects are made available to cloudflare
 export { AutomergeDurableObject } from "./AutomergeDurableObject"
@@ -996,6 +1004,32 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
   .get("/admin/users", handleListAllUsers)
 
   // =============================================================================
+  // Wallet Linking API (Web3 Integration)
+  // =============================================================================
+
+  // Link a new wallet to the authenticated user's CryptID account
+  .post("/api/wallet/link", handleLinkWallet)
+
+  // List all wallets linked to the authenticated user
+  .get("/api/wallet/list", handleListWallets)
+
+  // Check if a wallet address is linked to any CryptID account (public)
+  .get("/api/wallet/verify/:address", (req, env) =>
+    handleVerifyWallet(req, env, req.params.address))
+
+  // Get details for a specific linked wallet
+  .get("/api/wallet/:address", (req, env) =>
+    handleGetWallet(req, env, req.params.address))
+
+  // Update a linked wallet (label, primary status)
+  .patch("/api/wallet/:address", (req, env) =>
+    handleUpdateWallet(req, env, req.params.address))
+
+  // Unlink a wallet from the account
+  .delete("/api/wallet/:address", (req, env) =>
+    handleUnlinkWallet(req, env, req.params.address))
+
+  // =============================================================================
   // User Networking / Social Graph API
   // =============================================================================
 
@@ -1709,6 +1743,177 @@ router
         message: 'R2 access test failed',
         error: (error as Error).message
       }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
+  // ============================================================================
+  // Migration endpoints - for batch converting legacy JSON to Automerge format
+  // ============================================================================
+
+  // List all rooms with their size and migration status
+  .get("/migrate/list", async (_, env) => {
+    try {
+      const rooms: Array<{
+        roomId: string
+        hasJson: boolean
+        hasAutomerge: boolean
+        shapeCount: number
+        recordCount: number
+        needsMigration: boolean
+      }> = []
+
+      // List all rooms in R2
+      let cursor: string | undefined = undefined
+      do {
+        const result = await env.TLDRAW_BUCKET.list({
+          prefix: 'rooms/',
+          cursor,
+          delimiter: '/'
+        })
+
+        // Process each room prefix
+        for (const prefix of result.delimitedPrefixes || []) {
+          const roomId = prefix.replace('rooms/', '').replace('/', '')
+          if (!roomId) continue
+
+          // Check if JSON exists
+          const jsonObject = await env.TLDRAW_BUCKET.head(`rooms/${roomId}`)
+          const hasJson = !!jsonObject
+
+          // Check if Automerge binary exists
+          const automergeObject = await env.TLDRAW_BUCKET.head(`rooms/${roomId}/automerge.bin`)
+          const hasAutomerge = !!automergeObject
+
+          // Get shape count from JSON if it exists
+          let shapeCount = 0
+          let recordCount = 0
+          if (hasJson) {
+            try {
+              const jsonData = await env.TLDRAW_BUCKET.get(`rooms/${roomId}`)
+              if (jsonData) {
+                const doc = await jsonData.json() as { store?: Record<string, any> }
+                if (doc.store) {
+                  recordCount = Object.keys(doc.store).length
+                  shapeCount = Object.values(doc.store).filter((r: any) => r?.typeName === 'shape').length
+                }
+              }
+            } catch (e) {
+              console.error(`Error reading room ${roomId}:`, e)
+            }
+          }
+
+          rooms.push({
+            roomId,
+            hasJson,
+            hasAutomerge,
+            shapeCount,
+            recordCount,
+            needsMigration: hasJson && !hasAutomerge
+          })
+        }
+
+        cursor = result.truncated ? result.cursor : undefined
+      } while (cursor)
+
+      // Sort by shape count descending (largest first)
+      rooms.sort((a, b) => b.shapeCount - a.shapeCount)
+
+      const summary = {
+        total: rooms.length,
+        needsMigration: rooms.filter(r => r.needsMigration).length,
+        alreadyMigrated: rooms.filter(r => r.hasAutomerge).length,
+        largeRooms: rooms.filter(r => r.shapeCount > 5000).length
+      }
+
+      return new Response(JSON.stringify({ summary, rooms }, null, 2), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('Migration list failed:', error)
+      return new Response(JSON.stringify({
+        error: 'Failed to list rooms',
+        message: (error as Error).message
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
+  // Migrate a single room to Automerge format
+  .post("/migrate/:roomId", async (request, env) => {
+    const roomId = request.params.roomId
+    if (!roomId) {
+      return new Response(JSON.stringify({ error: 'Room ID is required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    try {
+      // Import the storage module dynamically
+      const { AutomergeR2Storage } = await import('./automerge-r2-storage')
+      const storage = new AutomergeR2Storage(env.TLDRAW_BUCKET)
+
+      // Check if already migrated
+      const isAutomerge = await storage.isAutomergeFormat(roomId)
+      if (isAutomerge) {
+        return new Response(JSON.stringify({
+          success: true,
+          message: 'Room already migrated to Automerge format',
+          roomId
+        }), {
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      // Load legacy JSON
+      const jsonObject = await env.TLDRAW_BUCKET.get(`rooms/${roomId}`)
+      if (!jsonObject) {
+        return new Response(JSON.stringify({
+          error: 'Room not found',
+          roomId
+        }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      const jsonDoc = await jsonObject.json() as { store?: Record<string, any>; schema?: any }
+      const recordCount = jsonDoc.store ? Object.keys(jsonDoc.store).length : 0
+      const shapeCount = jsonDoc.store ? Object.values(jsonDoc.store).filter((r: any) => r?.typeName === 'shape').length : 0
+
+      console.log(`🔄 Starting migration for room ${roomId}: ${shapeCount} shapes, ${recordCount} records`)
+
+      // Perform migration
+      const startTime = Date.now()
+      const doc = await storage.migrateFromJson(roomId, jsonDoc as any)
+      const duration = Date.now() - startTime
+
+      if (!doc) {
+        throw new Error('Migration returned null')
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        message: 'Room migrated successfully',
+        roomId,
+        shapeCount,
+        recordCount,
+        durationMs: duration
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error(`Migration failed for room ${roomId}:`, error)
+      return new Response(JSON.stringify({
+        error: 'Migration failed',
+        roomId,
+        message: (error as Error).message
+      }), {
+        status: 500,
         headers: { 'Content-Type': 'application/json' }
       })
     }
