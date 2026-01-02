@@ -15,11 +15,13 @@ import {
   cameraHistory,
 } from "./cameraUtils"
 
-// Feature flags - disable experimental features in production
-const IS_PRODUCTION = import.meta.env.PROD
-const ENABLE_DRAWFAST = !IS_PRODUCTION // Drawfast - dev only
-const ENABLE_CALENDAR = !IS_PRODUCTION // Calendar - dev only
-const ENABLE_WORKFLOW = !IS_PRODUCTION // Workflow - dev only
+// Feature flags - enable experimental features in dev/staging, disable in production
+// Use VITE_WORKER_ENV to determine environment (staging is NOT production)
+const WORKER_ENV = import.meta.env.VITE_WORKER_ENV || 'production'
+const IS_PRODUCTION_ONLY = WORKER_ENV === 'production' // Only true for actual production
+const ENABLE_DRAWFAST = !IS_PRODUCTION_ONLY // Drawfast - dev/staging only
+const ENABLE_CALENDAR = !IS_PRODUCTION_ONLY // Calendar - dev/staging only
+const ENABLE_WORKFLOW = !IS_PRODUCTION_ONLY // Workflow - dev/staging only
 import { useState, useEffect } from "react"
 import { saveToPdf } from "../utils/pdfUtils"
 import { TLFrameShape } from "tldraw"
@@ -135,6 +137,7 @@ export function CustomContextMenu(props: TLUiContextMenuProps) {
           <TldrawUiMenuItem {...tools.ChatBox} />
           <TldrawUiMenuItem {...tools.ImageGen} />
           <TldrawUiMenuItem {...tools.VideoGen} />
+          <TldrawUiMenuItem {...tools.BlenderGen} />
           {ENABLE_DRAWFAST && <TldrawUiMenuItem {...tools.Drawfast} />}
           <TldrawUiMenuItem {...tools.Markdown} />
           <TldrawUiMenuItem {...tools.ObsidianNote} />

@@ -17,11 +17,13 @@ import { FathomMeetingsPanel } from "../components/FathomMeetingsPanel"
 // Workflow Builder palette
 import WorkflowPalette from "../components/workflow/WorkflowPalette"
 
-// Feature flags - disable experimental features in production
-const IS_PRODUCTION = import.meta.env.PROD
-const ENABLE_WORKFLOW = !IS_PRODUCTION // Workflow blocks - dev only
-const ENABLE_CALENDAR = !IS_PRODUCTION // Calendar - dev only
-const ENABLE_DRAWFAST = !IS_PRODUCTION // Drawfast - dev only
+// Feature flags - enable experimental features in dev/staging, disable in production
+// Use VITE_WORKER_ENV to determine environment (staging is NOT production)
+const WORKER_ENV = import.meta.env.VITE_WORKER_ENV || 'production'
+const IS_PRODUCTION_ONLY = WORKER_ENV === 'production' // Only true for actual production
+const ENABLE_WORKFLOW = !IS_PRODUCTION_ONLY // Workflow blocks - dev/staging only
+const ENABLE_CALENDAR = !IS_PRODUCTION_ONLY // Calendar - dev/staging only
+const ENABLE_DRAWFAST = !IS_PRODUCTION_ONLY // Drawfast - dev/staging only
 import { getFathomApiKey, saveFathomApiKey, removeFathomApiKey, isFathomApiKeyConfigured } from "../lib/fathomApiKey"
 import { getMyConnections, updateEdgeMetadata, createConnection, removeConnection, updateTrustLevel } from "../lib/networking/connectionService"
 import { TRUST_LEVEL_COLORS, type TrustLevel, type UserConnectionWithProfile, type EdgeMetadata } from "../lib/networking/types"
