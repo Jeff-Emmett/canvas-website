@@ -14,6 +14,7 @@
 import { Automerge, initializeAutomerge } from './automerge-init'
 
 // TLDraw store snapshot type (simplified - actual type is more complex)
+// Index signature required for Automerge.Doc generic constraint
 export interface TLStoreSnapshot {
   store: Record<string, any>
   schema?: {
@@ -21,6 +22,7 @@ export interface TLStoreSnapshot {
     storeVersion: number
     [key: string]: any
   }
+  [key: string]: unknown
 }
 
 /**
