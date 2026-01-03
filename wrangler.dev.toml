@@ -1,6 +1,6 @@
 main = "worker/worker.ts"
 compatibility_date = "2024-07-01"
-name = "jeffemmett-canvas-dev"
+name = "jeffemmett-canvas-automerge-dev"
 account_id = "0e7b3338d5278ed1b148e6456b940913"
 
 [vars]
