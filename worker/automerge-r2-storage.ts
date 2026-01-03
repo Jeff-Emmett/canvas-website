@@ -157,7 +157,8 @@ export class AutomergeR2Storage {
       }
 
       // Automerge.from() is optimized for creating documents from existing state
-      const doc = Automerge.from<TLStoreSnapshot>(initialState)
+      // Type assertion needed because TLStoreSnapshot doesn't have index signature
+      const doc = Automerge.from(initialState as unknown as Record<string, unknown>) as Automerge.Doc<TLStoreSnapshot>
 
       const conversionTime = Date.now() - startTime
       console.log(`⏱️ Automerge conversion took ${conversionTime}ms for ${recordCount} records`)
