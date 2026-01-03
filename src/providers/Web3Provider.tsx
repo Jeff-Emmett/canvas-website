@@ -9,7 +9,7 @@ import React, { ReactNode } from 'react';
 import { WagmiProvider, createConfig, http } from 'wagmi';
 import { mainnet, optimism, arbitrum, base, polygon } from 'wagmi/chains';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { injected, walletConnect } from 'wagmi/connectors';
+import { injected } from 'wagmi/connectors';
 
 // =============================================================================
 // Configuration
@@ -17,53 +17,33 @@ import { injected, walletConnect } from 'wagmi/connectors';
 
 // WalletConnect Project ID - get one at https://cloud.walletconnect.com/
 // Only include WalletConnect if a valid project ID is provided
-const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID;
+const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID as string | undefined;
 const hasValidWalletConnectId = WALLETCONNECT_PROJECT_ID &&
   WALLETCONNECT_PROJECT_ID !== 'YOUR_PROJECT_ID' &&
   WALLETCONNECT_PROJECT_ID.length > 10;
 
+// Log WalletConnect status in dev
+if (import.meta.env.DEV) {
+  if (hasValidWalletConnectId) {
+    console.log('[Web3Provider] WalletConnect enabled');
+  } else {
+    console.warn('[Web3Provider] WalletConnect disabled - no valid VITE_WALLETCONNECT_PROJECT_ID');
+  }
+}
+
 // Supported chains
 const chains = [mainnet, optimism, arbitrum, base, polygon] as const;
 
-// Build connectors array - always include injected, optionally include WalletConnect
-const connectors = [
-  // Injected wallets (MetaMask, Coinbase Wallet, etc.) - always available
-  injected({
-    shimDisconnect: true,
-  }),
-];
-
-// Only add WalletConnect if we have a valid project ID
-if (hasValidWalletConnectId) {
-  connectors.push(
-    walletConnect({
-      projectId: WALLETCONNECT_PROJECT_ID,
-      // Disable QR modal - web3modal has issues with project ID propagation
-      // Users can still connect via injected wallets (MetaMask, etc.)
-      showQrModal: false,
-      metadata: {
-        name: 'Canvas',
-        description: 'Collaborative Canvas with Web3 Integration',
-        url: typeof window !== 'undefined' ? window.location.origin : 'https://jeffemmett.com',
-        icons: ['https://jeffemmett.com/favicon.ico'],
-      },
-    })
-  );
-
-  if (import.meta.env.DEV) {
-    console.log('[Web3Provider] WalletConnect enabled with project ID:', WALLETCONNECT_PROJECT_ID.slice(0, 8) + '...');
-  }
-} else if (import.meta.env.DEV) {
-  console.warn(
-    '[Web3Provider] WalletConnect disabled - no valid VITE_WALLETCONNECT_PROJECT_ID set.\n' +
-    'Get a project ID at https://cloud.walletconnect.com/ to enable mobile wallet support.'
-  );
-}
-
-// Create wagmi config
+// Create wagmi config - only include injected wallet connector
+// WalletConnect is disabled until a valid project ID is configured
 const config = createConfig({
   chains,
-  connectors,
+  connectors: [
+    // Injected wallets (MetaMask, Coinbase Wallet, etc.) - always available
+    injected({
+      shimDisconnect: true,
+    }),
+  ],
   transports: {
     [mainnet.id]: http(),
     [optimism.id]: http(),
