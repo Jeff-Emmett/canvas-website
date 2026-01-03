@@ -34,6 +34,7 @@ import { llm, getApiKey } from "@/utils/llmUtils"
 const IS_PRODUCTION = import.meta.env.PROD
 const ENABLE_WORKFLOW = !IS_PRODUCTION // Workflow blocks - dev only
 const ENABLE_CALENDAR = !IS_PRODUCTION // Calendar - dev only
+const ENABLE_DRAWFAST = !IS_PRODUCTION // Drawfast - dev only
 
 export const overrides: TLUiOverrides = {
   tools(editor, tools) {
@@ -227,14 +228,17 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("VideoGen"),
       },
-      Drawfast: {
-        id: "Drawfast",
-        icon: "tool-pencil",
-        label: "Drawfast (AI Sketch)",
-        kbd: "ctrl+shift+d",
-        readonlyOk: true,
-        onSelect: () => editor.setCurrentTool("Drawfast"),
-      },
+      // Drawfast - only available in dev (must match ENABLE_DRAWFAST flag in Board.tsx)
+      ...(ENABLE_DRAWFAST ? {
+        Drawfast: {
+          id: "Drawfast",
+          icon: "tool-pencil",
+          label: "Drawfast (AI Sketch)",
+          kbd: "ctrl+shift+d",
+          readonlyOk: true,
+          onSelect: () => editor.setCurrentTool("Drawfast"),
+        },
+      } : {}),
       Multmux: {
         id: "Multmux",
         icon: "terminal",
