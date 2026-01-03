@@ -379,9 +379,9 @@ const CryptIDDropdown: React.FC<CryptIDDropdownProps> = ({ isDarkMode = false })
             maxHeight: 'calc(100vh - 100px)',
             background: 'var(--color-background, #ffffff)',
             backgroundColor: 'var(--color-background, #ffffff)',
-            border: '2px solid #22c55e',
+            border: '2px solid #64748b',
             borderRadius: '12px',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.15), 0 0 0 1px rgba(34, 197, 94, 0.2), 0 0 20px rgba(34, 197, 94, 0.1)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.15), 0 0 0 1px rgba(100, 116, 139, 0.2), 0 0 20px rgba(100, 116, 139, 0.1)',
             zIndex: 100000,
             overflowY: 'auto',
             overflowX: 'hidden',
@@ -411,25 +411,25 @@ const CryptIDDropdown: React.FC<CryptIDDropdownProps> = ({ isDarkMode = false })
                   justifyContent: 'center',
                   gap: '6px',
                   padding: '8px 14px',
-                  background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(34, 197, 94, 0.05) 100%)',
-                  borderBottom: '1px solid rgba(34, 197, 94, 0.2)',
+                  background: 'linear-gradient(135deg, rgba(100, 116, 139, 0.1) 0%, rgba(100, 116, 139, 0.05) 100%)',
+                  borderBottom: '1px solid rgba(100, 116, 139, 0.2)',
                   cursor: 'help',
                 }}
                 title="All data in this menu is protected with end-to-end encryption. Your keys never leave your browser - only you can decrypt your data."
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="#22c55e" stroke="#22c55e" strokeWidth="1.5">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="#64748b" stroke="#64748b" strokeWidth="1.5">
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                   <path d="M7 11V7a5 5 0 0 1 10 0v4" fill="none"/>
                 </svg>
                 <span style={{
                   fontSize: '11px',
                   fontWeight: 600,
-                  color: '#22c55e',
+                  color: '#64748b',
                   letterSpacing: '0.3px',
                 }}>
                   ENCRYPTED & SECURE
                 </span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" style={{ opacity: 0.7 }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2" style={{ opacity: 0.7 }}>
                   <circle cx="12" cy="12" r="10"/>
                   <path d="M12 16v-4"/>
                   <path d="M12 8h.01"/>
@@ -460,7 +460,7 @@ const CryptIDDropdown: React.FC<CryptIDDropdownProps> = ({ isDarkMode = false })
                       {session.username}
                     </div>
                     <div style={{ fontSize: '11px', color: 'var(--color-text-2)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="#22c55e" stroke="#22c55e" strokeWidth="2">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="#64748b" stroke="#64748b" strokeWidth="2">
                         <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                         <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                       </svg>

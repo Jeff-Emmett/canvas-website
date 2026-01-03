@@ -35,6 +35,11 @@ export class AutomergeDurableObject {
   // Flag to enable/disable CRDT sync (for gradual rollout)
   // ENABLED: Automerge WASM now works with fixed import path
   private useCrdtSync: boolean = true
+  // Maximum shape count for CRDT sync - documents larger than this use JSON sync
+  // to avoid CPU timeout during Automerge binary conversion
+  // With Automerge.from() optimization, testing higher threshold
+  // 7,495 shapes caused CPU timeout with init()+change(), trying 5000 with from()
+  private static readonly CRDT_SYNC_MAX_SHAPES = 5000
   // Tombstone tracking - keeps track of deleted shape IDs to prevent resurrection
   // When a shape is deleted, its ID is added here and persisted to R2
   // This prevents offline clients from resurrecting deleted shapes
@@ -358,17 +363,25 @@ export class AutomergeDurableObject {
     }
 
     // Initialize CRDT sync manager if not already done
+    // First, check document size - large documents use JSON sync to avoid CPU timeout
     if (this.useCrdtSync && !this.syncManager) {
-      console.log(`🔧 Initializing CRDT sync manager for room ${this.roomId}`)
-      this.syncManager = new AutomergeSyncManager(this.r2, this.roomId)
-      try {
-        await this.syncManager.initialize()
-        console.log(`✅ CRDT sync manager initialized (${this.syncManager.getShapeCount()} shapes)`)
-      } catch (error) {
-        console.error(`❌ Failed to initialize CRDT sync manager:`, error)
-        // Disable CRDT sync on initialization failure
+      // Quick check: estimate document size from legacy JSON before initializing CRDT
+      const docEstimate = await this.estimateDocumentSize()
+      if (docEstimate.shapeCount > AutomergeDurableObject.CRDT_SYNC_MAX_SHAPES) {
+        console.log(`⚠️ Document too large for CRDT sync (${docEstimate.shapeCount} shapes > ${AutomergeDurableObject.CRDT_SYNC_MAX_SHAPES} max), using JSON sync`)
         this.useCrdtSync = false
-        this.syncManager = null
+      } else {
+        console.log(`🔧 Initializing CRDT sync manager for room ${this.roomId} (${docEstimate.shapeCount} shapes)`)
+        this.syncManager = new AutomergeSyncManager(this.r2, this.roomId)
+        try {
+          await this.syncManager.initialize()
+          console.log(`✅ CRDT sync manager initialized (${this.syncManager.getShapeCount()} shapes)`)
+        } catch (error) {
+          console.error(`❌ Failed to initialize CRDT sync manager:`, error)
+          // Disable CRDT sync on initialization failure
+          this.useCrdtSync = false
+          this.syncManager = null
+        }
       }
     }
 
@@ -850,6 +863,55 @@ export class AutomergeDurableObject {
     // In a full implementation, you'd want to use Automerge's patch application
     console.log("Applying patch:", patch)
     this.schedulePersistToR2()
+  }
+
+  /**
+   * Quick estimate of document size without full CRDT conversion
+   * Used to decide whether to use CRDT sync or fall back to JSON sync
+   */
+  private async estimateDocumentSize(): Promise<{ shapeCount: number; recordCount: number }> {
+    if (!this.roomId) {
+      return { shapeCount: 0, recordCount: 0 }
+    }
+
+    try {
+      // Try legacy JSON first (faster to check)
+      const legacyObject = await this.r2.get(`rooms/${this.roomId}`)
+      if (legacyObject) {
+        const text = await legacyObject.text()
+        const doc = JSON.parse(text)
+
+        // Handle different document formats
+        let store: Record<string, any> = {}
+        if (doc.store) {
+          store = doc.store
+        } else if (Array.isArray(doc) && doc[0]?.type === 'store') {
+          // Array format with store in first element
+          store = doc[0]?.value || {}
+        }
+
+        const recordCount = Object.keys(store).length
+        const shapeCount = Object.values(store).filter((r: any) => r?.typeName === 'shape').length
+
+        console.log(`📊 Document size estimate: ${shapeCount} shapes, ${recordCount} records`)
+        return { shapeCount, recordCount }
+      }
+
+      // If no legacy JSON, check automerge metadata without loading full binary
+      const metadataObject = await this.r2.get(`rooms/${this.roomId}/metadata.json`)
+      if (metadataObject) {
+        const text = await metadataObject.text()
+        const metadata = JSON.parse(text)
+        const shapeCount = parseInt(metadata.shapeCount || '0', 10)
+        const recordCount = parseInt(metadata.recordCount || '0', 10)
+        console.log(`📊 Document size from metadata: ${shapeCount} shapes, ${recordCount} records`)
+        return { shapeCount, recordCount }
+      }
+    } catch (error) {
+      console.error(`❌ Error estimating document size:`, error)
+    }
+
+    return { shapeCount: 0, recordCount: 0 }
   }
 
   async getDocument() {

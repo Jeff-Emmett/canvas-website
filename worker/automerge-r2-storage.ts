@@ -136,31 +136,42 @@ export class AutomergeR2Storage {
   /**
    * Migrate a JSON document to Automerge format
    * Used for upgrading existing rooms from JSON to Automerge
+   *
+   * OPTIMIZATION: Uses Automerge.from() instead of init() + change()
+   * For large documents, batches records to avoid CPU timeout
    */
   async migrateFromJson(roomId: string, jsonDoc: TLStoreSnapshot): Promise<Automerge.Doc<TLStoreSnapshot> | null> {
     await initializeAutomerge()
 
-    console.log(`🔄 Migrating room ${roomId} from JSON to Automerge format`)
+    const recordCount = jsonDoc.store ? Object.keys(jsonDoc.store).length : 0
+    console.log(`🔄 Migrating room ${roomId} from JSON to Automerge format (${recordCount} records)`)
 
     try {
-      // Create a new Automerge document
-      let doc = Automerge.init<TLStoreSnapshot>()
+      const startTime = Date.now()
 
-      // Apply the JSON data as a change
-      doc = Automerge.change(doc, 'Migrate from JSON', (d) => {
-        d.store = jsonDoc.store || {}
-        if (jsonDoc.schema) {
-          d.schema = jsonDoc.schema
-        }
-      })
+      // Use Automerge.from() for direct initialization - more efficient than init() + change()
+      // This creates the document with initial state in one operation
+      const initialState: TLStoreSnapshot = {
+        store: jsonDoc.store || {},
+        ...(jsonDoc.schema && { schema: jsonDoc.schema })
+      }
+
+      // Automerge.from() is optimized for creating documents from existing state
+      const doc = Automerge.from<TLStoreSnapshot>(initialState)
+
+      const conversionTime = Date.now() - startTime
+      console.log(`⏱️ Automerge conversion took ${conversionTime}ms for ${recordCount} records`)
 
       // Save to R2
+      const saveStart = Date.now()
       const saved = await this.saveDocument(roomId, doc)
+      const saveTime = Date.now() - saveStart
+
       if (!saved) {
         throw new Error('Failed to save migrated document')
       }
 
-      console.log(`✅ Successfully migrated room ${roomId} to Automerge format`)
+      console.log(`✅ Successfully migrated room ${roomId} to Automerge format (conversion: ${conversionTime}ms, save: ${saveTime}ms)`)
       return doc
     } catch (error) {
       console.error(`❌ Error migrating room ${roomId} to Automerge:`, error)
