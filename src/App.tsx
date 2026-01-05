@@ -112,21 +112,12 @@ const OptionalAuthRoute = ({ children }: { children: React.ReactNode }) => {
 };
 
 /**
- * Component to redirect old /board/:slug URLs to canvas.jeffemmett.com/:slug/
- * This handles legacy URLs from jeffemmett.com/board/*
+ * Component to redirect /board/:slug URLs to clean /:slug/ URLs
+ * Used on staging to support both old and new URL patterns
  */
 const RedirectBoardSlug = () => {
   const { slug } = useParams<{ slug: string }>();
-
-  // Redirect to canvas.jeffemmett.com for the canonical board URL
-  useEffect(() => {
-    if (slug) {
-      window.location.href = `https://canvas.jeffemmett.com/${slug}/`;
-    }
-  }, [slug]);
-
-  // Show loading while redirecting
-  return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Redirecting to canvas...</div>;
+  return <Navigate to={`/${slug}/`} replace />;
 };
 
 
