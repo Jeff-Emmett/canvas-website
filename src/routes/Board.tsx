@@ -157,7 +157,10 @@ function sanitizeIndex(index: any): IndexKey {
 const collections: Collection[] = [GraphLayoutCollection]
 import { useAuth } from "../context/AuthContext"
 import { updateLastVisited } from "../lib/starredBoards"
+import { recordBoardVisit } from "../lib/visitedBoards"
 import { captureBoardScreenshot } from "../lib/screenshotService"
+import { logActivity } from "../lib/activityLogger"
+import { ActivityPanel, ActivityToggleButton } from "../components/ActivityPanel"
 
 import { WORKER_URL } from "../constants/workerUrl"
 
@@ -542,6 +545,7 @@ export function Board() {
   const automergeHandle = (storeWithHandle as any).handle
   const { connectionState, isNetworkOnline } = storeWithHandle
   const [editor, setEditor] = useState<Editor | null>(null)
+  const [isActivityPanelOpen, setIsActivityPanelOpen] = useState(false)
 
   // Update read-only state when permission changes after editor is mounted
   useEffect(() => {
@@ -1055,10 +1059,11 @@ export function Board() {
     };
   }, [editor, session.authed, session.username]);
 
-  // Track board visit for starred boards
+  // Track board visit for starred boards and visit history
   useEffect(() => {
     if (session.authed && session.username && roomId) {
       updateLastVisited(session.username, roomId);
+      recordBoardVisit(session.username, roomId);
     }
   }, [session.authed, session.username, roomId]);
 
@@ -1122,6 +1127,80 @@ export function Board() {
       }
     };
   }, [editor, roomId, store.store]);
+
+  // Activity logging - track shape creates, deletes, and significant updates
+  useEffect(() => {
+    if (!editor || !roomId || !store.store) return;
+
+    const username = session.username || 'Anonymous';
+
+    // Track which shapes we've logged updates for (to debounce)
+    const recentUpdates = new Map<string, number>();
+    const UPDATE_DEBOUNCE_MS = 2000;
+
+    const unsubscribe = store.store.listen(({ changes, source }) => {
+      // Only track user actions, not remote sync
+      if (source !== 'user') return;
+
+      // Log created shapes
+      for (const record of Object.values(changes.added)) {
+        if (record.typeName === 'shape') {
+          logActivity(roomId, {
+            action: 'created',
+            shapeType: (record as any).type,
+            shapeId: record.id,
+            user: username,
+          });
+        }
+      }
+
+      // Log deleted shapes
+      for (const record of Object.values(changes.removed)) {
+        if (record.typeName === 'shape') {
+          logActivity(roomId, {
+            action: 'deleted',
+            shapeType: (record as any).type,
+            shapeId: record.id,
+            user: username,
+          });
+        }
+      }
+
+      // Log significant updates (debounced to avoid logging every tiny movement)
+      for (const [before, after] of Object.values(changes.updated)) {
+        if (before.typeName === 'shape' && after.typeName === 'shape') {
+          const shapeId = after.id;
+          const now = Date.now();
+          const lastUpdate = recentUpdates.get(shapeId) || 0;
+
+          // Only log if we haven't logged this shape recently
+          if (now - lastUpdate > UPDATE_DEBOUNCE_MS) {
+            // Check if this is a significant update (not just position)
+            const beforeShape = before as any;
+            const afterShape = after as any;
+
+            // Compare props (content changes) - skip if only x/y/rotation changed
+            const beforeProps = JSON.stringify(beforeShape.props || {});
+            const afterProps = JSON.stringify(afterShape.props || {});
+
+            if (beforeProps !== afterProps) {
+              recentUpdates.set(shapeId, now);
+              logActivity(roomId, {
+                action: 'updated',
+                shapeType: afterShape.type,
+                shapeId: shapeId,
+                user: username,
+              });
+            }
+          }
+        }
+      }
+    }, { source: "user", scope: "document" });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [editor, roomId, store.store, session.username]);
 
   // TLDraw has built-in undo/redo that works with the store
   // No need for custom undo/redo manager - TLDraw handles it automatically
@@ -1414,6 +1493,18 @@ export function Board() {
             />
           )}
           */}
+          {/* Activity Panel Toggle Button */}
+          <div style={{ position: 'fixed', top: 12, right: 12, zIndex: 999 }}>
+            <ActivityToggleButton
+              onClick={() => setIsActivityPanelOpen(!isActivityPanelOpen)}
+              isActive={isActivityPanelOpen}
+            />
+          </div>
+          {/* Activity Panel */}
+          <ActivityPanel
+            isOpen={isActivityPanelOpen}
+            onClose={() => setIsActivityPanelOpen(false)}
+          />
         </div>
         </LiveImageProvider>
       </ConnectionProvider>

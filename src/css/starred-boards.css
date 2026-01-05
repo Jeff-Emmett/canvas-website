@@ -136,6 +136,122 @@
   box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
+/* Recent Boards Section - Horizontal Scroll */
+.recent-boards-section {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  margin-bottom: 24px;
+}
+
+.recent-boards-row {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Custom scrollbar for recent boards */
+.recent-boards-row::-webkit-scrollbar {
+  height: 6px;
+}
+
+.recent-boards-row::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.recent-boards-row::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.recent-boards-row::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+.recent-board-card {
+  flex: 0 0 200px;
+  scroll-snap-align: start;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.recent-board-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  border-color: #dee2e6;
+  text-decoration: none;
+  color: inherit;
+}
+
+.recent-board-screenshot {
+  width: 100%;
+  height: 100px;
+  background: #e9ecef;
+  position: relative;
+  overflow: hidden;
+}
+
+.recent-board-screenshot img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.recent-board-screenshot .placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 2rem;
+  color: #adb5bd;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+}
+
+.recent-board-info {
+  padding: 12px;
+}
+
+.recent-board-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #212529;
+  margin: 0 0 4px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recent-board-time {
+  font-size: 0.75rem;
+  color: #6c757d;
+  margin: 0;
+}
+
+.recent-boards-empty {
+  text-align: center;
+  padding: 24px;
+  color: #6c757d;
+  font-size: 0.875rem;
+}
+
+.recent-boards-empty-icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+  opacity: 0.5;
+}
+
 .section-header {
   display: flex;
   justify-content: space-between;
@@ -438,6 +554,7 @@ html.dark .dashboard-container {
   
   .dashboard-header,
   .starred-boards-section,
+  .recent-boards-section,
   .quick-actions-section,
 html.dark .auth-required {
     background: #2d2d2d;
@@ -460,14 +577,45 @@ html.dark .action-card p {
   }
   
   .board-card,
+  .recent-board-card,
 html.dark .action-card {
     background: #3a3a3a;
     border-color: #495057;
   }
-  
+
   .board-card:hover,
+  .recent-board-card:hover,
 html.dark .action-card:hover {
     border-color: #6c757d;
+  }
+
+html.dark .recent-board-screenshot {
+    background: #495057;
+  }
+
+html.dark .recent-board-screenshot .placeholder {
+    background: linear-gradient(135deg, #3a3a3a 0%, #495057 100%);
+    color: #6c757d;
+  }
+
+html.dark .recent-board-title {
+    color: #e9ecef;
+  }
+
+html.dark .recent-board-time {
+    color: #adb5bd;
+  }
+
+html.dark .recent-boards-row::-webkit-scrollbar-track {
+    background: #2d2d2d;
+  }
+
+html.dark .recent-boards-row::-webkit-scrollbar-thumb {
+    background: #495057;
+  }
+
+html.dark .recent-boards-row::-webkit-scrollbar-thumb:hover {
+    background: #6c757d;
   }
   
 html.dark .board-slug {

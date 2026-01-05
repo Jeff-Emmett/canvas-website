@@ -3,21 +3,27 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotifications } from '../context/NotificationContext';
 import { getStarredBoards, unstarBoard, StarredBoard } from '../lib/starredBoards';
+import { getRecentlyVisitedBoards, VisitedBoard, formatRelativeTime } from '../lib/visitedBoards';
 import { getBoardScreenshot, removeBoardScreenshot } from '../lib/screenshotService';
 
 export function Dashboard() {
   const { session } = useAuth();
   const { addNotification } = useNotifications();
   const [starredBoards, setStarredBoards] = useState<StarredBoard[]>([]);
+  const [recentBoards, setRecentBoards] = useState<VisitedBoard[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Note: We don't redirect automatically - let the component show auth required message
 
-  // Load starred boards
+  // Load starred boards and recent visits
   useEffect(() => {
     if (session.authed && session.username) {
-      const boards = getStarredBoards(session.username);
-      setStarredBoards(boards);
+      const starred = getStarredBoards(session.username);
+      setStarredBoards(starred);
+
+      const recent = getRecentlyVisitedBoards(session.username, 10);
+      setRecentBoards(recent);
+
       setIsLoading(false);
     }
   }, [session.authed, session.username]);
@@ -73,6 +79,52 @@ export function Dashboard() {
       </header>
 
       <div className="dashboard-content">
+        {/* Last Visited Section */}
+        <section className="recent-boards-section">
+          <div className="section-header">
+            <h2>Last Visited</h2>
+            <span className="board-count">{recentBoards.length}</span>
+          </div>
+
+          {isLoading ? (
+            <div className="loading">Loading...</div>
+          ) : recentBoards.length === 0 ? (
+            <div className="recent-boards-empty">
+              <div className="recent-boards-empty-icon">🕐</div>
+              <p>No recently visited boards yet. Start exploring!</p>
+            </div>
+          ) : (
+            <div className="recent-boards-row">
+              {recentBoards.map((board) => {
+                const screenshot = getBoardScreenshot(board.slug);
+                return (
+                  <Link
+                    key={board.slug}
+                    to={`/board/${board.slug}/`}
+                    className="recent-board-card"
+                  >
+                    <div className="recent-board-screenshot">
+                      {screenshot ? (
+                        <img
+                          src={screenshot.dataUrl}
+                          alt={`Screenshot of ${board.title}`}
+                        />
+                      ) : (
+                        <div className="placeholder">📋</div>
+                      )}
+                    </div>
+                    <div className="recent-board-info">
+                      <h4 className="recent-board-title">{board.title}</h4>
+                      <p className="recent-board-time">{formatRelativeTime(board.visitedAt)}</p>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* Starred Boards Section */}
         <section className="starred-boards-section">
           <div className="section-header">
             <h2>Starred Boards</h2>
