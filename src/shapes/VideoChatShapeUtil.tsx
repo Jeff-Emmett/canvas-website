@@ -235,6 +235,8 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
                   left: 0,
                   right: 0,
                   bottom: 0,
+                  // Only enable pointer events when selected, so canvas can pan when not selected
+                  pointerEvents: isSelected ? "all" : "none",
                 }}
                 allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write"
                 referrerPolicy="no-referrer-when-downgrade"
