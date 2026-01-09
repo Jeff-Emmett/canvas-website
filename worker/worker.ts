@@ -98,6 +98,7 @@ const { preflight, corsify } = cors({
     const allowedOrigins = [
       "https://jeffemmett.com",
       "https://www.jeffemmett.com",
+      "https://canvas.jeffemmett.com",
       "https://jeffemmett-canvas.jeffemmett.workers.dev",
       "https://jeffemmett.com/board/*",
       "http://localhost:5173",

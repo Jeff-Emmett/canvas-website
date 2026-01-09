@@ -479,8 +479,9 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
 
               // Merge server data with local data
               // Strategy:
-              // 1. If local is EMPTY, use server data (bootstrap from R2)
-              // 2. If local HAS data, only add server records that don't exist locally
+              // 1. If local has NO SHAPES (only ephemeral records), use server data
+              // 2. If server has SIGNIFICANTLY MORE shapes (10x), prefer server (stale local cache)
+              // 3. Otherwise, only add server records that don't exist locally
               //    (preserve offline changes, let Automerge CRDT sync handle conflicts)
               if (serverDoc.store && serverRecordCount > 0) {
                 handle.change((doc: any) => {
@@ -489,15 +490,35 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
                     doc.store = {}
                   }
 
+                  // Count LOCAL SHAPES (not just records - ignore ephemeral camera/instance records)
+                  const localShapeCount = Object.values(doc.store).filter((r: any) => r?.typeName === 'shape').length
                   const localIsEmpty = Object.keys(doc.store).length === 0
+
+                  // Server has significantly more shapes - local is likely stale cache
+                  // Use 10x threshold or server has shapes but local has none
+                  const serverHasSignificantlyMore = (
+                    localShapeCount === 0 && serverShapeCount > 0
+                  ) || (
+                    serverShapeCount > 0 && localShapeCount > 0 && serverShapeCount >= localShapeCount * 10
+                  )
+
+                  // If local has no shapes but server does, or server has 10x more,
+                  // replace local with server data (but keep local ephemeral records)
+                  const shouldPreferServer = localIsEmpty || localShapeCount === 0 || serverHasSignificantlyMore
+
                   let addedFromServer = 0
                   let skippedExisting = 0
+                  let replacedFromServer = 0
 
                   Object.entries(serverDoc.store).forEach(([id, record]) => {
-                    if (localIsEmpty) {
-                      // Local is empty - bootstrap everything from server
+                    if (shouldPreferServer) {
+                      // Prefer server data - bootstrap or replace stale local
+                      if (doc.store[id]) {
+                        replacedFromServer++
+                      } else {
+                        addedFromServer++
+                      }
                       doc.store[id] = record
-                      addedFromServer++
                     } else if (!doc.store[id]) {
                       // Local has data but missing this record - add from server
                       // This handles: shapes created on another device and synced to R2
@@ -511,6 +532,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
                     }
                   })
 
+                  console.log(`🔄 Server sync: added=${addedFromServer}, replaced=${replacedFromServer}, skipped=${skippedExisting}, shouldPreferServer=${shouldPreferServer}`)
                 })
 
                 const finalDoc = handle.doc()
