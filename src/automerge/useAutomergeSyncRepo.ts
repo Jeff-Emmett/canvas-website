@@ -117,6 +117,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
   presence: ReturnType<typeof useAutomergePresence>;
   connectionState: ConnectionState;
   isNetworkOnline: boolean;
+  syncVersion: number;
 } {
   const { uri, user } = config
 
@@ -486,6 +487,9 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
               // 3. Otherwise, only add server records that don't exist locally
               //    (preserve offline changes, let Automerge CRDT sync handle conflicts)
               if (serverDoc.store && serverRecordCount > 0) {
+                // Track if we merged any data (needed outside the change callback)
+                let totalMerged = 0
+
                 handle.change((doc: any) => {
                   // Initialize store if it doesn't exist
                   if (!doc.store) {
@@ -534,6 +538,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
                     }
                   })
 
+                  totalMerged = addedFromServer + replacedFromServer
                   console.log(`🔄 Server sync: added=${addedFromServer}, replaced=${replacedFromServer}, skipped=${skippedExisting}, shouldPreferServer=${shouldPreferServer}`)
                 })
 
@@ -542,8 +547,8 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
 
                 // CRITICAL: Force React to re-render after merging server data
                 // The handle object reference doesn't change, so we increment syncVersion
-                if ((addedFromServer > 0 || replacedFromServer > 0) && mounted) {
-                  console.log(`🔄 Forcing UI update after server sync (${addedFromServer + replacedFromServer} records merged)`)
+                if (totalMerged > 0 && mounted) {
+                  console.log(`🔄 Forcing UI update after server sync (${totalMerged} records merged)`)
                   // Increment sync version to trigger React re-render
                   setSyncVersion(v => v + 1)
                 }
