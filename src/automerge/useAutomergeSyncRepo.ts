@@ -135,6 +135,8 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
   const [isLoading, setIsLoading] = useState(true)
   const [connectionState, setConnectionState] = useState<ConnectionState>('connecting')
   const [isNetworkOnline, setIsNetworkOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
+  // Sync version counter - increments when server data is merged, forces re-render
+  const [syncVersion, setSyncVersion] = useState(0)
   const handleRef = useRef<any>(null)
   const storeRef = useRef<any>(null)
   const adapterRef = useRef<any>(null)
@@ -537,6 +539,14 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
 
                 const finalDoc = handle.doc()
                 const finalRecordCount = finalDoc?.store ? Object.keys(finalDoc.store).length : 0
+
+                // CRITICAL: Force React to re-render after merging server data
+                // The handle object reference doesn't change, so we increment syncVersion
+                if ((addedFromServer > 0 || replacedFromServer > 0) && mounted) {
+                  console.log(`🔄 Forcing UI update after server sync (${addedFromServer + replacedFromServer} records merged)`)
+                  // Increment sync version to trigger React re-render
+                  setSyncVersion(v => v + 1)
+                }
               } else if (!loadedFromLocal) {
                 // Server is empty and we didn't load from local - fresh start
               }
@@ -704,6 +714,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
     handle,
     presence,
     connectionState,
-    isNetworkOnline
+    isNetworkOnline,
+    syncVersion // Increments when server data is merged, forces re-render
   }
 }
