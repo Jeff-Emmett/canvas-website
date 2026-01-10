@@ -42,20 +42,31 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     };
   }
 
-  generateRoomName(shapeId: string): string {
-    // Extract board ID from URL
-    let boardId = 'default';
+  generateRoomName(): string {
+    // Extract room/canvas slug from URL
+    // Supports both /:slug and /board/:slug patterns
+    let roomSlug = 'default';
     const currentUrl = window.location.pathname;
+
+    // First try /board/:slug pattern
     const boardMatch = currentUrl.match(/\/board\/([^\/]+)/);
     if (boardMatch) {
-      boardId = boardMatch[1].substring(0, 8); // First 8 chars
+      roomSlug = boardMatch[1];
+    } else {
+      // Try direct /:slug pattern (e.g., /mycofi, /ccc)
+      // Exclude known non-board routes
+      const excludedRoutes = ['login', 'contact', 'inbox', 'debug', 'dashboard', 'presentations', 'google', 'oauth'];
+      const slugMatch = currentUrl.match(/^\/([^\/]+)\/?$/);
+      if (slugMatch && !excludedRoutes.includes(slugMatch[1])) {
+        roomSlug = slugMatch[1];
+      }
     }
 
-    // Clean the shape ID (remove 'shape:' prefix and special chars)
-    const cleanShapeId = shapeId.replace(/^shape:/, '').replace(/[^A-Za-z0-9]/g, '').substring(0, 8);
+    // Clean the slug (remove special chars, lowercase)
+    const cleanSlug = roomSlug.replace(/[^A-Za-z0-9-]/g, '').toLowerCase();
 
-    // Create a readable room name
-    return `canvas-${boardId}-${cleanShapeId}`;
+    // Create room name: {slug}-jeffsi-meet
+    return `${cleanSlug}-jeffsi-meet`;
   }
 
   component(shape: IVideoChatShape) {
@@ -70,7 +81,7 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     // Initialize room name if not set
     useEffect(() => {
       if (!roomName) {
-        const newRoomName = this.generateRoomName(shape.id);
+        const newRoomName = this.generateRoomName();
         setRoomName(newRoomName);
 
         // Update shape props with room name
@@ -123,26 +134,29 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
     // Construct Jitsi Meet URL with configuration
     const jitsiUrl = new URL(`https://${JITSI_DOMAIN}/${roomName}`)
 
-    // Add configuration via URL params (Jitsi supports this)
-    const config = {
+    // Add configuration via URL hash params (Jitsi supports this)
+    // Build hash string properly to avoid double-hash bug
+    const configParams = [
+      // Enable prejoin to request camera/mic permissions properly
+      'config.prejoinPageEnabled=true',
+      // Start with devices enabled based on props
+      `config.startWithAudioMuted=${props.allowMicrophone ? 'false' : 'true'}`,
+      `config.startWithVideoMuted=${props.allowCamera ? 'false' : 'true'}`,
       // UI Configuration
-      'config.prejoinPageEnabled': 'false',
-      'config.startWithAudioMuted': props.allowMicrophone ? 'false' : 'true',
-      'config.startWithVideoMuted': props.allowCamera ? 'false' : 'true',
-      'config.disableModeratorIndicator': 'true',
-      'config.enableWelcomePage': 'false',
+      'config.disableModeratorIndicator=true',
+      'config.enableWelcomePage=false',
+      'config.hideConferenceSubject=true',
       // Interface configuration
-      'interfaceConfig.SHOW_JITSI_WATERMARK': 'false',
-      'interfaceConfig.SHOW_BRAND_WATERMARK': 'false',
-      'interfaceConfig.SHOW_POWERED_BY': 'false',
-      'interfaceConfig.HIDE_INVITE_MORE_HEADER': 'true',
-      'interfaceConfig.MOBILE_APP_PROMO': 'false',
-    }
+      'interfaceConfig.SHOW_JITSI_WATERMARK=false',
+      'interfaceConfig.SHOW_BRAND_WATERMARK=false',
+      'interfaceConfig.SHOW_POWERED_BY=false',
+      'interfaceConfig.HIDE_INVITE_MORE_HEADER=true',
+      'interfaceConfig.MOBILE_APP_PROMO=false',
+      'interfaceConfig.DISABLE_JOIN_LEAVE_NOTIFICATIONS=true',
+    ]
 
-    // Add config params to URL
-    Object.entries(config).forEach(([key, value]) => {
-      jitsiUrl.hash = `${jitsiUrl.hash}${jitsiUrl.hash ? '&' : ''}${key}=${value}`
-    })
+    // Set hash once with all params joined
+    jitsiUrl.hash = configParams.join('&')
 
     const handleClose = () => {
       this.editor.deleteShape(shape.id)
@@ -235,8 +249,8 @@ export class VideoChatShape extends BaseBoxShapeUtil<IVideoChatShape> {
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  // Only enable pointer events when selected, so canvas can pan when not selected
-                  pointerEvents: isSelected ? "all" : "none",
+                  // Always enable pointer events for mouse/touch/pen interaction
+                  pointerEvents: "all",
                 }}
                 allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write"
                 referrerPolicy="no-referrer-when-downgrade"
