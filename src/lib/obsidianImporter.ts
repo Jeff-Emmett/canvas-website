@@ -50,6 +50,52 @@ export interface ObsidianVaultRecord {
   meta: Record<string, any>
 }
 
+/**
+ * Light version of note without content - for Automerge sync
+ * Full content is stored in IndexedDB to avoid capacity overflow
+ */
+export interface ObsidianObsNoteMeta {
+  id: string
+  title: string
+  filePath: string
+  tags: string[]
+  created: Date | string
+  modified: Date | string
+  links: string[]
+  backlinks: string[]
+  frontmatter: Record<string, any>
+  vaultPath?: string
+  // content is omitted - stored in IndexedDB
+}
+
+/**
+ * Light version of FolderNode without full note content
+ */
+export interface FolderNodeMeta {
+  name: string
+  path: string
+  children: FolderNodeMeta[]
+  notes: ObsidianObsNoteMeta[]  // Notes without content
+  isExpanded: boolean
+  level: number
+}
+
+/**
+ * Light vault record for Automerge sync - no note content
+ * This prevents capacity overflow and keeps private content local
+ */
+export interface ObsidianVaultRecordLight {
+  id: string
+  typeName: 'obsidian_vault'
+  name: string
+  path: string
+  obs_notes: ObsidianObsNoteMeta[]  // Notes without content
+  totalObsNotes: number
+  lastImported: Date
+  folderTree: FolderNodeMeta  // Folder tree with light notes
+  meta: Record<string, any>
+}
+
 export class ObsidianImporter {
   private vault: ObsidianVault | null = null
 
@@ -625,6 +671,67 @@ A collection of creative project ideas and concepts.
       lastImported: record.lastImported,
       folderTree: record.folderTree
     }
+  }
+
+  /**
+   * Strip content from a note, keeping only metadata
+   */
+  noteToMeta(note: ObsidianObsNote): ObsidianObsNoteMeta {
+    return {
+      id: note.id,
+      title: note.title,
+      filePath: note.filePath,
+      tags: note.tags,
+      created: note.created,
+      modified: note.modified,
+      links: note.links,
+      backlinks: note.backlinks,
+      frontmatter: note.frontmatter,
+      vaultPath: note.vaultPath
+    }
+  }
+
+  /**
+   * Convert folder tree to light version (notes without content)
+   */
+  folderTreeToMeta(node: FolderNode): FolderNodeMeta {
+    return {
+      name: node.name,
+      path: node.path,
+      children: node.children.map(child => this.folderTreeToMeta(child)),
+      notes: node.notes.map(note => this.noteToMeta(note)),
+      isExpanded: node.isExpanded,
+      level: node.level
+    }
+  }
+
+  /**
+   * Convert vault to light Automerge record format (no note content)
+   * Use this for syncing to Automerge to avoid capacity overflow
+   */
+  vaultToLightRecord(vault: ObsidianVault): ObsidianVaultRecordLight {
+    return {
+      id: `obsidian_vault:${vault.name}`,
+      typeName: 'obsidian_vault',
+      name: vault.name,
+      path: vault.path,
+      obs_notes: vault.obs_notes.map(note => this.noteToMeta(note)),
+      totalObsNotes: vault.totalObsNotes,
+      lastImported: vault.lastImported,
+      folderTree: this.folderTreeToMeta(vault.folderTree),
+      meta: {}
+    }
+  }
+
+  /**
+   * Extract note contents for IndexedDB storage
+   * Returns array of {id, content} for batch saving
+   */
+  extractNoteContents(vault: ObsidianVault): Array<{ id: string; content: string }> {
+    return vault.obs_notes.map(note => ({
+      id: note.id,
+      content: note.content
+    }))
   }
 
   /**

@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useMemo, useContext, useRef } from 'react'
-import { ObsidianImporter, ObsidianObsNote, ObsidianVault, FolderNode, ObsidianVaultRecord } from '@/lib/obsidianImporter'
+import React, { useState, useEffect, useMemo, useContext, useRef, useCallback } from 'react'
+import { ObsidianImporter, ObsidianObsNote, ObsidianVault, FolderNode, ObsidianVaultRecord, ObsidianVaultRecordLight, ObsidianObsNoteMeta, FolderNodeMeta } from '@/lib/obsidianImporter'
 import { AuthContext } from '@/context/AuthContext'
 import { useEditor } from '@tldraw/tldraw'
 import { useAutomergeHandle } from '@/context/AutomergeHandleContext'
+import { saveVaultNoteContents, getVaultNoteContents, getNoteContent, deleteVaultNoteContents } from '@/lib/noteContentStore'
 
 interface ObsidianVaultBrowserProps {
   onObsNoteSelect: (obs_note: ObsidianObsNote) => void
@@ -79,45 +80,57 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
     }
   }, [vault])
 
-  // Save vault to Automerge store
-  const saveVaultToAutomerge = (vault: ObsidianVault) => {
+  // Save vault to Automerge store (metadata only) and IndexedDB (content)
+  const saveVaultToAutomerge = async (vault: ObsidianVault) => {
+    // First, save full note content to IndexedDB (local-only, never synced)
+    try {
+      const noteContents = importer.extractNoteContents(vault)
+      await saveVaultNoteContents(vault.name, noteContents)
+      console.log(`Saved ${noteContents.length} note contents to IndexedDB for vault: ${vault.name}`)
+    } catch (idbError) {
+      console.error('Error saving note contents to IndexedDB:', idbError)
+    }
+
+    // Create light record (no content) for Automerge sync
+    const lightRecord = importer.vaultToLightRecord(vault)
+
     if (!automergeHandle) {
+      // No Automerge, just save light metadata to localStorage
       try {
-        const vaultRecord = importer.vaultToRecord(vault)
         localStorage.setItem(`obsidian_vault_cache:${vault.name}`, JSON.stringify({
-          ...vaultRecord,
-          lastImported: vaultRecord.lastImported instanceof Date ? vaultRecord.lastImported.toISOString() : vaultRecord.lastImported
+          ...lightRecord,
+          lastImported: lightRecord.lastImported instanceof Date ? lightRecord.lastImported.toISOString() : lightRecord.lastImported
         }))
       } catch (localStorageError) {
-        console.warn('Could not save vault to localStorage:', localStorageError)
+        console.warn('Could not save vault metadata to localStorage:', localStorageError)
       }
       return
     }
 
     try {
-      const vaultRecord = importer.vaultToRecord(vault)
-
-      // Save directly to Automerge, bypassing TLDraw store validation
+      // Save LIGHT record (no content) to Automerge - this is safe and won't overflow
       automergeHandle.change((doc: any) => {
         if (!doc.store) {
           doc.store = {}
         }
 
         const recordToSave = {
-          ...vaultRecord,
-          lastImported: vaultRecord.lastImported instanceof Date
-            ? vaultRecord.lastImported.toISOString()
-            : vaultRecord.lastImported
+          ...lightRecord,
+          lastImported: lightRecord.lastImported instanceof Date
+            ? lightRecord.lastImported.toISOString()
+            : lightRecord.lastImported
         }
 
-        doc.store[vaultRecord.id] = recordToSave
+        doc.store[lightRecord.id] = recordToSave
       })
 
-      // Also save to localStorage as a backup
+      console.log(`Saved light vault record to Automerge: ${lightRecord.id} (${lightRecord.totalObsNotes} notes, content stored locally)`)
+
+      // Also save light metadata to localStorage as backup
       try {
         localStorage.setItem(`obsidian_vault_cache:${vault.name}`, JSON.stringify({
-          ...vaultRecord,
-          lastImported: vaultRecord.lastImported instanceof Date ? vaultRecord.lastImported.toISOString() : vaultRecord.lastImported
+          ...lightRecord,
+          lastImported: lightRecord.lastImported instanceof Date ? lightRecord.lastImported.toISOString() : lightRecord.lastImported
         }))
       } catch (localStorageError) {
         // Silent fail for backup
@@ -126,10 +139,9 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
       console.error('Error saving vault to Automerge:', error)
       // Try localStorage as fallback
       try {
-        const vaultRecord = importer.vaultToRecord(vault)
         localStorage.setItem(`obsidian_vault_cache:${vault.name}`, JSON.stringify({
-          ...vaultRecord,
-          lastImported: vaultRecord.lastImported instanceof Date ? vaultRecord.lastImported.toISOString() : vaultRecord.lastImported
+          ...lightRecord,
+          lastImported: lightRecord.lastImported instanceof Date ? lightRecord.lastImported.toISOString() : lightRecord.lastImported
         }))
       } catch (localStorageError) {
         console.warn('Could not save vault to localStorage:', localStorageError)
@@ -137,7 +149,87 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
     }
   }
 
-  // Load vault from Automerge store
+  // Clear vault data from Automerge (for privacy - removes any synced vault data)
+  const clearVaultFromAutomerge = useCallback((vaultName: string) => {
+    const vaultId = `obsidian_vault:${vaultName}`
+
+    if (automergeHandle) {
+      try {
+        automergeHandle.change((doc: any) => {
+          if (doc.store && doc.store[vaultId]) {
+            delete doc.store[vaultId]
+            console.log(`Cleared vault from Automerge: ${vaultId}`)
+          }
+        })
+      } catch (error) {
+        console.error('Error clearing vault from Automerge:', error)
+      }
+    }
+
+    // Also clear from localStorage
+    try {
+      localStorage.removeItem(`obsidian_vault_cache:${vaultName}`)
+      console.log(`Cleared vault from localStorage: ${vaultName}`)
+    } catch (e) {
+      // Silent fail
+    }
+
+    // Clear from IndexedDB
+    deleteVaultNoteContents(vaultName).then(() => {
+      console.log(`Cleared vault content from IndexedDB: ${vaultName}`)
+    }).catch(e => {
+      console.error('Error clearing vault from IndexedDB:', e)
+    })
+  }, [automergeHandle])
+
+  // Helper to check if a note has content (distinguishes light vs full records)
+  const noteHasContent = (note: ObsidianObsNote | ObsidianObsNoteMeta): note is ObsidianObsNote => {
+    return 'content' in note && typeof note.content === 'string' && note.content.length > 0
+  }
+
+  // Convert light note to full note with placeholder content
+  const lightNoteToFullNote = (note: ObsidianObsNoteMeta, vaultName: string): ObsidianObsNote => {
+    return {
+      ...note,
+      content: '', // Will be loaded on-demand from IndexedDB
+      vaultPath: note.vaultPath || vaultName
+    }
+  }
+
+  // Convert light folder tree to full folder tree (with empty content placeholders)
+  const lightFolderTreeToFull = (node: FolderNodeMeta, vaultName: string): FolderNode => {
+    return {
+      name: node.name,
+      path: node.path,
+      children: node.children.map(child => lightFolderTreeToFull(child, vaultName)),
+      notes: node.notes.map(note => lightNoteToFullNote(note, vaultName)),
+      isExpanded: node.isExpanded,
+      level: node.level
+    }
+  }
+
+  // Load content for a note from IndexedDB
+  const loadNoteContentFromIDB = async (noteId: string): Promise<string> => {
+    try {
+      const content = await getNoteContent(noteId)
+      return content || ''
+    } catch (e) {
+      console.error('Failed to load note content from IndexedDB:', e)
+      return ''
+    }
+  }
+
+  // Load content for multiple notes from IndexedDB
+  const loadVaultContentFromIDB = async (vaultName: string): Promise<Map<string, string>> => {
+    try {
+      return await getVaultNoteContents(vaultName)
+    } catch (e) {
+      console.error('Failed to load vault content from IndexedDB:', e)
+      return new Map()
+    }
+  }
+
+  // Load vault from Automerge store (handles both light and full records)
   const loadVaultFromAutomerge = (vaultName: string): ObsidianVault | null => {
     // Try loading from Automerge first
     if (automergeHandle) {
@@ -145,17 +237,34 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
         const doc = automergeHandle.doc()
         if (doc && doc.store) {
           const vaultId = `obsidian_vault:${vaultName}`
-          const vaultRecord = doc.store[vaultId] as ObsidianVaultRecord | undefined
+          const vaultRecord = doc.store[vaultId] as (ObsidianVaultRecord | ObsidianVaultRecordLight) | undefined
 
           if (vaultRecord && vaultRecord.typeName === 'obsidian_vault') {
             const recordCopy = JSON.parse(JSON.stringify(vaultRecord))
             if (typeof recordCopy.lastImported === 'string') {
               recordCopy.lastImported = new Date(recordCopy.lastImported)
             }
+
+            // Check if this is a light record (notes don't have content)
+            const isLightRecord = recordCopy.obs_notes.length > 0 && !noteHasContent(recordCopy.obs_notes[0])
+
+            if (isLightRecord) {
+              // Convert light record to full vault with empty content placeholders
+              return {
+                name: recordCopy.name,
+                path: recordCopy.path,
+                obs_notes: recordCopy.obs_notes.map((n: ObsidianObsNoteMeta) => lightNoteToFullNote(n, vaultName)),
+                totalObsNotes: recordCopy.totalObsNotes,
+                lastImported: recordCopy.lastImported,
+                folderTree: lightFolderTreeToFull(recordCopy.folderTree, vaultName)
+              }
+            }
+
             return importer.recordToVault(recordCopy)
           }
         }
       } catch (error) {
+        console.error('Error loading from Automerge:', error)
         // Fall through to localStorage
       }
     }
@@ -164,12 +273,27 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
     try {
       const cached = localStorage.getItem(`obsidian_vault_cache:${vaultName}`)
       if (cached) {
-        const vaultRecord = JSON.parse(cached) as ObsidianVaultRecord
+        const vaultRecord = JSON.parse(cached) as (ObsidianVaultRecord | ObsidianVaultRecordLight)
         if (vaultRecord && vaultRecord.typeName === 'obsidian_vault') {
           if (typeof vaultRecord.lastImported === 'string') {
             vaultRecord.lastImported = new Date(vaultRecord.lastImported)
           }
-          return importer.recordToVault(vaultRecord)
+
+          // Check if this is a light record
+          const isLightRecord = vaultRecord.obs_notes.length > 0 && !noteHasContent(vaultRecord.obs_notes[0])
+
+          if (isLightRecord) {
+            return {
+              name: vaultRecord.name,
+              path: vaultRecord.path,
+              obs_notes: vaultRecord.obs_notes.map((n: any) => lightNoteToFullNote(n, vaultName)),
+              totalObsNotes: vaultRecord.totalObsNotes,
+              lastImported: vaultRecord.lastImported,
+              folderTree: lightFolderTreeToFull(vaultRecord.folderTree as FolderNodeMeta, vaultName)
+            }
+          }
+
+          return importer.recordToVault(vaultRecord as ObsidianVaultRecord)
         }
       }
     } catch (e) {
@@ -564,8 +688,14 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
     }
   }
 
-  const handleObsNoteClick = (obs_note: ObsidianObsNote) => {
-    onObsNoteSelect(obs_note)
+  const handleObsNoteClick = async (obs_note: ObsidianObsNote) => {
+    // Load content from IndexedDB if not already loaded
+    if (!obs_note.content && vault) {
+      const content = await loadNoteContentFromIDB(obs_note.id)
+      onObsNoteSelect({ ...obs_note, content })
+    } else {
+      onObsNoteSelect(obs_note)
+    }
   }
 
   const handleObsNoteToggle = (obs_note: ObsidianObsNote) => {
@@ -578,9 +708,21 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
     setSelectedNotes(newSelected)
   }
 
-  const handleBulkImport = () => {
+  const handleBulkImport = async () => {
     const selectedObsNotes = filteredObsNotes.filter(obs_note => selectedNotes.has(obs_note.id))
-    onObsNotesSelect(selectedObsNotes)
+
+    // Load content from IndexedDB for all selected notes
+    if (vault) {
+      const contentMap = await loadVaultContentFromIDB(vault.name)
+      const notesWithContent = selectedObsNotes.map(note => ({
+        ...note,
+        content: note.content || contentMap.get(note.id) || ''
+      }))
+      onObsNotesSelect(notesWithContent)
+    } else {
+      onObsNotesSelect(selectedObsNotes)
+    }
+
     setSelectedNotes(new Set())
   }
 
@@ -630,6 +772,11 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
 
 
   const handleDisconnectVault = () => {
+    // Clear vault from Automerge/sync when disconnecting
+    if (vault) {
+      clearVaultFromAutomerge(vault.name)
+    }
+
     updateSession({
       obsidianVaultPath: undefined,
       obsidianVaultName: undefined
@@ -644,6 +791,14 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
     setError(null)
     setHasLoadedOnce(false)
     setIsLoadingVault(false)
+  }
+
+  // Clear vault data from Automerge without disconnecting (for privacy)
+  const handleClearVaultFromSync = () => {
+    if (vault) {
+      clearVaultFromAutomerge(vault.name)
+      alert(`Cleared "${vault.name}" from sync. Your vault data will no longer be visible to others.`)
+    }
   }
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -1119,8 +1274,16 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
               >
                 🔌 Disconnect Vault
               </button>
+              <button
+                onClick={handleClearVaultFromSync}
+                className="clear-sync-button"
+                title="Clear vault data from sync (keeps local data)"
+                style={{ marginLeft: '8px', fontSize: '0.85em', opacity: 0.8 }}
+              >
+                🗑️ Clear from Sync
+              </button>
             </div>
-                  
+
             <div className="selection-controls">
               <button
                 onClick={handleSelectAll}
@@ -1374,8 +1537,16 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
               >
                 🔌 Disconnect Vault
               </button>
+              <button
+                onClick={handleClearVaultFromSync}
+                className="clear-sync-button"
+                title="Clear vault data from sync (keeps local data)"
+                style={{ marginLeft: '8px', fontSize: '0.85em', opacity: 0.8 }}
+              >
+                🗑️ Clear from Sync
+              </button>
             </div>
-                  
+
             <div className="selection-controls">
               <button
                 onClick={handleSelectAll}

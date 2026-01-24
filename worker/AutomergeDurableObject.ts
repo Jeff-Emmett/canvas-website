@@ -639,6 +639,14 @@ export class AutomergeDurableObject {
           sessionId: message.sessionId || sessionId
         })
         break
+      case "ephemeral":
+        // Handle Automerge's ephemeral messages (temporary data like cursor positions)
+        // These are part of automerge-repo's sync protocol and should be relayed to other peers
+        // but NOT persisted. They're used for real-time presence/cursor sharing.
+        console.log(`✨ Received ephemeral message from ${sessionId}`)
+        // Relay the ephemeral message to all other connected clients
+        this.broadcastToOthers(sessionId, message)
+        break
       default:
         console.log("Unknown message type:", message.type)
     }
