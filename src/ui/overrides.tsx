@@ -228,6 +228,14 @@ export const overrides: TLUiOverrides = {
         readonlyOk: true,
         onSelect: () => editor.setCurrentTool("VideoGen"),
       },
+      BlenderGen: {
+        id: "BlenderGen",
+        icon: "box",
+        label: "Blender 3D",
+        kbd: "ctrl+shift+b",
+        readonlyOk: true,
+        onSelect: () => editor.setCurrentTool("BlenderGen"),
+      },
       // Drawfast - only available in dev (must match ENABLE_DRAWFAST flag in Board.tsx)
       ...(ENABLE_DRAWFAST ? {
         Drawfast: {
