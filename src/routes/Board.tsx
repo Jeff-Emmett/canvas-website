@@ -107,10 +107,10 @@ import "@/css/obsidian-browser.css"
 // import "@/css/workflow.css" // TODO: Fix TypeScript errors in workflow files before re-enabling
 
 // Helper to validate and fix tldraw IndexKey format
-// tldraw uses fractional indexing where the first letter encodes integer part length:
-// - 'a' = 1-digit integer (a0-a9), 'b' = 2-digit (b10-b99), 'c' = 3-digit (c100-c999), etc.
-// - Optional fractional part can follow (a1V, a1V4rr, etc.)
-// Common invalid formats from old data: "b1" (b expects 2 digits but has 1)
+// tldraw uses fractional indexing with BASE-62 alphanumeric characters (a-z, A-Z, 0-9)
+// Valid indices: "a1", "bBE6lP", "aKB7V", "Zz", etc.
+// The format is: letter prefix + alphanumeric characters
+// We should trust tldraw's indices and only reject truly malformed ones
 function sanitizeIndex(index: any): IndexKey {
   if (!index || typeof index !== 'string' || index.length === 0) {
     return 'a1' as IndexKey
@@ -121,34 +121,15 @@ function sanitizeIndex(index: any): IndexKey {
     return 'a1' as IndexKey
   }
 
-  // Check fractional indexing rules for lowercase prefixes
-  const prefix = index[0]
-  const rest = index.slice(1)
-
-  if (prefix >= 'a' && prefix <= 'z') {
-    // Calculate expected minimum digit count: a=1, b=2, c=3, etc.
-    const expectedDigits = prefix.charCodeAt(0) - 'a'.charCodeAt(0) + 1
-
-    // Extract the integer part (leading digits)
-    const integerMatch = rest.match(/^(\d+)/)
-    if (!integerMatch) {
-      // No digits at all - invalid
-      return 'a1' as IndexKey
-    }
-
-    const integerPart = integerMatch[1]
-
-    // Check if integer part has correct number of digits for the prefix
-    if (integerPart.length < expectedDigits) {
-      // Invalid: "b1" has b (expects 2 digits) but only has 1 digit
-      // Convert to safe format
-      return 'a1' as IndexKey
-    }
-  }
-
-  // Check overall format: letter followed by alphanumeric
+  // Valid format: letter followed by at least one alphanumeric character
+  // tldraw uses base-62 encoding, so alphanumeric chars are valid (not just digits)
   if (/^[a-zA-Z][a-zA-Z0-9]+$/.test(index)) {
     return index as IndexKey
+  }
+
+  // Single letter indices are invalid (need at least letter + one char)
+  if (index.length === 1) {
+    return 'a1' as IndexKey
   }
 
   return 'a1' as IndexKey
