@@ -1191,20 +1191,6 @@ export const ObsidianVaultBrowser: React.FC<ObsidianVaultBrowserProps> = ({
           <h2>
             {vault ? `Obsidian Vault: ${vault.name}` : 'No Obsidian Vault Connected'}
           </h2>
-          {!vault && (
-            <div className="vault-connect-section">
-              <p className="vault-connect-message">
-                Connect your Obsidian vault to browse and add notes to the canvas.
-              </p>
-              <button
-                onClick={handleFolderPicker}
-                className="connect-vault-button"
-                disabled={isLoading}
-              >
-                {isLoading ? 'Connecting...' : 'Connect Vault'}
-              </button>
-            </div>
-          )}
         </div>
 
         {vault && (
