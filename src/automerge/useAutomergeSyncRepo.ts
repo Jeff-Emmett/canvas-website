@@ -481,11 +481,11 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
               const localRecordCount = localDoc?.store ? Object.keys(localDoc.store).length : 0
 
               // Merge server data with local data
-              // Strategy:
-              // 1. If local has NO SHAPES (only ephemeral records), use server data
-              // 2. If server has SIGNIFICANTLY MORE shapes (10x), prefer server (stale local cache)
-              // 3. Otherwise, only add server records that don't exist locally
-              //    (preserve offline changes, let Automerge CRDT sync handle conflicts)
+              // Strategy (IMPROVED):
+              // 1. Server is the source of truth for initial page load
+              // 2. Always update local with server data for shape records
+              // 3. Keep local-only records (potential offline additions not yet synced)
+              // 4. This ensures stale IndexedDB cache doesn't override server data
               if (serverDoc.store && serverRecordCount > 0) {
                 // Track if we merged any data (needed outside the change callback)
                 let totalMerged = 0
@@ -500,46 +500,39 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
                   const localShapeCount = Object.values(doc.store).filter((r: any) => r?.typeName === 'shape').length
                   const localIsEmpty = Object.keys(doc.store).length === 0
 
-                  // Server has significantly more shapes - local is likely stale cache
-                  // Use 10x threshold or server has shapes but local has none
-                  const serverHasSignificantlyMore = (
-                    localShapeCount === 0 && serverShapeCount > 0
-                  ) || (
-                    serverShapeCount > 0 && localShapeCount > 0 && serverShapeCount >= localShapeCount * 10
-                  )
-
-                  // If local has no shapes but server does, or server has 10x more,
-                  // replace local with server data (but keep local ephemeral records)
-                  const shouldPreferServer = localIsEmpty || localShapeCount === 0 || serverHasSignificantlyMore
+                  // IMPROVED: Server is source of truth on initial load
+                  // Prefer server if:
+                  // - Local is empty (first load or cleared cache)
+                  // - Server has more shapes (local is likely stale/incomplete)
+                  // - Local has shapes but server has different/more content
+                  const serverHasMoreContent = serverShapeCount > localShapeCount
+                  const shouldPreferServer = localIsEmpty || localShapeCount === 0 || serverHasMoreContent
 
                   let addedFromServer = 0
-                  let skippedExisting = 0
-                  let replacedFromServer = 0
+                  let updatedFromServer = 0
+                  let keptLocal = 0
 
                   Object.entries(serverDoc.store).forEach(([id, record]) => {
-                    if (shouldPreferServer) {
-                      // Prefer server data - bootstrap or replace stale local
-                      if (doc.store[id]) {
-                        replacedFromServer++
-                      } else {
-                        addedFromServer++
-                      }
-                      doc.store[id] = record
-                    } else if (!doc.store[id]) {
-                      // Local has data but missing this record - add from server
-                      // This handles: shapes created on another device and synced to R2
+                    const existsLocally = !!doc.store[id]
+
+                    if (!existsLocally) {
+                      // Record doesn't exist locally - add from server
                       doc.store[id] = record
                       addedFromServer++
+                    } else if (shouldPreferServer) {
+                      // Record exists locally but server has more content - update with server version
+                      // This handles stale IndexedDB cache scenarios
+                      doc.store[id] = record
+                      updatedFromServer++
                     } else {
-                      // Record exists locally - preserve local version
-                      // The Automerge binary sync will handle merging conflicts via CRDT
-                      // This preserves offline edits to existing shapes
-                      skippedExisting++
+                      // Local has equal or more content - keep local version
+                      // Local changes will sync to server via normal CRDT mechanism
+                      keptLocal++
                     }
                   })
 
-                  totalMerged = addedFromServer + replacedFromServer
-                  console.log(`🔄 Server sync: added=${addedFromServer}, replaced=${replacedFromServer}, skipped=${skippedExisting}, shouldPreferServer=${shouldPreferServer}`)
+                  totalMerged = addedFromServer + updatedFromServer
+                  console.log(`🔄 Server sync: added=${addedFromServer}, updated=${updatedFromServer}, keptLocal=${keptLocal}, serverShapes=${serverShapeCount}, localShapes=${localShapeCount}, preferServer=${shouldPreferServer}`)
                 })
 
                 const finalDoc = handle.doc()

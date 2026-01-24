@@ -34,11 +34,6 @@ import { Web3Provider } from './providers/Web3Provider';
 // Import Google Data test component
 import { GoogleDataTest } from './components/GoogleDataTest';
 
-// Lazy load Daily.co provider - only needed for video chat
-const DailyProvider = lazy(() =>
-  import('@daily-co/daily-react').then(m => ({ default: m.DailyProvider }))
-);
-
 // Loading skeleton for lazy-loaded routes
 const LoadingSpinner = () => (
   <div style={{
@@ -68,25 +63,6 @@ const LoadingSpinner = () => (
     `}</style>
   </div>
 );
-
-// Daily.co call object - initialized lazily when needed
-let dailyCallObject: any = null;
-const getDailyCallObject = async () => {
-  if (dailyCallObject) return dailyCallObject;
-
-  try {
-    // Only create call object if we're in a secure context and mediaDevices is available
-    if (typeof window !== 'undefined' &&
-        window.location.protocol === 'https:' &&
-        navigator.mediaDevices) {
-      const Daily = (await import('@daily-co/daily-js')).default;
-      dailyCallObject = Daily.createCallObject();
-    }
-  } catch (error) {
-    console.warn('Daily.co call object initialization failed:', error);
-  }
-  return dailyCallObject;
-};
 
 /**
  * Optional Auth Route component
@@ -151,8 +127,7 @@ const AppWithProviders = () => {
           <FileSystemProvider>
             <NotificationProvider>
               <Suspense fallback={<LoadingSpinner />}>
-                <DailyProvider callObject={null}>
-                  <BrowserRouter>
+                <BrowserRouter>
                   {/* Display notifications */}
                   <NotificationsDisplay />
 
@@ -227,8 +202,7 @@ const AppWithProviders = () => {
                       } />
                     </Routes>
                   </Suspense>
-                  </BrowserRouter>
-                </DailyProvider>
+                </BrowserRouter>
               </Suspense>
             </NotificationProvider>
           </FileSystemProvider>

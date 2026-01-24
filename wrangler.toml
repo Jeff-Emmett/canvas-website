@@ -10,7 +10,6 @@ account_id = "0e7b3338d5278ed1b148e6456b940913"
 [vars]
 # Environment variables are managed in Cloudflare Dashboard
 # Workers & Pages → jeffemmett-canvas → Settings → Variables
-DAILY_DOMAIN = "mycopunks.daily.co"
 
 # RunPod AI Service Configuration (defaults hardcoded in src/lib/clientConfig.ts)
 # These are documented here for reference - actual values are in the client code
@@ -77,7 +76,7 @@ name = "jeffemmett-canvas-automerge-dev"
 compatibility_date = "2024-07-01"
 
 [env.dev.vars]
-DAILY_DOMAIN = "mycopunks.daily.co"
+# Dev environment variables
 
 [env.dev.durable_objects]
 bindings = [
@@ -106,7 +105,6 @@ crons = ["0 0 * * *"] # Run at midnight UTC every day
 
 # Secrets should be set using `wrangler secret put` command
 # DO NOT put these directly in wrangler.toml:
-# - DAILY_API_KEY
 # - CLOUDFLARE_API_TOKEN
 # - FAL_API_KEY        # For fal.ai image/video generation proxy
 # - RUNPOD_API_KEY     # For RunPod AI endpoints proxy
