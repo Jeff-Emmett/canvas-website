@@ -25,6 +25,9 @@ export interface Environment {
 	RUNPOD_WHISPER_ENDPOINT_ID?: string;
 	// Blender render server URL
 	BLENDER_API_URL?: string;
+	// Local Whisper API configuration
+	WHISPER_API_URL?: string;
+	WHISPER_MODEL?: string;
 }
 
 // CryptID types for auth

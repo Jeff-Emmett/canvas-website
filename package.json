@@ -123,7 +123,7 @@
 		"vite-plugin-top-level-await": "^1.6.0",
 		"vite-plugin-wasm": "^3.5.0",
 		"vitest": "^4.0.16",
-		"wrangler": "^4.33.2"
+		"wrangler": "^4.63.0"
 	},
 	"engines": {
 		"node": ">=20.0.0"

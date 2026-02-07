@@ -911,6 +911,89 @@ const router = AutoRouter<IRequest, [env: Environment, ctx: ExecutionContext]>({
     }
   })
 
+  // Local Whisper API proxy (uses self-hosted faster-whisper-server)
+  .post("/api/whisper/transcribe", async (req, env) => {
+    const WHISPER_API_URL = env.WHISPER_API_URL || 'https://whisper.jeffemmett.com'
+    const WHISPER_MODEL = env.WHISPER_MODEL || 'deepdml/faster-whisper-large-v3-turbo-ct2'
+
+    try {
+      const body = await req.json() as {
+        input: {
+          audio: string  // base64 encoded
+          audio_format?: string
+          language?: string
+        }
+      }
+
+      if (!body.input?.audio) {
+        return new Response(JSON.stringify({ error: 'No audio data provided' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      // Decode base64 audio to binary
+      const audioBase64 = body.input.audio
+      const audioBytes = Uint8Array.from(atob(audioBase64), c => c.charCodeAt(0))
+
+      // Determine file extension from format
+      const format = body.input.audio_format || 'audio/wav'
+      const ext = format.includes('mp3') ? 'mp3' :
+                  format.includes('webm') ? 'webm' :
+                  format.includes('ogg') ? 'ogg' :
+                  format.includes('m4a') ? 'm4a' : 'wav'
+
+      // Create form data for faster-whisper-server
+      const formData = new FormData()
+      formData.append('file', new Blob([audioBytes], { type: format }), `audio.${ext}`)
+      formData.append('model', WHISPER_MODEL)
+      formData.append('response_format', 'json')
+      if (body.input.language) {
+        formData.append('language', body.input.language)
+      }
+
+      // Call local whisper API
+      const response = await fetch(`${WHISPER_API_URL}/v1/audio/transcriptions`, {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        return new Response(JSON.stringify({
+          error: `Whisper API error: ${response.status}`,
+          details: errorText
+        }), {
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      const result = await response.json() as { text?: string; language?: string; duration?: number }
+
+      // Return in RunPod-compatible format for client compatibility
+      return new Response(JSON.stringify({
+        status: 'COMPLETED',
+        output: {
+          text: result.text || '',
+          language: result.language || 'en',
+          duration: result.duration || 0
+        }
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      })
+    } catch (error) {
+      console.error('Local whisper proxy error:', error)
+      return new Response(JSON.stringify({
+        status: 'FAILED',
+        error: (error as Error).message
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    }
+  })
+
   // RunPod proxy - run sync (blocking)
   .post("/api/runpod/:endpointType/runsync", async (req, env) => {
     const endpointType = req.params.endpointType as 'image' | 'video' | 'text' | 'whisper'

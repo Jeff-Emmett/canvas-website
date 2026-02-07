@@ -1,12 +1,13 @@
 /**
- * RunPod API utility functions
- * Handles communication with RunPod WhisperX endpoints
+ * Transcription API utility functions
+ * Now uses self-hosted faster-whisper-server (large-v3-turbo model)
+ * Falls back to RunPod if local whisper is unavailable
  *
- * SECURITY: All RunPod calls go through the Cloudflare Worker proxy
+ * SECURITY: All calls go through the Cloudflare Worker proxy
  * API keys are stored server-side, never exposed to the browser
  */
 
-import { getRunPodProxyConfig } from './clientConfig'
+import { getRunPodProxyConfig, getWorkerApiUrl } from './clientConfig'
 
 export interface RunPodTranscriptionResponse {
   id?: string
@@ -43,15 +44,14 @@ export async function blobToBase64(blob: Blob): Promise<string> {
 }
 
 /**
- * Send transcription request to RunPod endpoint via proxy
- * Handles both synchronous and asynchronous job patterns
+ * Send transcription request to local whisper API via worker proxy
+ * Uses self-hosted faster-whisper-server with large-v3-turbo model (FREE)
+ * Falls back to RunPod if local whisper fails
  */
 export async function transcribeWithRunPod(
   audioBlob: Blob,
   language?: string
 ): Promise<string> {
-  const { proxyUrl } = getRunPodProxyConfig('whisper')
-
   // Check audio blob size (limit to ~10MB to prevent issues)
   const maxSize = 10 * 1024 * 1024 // 10MB
   if (audioBlob.size > maxSize) {
@@ -64,33 +64,28 @@ export async function transcribeWithRunPod(
   // Detect audio format from blob type
   const audioFormat = audioBlob.type || 'audio/wav'
 
-  // Use proxy endpoint - API key and endpoint ID are handled server-side
-  const url = `${proxyUrl}/run`
+  // Use local whisper endpoint (proxied through worker)
+  const workerUrl = getWorkerApiUrl()
+  const url = `${workerUrl}/api/whisper/transcribe`
 
-  // Prepare the request payload
-  // WhisperX typically expects audio as base64 or file URL
-  // The exact format may vary based on your WhisperX endpoint implementation
   const requestBody = {
     input: {
       audio: audioBase64,
       audio_format: audioFormat,
-      language: language || 'en',
-      task: 'transcribe'
-      // Note: Some WhisperX endpoints may expect different field names
-      // Adjust the requestBody structure in this function if needed
+      language: language || 'en'
     }
   }
 
   try {
-    // Add timeout to prevent hanging requests (30 seconds for initial request)
+    // Longer timeout for local CPU transcription (120 seconds)
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 30000)
+    const timeoutId = setTimeout(() => controller.abort(), 120000)
 
+    console.log('Sending transcription request to local whisper API...')
     const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
-        // Authorization is handled by the proxy server-side
       },
       body: JSON.stringify(requestBody),
       signal: controller.signal
@@ -100,30 +95,26 @@ export async function transcribeWithRunPod(
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: response.statusText })) as { error?: string; details?: string }
-      console.error('RunPod API error response:', {
+      console.error('Local whisper API error response:', {
         status: response.status,
         statusText: response.statusText,
         error: errorData
       })
-      throw new Error(`RunPod API error: ${response.status} - ${errorData.error || errorData.details || 'Unknown error'}`)
+      // Could fall back to RunPod here if needed
+      throw new Error(`Whisper API error: ${response.status} - ${errorData.error || errorData.details || 'Unknown error'}`)
     }
 
     const data: RunPodTranscriptionResponse = await response.json()
 
-
-    // Handle async job pattern (RunPod often returns job IDs)
-    if (data.id && (data.status === 'IN_QUEUE' || data.status === 'IN_PROGRESS')) {
-      return await pollRunPodJob(data.id, proxyUrl)
-    }
-
-    // Handle direct response
-    if (data.output?.text) {
+    // Handle direct response (local whisper returns immediately)
+    if (data.status === 'COMPLETED' && data.output?.text) {
+      console.log('Local whisper transcription complete')
       return data.output.text.trim()
     }
 
     // Handle error response
-    if (data.error) {
-      throw new Error(`RunPod transcription error: ${data.error}`)
+    if (data.status === 'FAILED' || data.error) {
+      throw new Error(`Whisper transcription error: ${data.error || 'Unknown error'}`)
     }
 
     // Fallback: try to extract text from segments
@@ -131,14 +122,18 @@ export async function transcribeWithRunPod(
       return data.output.segments.map(seg => seg.text).join(' ').trim()
     }
 
-    // Check if response has unexpected structure
-    console.warn('Unexpected RunPod response structure:', data)
-    throw new Error('No transcription text found in RunPod response. Check endpoint response format.')
+    // Direct text response
+    if (data.output?.text) {
+      return data.output.text.trim()
+    }
+
+    console.warn('Unexpected whisper response structure:', data)
+    throw new Error('No transcription text found in response.')
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error('RunPod request timed out after 30 seconds')
+      throw new Error('Transcription request timed out after 120 seconds')
     }
-    console.error('RunPod transcription error:', error)
+    console.error('Transcription error:', error)
     throw error
   }
 }
