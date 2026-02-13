@@ -1,5 +1,5 @@
 # Canvas Website Docker Compose
-# Production: jeffemmett.com, www.jeffemmett.com
+# Production: jeffemmett.com, www.jeffemmett.com, canvas.jeffemmett.com
 # Dev branch: staging.jeffemmett.com (separate container via docker-compose.dev.yml)
 
 services:
@@ -17,7 +17,7 @@ services:
       - "traefik.docker.network=traefik-public"
       - "traefik.http.services.canvas.loadbalancer.server.port=80"
       # Production deployment (jeffemmett.com and www)
-      - "traefik.http.routers.canvas-prod.rule=Host(`jeffemmett.com`) || Host(`www.jeffemmett.com`)"
+      - "traefik.http.routers.canvas-prod.rule=Host(`jeffemmett.com`) || Host(`www.jeffemmett.com`) || Host(`canvas.jeffemmett.com`)"
       - "traefik.http.routers.canvas-prod.entrypoints=web"
       - "traefik.http.routers.canvas-prod.service=canvas"
     networks:
