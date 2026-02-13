@@ -1,5 +1,5 @@
 # Canvas Website Docker Compose
-# Production: jeffemmett.com, www.jeffemmett.com, canvas.jeffemmett.com
+# Production: jeffemmett.com, www.jeffemmett.com
 # Dev branch: staging.jeffemmett.com (separate container via docker-compose.dev.yml)
 
 services:
