@@ -141,7 +141,7 @@ import { updateLastVisited } from "../lib/starredBoards"
 import { recordBoardVisit } from "../lib/visitedBoards"
 import { captureBoardScreenshot } from "../lib/screenshotService"
 import { logActivity } from "../lib/activityLogger"
-import { ActivityPanel, ActivityToggleButton } from "../components/ActivityPanel"
+import { ActivityPanel } from "../components/ActivityPanel"
 
 import { WORKER_URL } from "../constants/workerUrl"
 
@@ -527,6 +527,17 @@ export function Board() {
   const { connectionState, isNetworkOnline } = storeWithHandle
   const [editor, setEditor] = useState<Editor | null>(null)
   const [isActivityPanelOpen, setIsActivityPanelOpen] = useState(false)
+
+  // Listen for toggle-activity-panel event from settings dropdown
+  useEffect(() => {
+    const handleToggleActivityPanel = () => {
+      setIsActivityPanelOpen(prev => !prev)
+    }
+    window.addEventListener('toggle-activity-panel', handleToggleActivityPanel)
+    return () => {
+      window.removeEventListener('toggle-activity-panel', handleToggleActivityPanel)
+    }
+  }, [])
 
   // Update read-only state when permission changes after editor is mounted
   useEffect(() => {
@@ -1474,14 +1485,7 @@ export function Board() {
             />
           )}
           */}
-          {/* Activity Panel Toggle Button */}
-          <div style={{ position: 'fixed', top: 12, right: 12, zIndex: 999 }}>
-            <ActivityToggleButton
-              onClick={() => setIsActivityPanelOpen(!isActivityPanelOpen)}
-              isActive={isActivityPanelOpen}
-            />
-          </div>
-          {/* Activity Panel */}
+          {/* Activity Panel - toggled from settings dropdown */}
           <ActivityPanel
             isOpen={isActivityPanelOpen}
             onClose={() => setIsActivityPanelOpen(false)}

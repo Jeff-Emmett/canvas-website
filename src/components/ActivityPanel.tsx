@@ -109,15 +109,5 @@ export function ActivityPanel({ isOpen, onClose }: ActivityPanelProps) {
   );
 }
 
-// Toggle button component for the toolbar
-export function ActivityToggleButton({ onClick, isActive }: { onClick: () => void; isActive: boolean }) {
-  return (
-    <button
-      className={`activity-toggle-btn ${isActive ? 'active' : ''}`}
-      onClick={onClick}
-      title="Activity Log"
-    >
-      <span className="activity-toggle-icon">~</span>
-    </button>
-  );
-}
+// Note: ActivityToggleButton has been removed - activity panel is now toggled
+// from the settings dropdown via a custom event 'toggle-activity-panel'

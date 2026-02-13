@@ -71,6 +71,7 @@ function CustomSharePanel() {
   const [mobileMenuSection, setMobileMenuSection] = React.useState<'main' | 'signin' | 'share' | 'settings'>('main')
   // const [showVersionHistory, setShowVersionHistory] = React.useState(false) // TODO: Re-enable when version reversion is ready
   const [showAISection, setShowAISection] = React.useState(false)
+  const [showActivitySection, setShowActivitySection] = React.useState(false)
   const [hasApiKey, setHasApiKey] = React.useState(false)
   const [permissionRequestStatus, setPermissionRequestStatus] = React.useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const [requestMessage, setRequestMessage] = React.useState('')
@@ -958,131 +959,72 @@ function CustomSharePanel() {
                 onWheel={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* Board Permission Section */}
-                <div style={{ padding: '12px 16px 16px' }}>
-                  {/* Section Header */}
+                {/* Your Permission - simplified display */}
+                <div style={{ padding: '12px 16px' }}>
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
-                    marginBottom: '12px',
-                    paddingBottom: '8px',
-                    borderBottom: '1px solid var(--color-panel-contrast)',
+                    justifyContent: 'space-between',
+                    padding: '10px 12px',
+                    background: 'var(--color-muted-2)',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-panel-contrast)',
                   }}>
-                    <span style={{ fontSize: '14px' }}>🔐</span>
-                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>Board Permission</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 500, color: 'var(--color-text)' }}>
+                      <span style={{ fontSize: '14px' }}>{PERMISSION_CONFIG[currentPermission].icon}</span>
+                      <span>Your Permission</span>
+                    </span>
                     <span style={{
-                      marginLeft: 'auto',
-                      fontSize: '10px',
-                      padding: '3px 8px',
+                      fontSize: '11px',
+                      padding: '4px 10px',
                       borderRadius: '12px',
                       background: `${PERMISSION_CONFIG[currentPermission].color}20`,
                       color: PERMISSION_CONFIG[currentPermission].color,
                       fontWeight: 600,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.3px',
                     }}>
                       {PERMISSION_CONFIG[currentPermission].label}
                     </span>
                   </div>
 
-                  {/* Permission levels - indented to show hierarchy */}
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '6px',
-                    marginLeft: '4px',
-                    padding: '8px 12px',
-                    background: 'var(--color-muted-2)',
-                    borderRadius: '8px',
-                    border: '1px solid var(--color-panel-contrast)',
-                  }}>
-                    <span style={{ fontSize: '10px', color: 'var(--color-text-3)', marginBottom: '4px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Access Levels
-                    </span>
-                    {(['view', 'edit', 'admin'] as PermissionLevel[]).map((level) => {
-                      const config = PERMISSION_CONFIG[level]
-                      const isCurrent = currentPermission === level
-                      const canRequest = session.authed && !isCurrent && (
-                        (level === 'edit' && currentPermission === 'view') ||
-                        (level === 'admin' && currentPermission !== 'admin')
-                      )
-
-                      return (
-                        <div
-                          key={level}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            padding: '8px 10px',
-                            borderRadius: '6px',
-                            background: isCurrent ? `${config.color}15` : 'var(--color-panel)',
-                            border: isCurrent ? `2px solid ${config.color}` : '1px solid var(--color-panel-contrast)',
-                            transition: 'all 0.15s ease',
-                          }}
-                        >
-                          <span style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            fontSize: '12px',
-                            color: isCurrent ? config.color : 'var(--color-text)',
-                            fontWeight: isCurrent ? 600 : 400,
-                          }}>
-                            <span style={{ fontSize: '14px' }}>{config.icon}</span>
-                            <span>{config.label}</span>
-                            {isCurrent && (
-                              <span style={{
-                                fontSize: '9px',
-                                padding: '2px 6px',
-                                borderRadius: '10px',
-                                background: config.color,
-                                color: 'white',
-                                fontWeight: 500,
-                              }}>
-                                Current
-                              </span>
-                            )}
-                          </span>
-
-                          {canRequest && (
-                            <button
-                              onClick={() => handleRequestPermission(level)}
-                              disabled={permissionRequestStatus === 'sending'}
-                              style={{
-                                padding: '4px 10px',
-                                fontSize: '10px',
-                                fontWeight: 600,
-                                borderRadius: '4px',
-                                border: `1px solid ${config.color}`,
-                                background: 'transparent',
-                                color: config.color,
-                                cursor: permissionRequestStatus === 'sending' ? 'wait' : 'pointer',
-                                opacity: permissionRequestStatus === 'sending' ? 0.6 : 1,
-                                transition: 'all 0.15s ease',
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = config.color
-                                e.currentTarget.style.color = 'white'
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = 'transparent'
-                                e.currentTarget.style.color = config.color
-                              }}
-                            >
-                              {permissionRequestStatus === 'sending' ? '...' : 'Request'}
-                            </button>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
+                  {/* Request higher permission button */}
+                  {session.authed && currentPermission !== 'admin' && (
+                    <button
+                      onClick={() => handleRequestPermission(currentPermission === 'view' ? 'edit' : 'admin')}
+                      disabled={permissionRequestStatus === 'sending'}
+                      style={{
+                        width: '100%',
+                        marginTop: '8px',
+                        padding: '8px 12px',
+                        fontSize: '12px',
+                        fontWeight: 500,
+                        fontFamily: 'inherit',
+                        borderRadius: '6px',
+                        border: `1px solid ${PERMISSION_CONFIG[currentPermission === 'view' ? 'edit' : 'admin'].color}`,
+                        background: 'transparent',
+                        color: PERMISSION_CONFIG[currentPermission === 'view' ? 'edit' : 'admin'].color,
+                        cursor: permissionRequestStatus === 'sending' ? 'wait' : 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={(e) => {
+                        const color = PERMISSION_CONFIG[currentPermission === 'view' ? 'edit' : 'admin'].color
+                        e.currentTarget.style.background = color
+                        e.currentTarget.style.color = 'white'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent'
+                        e.currentTarget.style.color = PERMISSION_CONFIG[currentPermission === 'view' ? 'edit' : 'admin'].color
+                      }}
+                    >
+                      {permissionRequestStatus === 'sending' ? 'Sending...' :
+                       permissionRequestStatus === 'sent' ? 'Request Sent!' :
+                       `Request ${currentPermission === 'view' ? 'Edit' : 'Admin'} Access`}
+                    </button>
+                  )}
 
                   {/* Request status message */}
                   {requestMessage && (
                     <p style={{
-                      margin: '10px 0 0',
+                      margin: '8px 0 0',
                       fontSize: '11px',
                       padding: '8px 12px',
                       borderRadius: '6px',
@@ -1098,7 +1040,7 @@ function CustomSharePanel() {
 
                   {!session.authed && (
                     <p style={{
-                      margin: '10px 0 0',
+                      margin: '8px 0 0',
                       fontSize: '10px',
                       color: 'var(--color-text-3)',
                       textAlign: 'center',
@@ -1354,6 +1296,121 @@ function CustomSharePanel() {
                       </span>
                     </button>
                   </div>
+                </div>
+
+                <div style={{ height: '1px', background: 'var(--color-panel-contrast)', margin: '0' }} />
+
+                {/* Activity Log Accordion */}
+                <div>
+                  <button
+                    onClick={() => setShowActivitySection(!showActivitySection)}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '12px 16px',
+                      background: showActivitySection ? 'var(--color-muted-2)' : 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--color-text)',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      textAlign: 'left',
+                      transition: 'background 0.15s ease',
+                      fontFamily: 'inherit',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!showActivitySection) e.currentTarget.style.background = 'var(--color-muted-2)'
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!showActivitySection) e.currentTarget.style.background = 'none'
+                    }}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '14px', fontFamily: 'monospace', fontWeight: 700 }}>~</span>
+                      <span>Activity Log</span>
+                    </span>
+                    <span style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '20px',
+                      height: '20px',
+                      borderRadius: '4px',
+                      background: showActivitySection ? 'var(--color-panel)' : 'var(--color-muted-2)',
+                      transition: 'all 0.2s ease',
+                    }}>
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 16 16"
+                        fill="currentColor"
+                        style={{
+                          transform: showActivitySection ? 'rotate(180deg)' : 'rotate(0deg)',
+                          transition: 'transform 0.2s ease',
+                          color: 'var(--color-text-3)',
+                        }}
+                      >
+                        <path d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/>
+                      </svg>
+                    </span>
+                  </button>
+
+                  {showActivitySection && (
+                    <div style={{
+                      padding: '12px 16px',
+                      background: 'var(--color-muted-2)',
+                      borderTop: '1px solid var(--color-panel-contrast)',
+                    }}>
+                      <p style={{
+                        fontSize: '11px',
+                        color: 'var(--color-text-3)',
+                        marginBottom: '12px',
+                        padding: '8px 10px',
+                        background: 'var(--color-panel)',
+                        borderRadius: '6px',
+                        border: '1px solid var(--color-panel-contrast)',
+                      }}>
+                        Track shape creations, deletions, and updates on this board.
+                      </p>
+                      <button
+                        onClick={() => {
+                          setShowSettingsDropdown(false)
+                          // Dispatch custom event to toggle activity panel
+                          window.dispatchEvent(new CustomEvent('toggle-activity-panel'))
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          fontSize: '12px',
+                          fontWeight: 500,
+                          fontFamily: 'inherit',
+                          backgroundColor: isDarkMode ? '#3a3a3a' : '#ffffff',
+                          color: 'var(--color-text)',
+                          border: `1px solid ${isDarkMode ? '#505050' : '#d1d5db'}`,
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = isDarkMode ? '#4a4a4a' : '#f3f4f6'
+                          e.currentTarget.style.borderColor = '#3b82f6'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = isDarkMode ? '#3a3a3a' : '#ffffff'
+                          e.currentTarget.style.borderColor = isDarkMode ? '#505050' : '#d1d5db'
+                        }}
+                      >
+                        <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>~</span>
+                        <span>Open Activity Panel</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ height: '1px', background: 'var(--color-panel-contrast)', margin: '0' }} />
