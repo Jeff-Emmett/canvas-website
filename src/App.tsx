@@ -89,10 +89,18 @@ const OptionalAuthRoute = ({ children }: { children: React.ReactNode }) => {
 
 /**
  * Component to redirect /board/:slug URLs to clean /:slug/ URLs
- * Used on staging to support both old and new URL patterns
+ * On non-canvas hostnames (e.g. jeffemmett.com), redirects to canvas.jeffemmett.com/:slug/
+ * On canvas.jeffemmett.com, does a same-domain redirect to /:slug/
  */
 const RedirectBoardSlug = () => {
   const { slug } = useParams<{ slug: string }>();
+  const canvasHost = 'canvas.jeffemmett.com';
+
+  if (window.location.hostname !== canvasHost && window.location.hostname !== 'localhost') {
+    window.location.replace(`https://${canvasHost}/${slug}/`);
+    return null;
+  }
+
   return <Navigate to={`/${slug}/`} replace />;
 };
 
