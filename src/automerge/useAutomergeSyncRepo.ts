@@ -152,7 +152,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
   const applyJsonSyncData = useCallback((data: TLStoreSnapshot & { deleted?: string[] }) => {
     const currentHandle = handleRef.current
     if (!currentHandle || (!data?.store && !data?.deleted)) {
-      console.warn('⚠️ Cannot apply JSON sync - no handle or data')
+      // No handle or data available for JSON sync - expected during initialization
       return
     }
 

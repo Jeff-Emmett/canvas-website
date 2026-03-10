@@ -48,7 +48,6 @@ function minimalSanitizeRecord(record: any): any {
       }
 
       if (!isValid) {
-        console.warn(`⚠️ MinimalSanitization: Invalid index format "${sanitized.index}" for shape ${sanitized.id}`)
         sanitized.index = 'a1'
       }
     }

@@ -1,6 +1,23 @@
 import { TLRecord, RecordId, TLStore, IndexKey } from "@tldraw/tldraw"
 import * as Automerge from "@automerge/automerge"
 
+// Track invalid index warnings to avoid console spam - log summary instead of per-shape
+let _invalidIndexCount = 0
+let _invalidIndexLogTimer: ReturnType<typeof setTimeout> | null = null
+function logInvalidIndexThrottled(index: string, shapeId: string) {
+  _invalidIndexCount++
+  // Log a summary every 2 seconds instead of per-shape
+  if (!_invalidIndexLogTimer) {
+    _invalidIndexLogTimer = setTimeout(() => {
+      if (_invalidIndexCount > 0) {
+        console.warn(`Invalid index reset to 'a1' for ${_invalidIndexCount} shape(s) (e.g. "${index}" on ${shapeId})`)
+        _invalidIndexCount = 0
+      }
+      _invalidIndexLogTimer = null
+    }, 2000)
+  }
+}
+
 // Helper function to validate if a string is a valid tldraw IndexKey
 // tldraw uses fractional indexing based on https://observablehq.com/@dgreensp/implementing-fractional-indexing
 // The first letter encodes integer part length: a=1 digit, b=2 digits, c=3 digits, etc.
@@ -434,7 +451,6 @@ export function applyAutomergePatchesToTLStore(
         // Skip records with missing required fields
         return
       }
-      console.error("Failed to sanitize record:", error, record)
       failedRecords.push(record)
     }
   })
@@ -443,7 +459,7 @@ export function applyAutomergePatchesToTLStore(
   // Log patch application for debugging
 
   if (failedRecords.length > 0) {
-    console.error("Failed to sanitize records:", failedRecords)
+    console.warn(`Failed to sanitize ${failedRecords.length} record(s)`)
   }
   
     // CRITICAL: Final safety check - ensure no geo shapes have w/h/geo at top level
@@ -583,11 +599,9 @@ export function sanitizeRecord(record: any): TLRecord {
     // DO NOT overwrite valid coordinates (including 0, which is a valid position)
     // Only set to 0 if the value is undefined, null, or NaN
     if (sanitized.x === undefined || sanitized.x === null || (typeof sanitized.x === 'number' && isNaN(sanitized.x))) {
-      console.warn(`⚠️ Shape ${sanitized.id} (${sanitized.type}) has invalid x coordinate, defaulting to 0. Original value:`, sanitized.x)
       sanitized.x = 0
     }
     if (sanitized.y === undefined || sanitized.y === null || (typeof sanitized.y === 'number' && isNaN(sanitized.y))) {
-      console.warn(`⚠️ Shape ${sanitized.id} (${sanitized.type}) has invalid y coordinate, defaulting to 0. Original value:`, sanitized.y)
       sanitized.y = 0
     }
     if (typeof sanitized.rotation !== 'number') sanitized.rotation = 0
@@ -605,7 +619,7 @@ export function sanitizeRecord(record: any): TLRecord {
     // Examples: "a1", "a2", "a10", "a1V", "a24sT", "a1V4rr" (fractional between a1 and a2)
     // Invalid: "c1", "b1", "z999" (old format - not valid fractional indices)
     if (!isValidIndexKey(sanitized.index)) {
-      console.warn(`⚠️ Invalid index "${sanitized.index}" for shape ${sanitized.id}, resetting to 'a1'`)
+      logInvalidIndexThrottled(sanitized.index, sanitized.id)
       sanitized.index = 'a1' as IndexKey
     }
     if (!sanitized.parentId) sanitized.parentId = 'page:page'
@@ -619,7 +633,7 @@ export function sanitizeRecord(record: any): TLRecord {
     } catch (e) {
       // If JSON serialization fails (e.g., due to functions or circular references),
       // create a shallow copy and recursively clean it
-      console.warn(`⚠️ Could not deep copy props for shape ${sanitized.id}, using shallow copy:`, e)
+      // Deep copy failed, using shallow copy
       const propsCopy: any = {}
       for (const key in sanitized.props) {
         try {
@@ -1183,7 +1197,7 @@ export function sanitizeRecord(record: any): TLRecord {
               }]
             }]
           }
-          console.log(`🔧 AutomergeToTLStore: Converted props.text to richText for text shape ${sanitized.id}`)
+          // Converted props.text to richText for text shape
         }
         // Preserve original text in meta for backward compatibility
         if (!sanitized.meta) sanitized.meta = {}
