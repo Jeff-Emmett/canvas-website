@@ -144,6 +144,7 @@ import { logActivity } from "../lib/activityLogger"
 import { ActivityPanel } from "../components/ActivityPanel"
 
 import { WORKER_URL } from "../constants/workerUrl"
+import { TransactionBuilderShape } from "@/shapes/TransactionBuilderShapeUtil"
 
 const customShapeUtils = [
   ChatBoxShape,
@@ -170,6 +171,7 @@ const customShapeUtils = [
   PrivateWorkspaceShape, // Private zone for Google Export data sovereignty
   GoogleItemShape, // Individual items from Google Export with privacy badges
   MapShape, // Open Mapping - OSM map shape
+  TransactionBuilderShape, // Safe multisig transaction builder
   // Conditionally included based on feature flags:
   ...(ENABLE_WORKFLOW ? [WorkflowBlockShape] : []), // Workflow Builder - dev only
   ...(ENABLE_CALENDAR ? [CalendarShape, CalendarEventShape] : []), // Calendar - dev only

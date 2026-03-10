@@ -1099,13 +1099,13 @@ export async function handleRequestAdminAccess(
     const body = await request.json().catch(() => ({})) as { reason?: string };
 
     // Send email to global admin (jeffemmett@gmail.com)
-    if (env.RESEND_API_KEY) {
+    if (env.EMAIL_RELAY_URL && env.EMAIL_RELAY_API_KEY) {
       const emailFrom = env.CRYPTID_EMAIL_FROM || 'Canvas <noreply@jeffemmett.com>';
 
-      const emailResponse = await fetch('https://api.resend.com/emails', {
+      const emailResponse = await fetch(`${env.EMAIL_RELAY_URL}/send`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+          'Authorization': `Bearer ${env.EMAIL_RELAY_API_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({

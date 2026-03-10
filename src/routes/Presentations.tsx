@@ -25,7 +25,7 @@ export function Presentations() {
             <div style={{position: "relative", paddingTop: "max(60%, 324px)", width: "100%", height: 0}}>
               <iframe 
                 style={{position: "absolute", border: "none", width: "100%", height: "100%", left: 0, top: 0}}
-                src="https://online.fliphtml5.com/phqos/xfym/" 
+                src="https://slides.jeffemmett.com/osmotic-governance" 
                 seamless={true}
                 scrolling="no" 
                 frameBorder="0" 
@@ -50,7 +50,7 @@ export function Presentations() {
             <div style={{position: "relative", paddingTop: "max(60%, 324px)", width: "100%", height: 0}}>
               <iframe 
                 style={{position: "absolute", border: "none", width: "100%", height: "100%", left: 0, top: 0}}
-                src="https://online.fliphtml5.com/phqos/bqra/" 
+                src="https://slides.jeffemmett.com/exploring-mycofi" 
                 seamless={true}
                 scrolling="no" 
                 frameBorder="0" 
@@ -75,7 +75,7 @@ export function Presentations() {
             <div style={{position: "relative", paddingTop: "max(60%, 324px)", width: "100%", height: 0}}>
               <iframe 
                 style={{position: "absolute", border: "none", width: "100%", height: "100%", left: 0, top: 0}}
-                src="https://online.fliphtml5.com/phqos/vwmt/" 
+                src="https://slides.jeffemmett.com/mycofi-cofi-gathering" 
                 seamless={true}
                 scrolling="no" 
                 frameBorder="0" 
@@ -102,7 +102,7 @@ export function Presentations() {
             <div style={{position: "relative", paddingTop: "max(60%, 324px)", width: "100%", height: 0}}>
               <iframe 
                 style={{position: "absolute", border: "none", width: "100%", height: "100%", left: 0, top: 0}}
-                src="https://online.fliphtml5.com/phqos/caal/" 
+                src="https://slides.jeffemmett.com/myco-mutualism" 
                 seamless={true}
                 scrolling="no" 
                 frameBorder="0" 
@@ -125,7 +125,7 @@ export function Presentations() {
             <div style={{position: "relative", paddingTop: "max(60%, 324px)", width: "100%", height: 0}}>
               <iframe 
                 style={{position: "absolute", border: "none", width: "100%", height: "100%", left: 0, top: 0}}
-                src="https://online.fliphtml5.com/phqos/pnlz/" 
+                src="https://slides.jeffemmett.com/psilocybernetics" 
                 seamless={true}
                 scrolling="no" 
                 frameBorder="0" 
@@ -148,7 +148,7 @@ export function Presentations() {
             <div style={{position: "relative", paddingTop: "max(60%, 324px)", width: "100%", height: 0}}>
               <iframe 
                 style={{position: "absolute", border: "none", width: "100%", height: "100%", left: 0, top: 0}}
-                src="https://online.fliphtml5.com/phqos/bnnf/" 
+                src="https://slides.jeffemmett.com/move-slow-fix-things" 
                 seamless={true}
                 scrolling="no" 
                 frameBorder="0" 
@@ -173,7 +173,7 @@ export function Presentations() {
             <div style={{position: "relative", paddingTop: "max(60%, 324px)", width: "100%", height: 0}}>
               <iframe 
                 style={{position: "absolute", border: "none", width: "100%", height: "100%", left: 0, top: 0}}
-                src="https://online.fliphtml5.com/phqos/hxac/" 
+                src="https://slides.jeffemmett.com/commons-stack-launch" 
                 seamless={true}
                 scrolling="no" 
                 frameBorder="0" 
@@ -198,7 +198,7 @@ export function Presentations() {
             <div style={{position: "relative", paddingTop: "max(60%, 324px)", width: "100%", height: 0}}>
               <iframe 
                 style={{position: "absolute", border: "none", width: "100%", height: "100%", left: 0, top: 0}}
-                src="https://online.fliphtml5.com/phqos/fhos/" 
+                src="https://slides.jeffemmett.com/conviction-voting" 
                 seamless={true}
                 scrolling="no" 
                 frameBorder="0" 
@@ -221,7 +221,7 @@ export function Presentations() {
             <div style={{position: "relative", paddingTop: "max(60%, 324px)", width: "100%", height: 0}}>
               <iframe 
                 style={{position: "absolute", border: "none", width: "100%", height: "100%", left: 0, top: 0}}
-                src="https://online.fliphtml5.com/phqos/zzoy/" 
+                src="https://slides.jeffemmett.com/polycentric-governance" 
                 seamless={true}
                 scrolling="no" 
                 frameBorder="0" 
@@ -246,7 +246,7 @@ export function Presentations() {
             <div style={{position: "relative", paddingTop: "max(60%, 324px)", width: "100%", height: 0}}>
               <iframe 
                 style={{position: "absolute", border: "none", width: "100%", height: "100%", left: 0, top: 0}}
-                src="https://online.fliphtml5.com/phqos/xoea/" 
+                src="https://slides.jeffemmett.com/mycofi-myco-munnities" 
                 seamless={true}
                 scrolling="no" 
                 frameBorder="0" 
@@ -269,7 +269,7 @@ export function Presentations() {
             <div style={{position: "relative", paddingTop: "max(60%, 324px)", width: "100%", height: 0}}>
               <iframe 
                 style={{position: "absolute", border: "none", width: "100%", height: "100%", left: 0, top: 0}}
-                src="https://online.fliphtml5.com/phqos/afbp/" 
+                src="https://slides.jeffemmett.com/community-resilience" 
                 seamless={true}
                 scrolling="no" 
                 frameBorder="0" 

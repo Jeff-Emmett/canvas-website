@@ -75,7 +75,8 @@ function createMockEnv(overrides: Partial<Environment> = {}): Environment {
     DAILY_API_KEY: 'mock-daily-key',
     DAILY_DOMAIN: 'mock.daily.co',
     CRYPTID_DB: createMockD1() as unknown as D1Database,
-    RESEND_API_KEY: 'mock-resend-key',
+    EMAIL_RELAY_URL: 'https://email-relay.jeffemmett.com',
+    EMAIL_RELAY_API_KEY: 'mock-relay-key',
     APP_URL: 'https://test.example.com',
     ...overrides,
   }

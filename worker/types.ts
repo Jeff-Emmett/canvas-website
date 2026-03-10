@@ -10,7 +10,8 @@ export interface Environment {
 	DAILY_DOMAIN: string;
 	// CryptID auth bindings
 	CRYPTID_DB?: D1Database;
-	RESEND_API_KEY?: string;
+	EMAIL_RELAY_URL?: string;
+	EMAIL_RELAY_API_KEY?: string;
 	CRYPTID_EMAIL_FROM?: string;
 	APP_URL?: string;
 	// Admin secret for protected endpoints

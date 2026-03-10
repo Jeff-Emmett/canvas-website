@@ -52,6 +52,8 @@ const CUSTOM_SHAPE_TYPES = [
   'PrivateWorkspace', // Private workspace for Google Export
   'GoogleItem', // Individual Google items
   'WorkflowBlock', // Workflow builder blocks
+  'BlenderGen', // Blender 3D procedural generation
+  'TransactionBuilder', // Safe multisig transaction builder
 ]
 
 // Combined set of all known shape types for validation
@@ -182,6 +184,8 @@ import { HolonBrowserShape } from "@/shapes/HolonBrowserShapeUtil"
 import { PrivateWorkspaceShape } from "@/shapes/PrivateWorkspaceShapeUtil"
 import { GoogleItemShape } from "@/shapes/GoogleItemShapeUtil"
 import { WorkflowBlockShape } from "@/shapes/WorkflowBlockShapeUtil"
+import { BlenderGenShape } from "@/shapes/BlenderGenShapeUtil"
+import { TransactionBuilderShape } from "@/shapes/TransactionBuilderShapeUtil"
 
 export function useAutomergeStoreV2({
   handle,
@@ -226,6 +230,8 @@ export function useAutomergeStoreV2({
       PrivateWorkspaceShape, // Private workspace for Google Export
       GoogleItemShape, // Individual Google items
       WorkflowBlockShape, // Workflow builder blocks
+      BlenderGenShape, // Blender 3D procedural generation
+      TransactionBuilderShape, // Safe multisig transaction builder
     ]
 
     // Use the module-level CUSTOM_SHAPE_TYPES constant
@@ -358,64 +364,31 @@ export function useAutomergeStoreV2({
             const automergeDoc = handle.doc()
             applyAutomergePatchesToTLStore(payload.patches, store, automergeDoc)
           } catch (patchError) {
-            console.error("Error applying patches batch, attempting individual patch application:", patchError)
-            // Try applying patches one by one to identify problematic ones
-            // This is a fallback - ideally we should fix the data at the source
+            // Batch application failed - try individual patches silently, only log summary
             let successCount = 0
-            let failedPatches: any[] = []
-            // CRITICAL: Pass Automerge document to patch handler so it can read full records
+            let failCount = 0
+            const errorTypes: Record<string, number> = {}
             const automergeDoc = handle.doc()
             for (const patch of payload.patches) {
               try {
                 applyAutomergePatchesToTLStore([patch], store, automergeDoc)
                 successCount++
               } catch (individualPatchError) {
-                failedPatches.push({ patch, error: individualPatchError })
-                console.error(`Failed to apply individual patch:`, individualPatchError)
-                
-                // Log the problematic patch for debugging
-                const recordId = patch.path[1] as string
-                console.error("Problematic patch details:", {
-                  action: patch.action,
-                  path: patch.path,
-                  recordId: recordId,
-                  value: 'value' in patch ? patch.value : undefined,
-                  errorMessage: individualPatchError instanceof Error ? individualPatchError.message : String(individualPatchError)
-                })
-                
-                // Try to get more context about the failing record
-                try {
-                  const existingRecord = store.get(recordId as any)
-                  console.error("Existing record that failed:", existingRecord)
-                  
-                  // If it's a geo shape missing props.geo, try to fix it
-                  if (existingRecord && (existingRecord as any).typeName === 'shape' && (existingRecord as any).type === 'geo') {
-                    const geoRecord = existingRecord as any
-                    if (!geoRecord.props || !geoRecord.props.geo) {
-                      // This won't help with the current patch, but might help future patches
-                      // The real fix should happen in AutomergeToTLStore sanitization
-                    }
-                  }
-                } catch (e) {
-                  console.error("Could not retrieve existing record:", e)
-                }
+                failCount++
+                // Categorize errors for summary
+                const msg = individualPatchError instanceof Error ? individualPatchError.message : String(individualPatchError)
+                const category = msg.includes('props.geo') ? 'missing props.geo' :
+                                 msg.includes('index') ? 'invalid index' :
+                                 msg.includes('typeName') ? 'missing typeName' :
+                                 'other'
+                errorTypes[category] = (errorTypes[category] || 0) + 1
               }
             }
-            
-            // Log summary
-            if (failedPatches.length > 0) {
-              console.error(`❌ Failed to apply ${failedPatches.length} out of ${payload.patches.length} patches`)
-              // Most common issue: geo shapes missing props.geo - this should be fixed in sanitization
-              const geoShapeErrors = failedPatches.filter(p => 
-                p.error instanceof Error && p.error.message.includes('props.geo')
-              )
-              if (geoShapeErrors.length > 0) {
-                console.error(`⚠️ ${geoShapeErrors.length} failures due to missing props.geo - this should be fixed in AutomergeToTLStore sanitization`)
-              }
-            }
-            
-            if (successCount < payload.patches.length || payload.patches.length > 5) {
-              // Partial patches applied
+
+            // Log a single summary line instead of per-patch errors
+            if (failCount > 0) {
+              const errorSummary = Object.entries(errorTypes).map(([k, v]) => `${k}: ${v}`).join(', ')
+              console.warn(`Patch sync: ${successCount}/${payload.patches.length} applied, ${failCount} failed (${errorSummary})`)
             }
           }
         }
@@ -492,11 +465,8 @@ export function useAutomergeStoreV2({
             return true
           })
 
-          // Log errors for any unknown shape types that were filtered out
           if (unknownShapeTypes.length > 0) {
-            console.error(`❌ Unknown shape types filtered out (shapes not loaded):`, unknownShapeTypes)
-            console.error(`   These shapes exist in the document but are not registered in KNOWN_SHAPE_TYPES.`)
-            console.error(`   To fix: Add these types to CUSTOM_SHAPE_TYPES in useAutomergeStoreV2.ts`)
+            console.warn(`Unknown shape types filtered out: ${unknownShapeTypes.join(', ')}`)
           }
           
           if (filteredRecords.length > 0) {
@@ -1242,9 +1212,7 @@ export function useAutomergeStoreV2({
                 } else {
                   // Patches didn't come through - this should be rare if handler is set up before data load
                   // Log a warning but don't show disruptive confirmation dialog
-                  console.warn(`⚠️ No patches received after ${maxAttempts} attempts for room initialization.`)
-                  console.warn(`⚠️ This may happen if Automerge doc was initialized with server data before handler was ready.`)
-                  console.warn(`⚠️ Store will remain empty - patches should handle data loading in normal operation.`)
+                  console.warn(`No patches received after ${maxAttempts} attempts - store may be empty`)
 
                   // Simplified fallback: Just log and continue with empty store
                   // Patches should handle data loading, so if they don't come through,

@@ -12,7 +12,7 @@ function generateUUID(): string {
   return crypto.randomUUID();
 }
 
-// Send email via Resend
+// Send email via self-hosted email relay (Mailcow SMTP)
 async function sendEmail(
   env: Environment,
   to: string,
@@ -20,15 +20,17 @@ async function sendEmail(
   htmlContent: string
 ): Promise<boolean> {
   try {
-    if (!env.RESEND_API_KEY) {
-      console.error('RESEND_API_KEY not configured');
+    const relayUrl = env.EMAIL_RELAY_URL;
+    const relayKey = env.EMAIL_RELAY_API_KEY;
+    if (!relayUrl || !relayKey) {
+      console.error('EMAIL_RELAY_URL or EMAIL_RELAY_API_KEY not configured');
       return false;
     }
 
-    const response = await fetch('https://api.resend.com/emails', {
+    const response = await fetch(`${relayUrl}/send`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+        'Authorization': `Bearer ${relayKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -41,7 +43,7 @@ async function sendEmail(
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Resend error:', errorText);
+      console.error('Email relay error:', errorText);
       return false;
     }
 

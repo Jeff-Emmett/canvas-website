@@ -108,7 +108,7 @@ crons = ["0 0 * * *"] # Run at midnight UTC every day
 # - CLOUDFLARE_API_TOKEN
 # - FAL_API_KEY        # For fal.ai image/video generation proxy
 # - RUNPOD_API_KEY     # For RunPod AI endpoints proxy
-# - RESEND_API_KEY     # For email sending
+# - EMAIL_RELAY_API_KEY # For email sending via self-hosted relay
 # - ADMIN_SECRET       # For admin-only endpoints
 #
 # To set secrets:
