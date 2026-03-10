@@ -859,8 +859,16 @@ export function Board() {
           }
         })
         
-        // If current page has no shapes but another page does, switch to that page
-        if (editorShapes.length === 0 && pageWithMostShapes && pageWithMostShapes !== currentPageId) {
+        // If current page has very few shapes but another page has significantly more, switch to that page
+        // This handles the case where a default page:page exists with just 1-2 shapes
+        // but the real content is on a different page (e.g. page:QZw03khAAJ7jNX7zQND64)
+        const currentPageShapeCount = editorShapes.length
+        const shouldSwitchPage = pageWithMostShapes && pageWithMostShapes !== currentPageId && (
+          currentPageShapeCount === 0 || // No shapes on current page
+          (maxShapes > 10 && currentPageShapeCount <= 2) // Current page has trivial content, other page has real content
+        )
+        if (shouldSwitchPage) {
+          console.log(`📊 Board: Switching from ${currentPageId} (${currentPageShapeCount} shapes) to ${pageWithMostShapes} (${maxShapes} shapes)`)
           try {
             editor.setCurrentPage(pageWithMostShapes as any)
             // Focus camera on shapes after switching
