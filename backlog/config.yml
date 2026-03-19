@@ -13,3 +13,5 @@ zero_padded_ids: 3
 bypass_git_hooks: false
 check_active_branches: true
 active_branch_days: 60
+task_prefix: "task"
+onStatusChange: 'python3 /home/jeffe/Github/dev-ops/scripts/backlog-notify.py'

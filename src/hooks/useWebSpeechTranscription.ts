@@ -79,8 +79,6 @@ export const useWebSpeechTranscription = ({
   const interimTranscriptRef = useRef('')
   const lastSpeechTimeRef = useRef<number>(0)
   const pauseTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const lastConfidenceRef = useRef<number>(0)
-  const speakerChangeThreshold = 0.3 // Threshold for detecting speaker changes
 
   // Function to add line breaks after pauses and improve punctuation
   const processTranscript = useCallback((text: string, isFinal: boolean = false) => {
@@ -109,30 +107,6 @@ export const useWebSpeechTranscription = ({
     return processedText
   }, [])
 
-  // Function to detect speaker changes based on confidence and timing
-  const detectSpeakerChange = useCallback((confidence: number) => {
-    if (lastConfidenceRef.current === 0) {
-      lastConfidenceRef.current = confidence
-      return false
-    }
-    
-    const confidenceDiff = Math.abs(confidence - lastConfidenceRef.current)
-    const now = Date.now()
-    const timeSinceLastSpeech = now - lastSpeechTimeRef.current
-    
-    // Detect speaker change if confidence changes significantly and there's been a pause
-    const isSpeakerChange = confidenceDiff > speakerChangeThreshold && timeSinceLastSpeech > 1000
-    
-    if (isSpeakerChange) {
-        // Reduced debug logging
-      lastConfidenceRef.current = confidence
-      return true
-    }
-    
-    lastConfidenceRef.current = confidence
-    return false
-  }, [speakerChangeThreshold])
-
   // Function to handle pause detection
   const handlePauseDetection = useCallback(() => {
     // Clear existing timeout
@@ -140,19 +114,21 @@ export const useWebSpeechTranscription = ({
       clearTimeout(pauseTimeoutRef.current)
     }
     
-    // Set new timeout for pause detection
+    // Set new timeout for pause detection — after a long silence,
+    // append a newline so the next utterance starts on a new line.
     pauseTimeoutRef.current = setTimeout(() => {
       const now = Date.now()
       const timeSinceLastSpeech = now - lastSpeechTimeRef.current
-      
-      // If more than 2 seconds of silence, add a line break to interim transcript
+
       if (timeSinceLastSpeech > 2000 && lastSpeechTimeRef.current > 0) {
-        const currentTranscript = finalTranscriptRef.current + '\n'
-        setTranscript(currentTranscript)
-        onTranscriptUpdate?.(currentTranscript)
-        // Reduced debug logging
+        // Only append the newline if the transcript doesn't already end with one
+        if (finalTranscriptRef.current && !finalTranscriptRef.current.endsWith('\n')) {
+          finalTranscriptRef.current += '\n'
+          setTranscript(finalTranscriptRef.current)
+          onTranscriptUpdate?.(finalTranscriptRef.current)
+        }
       }
-    }, 2000) // Check after 2 seconds of silence
+    }, 2000)
   }, [onTranscriptUpdate])
 
   // Check if Web Speech API is supported
@@ -202,24 +178,20 @@ export const useWebSpeechTranscription = ({
 
       // Update final transcript with processing
       if (finalTranscript) {
-        // Get confidence from the first result
-        const confidence = event.results[event.results.length - 1]?.[0]?.confidence || 0
-        
-        // Detect speaker change
-        const isSpeakerChange = detectSpeakerChange(confidence)
-        
-        // Add speaker indicator if change detected
-        let speakerPrefix = ''
-        if (isSpeakerChange) {
-          speakerPrefix = '\n[Speaker Change]\n'
-        }
-        
         const processedFinal = processTranscript(finalTranscript, true)
-        const newText = speakerPrefix + processedFinal
-        finalTranscriptRef.current += newText
+
+        // Append to running transcript with a space separator
+        if (finalTranscriptRef.current) {
+          finalTranscriptRef.current += ' ' + processedFinal
+        } else {
+          finalTranscriptRef.current = processedFinal
+        }
+
+        // Always send the full accumulated transcript so the shape
+        // receives one unified conversation instead of fragments
         setTranscript(finalTranscriptRef.current)
-        onTranscriptUpdate?.(newText) // Only send the new text portion
-        
+        onTranscriptUpdate?.(finalTranscriptRef.current)
+
         // Trigger pause detection
         handlePauseDetection()
       }
@@ -262,7 +234,6 @@ export const useWebSpeechTranscription = ({
       // setTranscript('')
       // setInterimTranscript('')
       lastSpeechTimeRef.current = 0
-      lastConfidenceRef.current = 0
       
       // Clear any existing pause timeout
       if (pauseTimeoutRef.current) {

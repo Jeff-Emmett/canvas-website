@@ -191,35 +191,25 @@ export class TranscriptionShape extends BaseBoxShapeUtil<ITranscription> {
 
     // Web Speech API hook for real-time transcription
     const webSpeechOptions = useMemo(() => ({
-      onTranscriptUpdate: (newText: string) => {
-        // Always append to existing text for continuous transcription
-        const currentText = shape.props.text || ''
-        const updatedText = currentText + (currentText ? ' ' : '') + newText
-        
+      onTranscriptUpdate: (fullText: string) => {
+        // The hook now sends the full accumulated transcript,
+        // so we replace rather than append
         if (!isLiveEditing) {
-          // Update shape text without changing height
           this.editor.updateShape({
             id: shape.id,
             type: 'Transcription',
             props: {
               ...shape.props,
-              text: updatedText
-              // Removed h: textHeight to prevent auto-resizing
+              text: fullText
             }
           })
-          
-          // Also update the editing content if it's empty or matches the old text
+
           if (!editingContent || editingContent === shape.props.text) {
-            setEditingContent(updatedText)
+            setEditingContent(fullText)
           }
         } else {
-          // In live editing mode, append to the separate live edit transcript
-          const currentLiveTranscript = liveEditTranscript || ''
-          const updatedLiveTranscript = currentLiveTranscript + (currentLiveTranscript ? ' ' : '') + newText
-          setLiveEditTranscript(updatedLiveTranscript)
-          
-          // Also update editing content to show the live transcript
-          setEditingContent(updatedLiveTranscript)
+          setLiveEditTranscript(fullText)
+          setEditingContent(fullText)
         }
       },
       onError: (error: Error) => {
