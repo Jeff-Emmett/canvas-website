@@ -40,6 +40,7 @@ const CUSTOM_SHAPE_TYPES = [
   'Holon',
   'ObsidianBrowser',
   'FathomMeetingsBrowser',
+  'MeetingIntelligenceBrowser',
   'ImageGen',
   'VideoGen',
   'Multmux',
@@ -167,6 +168,7 @@ import { FathomNoteShape } from "@/shapes/FathomNoteShapeUtil"
 import { HolonShape } from "@/shapes/HolonShapeUtil"
 import { ObsidianBrowserShape } from "@/shapes/ObsidianBrowserShapeUtil"
 import { FathomMeetingsBrowserShape } from "@/shapes/FathomMeetingsBrowserShapeUtil"
+import { MeetingIntelligenceBrowserShape } from "@/shapes/MeetingIntelligenceBrowserShapeUtil"
 import { ImageGenShape } from "@/shapes/ImageGenShapeUtil"
 import { VideoGenShape } from "@/shapes/VideoGenShapeUtil"
 import { MultmuxShape } from "@/shapes/MultmuxShapeUtil"
@@ -218,6 +220,7 @@ export function useAutomergeStoreV2({
       HolonShape,
       ObsidianBrowserShape,
       FathomMeetingsBrowserShape,
+      MeetingIntelligenceBrowserShape,
       ImageGenShape,
       VideoGenShape,
       MultmuxShape,

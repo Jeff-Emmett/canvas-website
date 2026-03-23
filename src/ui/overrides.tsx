@@ -211,6 +211,13 @@ export const overrides: TLUiOverrides = {
         // Shape creation is handled manually in FathomMeetingsTool.onPointerDown
         onSelect: () => editor.setCurrentTool("fathom-meetings"),
       },
+      MeetingIntelligence: {
+        id: "meeting-intelligence",
+        icon: "microphone",
+        label: "Meeting Intelligence",
+        readonlyOk: true,
+        onSelect: () => editor.setCurrentTool("meeting-intelligence"),
+      },
       ImageGen: {
         id: "ImageGen",
         icon: "image",

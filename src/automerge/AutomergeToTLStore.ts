@@ -682,6 +682,7 @@ export function sanitizeRecord(record: any): TLRecord {
       'holon': 'Holon',
       'obsidianBrowser': 'ObsidianBrowser',
       'fathomMeetingsBrowser': 'FathomMeetingsBrowser',
+      'meetingIntelligenceBrowser': 'MeetingIntelligenceBrowser',
       'imageGen': 'ImageGen',
       'videoGen': 'VideoGen',
       'multmux': 'Multmux',

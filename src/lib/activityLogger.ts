@@ -48,6 +48,7 @@ const SHAPE_DISPLAY_NAMES: Record<string, string> = {
   'HolonBrowser': 'holon browser',
   'ObsidianBrowser': 'Obsidian browser',
   'FathomMeetingsBrowser': 'Fathom browser',
+  'MeetingIntelligenceBrowser': 'Meeting Intelligence browser',
   'FathomNote': 'Fathom note',
   'ImageGen': 'AI image',
   'VideoGen': 'AI video',
