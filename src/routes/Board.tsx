@@ -43,6 +43,8 @@ import { HolonBrowserShape } from "@/shapes/HolonBrowserShapeUtil"
 import { ObsidianBrowserShape } from "@/shapes/ObsidianBrowserShapeUtil"
 import { FathomMeetingsBrowserShape } from "@/shapes/FathomMeetingsBrowserShapeUtil"
 import { FathomNoteShape } from "@/shapes/FathomNoteShapeUtil"
+import { MeetingIntelligenceBrowserShape } from "@/shapes/MeetingIntelligenceBrowserShapeUtil"
+import { MeetingIntelligenceTool } from "@/tools/MeetingIntelligenceTool"
 import { ImageGenShape } from "@/shapes/ImageGenShapeUtil"
 import { ImageGenTool } from "@/tools/ImageGenTool"
 import { VideoGenShape } from "@/shapes/VideoGenShapeUtil"
@@ -162,6 +164,7 @@ const customShapeUtils = [
   ObsidianBrowserShape,
   FathomMeetingsBrowserShape,
   FathomNoteShape, // Individual Fathom meeting notes created from FathomMeetingsBrowser
+  MeetingIntelligenceBrowserShape, // Self-hosted meeting intelligence browser
   ImageGenShape,
   VideoGenShape,
   BlenderGenShape, // Blender 3D procedural generation
@@ -190,6 +193,7 @@ const customTools = [
   TranscriptionTool,
   HolonTool,
   FathomMeetingsTool,
+  MeetingIntelligenceTool, // Self-hosted meeting intelligence tool
   ImageGenTool,
   VideoGenTool,
   BlenderGenTool, // Blender 3D procedural generation
@@ -1269,9 +1273,10 @@ export function Board() {
         // Check if any selected shapes are browser shapes that should not be deleted
         const selectedShapes = editor.getSelectedShapes();
         const hasBrowserShape = selectedShapes.some(shape => 
-          shape.type === 'ObsidianBrowser' || 
-          shape.type === 'HolonBrowser' || 
-          shape.type === 'FathomMeetingsBrowser'
+          shape.type === 'ObsidianBrowser' ||
+          shape.type === 'HolonBrowser' ||
+          shape.type === 'FathomMeetingsBrowser' ||
+          shape.type === 'MeetingIntelligenceBrowser'
         );
 
         // Prevent deletion of browser shapes with Escape
