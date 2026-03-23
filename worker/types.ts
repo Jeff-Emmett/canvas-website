@@ -6,8 +6,6 @@ export interface Environment {
 	TLDRAW_BUCKET: R2Bucket
 	BOARD_BACKUPS_BUCKET: R2Bucket
 	AUTOMERGE_DURABLE_OBJECT: DurableObjectNamespace
-	DAILY_API_KEY: string;
-	DAILY_DOMAIN: string;
 	// CryptID auth bindings
 	CRYPTID_DB?: D1Database;
 	EMAIL_RELAY_URL?: string;

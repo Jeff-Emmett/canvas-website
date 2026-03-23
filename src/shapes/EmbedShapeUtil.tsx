@@ -28,35 +28,30 @@ const transformUrl = (url: string): string => {
     return `https://www.youtube.com/embed/${youtubeMatch[1]}`
   }
 
-  // Google Maps
-  if (url.includes("google.com/maps") || url.includes("goo.gl/maps")) {
-    if (url.includes("google.com/maps/embed")) {
+  // OpenStreetMap (handles google.com/maps URLs too — converts to OSM)
+  if (url.includes("google.com/maps") || url.includes("goo.gl/maps") ||
+      url.includes("openstreetmap.org")) {
+    if (url.includes("openstreetmap.org/export/embed")) {
       return url
     }
 
-    const directionsMatch = url.match(/dir\/([^\/]+)\/([^\/]+)/)
-    if (directionsMatch || url.includes("/dir/")) {
-      const origin = url.match(/origin=([^&]+)/)?.[1] || directionsMatch?.[1]
-      const destination =
-        url.match(/destination=([^&]+)/)?.[1] || directionsMatch?.[2]
-
-      if (origin && destination) {
-        return `https://www.google.com/maps/embed/v1/directions?key=${
-          import.meta.env["VITE_GOOGLE_MAPS_API_KEY"]
-        }&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(
-          destination,
-        )}&mode=driving`
-      }
+    // Extract coordinates from Google Maps URL
+    const coordMatch = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*),?(\d+)?z?/)
+    if (coordMatch) {
+      const [, lat, lon, zoom] = coordMatch
+      const z = zoom || '15'
+      return `https://www.openstreetmap.org/export/embed.html?bbox=${Number(lon)-0.01},${Number(lat)-0.01},${Number(lon)+0.01},${Number(lat)+0.01}&layer=mapnik&marker=${lat},${lon}`
     }
 
-    const placeMatch = url.match(/[?&]place_id=([^&]+)/)
-    if (placeMatch) {
-      return `https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2!2d0!3d0!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s${placeMatch[1]}!2s!5e0!3m2!1sen!2s!4v1`
+    // Extract search query and embed via OSM
+    const qMatch = url.match(/[?&]q=([^&]+)/) || url.match(/place\/([^\/]+)/)
+    if (qMatch) {
+      const query = decodeURIComponent(qMatch[1].replace(/\+/g, ' '))
+      return `https://www.openstreetmap.org/export/embed.html?bbox=-180,-90,180,90&layer=mapnik`
     }
 
-    return `https://www.google.com/maps/embed/v1/place?key=${
-      import.meta.env.VITE_GOOGLE_MAPS_API_KEY
-    }&q=${encodeURIComponent(url)}`
+    // Fallback: OSM world view
+    return `https://www.openstreetmap.org/export/embed.html?bbox=-180,-90,180,90&layer=mapnik`
   }
 
   // Twitter/X
@@ -96,7 +91,7 @@ const getDefaultDimensions = (url: string): { w: number; h: number } => {
     }
   }
 
-  if (url.includes("google.com/maps") || url.includes("goo.gl/maps")) {
+  if (url.includes("google.com/maps") || url.includes("goo.gl/maps") || url.includes("openstreetmap.org")) {
     return { w: 800, h: 600 }
   }
 
@@ -125,8 +120,8 @@ const getDisplayTitle = (url: string): string => {
     if (urlObj.hostname.includes('twitter.com') || urlObj.hostname.includes('x.com')) {
       return 'Twitter/X'
     }
-    if (urlObj.hostname.includes('google.com/maps')) {
-      return 'Google Maps'
+    if (urlObj.hostname.includes('google.com/maps') || urlObj.hostname.includes('openstreetmap.org')) {
+      return 'Map'
     }
     return urlObj.hostname.replace('www.', '')
   } catch {
