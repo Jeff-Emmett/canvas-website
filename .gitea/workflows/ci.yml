@@ -17,11 +17,13 @@ jobs:
     steps:
       - name: Checkout
         run: |
-          apt-get update -qq && apt-get install -y -qq git python3 make g++ > /dev/null 2>&1
+          apt-get update -qq && apt-get install -y -qq git > /dev/null 2>&1
           git clone --depth 1 --branch ${{ github.ref_name }} http://token:${{ github.token }}@server:3000/${{ github.repository }}.git .
 
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm ci --legacy-peer-deps --ignore-scripts
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
 
       - name: Type check
         run: npx tsc --noEmit
@@ -37,14 +39,16 @@ jobs:
     steps:
       - name: Checkout
         run: |
-          apt-get update -qq && apt-get install -y -qq git python3 make g++ > /dev/null 2>&1
+          apt-get update -qq && apt-get install -y -qq git > /dev/null 2>&1
           git clone --depth 1 --branch ${{ github.ref_name }} http://token:${{ github.token }}@server:3000/${{ github.repository }}.git .
 
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm ci --legacy-peer-deps --ignore-scripts
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
 
       - name: Build
-        run: npm run build
+        run: npx tsc && npx vite build
         env:
           NODE_OPTIONS: "--max-old-space-size=4096"
 
