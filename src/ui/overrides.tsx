@@ -227,6 +227,15 @@ export const overrides: TLUiOverrides = {
         type: "ImageGen",
         onSelect: () => editor.setCurrentTool("ImageGen"),
       },
+      MermaidGen: {
+        id: "MermaidGen",
+        icon: "code",
+        label: "Mermaid Diagram",
+        kbd: "ctrl+shift+r",
+        readonlyOk: true,
+        type: "MermaidGen",
+        onSelect: () => editor.setCurrentTool("MermaidGen"),
+      },
       VideoGen: {
         id: "VideoGen",
         icon: "video",

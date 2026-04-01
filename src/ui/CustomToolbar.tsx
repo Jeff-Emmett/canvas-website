@@ -37,6 +37,7 @@ const AI_TOOLS = [
   { id: 'video-gen', name: 'Video Gen', icon: '🎬', model: 'Wan2.1', provider: 'RunPod', type: 'gpu' },
   { id: 'transcription', name: 'Transcribe', icon: '🎤', model: 'Web Speech', provider: 'Browser', type: 'local' },
   { id: 'mycelial', name: 'Mycelial', icon: '🍄', model: 'llama3.1:70b', provider: 'Ollama', type: 'local' },
+  { id: 'mermaid-gen', name: 'Diagrams', icon: '🔀', model: 'llama3.1:8b', provider: 'Ollama', type: 'local' },
 ]
 
 // Dark mode utilities
@@ -763,6 +764,14 @@ export function CustomToolbar() {
                 icon="image"
                 label="Image Generation"
                 isSelected={tools["ImageGen"].id === editor.getCurrentToolId()}
+              />
+            )}
+            {tools["MermaidGen"] && (
+              <TldrawUiMenuItem
+                {...tools["MermaidGen"]}
+                icon="code"
+                label="Mermaid Diagram"
+                isSelected={tools["MermaidGen"].id === editor.getCurrentToolId()}
               />
             )}
             {tools["VideoGen"] && (

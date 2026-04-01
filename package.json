@@ -77,6 +77,7 @@
 		"lodash.throttle": "^4.1.1",
 		"maplibre-gl": "^5.14.0",
 		"marked": "^15.0.4",
+		"mermaid": "^11.14.0",
 		"one-webcrypto": "^1.0.3",
 		"openai": "^4.79.3",
 		"qrcode.react": "^4.2.0",
