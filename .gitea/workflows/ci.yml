@@ -8,8 +8,8 @@ on:
     branches: [main]
 
 env:
-  REGISTRY: gitea.jeffemmett.com
-  IMAGE: gitea.jeffemmett.com/jeffemmett/canvas-website
+  REGISTRY: localhost:3000
+  IMAGE: localhost:3000/jeffemmett/canvas-website
 
 jobs:
   test:
