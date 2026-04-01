@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: Checkout
         run: |
-          apt-get update -qq && apt-get install -y -qq git > /dev/null 2>&1
+          apt-get update -qq && apt-get install -y -qq git python3 make g++ > /dev/null 2>&1
           git clone --depth 1 --branch ${{ github.ref_name }} http://token:${{ github.token }}@server:3000/${{ github.repository }}.git .
 
       - name: Install dependencies
@@ -36,7 +36,7 @@ jobs:
     steps:
       - name: Checkout
         run: |
-          apt-get update -qq && apt-get install -y -qq git > /dev/null 2>&1
+          apt-get update -qq && apt-get install -y -qq git python3 make g++ > /dev/null 2>&1
           git clone --depth 1 --branch ${{ github.ref_name }} http://token:${{ github.token }}@server:3000/${{ github.repository }}.git .
 
       - name: Install dependencies
