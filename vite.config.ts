@@ -175,11 +175,6 @@ export default defineConfig(({ mode }) => {
               return 'codemirror';
             }
 
-            // Daily video chat
-            if (id.includes('node_modules/@daily-co')) {
-              return 'daily-video';
-            }
-
             // html2canvas (screenshots)
             if (id.includes('node_modules/html2canvas')) {
               return 'html2canvas';
@@ -209,8 +204,6 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       // Worker URL is now handled dynamically in Board.tsx based on window.location.hostname
-      // This ensures remote devices connect to the correct worker IP
-      __DAILY_API_KEY__: JSON.stringify(process.env.VITE_DAILY_API_KEY || env.VITE_DAILY_API_KEY)
     },
     optimizeDeps: {
       include: [
