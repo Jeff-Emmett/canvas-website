@@ -1,5 +1,5 @@
 name: CI/CD
-# Runner capacity: 1 (sequential) to prevent OOM on shared host
+# Runner capacity: 1 (sequential) — deploy via Docker gateway SSH
 
 on:
   push:
