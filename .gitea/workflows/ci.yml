@@ -39,25 +39,59 @@ jobs:
         env:
           NODE_OPTIONS: "--max-old-space-size=4096"
 
-  deploy-test:
+  deploy:
+    if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
     needs: [test-and-build]
     runs-on: ubuntu-latest
     container:
       image: docker:24-cli
     steps:
-      - name: Debug context
+      - name: Setup tools
+        run: apk add --no-cache git openssh-client curl
+
+      - name: Checkout
+        run: git clone --depth 1 --branch ${{ github.ref_name }} http://token:${{ github.token }}@server:3000/${{ github.repository }}.git .
+
+      - name: Set image tag
         run: |
-          echo "github.ref=${{ github.ref }}"
-          echo "github.ref_name=${{ github.ref_name }}"
-          echo "github.event_name=${{ github.event_name }}"
-          echo "github.repository=${{ github.repository }}"
-          echo "REGISTRY=${{ env.REGISTRY }}"
-          echo "IMAGE=${{ env.IMAGE }}"
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-8)
+          echo "IMAGE_TAG=${SHORT_SHA}" >> $GITHUB_ENV
+          echo "Building image tag: ${SHORT_SHA}"
 
-      - name: Test docker access
-        run: docker info --format '{{.ServerVersion}}'
+      - name: Build image
+        run: docker build -t ${{ env.IMAGE }}:${{ env.IMAGE_TAG }} -t ${{ env.IMAGE }}:latest .
 
-      - name: Test registry login
+      - name: Push to registry
         run: |
           echo "${{ secrets.REGISTRY_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ secrets.REGISTRY_USER }} --password-stdin
-          echo "Registry login successful"
+          docker push ${{ env.IMAGE }}:${{ env.IMAGE_TAG }}
+          docker push ${{ env.IMAGE }}:latest
+
+      - name: Deploy to server
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" | base64 -d > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key root@${{ secrets.DEPLOY_HOST }} "
+            cd /opt/websites/canvas-website-staging
+            cat .last-deployed-tag 2>/dev/null > .rollback-tag || true
+            echo '${{ env.IMAGE_TAG }}' > .last-deployed-tag
+            docker pull ${{ env.IMAGE }}:${{ env.IMAGE_TAG }}
+            IMAGE_TAG=${{ env.IMAGE_TAG }} docker compose up -d --no-build
+          "
+
+      - name: Smoke test
+        run: |
+          sleep 10
+          HTTP_CODE=$(curl -sS -o /dev/null -w "%{http_code}" --max-time 15 https://jeffemmett.com/ 2>/dev/null || echo "000")
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Smoke test failed (HTTP $HTTP_CODE) — rolling back"
+            ROLLBACK_TAG=$(ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key root@${{ secrets.DEPLOY_HOST }} "cat /opt/websites/canvas-website-staging/.rollback-tag 2>/dev/null")
+            if [ -n "$ROLLBACK_TAG" ]; then
+              ssh -o StrictHostKeyChecking=no -i ~/.ssh/deploy_key root@${{ secrets.DEPLOY_HOST }} \
+                "cd /opt/websites/canvas-website-staging && IMAGE_TAG=$ROLLBACK_TAG docker compose up -d --no-build"
+              echo "Rolled back to $ROLLBACK_TAG"
+            fi
+            exit 1
+          fi
+          echo "Smoke test passed (HTTP $HTTP_CODE)"
