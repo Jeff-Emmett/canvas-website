@@ -37,7 +37,7 @@ jobs:
     needs: [test]
     runs-on: ubuntu-latest
     container:
-      image: docker:24-cli
+      image: docker:cli
     steps:
       - name: Setup tools
         run: apk add --no-cache git openssh-client curl
