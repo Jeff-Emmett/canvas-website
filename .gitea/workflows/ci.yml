@@ -35,7 +35,7 @@ jobs:
       - name: Build
         run: npx vite build
         env:
-          NODE_OPTIONS: "--max-old-space-size=2048"
+          NODE_OPTIONS: "--max-old-space-size=4096"
 
   deploy:
     if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
