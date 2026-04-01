@@ -44,8 +44,6 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: docker:24-cli
-      volumes:
-        - /var/run/docker.sock:/var/run/docker.sock
     steps:
       - name: Debug context
         run: |
