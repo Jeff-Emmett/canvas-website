@@ -12,7 +12,7 @@ env:
   IMAGE: gitea.jeffemmett.com/jeffemmett/canvas-website
 
 jobs:
-  test-and-build:
+  test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -22,8 +22,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --legacy-peer-deps --ignore-scripts
-        env:
-          NODE_OPTIONS: "--max-old-space-size=4096"
 
       - name: Type check
         run: npx tsc --noEmit
@@ -34,19 +32,12 @@ jobs:
       - name: Worker tests
         run: npx vitest run --config vitest.worker.config.ts || echo "::warning::Worker tests had failures"
 
-      - name: Build
-        run: npx vite build
-        env:
-          NODE_OPTIONS: "--max-old-space-size=4096"
-
   deploy:
     if: ${{ github.ref == 'refs/heads/main' && github.event_name == 'push' }}
-    needs: [test-and-build]
+    needs: [test]
     runs-on: ubuntu-latest
     container:
       image: docker:24-cli
-      volumes:
-        - /var/run/docker.sock:/var/run/docker.sock
     steps:
       - name: Setup tools
         run: apk add --no-cache git openssh-client curl
