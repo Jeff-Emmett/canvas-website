@@ -47,8 +47,6 @@ import { MeetingIntelligenceBrowserShape } from "@/shapes/MeetingIntelligenceBro
 import { MeetingIntelligenceTool } from "@/tools/MeetingIntelligenceTool"
 import { ImageGenShape } from "@/shapes/ImageGenShapeUtil"
 import { ImageGenTool } from "@/tools/ImageGenTool"
-import { MermaidGenShape } from "@/shapes/MermaidGenShapeUtil"
-import { MermaidGenTool } from "@/tools/MermaidGenTool"
 import { VideoGenShape } from "@/shapes/VideoGenShapeUtil"
 import { VideoGenTool } from "@/tools/VideoGenTool"
 // Blender 3D generation
@@ -168,7 +166,6 @@ const customShapeUtils = [
   FathomNoteShape, // Individual Fathom meeting notes created from FathomMeetingsBrowser
   MeetingIntelligenceBrowserShape, // Self-hosted meeting intelligence browser
   ImageGenShape,
-  MermaidGenShape,
   VideoGenShape,
   BlenderGenShape, // Blender 3D procedural generation
   ...(ENABLE_DRAWFAST ? [DrawfastShape] : []), // Drawfast - dev only
@@ -198,7 +195,6 @@ const customTools = [
   FathomMeetingsTool,
   MeetingIntelligenceTool, // Self-hosted meeting intelligence tool
   ImageGenTool,
-  MermaidGenTool,
   VideoGenTool,
   BlenderGenTool, // Blender 3D procedural generation
   ...(ENABLE_DRAWFAST ? [DrawfastTool] : []), // Drawfast - dev only
