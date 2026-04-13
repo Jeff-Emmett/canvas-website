@@ -445,7 +445,7 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
             // Wait for network adapter with a timeout
             const networkReadyPromise = adapter.whenReady()
             const timeoutPromise = new Promise<'timeout'>((resolve) =>
-              setTimeout(() => resolve('timeout'), 5000)
+              setTimeout(() => resolve('timeout'), 15000)
             )
 
             const result = await Promise.race([networkReadyPromise, timeoutPromise])
@@ -500,39 +500,42 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
                   const localShapeCount = Object.values(doc.store).filter((r: any) => r?.typeName === 'shape').length
                   const localIsEmpty = Object.keys(doc.store).length === 0
 
-                  // IMPROVED: Server is source of truth on initial load
-                  // Prefer server if:
-                  // - Local is empty (first load or cleared cache)
-                  // - Server has more shapes (local is likely stale/incomplete)
-                  // - Local has shapes but server has different/more content
-                  const serverHasMoreContent = serverShapeCount > localShapeCount
-                  const shouldPreferServer = localIsEmpty || localShapeCount === 0 || serverHasMoreContent
+                  // Server is ALWAYS authoritative on initial page load.
+                  // Previous logic only preferred server when it had more shapes,
+                  // but that's flawed: local IndexedDB can accumulate stale/deleted
+                  // shapes, keeping its count artificially high and preventing
+                  // server data from ever overwriting the stale cache.
+                  // After initial sync, ongoing CRDT WebSocket sync handles changes.
 
                   let addedFromServer = 0
                   let updatedFromServer = 0
-                  let keptLocal = 0
 
+                  // Apply all server records (add new, overwrite existing)
                   Object.entries(serverDoc.store).forEach(([id, record]) => {
                     const existsLocally = !!doc.store[id]
-
-                    if (!existsLocally) {
-                      // Record doesn't exist locally - add from server
-                      doc.store[id] = record
-                      addedFromServer++
-                    } else if (shouldPreferServer) {
-                      // Record exists locally but server has more content - update with server version
-                      // This handles stale IndexedDB cache scenarios
-                      doc.store[id] = record
+                    doc.store[id] = record
+                    if (existsLocally) {
                       updatedFromServer++
                     } else {
-                      // Local has equal or more content - keep local version
-                      // Local changes will sync to server via normal CRDT mechanism
-                      keptLocal++
+                      addedFromServer++
                     }
                   })
 
-                  totalMerged = addedFromServer + updatedFromServer
-                  console.log(`🔄 Server sync: added=${addedFromServer}, updated=${updatedFromServer}, keptLocal=${keptLocal}, serverShapes=${serverShapeCount}, localShapes=${localShapeCount}, preferServer=${shouldPreferServer}`)
+                  // Remove local-only shapes that don't exist on server
+                  // (they were deleted on server but still in stale IndexedDB)
+                  let removedStale = 0
+                  if (!localIsEmpty) {
+                    const serverIds = new Set(Object.keys(serverDoc.store))
+                    for (const id of Object.keys(doc.store)) {
+                      if (!serverIds.has(id) && doc.store[id]?.typeName === 'shape') {
+                        delete doc.store[id]
+                        removedStale++
+                      }
+                    }
+                  }
+
+                  totalMerged = addedFromServer + updatedFromServer + removedStale
+                  console.log(`🔄 Server sync: added=${addedFromServer}, updated=${updatedFromServer}, removedStale=${removedStale}, serverShapes=${serverShapeCount}, localShapes=${localShapeCount}`)
                 })
 
                 const finalDoc = handle.doc()
