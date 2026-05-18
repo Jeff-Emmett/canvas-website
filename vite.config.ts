@@ -161,10 +161,15 @@ export default defineConfig(({ mode }) => {
               return 'ml-libs';
             }
 
-            // Markdown editors
+            // Markdown editors.
+            // NOTE: @mdxeditor/editor must NOT be force-chunked here. It is
+            // React-dependent and evaluates React APIs (forwardRef) at module
+            // init; grouping it into this chunk (separate from react-vendor)
+            // caused a chunk init-order crash:
+            //   "Cannot read properties of undefined (reading 'forwardRef')".
+            // Leave it for Rollup to auto-place alongside its React importer.
             if (id.includes('node_modules/@uiw/react-md-editor') ||
                 id.includes('node_modules/cherry-markdown') ||
-                id.includes('node_modules/@mdxeditor/editor') ||
                 id.includes('node_modules/marked') ||
                 id.includes('node_modules/react-markdown')) {
               return 'markdown';
