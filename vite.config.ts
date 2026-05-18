@@ -164,9 +164,24 @@ export default defineConfig(({ mode }) => {
             // Markdown editors
             if (id.includes('node_modules/@uiw/react-md-editor') ||
                 id.includes('node_modules/cherry-markdown') ||
+                id.includes('node_modules/@mdxeditor/editor') ||
                 id.includes('node_modules/marked') ||
                 id.includes('node_modules/react-markdown')) {
               return 'markdown';
+            }
+
+            // Map rendering (maplibre-gl ~1MB + h3 geo) — used only by
+            // MapShapeUtil. Statically imported, but pulled into its own
+            // chunk so it no longer bloats the Board route chunk and is
+            // cached independently of unrelated canvas code.
+            if (id.includes('node_modules/maplibre-gl') ||
+                id.includes('node_modules/h3-js')) {
+              return 'maps';
+            }
+
+            // Terminal emulator (xterm) — used only by MultmuxShapeUtil.
+            if (id.includes('node_modules/@xterm')) {
+              return 'terminal';
             }
 
             // CodeMirror (used by markdown editors)

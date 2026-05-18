@@ -441,27 +441,37 @@ export function useAutomergeSync(config: AutomergeSyncConfig): TLStoreWithStatus
         // Sync with server in the background (non-blocking for offline-first)
         // This runs in parallel - if it fails, we still have local data
         const syncWithServer = async () => {
+          // Offline-first: render immediately. First paint must NEVER depend
+          // on the network. If we have no local data yet, set the handle now
+          // so the (empty) canvas mounts; server data is merged in below the
+          // moment it arrives.
+          if (!loadedFromLocal && mounted) {
+            setHandle(handle)
+            setIsLoading(false)
+          }
+
           try {
-            // Wait for network adapter with a timeout
-            const networkReadyPromise = adapter.whenReady()
-            const timeoutPromise = new Promise<'timeout'>((resolve) =>
-              setTimeout(() => resolve('timeout'), 15000)
-            )
-
-            const result = await Promise.race([networkReadyPromise, timeoutPromise])
-
-            if (result === 'timeout') {
-              // If we haven't set the handle yet (no local data), set it now
-              if (!loadedFromLocal && mounted) {
-                setHandle(handle)
-                setIsLoading(false)
-              }
-              return
+            // Fetch the R2 snapshot DIRECTLY — independent of the WebSocket.
+            // The REST snapshot is initial hydration; the WebSocket adapter
+            // (adapter.whenReady()) is for ongoing CRDT sync and is driven
+            // automatically by the Automerge Repo. Previously this fetch was
+            // gated behind a race of adapter.whenReady() vs a 15s timeout, so
+            // a cold Durable Object would blow past the timeout and the code
+            // returned WITHOUT ever fetching /room — leaving the canvas empty
+            // even though GET /room/:roomId returns in well under a second on
+            // its own. The timeout now bounds the fetch itself, not the WS.
+            const controller = new AbortController()
+            const fetchTimeout = setTimeout(() => controller.abort(), 15000)
+            let response: Response
+            try {
+              response = await fetch(`${workerUrl}/room/${roomId}`, {
+                signal: controller.signal,
+              })
+            } finally {
+              clearTimeout(fetchTimeout)
             }
 
             if (!mounted) return
-
-            const response = await fetch(`${workerUrl}/room/${roomId}`)
             if (response.ok) {
               let serverDoc = await response.json() as TLStoreSnapshot
 
