@@ -987,7 +987,10 @@ async function autoMigrateAPIKeys() {
 				models: {
 					openai: 'gpt-4o',
 					anthropic: 'claude-sonnet-4-5-20250929',
-					google: 'gemini-1.5-flash'
+					// gemini-1.5-flash is RETIRED — generateContent returns 404.
+					// This is the DEFAULT written into a user's settings, so anyone who
+					// picked Google and never overrode it got a dead model. TASK-138.
+					google: 'gemini-2.5-flash'
 				},
 				keys: {
 					openai: provider === 'openai' ? raw : '',
