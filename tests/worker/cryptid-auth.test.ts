@@ -280,7 +280,7 @@ describe('handleRequestDeviceLink', () => {
     const data = await response.json() as { error: string }
 
     expect(response.status).toBe(404)
-    expect(data.error).toBe('No verified CryptID account found for this email')
+    expect(data.error).toBe('No verified enCryptID account found for this email')
   })
 })
 

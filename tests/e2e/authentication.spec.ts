@@ -335,11 +335,11 @@ test.describe('Anonymous/Guest Mode', () => {
 
     const canvas = page.locator('.tl-canvas')
     await canvas.click({ position: { x: 200, y: 200 } })
-    await page.waitForTimeout(500)
 
-    // Shape should be created
-    const shapes = await page.locator('.tl-shape').count()
-    expect(shapes).toBeGreaterThan(0)
+    // Shape should be created. Poll rather than sleep-then-count: on a cold
+    // CI runner tldraw can take well over 500ms to commit the shape, which
+    // made a fixed wait + one-shot count flaky.
+    await expect(page.locator('.tl-shape').first()).toBeVisible({ timeout: 15000 })
   })
 
   test('shows anonymous indicator or viewer banner', async ({ page }) => {
